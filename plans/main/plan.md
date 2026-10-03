@@ -66,3 +66,7 @@
 ## 幫戰與龍虎戰類型
 
 新增幫戰與龍虎戰兩種可多日的安排, 同步資料驗證、類型篩選及月曆, 計畫見 [event-types-plan.md](event-types-plan.md)。
+
+## 戰場排表
+
+新增每場獨立排表、60 人位置、所屬資格篩選、可復用範本與不可變的確認歷史, 見 [battlefield-lineup-plan.md](battlefield-lineup-plan.md)。

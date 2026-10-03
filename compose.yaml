@@ -9,6 +9,7 @@ services:
       - '127.0.0.1:3001:3001'
     volumes:
       - ./server:/app/server
+      - ./src/domain:/app/src/domain
       - guild_data:/data
     healthcheck:
       test:

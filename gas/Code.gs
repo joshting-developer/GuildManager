@@ -49,3 +49,19 @@ function updateEvent(id, input) {
 function deleteEvent(id, revision) {
   throw new Error('雲端活動刪除尚未串接 Google 試算表');
 }
+
+function getLineupIndex() {
+  throw new Error('雲端戰場排表尚未串接 Google 試算表');
+}
+function getLineupHistory(eventId) {
+  throw new Error('雲端排表歷史尚未串接 Google 試算表');
+}
+function confirmLineup(input) {
+  throw new Error('雲端排表確認尚未串接 Google 試算表');
+}
+function createLineupTemplate(input) {
+  throw new Error('雲端排表範本尚未串接 Google 試算表');
+}
+function applyLineupTemplate(templateId, eventId) {
+  throw new Error('雲端排表範本套用尚未串接 Google 試算表');
+}

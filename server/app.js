@@ -1,5 +1,6 @@
 import express from 'express';
 import { EventError } from './event-repository.js';
+import { LineupError } from './lineup-repository.js';
 import { MemberError } from './member-validation.js';
 
 export function createApp(repository) {
@@ -22,6 +23,7 @@ export function createApp(repository) {
     next();
   });
   app.use('/api/members/import', express.json({ limit: '512kb' }));
+  app.use('/api/lineups', express.json({ limit: '64kb' }));
   app.use(express.json({ limit: '16kb' }));
   app.get('/api/health', (_request, response) => {
     repository.readHome();
@@ -48,6 +50,23 @@ export function createApp(repository) {
   app.get('/api/professions', (_request, response) => {
     response.set('Cache-Control', 'no-store').json(repository.listProfessions());
   });
+  app.get('/api/lineups', (_request, response) => {
+    response.set('Cache-Control', 'no-store').json(repository.getLineupIndex());
+  });
+  app.get('/api/lineups/events/:id', (request, response) => {
+    response.set('Cache-Control', 'no-store').json(repository.getLineupHistory(request.params.id));
+  });
+  app.post('/api/lineups/confirm', (request, response) => {
+    response.status(201).json({ version: repository.confirmLineup(request.body) });
+  });
+  app.post('/api/lineups/templates', (request, response) => {
+    response.status(201).json({ template: repository.createLineupTemplate(request.body) });
+  });
+  app.get('/api/lineups/templates/:id/apply/:eventId', (request, response) => {
+    response
+      .set('Cache-Control', 'no-store')
+      .json(repository.applyLineupTemplate(request.params.id, request.params.eventId));
+  });
   app.get('/api/members', (_request, response) => {
     response.set('Cache-Control', 'no-store').json(repository.listMembers());
   });
@@ -70,7 +89,11 @@ export function createApp(repository) {
     response.status(404).json({ error: { code: 'NOT_FOUND', message: '找不到這個資料介面' } });
   });
   app.use((error, _request, response, _next) => {
-    if (error instanceof MemberError || error instanceof EventError) {
+    if (
+      error instanceof MemberError ||
+      error instanceof EventError ||
+      error instanceof LineupError
+    ) {
       return response.status(error.status).json({
         error: {
           code: error.code,
