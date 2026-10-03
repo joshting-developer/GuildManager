@@ -7,6 +7,7 @@ import {
   mdiRefresh,
   mdiContentSaveOutline,
   mdiAccountGroupOutline,
+  mdiAccountPlusOutline,
 } from '@mdi/js';
 import { createLineupClient } from '../api/lineups.js';
 import { createMemberClient } from '../api/members.js';
@@ -127,6 +128,11 @@ const dialog = ref(null),
   seatProfession = ref('primary'),
   seatSecondUid = ref(null),
   seatSecondProfession = ref('primary');
+const registrationName = ref(''),
+  registrationProfessionId = ref(null),
+  registrationNote = ref(''),
+  registrationRevision = ref('');
+let registrationAttempt = null;
 let seatBaseline = '';
 let operation = 0,
   disposed = false,
@@ -155,17 +161,19 @@ const saveStatus = computed(() =>
         : '尚未儲存',
 );
 const dialogDirty = computed(() =>
-  dialog.value === 'template'
-    ? Boolean(templateName.value.trim())
-    : dialog.value === 'seat' &&
-      JSON.stringify([
-        seatUid.value,
-        seatProfession.value,
-        seatSecondUid.value,
-        seatSecondProfession.value,
-        seatNote.value,
-        seatDutyIds.value,
-      ]) !== seatBaseline,
+  dialog.value === 'registration'
+    ? Boolean(registrationName.value || registrationProfessionId.value || registrationNote.value)
+    : dialog.value === 'template'
+      ? Boolean(templateName.value.trim())
+      : dialog.value === 'seat' &&
+        JSON.stringify([
+          seatUid.value,
+          seatProfession.value,
+          seatSecondUid.value,
+          seatSecondProfession.value,
+          seatNote.value,
+          seatDutyIds.value,
+        ]) !== seatBaseline,
 );
 const latestVersion = computed(() => savedLineup.value?.version || 0);
 const assigned = computed(
@@ -451,6 +459,92 @@ function openDialog(type) {
   if (type === 'template') {
     templateName.value = '';
     templateAttempt = null;
+  } else if (type === 'registration') {
+    registrationName.value = '';
+    registrationProfessionId.value = null;
+    registrationNote.value = '';
+    registrationRevision.value = '';
+    registrationAttempt = null;
+    reloadRegistration();
+  }
+}
+async function reloadRegistration() {
+  if (busy.value) return;
+  busy.value = true;
+  dialogError.value = '';
+  registrationRevision.value = '';
+  try {
+    const responses = await participationClient.getParticipation(eventId.value);
+    if (disposed) return;
+    if (responses.eventId !== eventId.value || !responses.revision) {
+      throw new Error('資料格式不正確, 請重新載入');
+    }
+    participation.value = responses;
+    registrationRevision.value = responses.revision;
+  } catch (cause) {
+    dialogError.value = cause.message;
+  } finally {
+    busy.value = false;
+  }
+}
+async function submitRegistration() {
+  if (readOnly.value || !registrationRevision.value) return;
+  dialogError.value = '';
+  if (!registrationName.value.trim()) {
+    dialogError.value = '請填寫名稱';
+    return;
+  }
+  if (!registrationProfessionId.value) {
+    dialogError.value = '請選擇職業';
+    return;
+  }
+  const input = {
+    name: registrationName.value.trim(),
+    professionId: registrationProfessionId.value,
+    status: 'registered',
+    note: registrationNote.value.trim(),
+    revision: registrationRevision.value,
+  };
+  registrationAttempt = attempt(registrationAttempt, input);
+  busy.value = true;
+  error.value = '';
+  notice.value = '';
+  try {
+    const result = await participationClient.submitParticipation(eventId.value, {
+      ...input,
+      requestId: registrationAttempt.requestId,
+    });
+    if (disposed) return;
+    if (
+      result.eventId !== eventId.value ||
+      result.name !== input.name ||
+      result.status !== 'registered'
+    ) {
+      throw new Error('回應格式不正確, 請重試以確認結果');
+    }
+    notice.value = '報名成功';
+    try {
+      const [people, responses] = await Promise.all([
+        memberClient.getMembers(),
+        participationClient.getParticipation(eventId.value),
+      ]);
+      if (disposed) return;
+      members.value = people.members;
+      participation.value = responses;
+      const member = members.value.find(
+        (row) => row.name.toLocaleLowerCase() === input.name.toLocaleLowerCase(),
+      );
+      memberTab.value = member?.isInGuild ? 'guild' : member?.isInClub ? 'club' : 'extra';
+      search.value = '';
+      professionId.value = null;
+    } catch (cause) {
+      error.value = `報名已成功, 名單更新失敗: ${cause.message}。請更新成員清單`;
+    }
+    dialog.value = null;
+  } catch (cause) {
+    dialogError.value = cause.message;
+  } finally {
+    busy.value = false;
   }
 }
 function closeDialog() {
@@ -898,6 +992,16 @@ onUnmounted(() => {
               ><v-tab value="guild">幫會成員</v-tab><v-tab value="club">俱樂部成員</v-tab
               ><v-tab value="extra">額外報名</v-tab></v-tabs
             >
+            <v-btn
+              v-if="memberTab === 'extra'"
+              variant="outlined"
+              color="primary"
+              block
+              :prepend-icon="mdiAccountPlusOutline"
+              :disabled="readOnly"
+              @click="openDialog('registration')"
+              >代為報名</v-btn
+            >
             <v-text-field
               v-model="search"
               label="搜尋名稱或報名備註"
@@ -1034,7 +1138,13 @@ onUnmounted(() => {
       <v-card class="lineup-dialog"
         ><div class="lineup-dialog-content">
           <h2 id="lineup-dialog-title">
-            {{ dialog === 'seat' ? '編輯位置' : '另存名單範本' }}
+            {{
+              dialog === 'seat'
+                ? '編輯位置'
+                : dialog === 'registration'
+                  ? '代為報名'
+                  : '另存名單範本'
+            }}
           </h2>
           <v-alert v-if="dialogError" type="error" variant="tonal" role="alert">{{
             dialogError
@@ -1090,6 +1200,41 @@ onUnmounted(() => {
               未指定第二場時沿用第一場成員。選空位可移除該場分配；明確選取已安排成員會移動或交換該場位置。職責與備註兩場共用。
             </p></template
           >
+          <template v-else-if="dialog === 'registration'">
+            <p class="lineup-hint">
+              {{ currentEvent?.dates[0] }} · {{ eventTypeLabel(currentEvent?.type)
+              }}<template v-if="currentEvent?.title"> · {{ currentEvent.title }}</template>
+            </p>
+            <v-btn variant="text" :disabled="busy" @click="reloadRegistration">重新載入</v-btn>
+            <form id="lineup-registration-form" @submit.prevent="submitRegistration">
+              <v-text-field
+                v-model="registrationName"
+                label="名稱"
+                maxlength="64"
+                variant="outlined"
+                :disabled="busy"
+                aria-required="true"
+                autofocus
+              />
+              <v-select
+                v-model="registrationProfessionId"
+                :items="professions"
+                item-title="name"
+                item-value="job_id"
+                label="職業"
+                variant="outlined"
+                :disabled="busy"
+                aria-required="true"
+              />
+              <v-text-field
+                v-model="registrationNote"
+                label="備註（選填）"
+                maxlength="160"
+                variant="outlined"
+                :disabled="busy"
+              />
+            </form>
+          </template>
           <template v-else
             ><v-text-field
               v-model="templateName"
@@ -1110,9 +1255,21 @@ onUnmounted(() => {
           ><v-btn
             color="primary"
             :loading="busy"
-            :disabled="busy"
-            @click="dialog === 'seat' ? saveSeat() : saveTemplate()"
-            >{{ busy ? '儲存中…' : dialog === 'seat' ? '套用位置' : '儲存範本' }}</v-btn
+            :disabled="busy || (dialog === 'registration' && !registrationRevision)"
+            :type="dialog === 'registration' ? 'submit' : 'button'"
+            :form="dialog === 'registration' ? 'lineup-registration-form' : undefined"
+            @click="
+              dialog === 'seat' ? saveSeat() : dialog === 'template' ? saveTemplate() : undefined
+            "
+            >{{
+              busy
+                ? '處理中…'
+                : dialog === 'seat'
+                  ? '套用位置'
+                  : dialog === 'registration'
+                    ? '送出報名'
+                    : '儲存範本'
+            }}</v-btn
           >
         </div></v-card
       >
