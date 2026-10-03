@@ -39,10 +39,23 @@
 }
 .event-table {
   width: 100%;
-  min-width: 500px;
+  min-width: 700px;
   border-collapse: collapse;
   text-align: left;
   font-size: 14px;
+}
+.event-row-actions {
+  display: flex;
+  gap: 8px;
+  white-space: nowrap;
+}
+.event-delete-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  margin: 16px 0;
+}
+.event-delete-dates {
+  margin-bottom: 20px;
 }
 .event-table th {
   padding: 14px 20px;

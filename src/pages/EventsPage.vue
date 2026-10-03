@@ -1,6 +1,12 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
-import { mdiCalendarMonthOutline, mdiPlus, mdiRefresh } from '@mdi/js';
+import {
+  mdiCalendarMonthOutline,
+  mdiPlus,
+  mdiRefresh,
+  mdiPencilOutline,
+  mdiTrashCanOutline,
+} from '@mdi/js';
 import { createEventClient } from '../api/events.js';
 import EventCreateDialog from './EventCreateDialog.vue';
 import './events.css';
@@ -37,17 +43,65 @@ async function load() {
   }
 }
 const dialog = ref(false);
-function openForm() {
+const editingEvent = ref(null);
+const listPanel = ref(null);
+const createButton = ref(null);
+let formOpener;
+function openForm(event = null) {
+  formOpener = document.activeElement;
+  editingEvent.value = event ? { ...event, dates: [...event.dates] } : null;
   notice.value = '';
   dialog.value = true;
 }
-function onCreated(event) {
+function onSaved(event, edited = false) {
   const index = events.value.findIndex((value) => value.id === event.id);
   if (index < 0) events.value.push(event);
   else events.value[index] = event;
   filter.value = null;
   page.value = Math.floor(filtered.value.findIndex((value) => value.id === event.id) / 20) + 1;
-  notice.value = `「${event.title}」已建立，共 ${event.dates.length} 天，首頁行事曆已可查看。`;
+  notice.value = `「${event.title}」已${edited ? '修改' : '建立'}，共 ${event.dates.length} 天，首頁行事曆已更新。`;
+}
+function restoreEditFocus() {
+  const button =
+    editingEvent.value &&
+    listPanel.value?.querySelector(`[data-edit-event="${CSS.escape(editingEvent.value.id)}"]`);
+  (formOpener?.isConnected ? formOpener : button || createButton.value?.$el)?.focus();
+}
+const deleteDialog = ref(false);
+const deleteTarget = ref(null);
+const deleting = ref(false);
+const deleteError = ref('');
+let deleteOpener;
+function openDelete(event) {
+  deleteOpener = document.activeElement;
+  deleteTarget.value = { ...event, dates: [...event.dates] };
+  deleteError.value = '';
+  notice.value = '';
+  deleteDialog.value = true;
+}
+function closeDelete(value = false) {
+  if (!value && !deleting.value) deleteDialog.value = false;
+}
+function restoreDeleteFocus() {
+  const next = listPanel.value?.querySelector('[data-edit-event]') || createButton.value?.$el;
+  (deleteOpener?.isConnected ? deleteOpener : next)?.focus();
+}
+async function remove() {
+  if (deleting.value) return;
+  deleting.value = true;
+  deleteError.value = '';
+  try {
+    const data = await client.deleteEvent(deleteTarget.value.id, deleteTarget.value.revision);
+    if (data?.id !== deleteTarget.value.id) throw new Error('刪除回應格式不正確，請重試確認結果');
+    events.value = events.value.filter((event) => event.id !== data.id);
+    page.value = Math.min(page.value, pageCount.value);
+    notice.value = `「${deleteTarget.value.title}」已刪除，首頁行事曆已移除這筆安排。`;
+    deleteDialog.value = false;
+  } catch (error) {
+    deleteError.value = error.message;
+  } finally {
+    deleting.value = false;
+  }
 }
 onMounted(load);
 function formatDate(date) {
@@ -62,10 +116,11 @@ function formatDate(date) {
       <p class="page-subtitle">安排活動與約戰，讓每一天的集結更清楚。</p>
     </div>
     <v-btn
+      ref="createButton"
       color="primary"
       :prepend-icon="mdiPlus"
       :disabled="loading || !!loadError"
-      @click="openForm"
+      @click="openForm()"
       >建立安排</v-btn
     >
   </section>
@@ -74,7 +129,7 @@ function formatDate(date) {
       notice
     }}</v-alert>
   </div>
-  <section class="panel event-panel" aria-label="活動與約戰清單">
+  <section ref="listPanel" class="panel event-panel" aria-label="活動與約戰清單">
     <div class="section-header">
       <div class="event-list-heading">
         <span class="icon-box violet"><v-icon :icon="mdiCalendarMonthOutline" size="22" /></span>
@@ -142,6 +197,7 @@ function formatDate(date) {
                 <th scope="col">名稱</th>
                 <th scope="col">類型</th>
                 <th scope="col">安排日期</th>
+                <th scope="col">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -169,6 +225,27 @@ function formatDate(date) {
                     }}</time>
                   </div>
                 </td>
+                <td>
+                  <div class="event-row-actions">
+                    <v-btn
+                      variant="text"
+                      color="primary"
+                      :prepend-icon="mdiPencilOutline"
+                      :data-edit-event="event.id"
+                      :aria-label="`修改安排：${event.title}`"
+                      @click="openForm(event)"
+                      >修改</v-btn
+                    >
+                    <v-btn
+                      variant="text"
+                      color="error"
+                      :prepend-icon="mdiTrashCanOutline"
+                      :aria-label="`刪除安排：${event.title}`"
+                      @click="openDelete(event)"
+                      >刪除</v-btn
+                    >
+                  </div>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -183,5 +260,49 @@ function formatDate(date) {
       </template>
     </template>
   </section>
-  <EventCreateDialog v-model="dialog" @created="onCreated" />
+  <EventCreateDialog
+    v-model="dialog"
+    :event="editingEvent"
+    @created="onSaved"
+    @updated="onSaved($event, true)"
+    @after-leave="restoreEditFocus"
+  />
+  <v-dialog
+    :model-value="deleteDialog"
+    :persistent="deleting"
+    max-width="520"
+    aria-labelledby="event-delete-title"
+    @update:model-value="closeDelete"
+    @after-leave="restoreDeleteFocus"
+  >
+    <v-card class="event-dialog">
+      <div class="event-dialog-content">
+        <h2 id="event-delete-title">刪除安排</h2>
+        <p class="event-delete-name">{{ deleteTarget?.title }}</p>
+        <p class="event-description">
+          確定刪除此{{ deleteTarget?.type === 'scrimmage' ? '約戰' : '活動' }}？
+          這筆安排會從清單及全部 {{ deleteTarget?.dates.length }} 個日期的行事曆移除。
+        </p>
+        <div class="event-date-list event-delete-dates" aria-label="將移除的安排日期">
+          <time v-for="date in deleteTarget?.dates" :key="date" :datetime="date">{{
+            formatDate(date)
+          }}</time>
+        </div>
+        <v-alert
+          v-if="deleteError"
+          type="error"
+          variant="tonal"
+          class="event-form-alert"
+          role="alert"
+          >{{ deleteError }}</v-alert
+        >
+      </div>
+      <div class="event-dialog-actions">
+        <v-btn variant="outlined" :disabled="deleting" @click="closeDelete()">取消</v-btn>
+        <v-btn color="error" :loading="deleting" :disabled="deleting" @click="remove">{{
+          deleting ? '刪除中…' : '確認刪除'
+        }}</v-btn>
+      </div>
+    </v-card>
+  </v-dialog>
 </template>

@@ -4,10 +4,17 @@ import { mdiClose } from '@mdi/js';
 import { createEventClient } from '../api/events.js';
 import CalendarGrid from './CalendarGrid.vue';
 import './events.css';
-const props = defineProps({ modelValue: Boolean, initialDate: { type: String, default: '' } });
-const emit = defineEmits(['update:modelValue', 'created']);
+const props = defineProps({
+  modelValue: Boolean,
+  initialDate: { type: String, default: '' },
+  event: { type: Object, default: null },
+});
+const emit = defineEmits(['update:modelValue', 'created', 'updated', 'after-leave']);
 const client = createEventClient({ source: import.meta.env.VITE_DATA_SOURCE || 'local' });
 const calendarKey = ref(0);
+const editing = computed(() => Boolean(props.event));
+const dialogTitle = computed(() => (editing.value ? '修改安排' : '建立安排'));
+const calendarDate = computed(() => props.event?.dates[0] || props.initialDate);
 const typeOptions = [
   { title: '活動', value: 'activity' },
   { title: '約戰', value: 'scrimmage' },
@@ -23,7 +30,9 @@ let opener;
 const dirty = computed(() => JSON.stringify(form.value) !== baseline);
 function openForm() {
   opener = document.activeElement;
-  form.value = { title: '', type: 'activity', dates: props.initialDate ? [props.initialDate] : [] };
+  form.value = props.event
+    ? { title: props.event.title, type: props.event.type, dates: [...props.event.dates] }
+    : { title: '', type: 'activity', dates: props.initialDate ? [props.initialDate] : [] };
   calendarKey.value += 1;
   baseline = JSON.stringify(form.value);
   requestId = crypto.randomUUID();
@@ -38,6 +47,7 @@ function closeForm(value = false) {
 }
 function restoreFocus() {
   if (opener?.isConnected) opener.focus();
+  emit('after-leave');
 }
 function changeType(type) {
   errors.value.type = '';
@@ -67,14 +77,17 @@ async function save() {
   saving.value = true;
   saveError.value = '';
   try {
-    const data = await client.createEvent({
-      ...form.value,
-      dates: [...form.value.dates],
-      requestId,
-    });
-    if (!data?.event?.id || !Array.isArray(data.event.dates))
+    const values = { ...form.value, dates: [...form.value.dates] };
+    const data = editing.value
+      ? await client.updateEvent(props.event.id, { ...values, revision: props.event.revision })
+      : await client.createEvent({ ...values, requestId });
+    if (
+      !data?.event?.id ||
+      !Array.isArray(data.event.dates) ||
+      (editing.value && data.event.id !== props.event.id)
+    )
       throw new Error('儲存回應格式不正確，請重試確認結果');
-    emit('created', data.event);
+    emit(editing.value ? 'updated' : 'created', data.event);
     emit('update:modelValue', false);
   } catch (error) {
     errors.value = error.fields || {};
@@ -114,8 +127,8 @@ function formatDate(date) {
         <div class="event-dialog-content">
           <div class="event-dialog-heading">
             <div>
-              <p class="eyebrow">NEW SCHEDULE</p>
-              <h2 id="event-form-title">建立安排</h2>
+              <p class="eyebrow">{{ editing ? 'EDIT SCHEDULE' : 'NEW SCHEDULE' }}</p>
+              <h2 id="event-form-title">{{ dialogTitle }}</h2>
             </div>
             <v-btn
               variant="text"
@@ -164,8 +177,8 @@ function formatDate(date) {
           </div>
           <p v-if="errors.dates" class="event-field-error" role="alert">{{ errors.dates }}</p>
           <CalendarGrid
-            :key="calendarKey"
-            :initial-date="initialDate"
+            :key="`calendar-${calendarKey}`"
+            :initial-date="calendarDate"
             :model-value="form.dates"
             selectable
             :multiple="form.type === 'activity'"

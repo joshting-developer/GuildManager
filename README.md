@@ -2,7 +2,7 @@
 
 Vue 3／Vuetify 管理介面, 本機透過 Node.js／Express API 讀寫 SQLite, 後期接入 GAS／Google 試算表
 
-首頁上方集中管理入口, 下方呈現近期活動行事曆, 未完成的功能顯示「待開發」, 不呈現示範數字或安排；成員清單已支援成員／編外分頁、加入、編輯、移至編外及幫派／俱樂部狀態與過去名稱查詢, 活動安排支援建立活動／約戰並顯示於首頁月曆, 登入與正式試算表尚未串接
+首頁上方集中管理入口, 下方呈現近期活動行事曆, 未完成的功能顯示「待開發」, 不呈現示範數字或安排；成員清單已支援成員／編外分頁、加入、編輯、移至編外及幫派／俱樂部狀態與過去名稱查詢, 活動安排支援建立、修改、刪除活動／約戰並顯示於首頁月曆, 登入與正式試算表尚未串接
 
 ## 使用 Docker 開發
 
@@ -184,6 +184,9 @@ UID Name 主職業 副職業
 
 在 [首頁](http://localhost:5173) 點日期格 (例如 10/24), 會直接開啟建立安排視窗並預選該日期；也可開啟 [活動安排](http://localhost:5173/#/events) 點「建立安排」, 填寫名稱及選擇「活動／約戰」與日期後儲存
 
+- 清單點「修改」調整名稱、類型及日期, 預填原資料並顯示原日期月份；未修改直接取消不會詢問放棄。
+- 點「刪除」查看名稱與影響日期, 確認後移出清單及所有日期的月曆；取消不寫入, 失敗保留視窗可重試。
+- 編輯／刪除會檢查版本, 若其他操作已修改安排, 提示重新載入並保留輸入, 避免覆寫新資料。
 - 活動可逐日選擇 1–366 天, 允許不連續或跨月份的日期。
 - 約戰只能選擇一天, 點選另一個日期會替換原日期。
 - 從多日活動切換成約戰時, 會清除日期並提示重新選一天。
@@ -192,19 +195,22 @@ UID Name 主職業 副職業
 - 保存後即時更新目前頁面, 首頁月曆保留瀏覽月份並在各日期顯示同一筆安排；點安排名稱或手機筆數查看詳情, 格子其他範圍可再建立安排。
 - 未修改表單直接取消不會詢問放棄；修改後取消需確認, 儲存失敗保留輸入, 關閉後焦點返回原入口。
 - 日期保存 `YYYY-MM-DD`, 畫面顯示 `YYYY/MM/DD`, 不經瀏覽器時區轉換。
-- `scheduled_events(id, title, type, request_id, created_at)` 與 `event_dates(event_id, date)` 用 ID 關聯, SQLite 以交易保存。
+- `scheduled_events(id, title, type, request_id, created_at, updated_at, revision, deleted_at)` 與 `event_dates(event_id, date)` 用 ID 關聯, SQLite 以交易保存。
 - 同一 requestId、相同內容重試會取得原結果, 改變內容會拒絕並要求重新載入；前端不自動重試失敗寫入。
 - 舊 `events` 表中的示範資料保留但不讀取, 不更動既有成員資料。
-- 第一版只有建立與查詢, 時間、報名、對手及編輯／刪除待後續需求。
+- 刪除以 deleted_at 保留已刪安排的提交識別資料, 查詢不顯示, 舊建立請求不會重建；同一版本的修改／刪除回應遺失時可手動重試。
+- 支援建立、查詢、修改及刪除, 時間、報名及對手待後續需求。
 
 | 方法 | 路徑 | 用途 |
 | --- | --- | --- |
 | GET | `/api/events` | 所有安排及日期 |
 | POST | `/api/events` | 建立活動或單日約戰 |
+| PATCH | `/api/events/:id` | 修改名稱、類型及日期, 必須提供 revision |
+| DELETE | `/api/events/:id` | 刪除安排, 必須提供 revision |
 
-建立資料：`{ title, type: 'activity' | 'scrimmage', dates: ['YYYY-MM-DD'], requestId }`；回傳 `{ event: { id, title, type, dates, createdAt } }`
+建立資料：`{ title, type: 'activity' | 'scrimmage', dates: ['YYYY-MM-DD'], requestId }`；修改資料：`{ title, type, dates, revision }`, 刪除資料：`{ revision }`；建立／修改回傳 `{ event: { id, title, type, dates, createdAt, updatedAt, revision } }`, 刪除回傳 `{ id }`
 
-`src/api/events.js` 統一呼叫本機 API 或 GAS `getEvents()`／`createEvent(input)`；GAS 資料層仍未串接 Google 試算表, 不會回傳假的成功結果
+`src/api/events.js` 統一呼叫本機 API 或 GAS `getEvents()`／`createEvent(input)`／`updateEvent(id, input)`／`deleteEvent(id, revision)`；GAS 資料層仍未串接 Google 試算表, 不會回傳假的成功結果
 
 ## 專案結構
 
