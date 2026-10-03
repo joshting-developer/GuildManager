@@ -2,7 +2,7 @@
 
 Vue 3／Vuetify 首頁, 本機透過 Node.js／Express API 讀取 SQLite, 後期接入 GAS／Google 試算表
 
-目前提供首頁概況、活動篩選、活動詳情、公告、管理入口說明及空白狀態預覽；名冊編輯、活動報名、登入與正式試算表尚未串接
+首頁未完成的統計、活動與公告顯示「待開發」, 不呈現示範數字；成員管理正在實作, 登入與正式試算表尚未串接
 
 ## 使用 Docker 開發
 
@@ -17,7 +17,7 @@ docker compose up --build -d
 - API 健康檢查：`http://localhost:3001/api/health`
 - 首頁資料：`http://localhost:3001/api/home`
 - SQLite 保存在 `guild_data` volume 的 `/data/guildmanager.sqlite`
-- 本機資料庫初次啟動會加入明確標示的示範資料, 重啟不覆寫
+- 本機資料庫不再加入示範資料, 重啟不覆寫既有設定
 - `src/` 與 `server/` 修改會反映至服務, 依賴或 Dockerfile 變更後重新執行 `docker compose up --build -d`
 - 若 Docker Desktop 的檔案事件通知不穩定, 再依需要開啟 polling
 
@@ -48,7 +48,7 @@ npm run dev
 
 首頁仍在 `http://localhost:5173`, SQLite 位於 `data/guildmanager.sqlite`
 
-API 可透過 `DATABASE_PATH`、`API_PORT`、`API_HOST` 設定；`SEED_DEMO=false` 只影響新資料庫初始化, 不清除既有資料
+API 可透過 `DATABASE_PATH`、`API_PORT`、`API_HOST` 設定
 
 ## 驗證與編譯
 
@@ -87,29 +87,22 @@ npm run build:gas
 {
   "guild": { "name": "你的幫會" },
   "summary": {
-    "members": 128,
-    "upcomingEvents": 3,
-    "attendanceRate": 86,
-    "pendingRegistrations": 8
+    "members": null,
+    "upcomingEvents": null,
+    "attendanceRate": null,
+    "pendingRegistrations": null
   },
-  "events": [{
-    "id": "event-1", "title": "示範活動", "type": "league",
-    "startsAt": "2026-10-04T12:00:00.000Z",
-    "registered": 52, "capacity": 60, "note": "示範說明"
-  }],
-  "announcements": [{
-    "id": "notice-1", "title": "示範公告", "body": "示範內容",
-    "publishedAt": "2026-10-03T03:00:00.000Z", "pinned": true
-  }],
-  "meta": { "mode": "demo", "updatedAt": "2026-10-03T03:00:00.000Z" }
+  "events": [],
+  "announcements": [],
+  "meta": { "mode": "empty", "updatedAt": "ISO 8601 日期字串" }
 }
 ```
 
 日期傳 ISO 8601 字串, 畫面以台北時區顯示；沒有出勤統計時使用 `null`, 不用 `0` 代替未知值
 
-SQLite 表 `home_settings`、`events`、`announcements` 只供目前首頁示範, 正式欄位確認後再做版本化遷移
+既有 `home_settings`、`events`、`announcements` 表保留, 舊示範資料不再讀取至首頁, 不刪除整個資料庫
 
-本機服務目前僅提供讀取示範資料的 API, 只發布到 loopback, 沒有正式登入與資料寫入 API
+本機服務目前提供首頁待開發資料的 API, 只發布到 loopback, 沒有正式登入與資料寫入 API
 
 ## 專案結構
 

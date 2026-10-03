@@ -42,7 +42,7 @@
 - 前端 dev server 與 API 分為兩個服務, SQLite 在 API 服務內操作, 不需另開資料庫容器
 - 前端以開發代理轉送 `/api`, 避免元件綁定本機 API 網址
 - SQLite 檔案放入獨立 volume, 容器重建時保留資料；參考 [Docker volumes](https://docs.docker.com/engine/storage/volumes/)
-- 初始化只在沒有首頁設定資料時建立本機示範資料, 不在每次啟動覆寫資料
+- 初始化只在沒有首頁設定資料時建立空白設定, 不播種示範資料或覆寫既有資料
 - 本機服務只發布到 loopback, 尚無正式登入前不對外提供管理 API
 - 目前 SQLite schema 為首頁示範, 不代表正式成員與活動欄位已定案
 

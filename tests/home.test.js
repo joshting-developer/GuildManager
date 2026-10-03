@@ -13,7 +13,7 @@ test('SQLite initialization preserves existing data on restart', () => {
   const filename = join(directory, 'test.sqlite');
   try {
     let repository = createRepository({ filename });
-    assert.equal(repository.readHome().events.length, 3);
+    assert.equal(repository.readHome().events.length, 0);
     repository.close();
     const db = new Database(filename);
     db.prepare('UPDATE home_settings SET guild_name = ? WHERE id = 1').run('保留的幫會名稱');
@@ -21,7 +21,7 @@ test('SQLite initialization preserves existing data on restart', () => {
     repository = createRepository({ filename });
     try {
       assert.equal(repository.readHome().guild.name, '保留的幫會名稱');
-      assert.equal(repository.readHome().events.length, 3);
+      assert.equal(repository.readHome().events.length, 0);
     } finally {
       repository.close();
     }
@@ -31,7 +31,7 @@ test('SQLite initialization preserves existing data on restart', () => {
 });
 
 test('an unseeded SQLite database contains empty data with unknown attendance', () => {
-  const repository = createRepository({ filename: ':memory:', seedDemo: false });
+  const repository = createRepository({ filename: ':memory:' });
   try {
     const data = repository.readHome();
     assert.equal(data.meta.mode, 'empty');
@@ -51,9 +51,9 @@ test('local API returns the home contract and rejects unsupported writes', async
   try {
     const client = createHomeClient({ fetchImpl: (path) => fetch(`${base}${path}`) });
     const data = await client.getHomeData();
-    assert.equal(data.meta.mode, 'demo');
-    assert.equal(data.summary.upcomingEvents, data.events.length);
-    assert.equal(typeof data.events[0].startsAt, 'string');
+    assert.equal(data.meta.mode, 'empty');
+    assert.equal(data.summary.upcomingEvents, null);
+    assert.deepEqual(data.events, []);
     assert.equal((await fetch(`${base}/api/home`, { method: 'POST' })).status, 404);
   } finally {
     await new Promise((resolve) => server.close(resolve));

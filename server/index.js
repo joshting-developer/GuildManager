@@ -4,7 +4,6 @@ import { createApp } from './app.js';
 
 const repository = createRepository({
   filename: process.env.DATABASE_PATH || resolve('data/guildmanager.sqlite'),
-  seedDemo: process.env.SEED_DEMO !== 'false',
 });
 const host = process.env.API_HOST || '127.0.0.1';
 const port = Number(process.env.API_PORT || 3001);

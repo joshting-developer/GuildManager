@@ -306,6 +306,12 @@ h1 {
   color: #b45309;
   background: #fffbeb;
 }
+.stat-pending {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  margin: 16px 0 12px;
+}
 .stat-value {
   font-size: 36px;
   font-weight: 750;
