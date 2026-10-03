@@ -20,6 +20,7 @@ export function createApp(repository) {
     }
     next();
   });
+  app.use('/api/members/import', express.json({ limit: '512kb' }));
   app.use(express.json({ limit: '16kb' }));
   app.get('/api/health', (_request, response) => {
     repository.readHome();
@@ -33,6 +34,12 @@ export function createApp(repository) {
   });
   app.get('/api/members', (_request, response) => {
     response.set('Cache-Control', 'no-store').json(repository.listMembers());
+  });
+  app.post('/api/members/import/preview', (request, response) => {
+    response.set('Cache-Control', 'no-store').json(repository.previewMemberImport(request.body));
+  });
+  app.post('/api/members/import', (request, response) => {
+    response.json(repository.importMembers(request.body));
   });
   app.post('/api/members', (request, response) => {
     response.status(201).json({ member: repository.addMember(request.body) });
@@ -50,7 +57,14 @@ export function createApp(repository) {
     if (error instanceof MemberError) {
       return response
         .status(error.status)
-        .json({ error: { code: error.code, message: error.message, fields: error.fields } });
+        .json({
+          error: {
+            code: error.code,
+            message: error.message,
+            fields: error.fields,
+            ...(error.rows ? { rows: error.rows } : {}),
+          },
+        });
     }
     if (error.type === 'entity.parse.failed' || error.type === 'entity.too.large') {
       return response

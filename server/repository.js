@@ -1,7 +1,8 @@
 import Database from 'better-sqlite3';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
+import { parseMemberImport } from './member-import.js';
 import { MemberError, validateMember, validateRevision } from './member-validation.js';
 
 export function createRepository({ filename }) {
@@ -141,6 +142,26 @@ export function createRepository({ filename }) {
     );
   }
 
+  function previewMemberImport(input) {
+    const jobs = db.prepare('SELECT job_id, name FROM professions ORDER BY job_id').all();
+    const parsed = parseMemberImport(input?.text, jobs);
+    const states = [];
+    const summary = { added: 0, restored: 0, skipped: 0 };
+    const rows = parsed.rows.map((row) => {
+      const existing = db
+        .prepare('SELECT revision, removed_at FROM members WHERE uid = ?')
+        .get(row.uid);
+      const action = !existing ? 'add' : existing.removed_at === null ? 'skip' : 'restore';
+      states.push(existing || null);
+      summary[action === 'add' ? 'added' : action === 'restore' ? 'restored' : 'skipped'] += 1;
+      return { ...row, action };
+    });
+    const fingerprint = parsed.issues.length
+      ? null
+      : createHash('sha256').update(JSON.stringify({ rows, states })).digest('hex');
+    return { rows, issues: parsed.issues, summary, fingerprint };
+  }
+
   // Initialize settings only; never seed fictional people, events or statistics.
   db.prepare('INSERT OR IGNORE INTO home_settings VALUES (1, ?, 0, NULL, 0, ?, ?)').run(
     '你的幫會',
@@ -148,7 +169,32 @@ export function createRepository({ filename }) {
     new Date().toISOString(),
   );
 
-  return {
+  const repository = {
+    previewMemberImport,
+    importMembers(input) {
+      return db.transaction(() => {
+        const preview = previewMemberImport(input);
+        if (preview.issues.length) {
+          const error = new MemberError(422, 'IMPORT_INVALID', '資料有錯誤，請修正後重新預覽');
+          error.rows = preview.issues;
+          throw error;
+        }
+        if (!input?.fingerprint || input.fingerprint !== preview.fingerprint) {
+          throw new MemberError(409, 'STALE_IMPORT', '資料或成員清單已變動，請重新預覽後再匯入');
+        }
+        const members = preview.rows
+          .filter((row) => row.action !== 'skip')
+          .map((row) =>
+            repository.addMember({
+              uid: row.uid,
+              name: row.name,
+              primaryProfessionId: row.primaryProfessionId,
+              secondaryProfessionId: row.secondaryProfessionId,
+            }),
+          );
+        return { members, summary: preview.summary };
+      })();
+    },
     listProfessions() {
       return {
         professions: db
@@ -284,4 +330,5 @@ export function createRepository({ filename }) {
       db.close();
     },
   };
+  return repository;
 }
