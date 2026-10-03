@@ -20,6 +20,9 @@ function dutiesFor(slot) {
         active: props.duties.find((duty) => duty.id === id)?.active,
       }));
 }
+function dutyDescription(slot) {
+  return [...dutiesFor(slot).map((duty) => duty.name), slot.note].filter(Boolean).join(' · ');
+}
 function person(slot) {
   if (props.snapshots) return slot.member;
   const member = props.members.find((member) => member.uid === slot.uid);
@@ -109,6 +112,8 @@ function activate(team, index) {
               :is="readOnly ? 'div' : 'button'"
               :type="readOnly ? undefined : 'button'"
               class="seat-person"
+              :tabindex="readOnly ? 0 : undefined"
+              :title="slot.uid ? `${person(slot)?.name || slot.uid}（${slot.uid}）` : '尚未安排'"
               :draggable="!readOnly && Boolean(slot.uid)"
               :aria-label="
                 readOnly
@@ -137,6 +142,7 @@ function activate(team, index) {
               v-if="!readOnly"
               type="button"
               class="seat-note seat-duty-button"
+              :title="dutyDescription(slot)"
               :aria-label="`${group.name} ${team.name} 第 ${index + 1} 位職責與備註，${selectedDutyId ? '分配已選職責' : '編輯位置'}`"
               @click="
                 selectedDutyId
@@ -152,7 +158,7 @@ function activate(team, index) {
                 >{{ duty.name }}<small v-if="!duty.active">（停用）</small></span
               ><span>{{ slot.note || (dutiesFor(slot).length ? '' : '—') }}</span>
             </button>
-            <div v-else class="seat-note">
+            <div v-else class="seat-note" tabindex="0" :title="dutyDescription(slot)">
               <span v-for="duty in dutiesFor(slot)" :key="duty.id" class="seat-duty">{{
                 duty.name
               }}</span

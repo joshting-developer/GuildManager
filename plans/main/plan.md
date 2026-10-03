@@ -74,3 +74,7 @@
 ## 排表職責清單
 
 使用者要求保鑣、山盟、輔潮等職責有獨立資料表與可拖曳清單, 見 [lineup-duties-plan.md](lineup-duties-plan.md)。
+
+## 排表密度
+
+依使用者要求縮小排表位置與操作留白, 增加專注排表以利同畫面查看 60 人, 見 [lineup-density-plan.md](lineup-density-plan.md)。

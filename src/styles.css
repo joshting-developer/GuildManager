@@ -1432,3 +1432,300 @@ button.seat-person {
   background: white;
   border-radius: 12px;
 }
+
+/* Dense desktop roster; touch-sized controls remain in dialogs and mobile layouts. */
+.lineup-heading-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.lineup-focus-bar {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.lineup-focus-caption {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  min-width: 0;
+}
+.lineup-focus-caption strong {
+  overflow-wrap: anywhere;
+  font-size: 16px;
+}
+.lineup-focus-caption span {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+.lineup-focus-mode {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: var(--color-page);
+  padding: 8px 12px;
+  overflow: auto;
+}
+@media (min-width: 1200px) {
+  .lineup-route .header-inner {
+    min-height: 56px;
+  }
+  .page.page-lineups {
+    max-width: 1800px;
+    padding: 12px 20px 0;
+  }
+  .lineups-page .page-heading {
+    margin-bottom: 12px;
+  }
+  .lineups-page .eyebrow,
+  .lineups-page .page-subtitle {
+    display: none;
+  }
+  .lineups-page .page-heading h1 {
+    font-size: 26px;
+  }
+  .lineups-page .lineup-toolbar {
+    padding: 12px;
+    margin-bottom: 12px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 12px;
+    align-items: center;
+  }
+  .lineups-page .lineup-selects {
+    gap: 8px;
+    grid-template-columns: 2fr 1fr;
+  }
+  .lineups-page .lineup-toolbar-bottom {
+    display: contents;
+  }
+  .lineups-page .lineup-toolbar-bottom > div:first-child {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .lineups-page .lineup-toolbar-bottom strong {
+    display: none;
+  }
+  .lineups-page .lineup-toolbar-bottom p {
+    margin: 0;
+    font-size: 13px;
+  }
+  .lineups-page .lineup-actions {
+    gap: 8px;
+  }
+  .lineups-page .lineup-template-tools {
+    grid-column: 2;
+    grid-row: 2;
+    border: 0;
+    padding: 0;
+    gap: 8px;
+  }
+  .lineups-page .lineup-template-tools .v-select {
+    width: 210px;
+    min-width: 0;
+  }
+  .lineups-page .lineup-workspace {
+    grid-template-columns: 230px minmax(0, 1fr);
+    gap: 12px;
+  }
+  .lineups-page .lineup-board {
+    gap: 8px;
+  }
+  .lineups-page .lineup-group {
+    padding: 6px 8px;
+    border-radius: 12px;
+  }
+  .lineups-page .lineup-group > h2 {
+    font-size: 15px;
+    line-height: 20px;
+    margin-bottom: 4px;
+  }
+  .lineups-page .group-capacity {
+    font-size: 12px;
+  }
+  .lineups-page .lineup-teams {
+    gap: 8px;
+  }
+  .lineups-page .lineup-group.defense .lineup-teams {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .lineups-page .lineup-team-heading,
+  .lineups-page .lineup-team-title {
+    padding: 0 4px;
+    font-size: 13px;
+    min-height: 28px;
+  }
+  .lineups-page .lineup-team-heading input {
+    display: block;
+    min-height: 28px;
+    padding: 2px;
+  }
+  .lineups-page .seat-columns {
+    padding: 2px 6px;
+    font-size: 11px;
+    line-height: 16px;
+  }
+  .lineups-page .lineup-seat {
+    min-height: 28px;
+    grid-template-columns: minmax(0, 1fr) 32%;
+  }
+  .lineups-page .seat-person {
+    padding: 3px 5px;
+    min-height: 27px;
+    gap: 4px;
+  }
+  .lineups-page .seat-identity {
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+  }
+  .lineups-page .seat-job {
+    flex-shrink: 0;
+    gap: 2px;
+    font-size: 11px;
+    flex-wrap: nowrap;
+  }
+  .lineups-page .profession-dot {
+    width: 7px;
+    height: 7px;
+    flex-basis: 7px;
+  }
+  .lineups-page .seat-identity strong {
+    font-size: 12px;
+    line-height: 18px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .lineups-page .seat-number {
+    font-size: 11px;
+    width: 10px;
+  }
+  .lineups-page .empty-seat {
+    font-size: 12px;
+  }
+  .lineups-page .seat-note {
+    display: block;
+    min-height: 27px;
+    padding: 3px 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 12px;
+    line-height: 20px;
+  }
+  .lineups-page .seat-duty {
+    display: inline;
+    font-size: 12px;
+    border: 0;
+    background: transparent;
+    padding: 0;
+  }
+  .lineups-page .seat-duty + .seat-duty::before {
+    content: ' · ';
+  }
+  .lineups-page .seat-note > span:last-child:not(.seat-duty):not(:empty)::before {
+    content: ' ';
+  }
+  .lineups-page .seat-person:focus .seat-identity strong {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .lineups-page .seat-note:focus {
+    white-space: normal;
+    overflow: visible;
+  }
+  .lineups-page .lineup-members-panel {
+    top: 68px;
+    max-height: calc(100dvh - 80px);
+  }
+  .lineups-page .lineup-members-panel > .v-tabs {
+    margin-bottom: 8px;
+  }
+  .lineups-page .lineup-members-card,
+  .lineups-page .lineup-duties-card {
+    padding: 12px;
+    border-radius: 12px;
+  }
+  .lineups-page .lineup-member-heading h2 {
+    font-size: 16px;
+  }
+  .lineups-page .lineup-hint {
+    margin: 6px 0;
+    font-size: 12px;
+  }
+  .lineups-page .lineup-member {
+    min-height: 44px;
+    padding: 6px 8px;
+    gap: 2px;
+  }
+  .lineups-page .lineup-member-main strong {
+    font-size: 13px;
+  }
+  .lineups-page .lineup-list-count {
+    margin: 8px 0 4px;
+  }
+  .lineups-page .lineup-alert {
+    margin-bottom: 8px;
+  }
+  .lineups-page .lineup-alert .v-alert__content {
+    font-size: 13px;
+  }
+  .lineups-page.lineup-focus-mode .lineup-board {
+    gap: 4px;
+  }
+  .lineups-page.lineup-focus-mode .lineup-group {
+    padding: 2px 6px;
+  }
+  .lineups-page.lineup-focus-mode .lineup-group h2 {
+    font-size: 13px;
+    line-height: 16px;
+    margin-bottom: 2px;
+  }
+  .lineups-page.lineup-focus-mode .group-capacity {
+    font-size: 11px;
+    line-height: 16px;
+  }
+  .lineups-page.lineup-focus-mode .lineup-team-heading,
+  .lineups-page.lineup-focus-mode .lineup-team-title {
+    min-height: 20px;
+    line-height: 20px;
+    font-size: 12px;
+  }
+  .lineups-page.lineup-focus-mode .lineup-team-heading input {
+    min-height: 20px;
+    padding: 0;
+    line-height: 20px;
+    font-size: 12px;
+  }
+  .lineups-page.lineup-focus-mode .seat-columns {
+    padding: 0 4px;
+    font-size: 10px;
+    line-height: 12px;
+  }
+  .lineups-page.lineup-focus-mode .lineup-members-panel {
+    top: 0;
+    max-height: calc(100dvh - 68px);
+  }
+  .lineups-page.lineup-focus-mode .lineup-workspace {
+    align-items: start;
+  }
+}
+@media (max-width: 1199px) {
+  .lineup-focus-mode .lineup-focus-bar {
+    flex-wrap: wrap;
+  }
+}
+
+.lineup-focus-notice {
+  padding: 8px;
+  margin-bottom: 8px;
+  color: #047857;
+  background: #ecfdf5;
+  border-radius: 8px;
+  font-size: 12px;
+}

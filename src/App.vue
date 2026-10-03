@@ -14,6 +14,7 @@ import EventsPage from './pages/EventsPage.vue';
 import LineupsPage from './pages/LineupsPage.vue';
 
 const mobileMenu = ref(false);
+const lineupFocus = ref(false);
 const pageGuard = ref(null);
 provide('registerNavigationGuard', (guard) => {
   pageGuard.value = guard;
@@ -52,9 +53,9 @@ function skipToMain() {
 </script>
 
 <template>
-  <v-app>
+  <v-app :class="{ 'lineup-route': view === 'lineups' }">
     <a class="skip-link" href="#main" @click.prevent="skipToMain">跳至主要內容</a>
-    <header class="site-header">
+    <header v-show="!lineupFocus" class="site-header">
       <div class="header-inner">
         <button class="brand" type="button" aria-label="回到首頁總覽" @click="goHome">
           <span class="brand-mark"><v-icon :icon="mdiSwordCross" size="26" /></span>
@@ -122,12 +123,12 @@ function skipToMain() {
         >
       </nav>
     </header>
-    <main id="main" class="page" tabindex="-1">
+    <main id="main" class="page" :class="{ 'page-lineups': view === 'lineups' }" tabindex="-1">
       <HomePage v-if="view === 'home'" @open-page="navigate" />
       <MembersPage v-else-if="view === 'members'" />
       <EventsPage v-else-if="view === 'events'" />
-      <LineupsPage v-else />
-      <footer class="page-footer">
+      <LineupsPage v-else @focus-changed="lineupFocus = $event" />
+      <footer v-show="!lineupFocus" class="page-footer">
         <span>逆水寒 <span class="footer-divider">/</span> 幫會管理平台</span
         ><span>每一次集結，都有跡可循。</span>
       </footer>

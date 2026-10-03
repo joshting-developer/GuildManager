@@ -1,6 +1,13 @@
 <script setup>
 import { computed, ref, onMounted, onUnmounted, inject, nextTick } from 'vue';
-import { mdiSwordCross, mdiRefresh, mdiContentSaveOutline, mdiAccountGroupOutline } from '@mdi/js';
+import {
+  mdiFullscreen,
+  mdiFullscreenExit,
+  mdiSwordCross,
+  mdiRefresh,
+  mdiContentSaveOutline,
+  mdiAccountGroupOutline,
+} from '@mdi/js';
 import { createLineupClient } from '../api/lineups.js';
 import { createMemberClient } from '../api/members.js';
 import { emptyLineup, editableLineup, eligibleMember, placeMember } from '../domain/lineups.js';
@@ -9,6 +16,23 @@ import LineupBoard from './LineupBoard.vue';
 import DutyList from './DutyList.vue';
 import { createDutyClient } from '../api/duties.js';
 
+const emit = defineEmits(['focus-changed']);
+const focusMode = ref(false);
+let focusOpener = null,
+  previousBodyOverflow = '';
+function setFocusMode(value) {
+  if (value) {
+    focusOpener = document.activeElement;
+    previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+  } else document.body.style.overflow = previousBodyOverflow;
+  focusMode.value = value;
+  emit('focus-changed', value);
+  nextTick(() => {
+    if (value) document.getElementById('exit-lineup-focus')?.focus();
+    else if (focusOpener?.isConnected) focusOpener.focus();
+  });
+}
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 const client = createLineupClient({ source });
 const memberClient = createMemberClient({ source });
@@ -321,7 +345,7 @@ function closeDialog() {
 function restoreFocus() {
   nextTick(() => {
     if (dialogOpener?.isConnected) dialogOpener.focus();
-    else document.getElementById('lineup-history')?.focus();
+    else document.getElementById(focusMode.value ? 'exit-lineup-focus' : 'lineup-history')?.focus();
   });
 }
 function openSeat(teamId, index) {
@@ -486,6 +510,10 @@ onMounted(() => {
   window.addEventListener('beforeunload', beforeUnload);
 });
 onUnmounted(() => {
+  if (focusMode.value) {
+    document.body.style.overflow = previousBodyOverflow;
+    emit('focus-changed', false);
+  }
   disposed = true;
   operation++;
   unregisterGuard?.();
@@ -494,383 +522,454 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <section class="page-heading" aria-labelledby="lineups-title">
-    <div>
-      <p class="eyebrow">GUILD MANAGER / 戰場</p>
-      <h1 id="lineups-title">戰場排表<span class="heading-dot">.</span></h1>
-      <p class="page-subtitle">安排每一場的出戰名單，保存範本與當時的陣容。</p>
-    </div>
-    <v-btn
-      variant="outlined"
-      :prepend-icon="mdiRefresh"
-      :disabled="loading || busy || catalogBusy || historyLoading"
-      @click="load"
-      >重新載入</v-btn
-    >
-  </section>
-  <v-alert v-if="error" type="error" variant="tonal" class="lineup-alert" role="alert"
-    >{{ error }}<v-btn v-if="!currentEvent" variant="text" @click="load">重試</v-btn></v-alert
-  >
-  <v-alert v-if="notice" type="success" variant="tonal" class="lineup-alert" role="status">{{
-    notice
-  }}</v-alert>
-  <div v-if="loading" class="lineup-loading" role="status">正在載入戰場與成員資料…</div>
-  <v-card v-else-if="!events.length && !error" class="lineup-empty"
-    ><v-icon :icon="mdiSwordCross" size="32" />
-    <h2>尚無戰鬥場次</h2>
-    <p>先到「活動安排」建立約戰、幫戰或龍虎戰，再回來安排成員。</p></v-card
-  >
-  <DutyList
-    v-if="!loading && !events.length && !error"
-    :duties="duties"
-    :disabled="busy"
-    :assignable="false"
-    @updated="updateDuties"
-    @busy-changed="catalogBusy = $event"
-    @unsaved-changed="dutyEditingDirty = $event"
-  />
-  <template v-if="!loading && events.length">
-    <v-card class="lineup-toolbar">
-      <div class="lineup-selects">
-        <v-select
-          :model-value="eventId"
-          :items="eventOptions"
-          label="戰鬥場次"
-          variant="outlined"
-          hide-details
-          :disabled="busy || catalogBusy || historyLoading"
-          @update:model-value="changeEvent"
-        /><v-select
-          id="lineup-history"
-          :model-value="historyId"
-          :items="historyOptions"
-          label="瀏覽排表"
-          variant="outlined"
-          hide-details
-          :disabled="busy || catalogBusy || historyLoading"
-          @update:model-value="historyId = $event"
-        />
+  <div :class="['lineups-page', { 'lineup-focus-mode': focusMode }]">
+    <section v-show="!focusMode" class="page-heading" aria-labelledby="lineups-title">
+      <div>
+        <p class="eyebrow">GUILD MANAGER / 戰場</p>
+        <h1 id="lineups-title">戰場排表<span class="heading-dot">.</span></h1>
+        <p class="page-subtitle">安排每一場的出戰名單，保存範本與當時的陣容。</p>
       </div>
-      <div class="lineup-toolbar-bottom">
-        <div>
-          <strong>{{ displayedEvent?.title }}</strong>
-          <p>
-            {{ eventTypeLabel(displayedEvent?.type) }} · {{ displayedEvent?.dates[0] }} · 已安排
-            {{ count }} / 60 人
-            <span class="draft-label">{{
-              historical
-                ? `第 ${historical.version} 版 · 歷史唯讀`
-                : dirty
-                  ? '有未確認修改'
-                  : '工作區'
-            }}</span>
-          </p>
-        </div>
-        <div class="lineup-actions">
-          <v-btn
-            v-if="historical && !currentEvent?.archived"
-            variant="outlined"
-            :disabled="busy"
-            @click="copyHistory"
-            >載入工作區</v-btn
-          ><v-btn
-            variant="outlined"
-            :prepend-icon="mdiContentSaveOutline"
-            :disabled="busy || catalogBusy || historyLoading"
-            @click="openDialog('template')"
-            >另存範本</v-btn
-          ><v-btn
-            v-if="!historical && !currentEvent?.archived"
-            color="primary"
-            :disabled="
-              busy || catalogBusy || historyLoading || invalidAssignments > 0 || invalidDuties > 0
-            "
-            @click="openDialog('confirm')"
-            >確認並儲存</v-btn
-          >
-        </div>
-      </div>
-      <div class="lineup-template-tools">
-        <v-select
-          v-model="templateId"
-          :items="templates.map((template) => ({ title: template.name, value: template.id }))"
-          label="名單範本"
-          placeholder="尚無範本，先另存一份名單"
-          clearable
+      <div class="lineup-heading-actions">
+        <v-btn
+          v-if="currentEvent"
           variant="outlined"
-          hide-details
-          :disabled="busy || catalogBusy || historyLoading || currentEvent?.archived"
-        /><v-btn
+          :prepend-icon="mdiFullscreen"
+          :disabled="loading || historyLoading"
+          @click="setFocusMode(true)"
+          >專注排表</v-btn
+        >
+        <v-btn
           variant="outlined"
-          :disabled="!templateId || busy || catalogBusy || historyLoading || currentEvent?.archived"
-          @click="applyTemplate"
-          >套用至工作區</v-btn
+          :prepend-icon="mdiRefresh"
+          :disabled="loading || busy || catalogBusy || historyLoading"
+          @click="load"
+          >重新載入</v-btn
         >
       </div>
-    </v-card>
-    <v-alert v-if="currentEvent?.archived" type="info" variant="tonal" class="lineup-alert"
-      >原場次已刪除或改為一般活動，歷史排表仍保留，僅供查看與另存範本。</v-alert
+    </section>
+    <div v-if="focusMode" class="lineup-focus-bar">
+      <div class="lineup-focus-caption">
+        <strong>{{ displayedEvent?.title }}</strong
+        ><span
+          >{{ eventTypeLabel(displayedEvent?.type) }} · {{ displayedEvent?.dates[0] }} ·
+          {{ count }} / 60 人 ·
+          {{
+            historical ? `第 ${historical.version} 版（唯讀）` : dirty ? '未確認修改' : '工作區'
+          }}</span
+        >
+      </div>
+      <div class="lineup-actions">
+        <v-btn
+          v-if="historical && !currentEvent?.archived"
+          variant="outlined"
+          :disabled="busy || catalogBusy"
+          @click="copyHistory"
+          >載入工作區</v-btn
+        ><v-btn variant="outlined" :disabled="busy || catalogBusy" @click="openDialog('template')"
+          >另存範本</v-btn
+        ><v-btn
+          v-if="!historical && !currentEvent?.archived"
+          color="primary"
+          :disabled="busy || catalogBusy || invalidAssignments > 0 || invalidDuties > 0"
+          @click="openDialog('confirm')"
+          >確認並儲存</v-btn
+        ><v-btn
+          id="exit-lineup-focus"
+          variant="outlined"
+          :prepend-icon="mdiFullscreenExit"
+          @click="setFocusMode(false)"
+          >返回一般檢視</v-btn
+        >
+      </div>
+    </div>
+    <v-alert v-if="error" type="error" variant="tonal" class="lineup-alert" role="alert"
+      >{{ error }}<v-btn v-if="!currentEvent" variant="text" @click="load">重試</v-btn></v-alert
     >
     <v-alert
-      v-if="!historical && invalidAssignments"
-      type="warning"
-      variant="tonal"
-      class="lineup-alert"
-      role="alert"
-      >有
-      {{ invalidAssignments }}
-      個位置的成員或職業不符合本場資格。請編輯位置移除或重新安排，再確認名單。</v-alert
-    >
-    <v-alert v-if="skipped.length" type="warning" variant="tonal" class="lineup-alert" role="status"
-      ><strong>套用時跳過的成員</strong>
-      <ul>
-        <li v-for="person in skipped" :key="person.uid">
-          {{ person.name }}（{{ person.uid }}）：{{ person.reason }}
-        </li>
-      </ul></v-alert
-    >
-    <v-alert
-      v-if="!historical && invalidDuties"
-      type="warning"
-      variant="tonal"
-      class="lineup-alert"
-      role="alert"
-      >有 {{ invalidDuties }} 個位置使用停用或不存在的職責，請編輯位置移除後再確認。</v-alert
-    >
-    <v-alert
-      v-if="skippedDuties.length"
-      type="warning"
+      v-if="notice && !currentEvent"
+      type="success"
       variant="tonal"
       class="lineup-alert"
       role="status"
-      ><strong>套用時跳過的職責</strong>
-      <ul>
-        <li v-for="(duty, index) in skippedDuties" :key="index">
-          {{ duty.teamName }} 第 {{ duty.position }} 位：{{ duty.name }} — {{ duty.reason }}
-        </li>
-      </ul></v-alert
+      >{{ notice }}</v-alert
     >
-    <div v-if="historyLoading" class="lineup-loading" role="status">正在載入本場排表…</div>
-    <div v-else-if="currentEvent" class="lineup-workspace">
-      <aside class="lineup-members-panel">
-        <v-tabs
-          :model-value="historical || currentEvent.archived ? 'duties' : sidebarTab"
-          aria-label="排表來源清單"
-          @update:model-value="sidebarTab = $event"
-          ><v-tab value="members" :disabled="Boolean(historical || currentEvent.archived)"
-            >成員</v-tab
-          ><v-tab value="duties">職責分配</v-tab></v-tabs
-        >
-        <DutyList
-          v-show="historical || currentEvent.archived || sidebarTab === 'duties'"
-          :duties="duties"
-          :disabled="busy || historyLoading"
-          :assignable="!readOnly"
-          :selected-id="selectedDutyId"
-          @updated="updateDuties"
-          @select="selectDuty"
-          @busy-changed="catalogBusy = $event"
-          @unsaved-changed="dutyEditingDirty = $event"
-        />
-        <div v-if="selectedDutyId" class="lineup-selected" role="status">
-          已選職責：{{ duties.find((duty) => duty.id === selectedDutyId)?.name
-          }}<v-btn variant="text" @click="selectedDutyId = ''">取消職責選取</v-btn>
+    <div v-if="loading" class="lineup-loading" role="status">正在載入戰場與成員資料…</div>
+    <v-card v-else-if="!events.length && !error" class="lineup-empty"
+      ><v-icon :icon="mdiSwordCross" size="32" />
+      <h2>尚無戰鬥場次</h2>
+      <p>先到「活動安排」建立約戰、幫戰或龍虎戰，再回來安排成員。</p></v-card
+    >
+    <DutyList
+      v-if="!loading && !events.length && !error"
+      :duties="duties"
+      :disabled="busy"
+      :assignable="false"
+      @updated="updateDuties"
+      @busy-changed="catalogBusy = $event"
+      @unsaved-changed="dutyEditingDirty = $event"
+    />
+    <template v-if="!loading && events.length">
+      <v-card v-show="!focusMode" class="lineup-toolbar">
+        <div class="lineup-selects">
+          <v-select
+            :model-value="eventId"
+            :items="eventOptions"
+            label="戰鬥場次"
+            density="compact"
+            variant="outlined"
+            hide-details
+            :disabled="busy || catalogBusy || historyLoading"
+            @update:model-value="changeEvent"
+          /><v-select
+            id="lineup-history"
+            :model-value="historyId"
+            :items="historyOptions"
+            label="瀏覽排表"
+            density="compact"
+            variant="outlined"
+            hide-details
+            :disabled="busy || catalogBusy || historyLoading"
+            @update:model-value="historyId = $event"
+          />
         </div>
-        <v-card
-          v-if="!historical && !currentEvent.archived"
-          v-show="sidebarTab === 'members'"
-          class="lineup-members-card"
-          ><div class="lineup-member-heading">
-            <h2><v-icon :icon="mdiAccountGroupOutline" size="22" />成員清單</h2>
-            <v-btn
-              variant="text"
-              :icon="mdiRefresh"
-              aria-label="更新成員清單並保留排表"
-              :disabled="busy"
-              @click="refreshMembers"
-            />
-          </div>
-          <p class="lineup-hint">{{ qualification }}</p>
-          <p class="lineup-hint">
-            拖曳至位置，或先點選成員再點位置。已安排成員會移動；兩個已占用位置會交換，職責與備註保留在原位置。
-          </p>
-          <v-text-field
-            v-model="search"
-            label="搜尋名稱或 UID"
-            variant="outlined"
-            hide-details
-            clearable
-            :disabled="busy"
-          /><v-select
-            v-model="professionId"
-            :items="[
-              { title: '所有職業', value: null },
-              ...professions.map((job) => ({ title: job.name, value: job.job_id })),
-            ]"
-            label="職業篩選"
-            variant="outlined"
-            hide-details
-            :disabled="busy"
-          />
-          <p class="lineup-list-count">
-            符合 {{ visibleMembers.length }} 人 · 尚未安排
-            {{ eligible.filter((member) => !assigned.has(member.uid)).length }} 人
-          </p>
-          <div v-if="selectedUid" class="lineup-selected" role="status">
-            已選：{{ members.find((member) => member.uid === selectedUid)?.name
-            }}<v-btn variant="text" size="small" @click="selectedUid = ''">取消選取</v-btn>
-          </div>
-          <div class="lineup-member-list">
-            <button
-              v-for="member in visibleMembers"
-              :key="member.uid"
-              type="button"
-              :class="['lineup-member', { 'member-selected': selectedUid === member.uid }]"
-              :draggable="!busy"
-              :disabled="busy"
-              :aria-pressed="selectedUid === member.uid"
-              :data-member="member.uid"
-              @dragstart="drag($event, member.uid)"
-              @click="selectMember(member.uid)"
-            >
-              <span class="lineup-member-main"
-                ><strong>{{ member.name }}</strong
-                ><small>{{ member.uid }}</small></span
-              ><span class="lineup-member-job"
-                ><span
-                  class="profession-dot"
-                  :style="{
-                    backgroundColor: professions.find(
-                      (job) => job.job_id === member.primaryProfessionId,
-                    )?.colorcode,
-                  }"
-                ></span
-                >{{ member.primaryProfession
-                }}<small v-if="assigned.has(member.uid)">已安排</small></span
-              >
-            </button>
-            <p v-if="!visibleMembers.length" class="lineup-hint">
-              {{ eligible.length ? '沒有符合搜尋條件的成員。' : '尚無符合本場資格的成員。' }}
+        <div class="lineup-toolbar-bottom">
+          <div>
+            <strong>{{ displayedEvent?.title }}</strong>
+            <p>
+              {{ eventTypeLabel(displayedEvent?.type) }} · {{ displayedEvent?.dates[0] }} · 已安排
+              {{ count }} / 60 人
+              <span class="draft-label">{{
+                historical
+                  ? `第 ${historical.version} 版 · 歷史唯讀`
+                  : dirty
+                    ? '有未確認修改'
+                    : '工作區'
+              }}</span>
             </p>
-          </div></v-card
-        >
-      </aside>
-      <LineupBoard
-        :teams="displayedTeams"
-        :members="members"
-        :professions="professions"
-        :duties="duties"
-        :selected-duty-id="selectedDutyId"
-        :read-only="readOnly"
-        :snapshots="Boolean(historical)"
-        :selected-uid="selectedUid"
-        @place="place"
-        @assign-duty="assignDuty"
-        @edit-seat="openSeat"
-        @rename-team="renameTeam"
-      />
-    </div>
-  </template>
-  <v-dialog
-    :model-value="Boolean(dialog)"
-    max-width="540"
-    :persistent="busy"
-    aria-labelledby="lineup-dialog-title"
-    @update:model-value="!$event && closeDialog()"
-    @after-leave="restoreFocus"
-  >
-    <v-card class="lineup-dialog"
-      ><div class="lineup-dialog-content">
-        <h2 id="lineup-dialog-title">
-          {{
-            dialog === 'seat' ? '編輯位置' : dialog === 'template' ? '另存名單範本' : '確認本場名單'
-          }}
-        </h2>
-        <v-alert v-if="dialogError" type="error" variant="tonal" role="alert">{{
-          dialogError
-        }}</v-alert>
-        <template v-if="dialog === 'seat'"
-          ><v-select
-            :model-value="seatUid"
-            :items="slotOptions"
-            label="安排成員"
+          </div>
+          <div class="lineup-actions">
+            <v-btn
+              v-if="historical && !currentEvent?.archived"
+              variant="outlined"
+              :disabled="busy"
+              @click="copyHistory"
+              >載入工作區</v-btn
+            ><v-btn
+              variant="outlined"
+              :prepend-icon="mdiContentSaveOutline"
+              :disabled="busy || catalogBusy || historyLoading"
+              @click="openDialog('template')"
+              >另存範本</v-btn
+            ><v-btn
+              v-if="!historical && !currentEvent?.archived"
+              color="primary"
+              :disabled="
+                busy || catalogBusy || historyLoading || invalidAssignments > 0 || invalidDuties > 0
+              "
+              @click="openDialog('confirm')"
+              >確認並儲存</v-btn
+            >
+          </div>
+        </div>
+        <div class="lineup-template-tools">
+          <v-select
+            v-model="templateId"
+            :items="templates.map((template) => ({ title: template.name, value: template.id }))"
+            label="名單範本"
+            density="compact"
+            placeholder="尚無範本，先另存一份名單"
+            clearable
             variant="outlined"
-            :disabled="busy"
-            @update:model-value="changeSeatUid"
-          /><v-select
-            v-model="seatProfession"
-            :items="seatJobs"
-            label="上場職業"
+            hide-details
+            :disabled="busy || catalogBusy || historyLoading || currentEvent?.archived"
+          /><v-btn
             variant="outlined"
-            :disabled="busy || !seatUid"
-          /><v-select
-            v-model="seatDutyIds"
-            :items="seatDutyOptions"
-            label="分配職責"
-            multiple
-            chips
-            closable-chips
-            variant="outlined"
-            :disabled="busy"
+            :disabled="
+              !templateId || busy || catalogBusy || historyLoading || currentEvent?.archived
+            "
+            @click="applyTemplate"
+            >套用至工作區</v-btn
+          >
+        </div>
+      </v-card>
+      <v-alert v-if="currentEvent?.archived" type="info" variant="tonal" class="lineup-alert"
+        >原場次已刪除或改為一般活動，歷史排表仍保留，僅供查看與另存範本。</v-alert
+      >
+      <v-alert
+        v-if="!historical && invalidAssignments"
+        type="warning"
+        variant="tonal"
+        class="lineup-alert"
+        role="alert"
+        >有
+        {{ invalidAssignments }}
+        個位置的成員或職業不符合本場資格。請編輯位置移除或重新安排，再確認名單。</v-alert
+      >
+      <v-alert
+        v-if="skipped.length"
+        type="warning"
+        variant="tonal"
+        class="lineup-alert"
+        role="status"
+        ><strong>套用時跳過的成員</strong>
+        <ul>
+          <li v-for="person in skipped" :key="person.uid">
+            {{ person.name }}（{{ person.uid }}）：{{ person.reason }}
+          </li>
+        </ul></v-alert
+      >
+      <v-alert
+        v-if="!historical && invalidDuties"
+        type="warning"
+        variant="tonal"
+        class="lineup-alert"
+        role="alert"
+        >有 {{ invalidDuties }} 個位置使用停用或不存在的職責，請編輯位置移除後再確認。</v-alert
+      >
+      <v-alert
+        v-if="skippedDuties.length"
+        type="warning"
+        variant="tonal"
+        class="lineup-alert"
+        role="status"
+        ><strong>套用時跳過的職責</strong>
+        <ul>
+          <li v-for="(duty, index) in skippedDuties" :key="index">
+            {{ duty.teamName }} 第 {{ duty.position }} 位：{{ duty.name }} — {{ duty.reason }}
+          </li>
+        </ul></v-alert
+      >
+      <div v-if="historyLoading" class="lineup-loading" role="status">正在載入本場排表…</div>
+      <div v-else-if="currentEvent" class="lineup-workspace">
+        <aside class="lineup-members-panel">
+          <div v-if="notice" class="lineup-focus-notice" role="status">
+            {{ notice }}
+          </div>
+          <v-tabs
+            :model-value="historical || currentEvent.archived ? 'duties' : sidebarTab"
+            aria-label="排表來源清單"
+            @update:model-value="sidebarTab = $event"
+            ><v-tab value="members" :disabled="Boolean(historical || currentEvent.archived)"
+              >成員</v-tab
+            ><v-tab value="duties">職責分配</v-tab></v-tabs
+          >
+          <DutyList
+            v-show="historical || currentEvent.archived || sidebarTab === 'duties'"
+            :duties="duties"
+            :disabled="busy || historyLoading"
+            :assignable="!readOnly"
+            :selected-id="selectedDutyId"
+            @updated="updateDuties"
+            @select="selectDuty"
+            @busy-changed="catalogBusy = $event"
+            @unsaved-changed="dutyEditingDirty = $event"
           />
-          <v-text-field
-            v-model="seatNote"
-            label="補充備註"
-            maxlength="160"
-            variant="outlined"
-            :disabled="busy"
-          />
-          <p class="lineup-hint">
-            選取已安排的成員會移動或交換位置。選空位可移除此位置的成員。
-          </p></template
-        >
-        <template v-else-if="dialog === 'template'"
-          ><v-text-field
-            v-model="templateName"
-            label="範本名稱"
-            maxlength="80"
-            variant="outlined"
-            :disabled="busy"
-            autofocus
-          />
-          <p>
-            保存目前
-            {{ count }} 位成員的位置、上場職業、隊名與備註。套用到其他場次時會重新檢查資格。
-          </p></template
-        >
-        <template v-else
-          ><p>
-            <strong>{{ currentEvent?.title }}</strong>
-          </p>
-          <p>{{ eventTypeLabel(currentEvent?.type) }} · {{ currentEvent?.dates[0] }}</p>
-          <p>
-            將確認第 {{ latestVersion + 1 }} 版，共 {{ count }} 位成員，{{ 60 - count }} 個空位。
-          </p>
-          <p class="lineup-hint">
-            保存當時的名稱、職業與位置。往後修改會另建版本，原始名單仍可回看。
-          </p></template
-        >
+          <div v-if="selectedDutyId" class="lineup-selected" role="status">
+            已選職責：{{ duties.find((duty) => duty.id === selectedDutyId)?.name
+            }}<v-btn variant="text" @click="selectedDutyId = ''">取消職責選取</v-btn>
+          </div>
+          <v-card
+            v-if="!historical && !currentEvent.archived"
+            v-show="sidebarTab === 'members'"
+            class="lineup-members-card"
+            ><div class="lineup-member-heading">
+              <h2><v-icon :icon="mdiAccountGroupOutline" size="22" />成員清單</h2>
+              <v-btn
+                variant="text"
+                :icon="mdiRefresh"
+                aria-label="更新成員清單並保留排表"
+                :disabled="busy"
+                @click="refreshMembers"
+              />
+            </div>
+            <p class="lineup-hint">{{ qualification }}</p>
+            <p class="lineup-hint">
+              拖曳至位置，或先點選成員再點位置。已安排成員會移動；兩個已占用位置會交換，職責與備註保留在原位置。
+            </p>
+            <v-text-field
+              v-model="search"
+              label="搜尋名稱或 UID"
+              density="compact"
+              variant="outlined"
+              hide-details
+              clearable
+              :disabled="busy"
+            /><v-select
+              v-model="professionId"
+              :items="[
+                { title: '所有職業', value: null },
+                ...professions.map((job) => ({ title: job.name, value: job.job_id })),
+              ]"
+              label="職業篩選"
+              density="compact"
+              variant="outlined"
+              hide-details
+              :disabled="busy"
+            />
+            <p class="lineup-list-count">
+              符合 {{ visibleMembers.length }} 人 · 尚未安排
+              {{ eligible.filter((member) => !assigned.has(member.uid)).length }} 人
+            </p>
+            <div v-if="selectedUid" class="lineup-selected" role="status">
+              已選：{{ members.find((member) => member.uid === selectedUid)?.name
+              }}<v-btn variant="text" size="small" @click="selectedUid = ''">取消選取</v-btn>
+            </div>
+            <div class="lineup-member-list">
+              <button
+                v-for="member in visibleMembers"
+                :key="member.uid"
+                type="button"
+                :class="['lineup-member', { 'member-selected': selectedUid === member.uid }]"
+                :draggable="!busy"
+                :disabled="busy"
+                :aria-pressed="selectedUid === member.uid"
+                :data-member="member.uid"
+                @dragstart="drag($event, member.uid)"
+                @click="selectMember(member.uid)"
+              >
+                <span class="lineup-member-main"
+                  ><strong>{{ member.name }}</strong
+                  ><small>{{ member.uid }}</small></span
+                ><span class="lineup-member-job"
+                  ><span
+                    class="profession-dot"
+                    :style="{
+                      backgroundColor: professions.find(
+                        (job) => job.job_id === member.primaryProfessionId,
+                      )?.colorcode,
+                    }"
+                  ></span
+                  >{{ member.primaryProfession
+                  }}<small v-if="assigned.has(member.uid)">已安排</small></span
+                >
+              </button>
+              <p v-if="!visibleMembers.length" class="lineup-hint">
+                {{ eligible.length ? '沒有符合搜尋條件的成員。' : '尚無符合本場資格的成員。' }}
+              </p>
+            </div></v-card
+          >
+        </aside>
+        <LineupBoard
+          :teams="displayedTeams"
+          :members="members"
+          :professions="professions"
+          :duties="duties"
+          :selected-duty-id="selectedDutyId"
+          :read-only="readOnly"
+          :snapshots="Boolean(historical)"
+          :selected-uid="selectedUid"
+          @place="place"
+          @assign-duty="assignDuty"
+          @edit-seat="openSeat"
+          @rename-team="renameTeam"
+        />
       </div>
-      <div class="lineup-dialog-actions">
-        <v-btn variant="outlined" :disabled="busy || catalogBusy" @click="closeDialog">取消</v-btn
-        ><v-btn
-          color="primary"
-          :loading="busy"
-          :disabled="busy"
-          @click="
-            dialog === 'seat' ? saveSeat() : dialog === 'template' ? saveTemplate() : confirm()
-          "
-          >{{
-            busy
-              ? '儲存中…'
-              : dialog === 'seat'
-                ? '套用位置'
-                : dialog === 'template'
-                  ? '儲存範本'
-                  : '確認儲存'
-          }}</v-btn
-        >
-      </div></v-card
+    </template>
+    <v-dialog
+      :model-value="Boolean(dialog)"
+      max-width="540"
+      :persistent="busy"
+      aria-labelledby="lineup-dialog-title"
+      @update:model-value="!$event && closeDialog()"
+      @after-leave="restoreFocus"
     >
-  </v-dialog>
+      <v-card class="lineup-dialog"
+        ><div class="lineup-dialog-content">
+          <h2 id="lineup-dialog-title">
+            {{
+              dialog === 'seat'
+                ? '編輯位置'
+                : dialog === 'template'
+                  ? '另存名單範本'
+                  : '確認本場名單'
+            }}
+          </h2>
+          <v-alert v-if="dialogError" type="error" variant="tonal" role="alert">{{
+            dialogError
+          }}</v-alert>
+          <template v-if="dialog === 'seat'"
+            ><v-select
+              :model-value="seatUid"
+              :items="slotOptions"
+              label="安排成員"
+              variant="outlined"
+              :disabled="busy"
+              @update:model-value="changeSeatUid"
+            /><v-select
+              v-model="seatProfession"
+              :items="seatJobs"
+              label="上場職業"
+              variant="outlined"
+              :disabled="busy || !seatUid"
+            /><v-select
+              v-model="seatDutyIds"
+              :items="seatDutyOptions"
+              label="分配職責"
+              multiple
+              chips
+              closable-chips
+              variant="outlined"
+              :disabled="busy"
+            />
+            <v-text-field
+              v-model="seatNote"
+              label="補充備註"
+              maxlength="160"
+              variant="outlined"
+              :disabled="busy"
+            />
+            <p class="lineup-hint">
+              選取已安排的成員會移動或交換位置。選空位可移除此位置的成員。
+            </p></template
+          >
+          <template v-else-if="dialog === 'template'"
+            ><v-text-field
+              v-model="templateName"
+              label="範本名稱"
+              maxlength="80"
+              variant="outlined"
+              :disabled="busy"
+              autofocus
+            />
+            <p>
+              保存目前
+              {{ count }} 位成員的位置、上場職業、隊名與備註。套用到其他場次時會重新檢查資格。
+            </p></template
+          >
+          <template v-else
+            ><p>
+              <strong>{{ currentEvent?.title }}</strong>
+            </p>
+            <p>{{ eventTypeLabel(currentEvent?.type) }} · {{ currentEvent?.dates[0] }}</p>
+            <p>
+              將確認第 {{ latestVersion + 1 }} 版，共 {{ count }} 位成員，{{ 60 - count }} 個空位。
+            </p>
+            <p class="lineup-hint">
+              保存當時的名稱、職業與位置。往後修改會另建版本，原始名單仍可回看。
+            </p></template
+          >
+        </div>
+        <div class="lineup-dialog-actions">
+          <v-btn variant="outlined" :disabled="busy || catalogBusy" @click="closeDialog">取消</v-btn
+          ><v-btn
+            color="primary"
+            :loading="busy"
+            :disabled="busy"
+            @click="
+              dialog === 'seat' ? saveSeat() : dialog === 'template' ? saveTemplate() : confirm()
+            "
+            >{{
+              busy
+                ? '儲存中…'
+                : dialog === 'seat'
+                  ? '套用位置'
+                  : dialog === 'template'
+                    ? '儲存範本'
+                    : '確認儲存'
+            }}</v-btn
+          >
+        </div></v-card
+      >
+    </v-dialog>
+  </div>
 </template>
