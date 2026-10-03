@@ -49,3 +49,8 @@
 
 - 本次需求與相容規則見 [member-membership-plan.md](member-membership-plan.md)。
 - 兩個獨立 boolean、清單顯示與編輯、俱樂部／幫派／不篩選選單。
+
+## 成員／編外人員分頁後續需求
+
+- 新需求與資料相容處理見 [member-tabs-plan.md](member-tabs-plan.md)。
+- 成員頁至少一個所屬狀態為是, 編外頁兩者為否, 原移除操作改為移至編外。

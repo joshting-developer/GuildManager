@@ -96,13 +96,19 @@ test('stale previews and modified input cannot write; concurrent UID addition re
     );
     assert.equal(repo.listMembers().members[0].name, '另一人新增');
   }));
-test('removed members restore the same UID and retain rename history on import', () =>
+test('import skips an external UID and preserves its name, flags and history', () =>
   withRepo((repo) => {
-    const old = importText(repo, '001 原名稱 碎夢 -').members[0];
-    repo.removeMember(old.uid, old.revision);
-    const result = importText(repo, '001 回歸名稱 素問 -');
-    assert.equal(result.summary.restored, 1);
-    assert.equal(result.members[0].previousNames[0].name, '原名稱');
+    let old = importText(repo, '001 原名稱 碎夢 -').members[0];
+    old = repo.updateMember(old.uid, {
+      name: '編外名稱',
+      primaryProfessionId: 3,
+      revision: old.revision,
+    });
+    const external = repo.removeMember(old.uid, old.revision).member;
+    const result = importText(repo, '001 不應覆寫 素問 -');
+    assert.deepEqual(result.summary, { added: 0, restored: 0, skipped: 1 });
+    assert.deepEqual(result.members, []);
+    assert.deepEqual(repo.listMembers().members[0], external);
   }));
 test('a later write failure rolls back every member in a batch', () => {
   const directory = mkdtempSync(join(tmpdir(), 'guild-import-'));

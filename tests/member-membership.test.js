@@ -93,26 +93,26 @@ test('strings, numbers, null and arrays cannot masquerade as booleans', () =>
       }
     assert.equal(repo.listMembers().members.length, 1);
   }));
-test('four-column import defaults apply only to new UIDs, skip and restore retain existing flags', () =>
+test('four-column import defaults apply only to new UIDs, member and external UIDs are skipped', () =>
   withRepo((repo) => {
     const existing = repo.addMember({ ...initial, isInGuild: false, isInClub: true });
-    const archived = repo.addMember({ ...initial, uid: '002', isInGuild: false, isInClub: true });
-    repo.removeMember(archived.uid, archived.revision);
+    const external = repo.addMember({ ...initial, uid: '002', isInGuild: false, isInClub: true });
+    repo.removeMember(external.uid, external.revision);
     const text = '001 不應覆寫 素問 -\n002 恢復成員 龍吟 -\n003 新成員 碎夢 -';
     const preview = repo.previewMemberImport({ text });
     const result = repo.importMembers({ text, fingerprint: preview.fingerprint });
-    assert.deepEqual(result.summary, { added: 1, restored: 1, skipped: 1 });
+    assert.deepEqual(result.summary, { added: 1, restored: 0, skipped: 2 });
     const members = repo.listMembers().members;
     assert.deepEqual(
       members.find((member) => member.uid === '001'),
       existing,
     );
     assert.equal(members.find((member) => member.uid === '002').isInGuild, false);
-    assert.equal(members.find((member) => member.uid === '002').isInClub, true);
+    assert.equal(members.find((member) => member.uid === '002').isInClub, false);
     assert.equal(members.find((member) => member.uid === '003').isInGuild, true);
     assert.equal(members.find((member) => member.uid === '003').isInClub, false);
   }));
-test('membership changes invalidate an import preview and explicit re-add flags are respected', () =>
+test('membership changes invalidate an import preview and external status can be edited', () =>
   withRepo((repo) => {
     let member = repo.addMember(initial);
     const text = '001 原成員 碎夢 -\n002 新成員 碎夢 -';
@@ -122,10 +122,13 @@ test('membership changes invalidate an import preview and explicit re-add flags 
       () => repo.importMembers({ text, fingerprint: preview.fingerprint }),
       (error) => error.code === 'STALE_IMPORT',
     );
-    repo.removeMember(member.uid, member.revision);
-    const restored = repo.addMember({ ...initial, isInGuild: false, isInClub: false });
-    assert.equal(restored.isInGuild, false);
-    assert.equal(restored.isInClub, false);
+    const external = repo.removeMember(member.uid, member.revision).member;
+    const updated = repo.updateMember(
+      member.uid,
+      edit(external, { isInGuild: false, isInClub: true }),
+    );
+    assert.equal(updated.isInGuild, false);
+    assert.equal(updated.isInClub, true);
   }));
 test('legacy membership migration preserves records, history and revisions and never resets flags on restart', () => {
   const directory = mkdtempSync(join(tmpdir(), 'guild-membership-'));

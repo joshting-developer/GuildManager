@@ -95,6 +95,11 @@ export function createRepository({ filename }) {
         (SELECT job_id FROM professions WHERE name = members.${type}_profession)
         WHERE ${type}_profession_id IS NULL AND ${type}_profession != ''`);
     }
+    // Former soft removals become external personnel; only legacy rows are changed.
+    db.prepare(
+      `UPDATE members SET is_in_guild = 0, is_in_club = 0, removed_at = NULL,
+      updated_at = ?, revision = revision + 1 WHERE removed_at IS NOT NULL`,
+    ).run(new Date().toISOString());
   })();
   const memberColumns = `m.uid, m.name, m.primary_profession_id AS primaryProfessionId,
     m.secondary_profession_id AS secondaryProfessionId,
@@ -338,11 +343,12 @@ export function createRepository({ filename }) {
       return db.transaction(() => {
         const current = getMember(uid);
         checkRevision(current, revision);
+        if (!current.isInGuild && !current.isInClub) return { uid, member: current };
         const now = new Date().toISOString();
         db.prepare(
-          'UPDATE members SET removed_at = ?, updated_at = ?, revision = revision + 1 WHERE uid = ?',
-        ).run(now, now, uid);
-        return { uid };
+          'UPDATE members SET is_in_guild = 0, is_in_club = 0, updated_at = ?, revision = revision + 1 WHERE uid = ?',
+        ).run(now, uid);
+        return { uid, member: getMember(uid) };
       })();
     },
     readHome() {

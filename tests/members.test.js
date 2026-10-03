@@ -97,27 +97,37 @@ test('stale edits and removals cannot overwrite current data', () =>
     assert.equal(repo.listMembers().members[0].name, '新名稱');
     assert.equal(repo.listMembers().members[0].previousNames.length, 1);
   }));
-test('removal hides a member, rejoining restores the same UID and name history', () =>
+test('moving to external retains UID and history, returning to members uses editing', () =>
   withRepository((repo) => {
     let member = repo.addMember(initial);
     member = repo.updateMember(member.uid, {
-      name: '退會前名稱',
+      name: '移至編外前名稱',
       primaryProfessionId: 1,
       revision: member.revision,
     });
-    repo.removeMember(member.uid, member.revision);
-    assert.deepEqual(repo.listMembers().members, []);
+    const result = repo.removeMember(member.uid, member.revision);
+    assert.equal(result.member.isInGuild, false);
+    assert.equal(result.member.isInClub, false);
+    assert.equal(result.member.uid, member.uid);
+    assert.equal(repo.listMembers().members.length, 1);
+    assert.deepEqual(result.member.previousNames, member.previousNames);
     assert.throws(
       () => repo.removeMember(member.uid, member.revision),
-      (error) => error.code === 'MEMBER_NOT_FOUND',
+      (error) => error.code === 'STALE_MEMBER',
     );
-    const rejoined = repo.addMember({ ...initial, name: '重新加入名稱' });
-    assert.equal(rejoined.uid, member.uid);
-    assert.deepEqual(
-      rejoined.previousNames.map((entry) => entry.name),
-      ['退會前名稱', '測試成員'],
+    assert.throws(
+      () => repo.addMember(initial),
+      (error) => error.code === 'DUPLICATE_UID',
     );
-    assert.equal(repo.listMembers().members.length, 1);
+    const rejoined = repo.updateMember(member.uid, {
+      name: result.member.name,
+      primaryProfessionId: 1,
+      isInClub: true,
+      revision: result.member.revision,
+    });
+    assert.equal(rejoined.isInGuild, false);
+    assert.equal(rejoined.isInClub, true);
+    assert.deepEqual(rejoined.previousNames, member.previousNames);
   }));
 test('invalid fields, immutable UID and missing revisions are rejected', () =>
   withRepository((repo) => {
@@ -213,7 +223,11 @@ test('API supports add/edit/remove and returns actionable validation/conflict re
     assert.equal(changed.previousNames[0].name, initial.name);
     assert.equal((await send('DELETE', { revision: member.revision }, member.uid)).status, 409);
     assert.equal((await send('DELETE', { revision: changed.revision }, member.uid)).status, 200);
-    assert.deepEqual((await (await fetch(base)).json()).members, []);
+    const external = (await (await fetch(base)).json()).members;
+    assert.equal(external.length, 1);
+    assert.equal(external[0].isInGuild, false);
+    assert.equal(external[0].isInClub, false);
+    assert.deepEqual(external[0].previousNames, changed.previousNames);
     response = await send('POST', { ...initial, name: '' });
     assert.equal(response.status, 422);
     assert.ok((await response.json()).error.fields.name);
