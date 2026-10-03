@@ -110,3 +110,7 @@ UID 僅在成員管理頁顯示, 報名／排表／歷史等畫面以名稱呈�
 ## 排表來源主／副職業
 
 成員卡片右下切換主／副職業, 安排時沿用所選職業, 見 [lineup-member-profession-plan.md](lineup-member-profession-plan.md)。
+
+## 排表直接編輯與儲存
+
+取消工作區／歷史版本切換, 每場直接編輯並儲存目前排表, 過去配置由使用者另存範本, 見 [lineup-direct-edit-plan.md](lineup-direct-edit-plan.md)。

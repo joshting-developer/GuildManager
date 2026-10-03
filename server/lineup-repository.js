@@ -214,7 +214,7 @@ export function createLineupRepository(db) {
         const duties = slot.dutyIds.map((id) => {
           if (!catalog.has(id))
             throw new LineupError(
-              '排表使用的職責已停用或不存在，請更新職責清單並移除後再確認',
+              '排表使用的職責已停用或不存在，請更新職責清單並移除後再儲存',
               409,
               'DUTY_UNAVAILABLE',
             );
@@ -289,7 +289,7 @@ export function createLineupRepository(db) {
         !Number.isSafeInteger(input?.eventRevision) ||
         input.eventRevision < 1
       )
-        throw new LineupError('場次或排表版本格式不正確');
+        throw new LineupError('場次或排表資料格式不正確');
       const payload = JSON.stringify({
         eventId: input.eventId,
         eventRevision: input.eventRevision,
@@ -310,7 +310,7 @@ export function createLineupRepository(db) {
         }
         const currentEvent = event(input.eventId);
         if (currentEvent.revision !== input.eventRevision)
-          throw new LineupError('場次資料已修改，請重新載入後再確認', 409, 'EVENT_CHANGED');
+          throw new LineupError('場次資料已修改，請重新載入後再儲存', 409, 'EVENT_CHANGED');
         const latest = db
           .prepare(
             'SELECT COALESCE(MAX(version), 0) AS version FROM lineup_versions WHERE event_id = ?',
@@ -318,7 +318,7 @@ export function createLineupRepository(db) {
           .get(input.eventId).version;
         if (latest !== input.expectedVersion)
           throw new LineupError(
-            '已有其他人確認新版本，請先重新載入排表；目前輸入仍保留',
+            '已有其他人修改排表，請先重新載入；目前輸入仍保留',
             409,
             'LINEUP_CONFLICT',
           );

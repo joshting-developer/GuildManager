@@ -951,7 +951,7 @@ h3 {
 }
 .lineup-selects {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
 }
 .lineup-toolbar-bottom {
@@ -970,7 +970,7 @@ h3 {
   color: var(--color-text-muted);
   margin-top: 6px;
 }
-.draft-label {
+.lineup-save-status {
   display: inline-block;
   padding: 3px 8px;
   margin-left: 8px;
@@ -1611,7 +1611,7 @@ button.seat-person {
   }
   .lineups-page .lineup-selects {
     gap: 8px;
-    grid-template-columns: 2fr 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .lineups-page .lineup-toolbar-bottom {
     display: contents;

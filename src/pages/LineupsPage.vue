@@ -86,15 +86,15 @@ const events = ref([]),
   templates = ref([]),
   members = ref([]),
   professions = ref([]),
-  versions = ref([]);
+  savedLineup = ref(null);
 const eventId = ref(null),
-  historyId = ref('draft'),
   templateId = ref(null);
 const teams = ref(emptyLineup()),
   baseline = ref(JSON.stringify(teams.value));
 const loading = ref(true),
-  historyLoading = ref(false),
+  lineupLoading = ref(false),
   busy = ref(false),
+  saving = ref(false),
   error = ref(''),
   notice = ref(''),
   skipped = ref([]);
@@ -130,23 +130,30 @@ const dialog = ref(null),
 let seatBaseline = '';
 let operation = 0,
   disposed = false,
-  confirmAttempt = null,
+  saveAttempt = null,
   templateAttempt = null,
   dialogOpener = null;
 const currentEvent = computed(() => events.value.find((event) => event.id === eventId.value));
-const historical = computed(() => versions.value.find((version) => version.id === historyId.value));
-const displayedEvent = computed(() => historical.value?.event || currentEvent.value);
-const readOnly = computed(() =>
-  Boolean(
-    historical.value ||
-    currentEvent.value?.archived ||
-    busy.value ||
-    catalogBusy.value ||
-    historyLoading.value,
-  ),
+const archived = computed(() => Boolean(currentEvent.value?.archived));
+const displayedEvent = computed(() =>
+  archived.value ? savedLineup.value?.event || currentEvent.value : currentEvent.value,
 );
-const displayedTeams = computed(() => historical.value?.teams || teams.value);
+const readOnly = computed(() =>
+  Boolean(archived.value || busy.value || catalogBusy.value || lineupLoading.value),
+);
+const displayedTeams = computed(() =>
+  archived.value ? savedLineup.value?.teams || teams.value : teams.value,
+);
 const dirty = computed(() => JSON.stringify(teams.value) !== baseline.value);
+const saveStatus = computed(() =>
+  archived.value
+    ? '已封存'
+    : dirty.value
+      ? '有未儲存修改'
+      : savedLineup.value
+        ? '已儲存'
+        : '尚未儲存',
+);
 const dialogDirty = computed(() =>
   dialog.value === 'template'
     ? Boolean(templateName.value.trim())
@@ -160,7 +167,7 @@ const dialogDirty = computed(() =>
         seatDutyIds.value,
       ]) !== seatBaseline,
 );
-const latestVersion = computed(() => versions.value[0]?.version || 0);
+const latestVersion = computed(() => savedLineup.value?.version || 0);
 const assigned = computed(
   () =>
     new Set(
@@ -183,13 +190,6 @@ const positionCount = computed(
       .flatMap((team) => team.slots)
       .filter((slot) => slotAssignments(slot).some((person) => participantKey(person))).length,
 );
-const roundCounts = computed(() => {
-  const slots = displayedTeams.value.flatMap((team) => team.slots);
-  return {
-    first: slots.filter((slot) => participantKey(slot)).length,
-    second: slots.filter((slot) => participantKey(slot.secondRound || slot)).length,
-  };
-});
 const eligible = computed(() =>
   participantPeople.value.filter((member) => eligibleMember(member, currentEvent.value?.type)),
 );
@@ -223,17 +223,10 @@ const visibleMembers = computed(() =>
 );
 const eventOptions = computed(() =>
   events.value.map((event) => ({
-    title: `${event.dates[0]} · ${eventTypeLabel(event.type)}${event.title ? ` · ${event.title}` : ''}${event.archived ? '（歷史封存）' : ''}`,
+    title: `${event.dates[0]} · ${eventTypeLabel(event.type)}${event.title ? ` · ${event.title}` : ''}${event.archived ? '（已封存）' : ''}`,
     value: event.id,
   })),
 );
-const historyOptions = computed(() => [
-  ...(!currentEvent.value?.archived ? [{ title: '工作區（編輯排表）', value: 'draft' }] : []),
-  ...versions.value.map((version) => ({
-    title: `第 ${version.version} 版 · ${formatTime(version.createdAt)}`,
-    value: version.id,
-  })),
-]);
 const slotOptions = computed(() => [
   { title: '空位', value: null },
   ...eligible.value.map((member) => ({
@@ -273,6 +266,14 @@ const invalidDuties = computed(
         ),
       ).length,
 );
+const canSave = computed(
+  () =>
+    Boolean(currentEvent.value) &&
+    !readOnly.value &&
+    !invalidAssignments.value &&
+    !invalidDuties.value &&
+    (dirty.value || !savedLineup.value),
+);
 const seatDutyOptions = computed(() => [
   ...duties.value
     .filter((duty) => duty.active || seatDutyIds.value.includes(duty.id))
@@ -308,7 +309,7 @@ function assignDuty(id, teamId, index) {
   if (!slot.dutyIds) slot.dutyIds = [];
   if (!slot.dutyIds.includes(id)) slot.dutyIds.push(id);
   selectedDutyId.value = '';
-  notice.value = '已分配職責，請確認並儲存本場名單。';
+  notice.value = '已分配職責，請儲存排表。';
 }
 const qualification = computed(() =>
   memberTab.value === 'guild'
@@ -317,14 +318,7 @@ const qualification = computed(() =>
       ? '僅俱樂部成員，排除幫派內及本場已請假者。'
       : '本場額外報名者及已報名的編外人員。',
 );
-function formatTime(value) {
-  return new Intl.DateTimeFormat('zh-TW', {
-    timeZone: 'Asia/Taipei',
-    dateStyle: 'short',
-    timeStyle: 'short',
-  }).format(new Date(value));
-}
-function mayDiscard(message = '排表有尚未確認的修改，確定要放棄嗎？') {
+function mayDiscard(message = '排表有尚未儲存的修改，確定要放棄嗎？') {
   return (
     !(busy.value || catalogBusy.value) &&
     (!(dirty.value || dialogDirty.value || dutyEditingDirty.value) || window.confirm(message))
@@ -344,12 +338,12 @@ function beforeUnload(event) {
     event.returnValue = '';
   }
 }
-function resetDraft(data) {
+function resetLineup(data) {
   teams.value = editableLineup(data || emptyLineup());
   baseline.value = JSON.stringify(teams.value);
   selectedUid.value = '';
   selectedDutyId.value = '';
-  confirmAttempt = null;
+  saveAttempt = null;
 }
 async function load() {
   if (!mayDiscard()) return;
@@ -374,8 +368,8 @@ async function load() {
     if (target) await loadEvent(target);
     else {
       eventId.value = null;
-      versions.value = [];
-      resetDraft();
+      savedLineup.value = null;
+      resetLineup();
     }
   } catch (cause) {
     error.value = cause.message;
@@ -385,7 +379,7 @@ async function load() {
 }
 async function loadEvent(id) {
   const token = ++operation;
-  historyLoading.value = true;
+  lineupLoading.value = true;
   error.value = '';
   notice.value = '';
   skipped.value = [];
@@ -401,14 +395,13 @@ async function loadEvent(id) {
     if (disposed || token !== operation) return;
     participation.value = responses;
     eventId.value = id;
-    versions.value = data.versions;
-    resetDraft(data.versions[0]?.teams);
-    historyId.value = currentEvent.value?.archived ? data.versions[0]?.id : 'draft';
+    savedLineup.value = data.versions[0] || null;
+    resetLineup(savedLineup.value?.teams);
     templateId.value = null;
   } catch (cause) {
     if (token === operation) error.value = cause.message;
   } finally {
-    if (token === operation) historyLoading.value = false;
+    if (token === operation) lineupLoading.value = false;
   }
 }
 async function changeEvent(id) {
@@ -441,7 +434,7 @@ function place(uid, teamId, index, profession) {
   }
   error.value = '';
   selectedUid.value = '';
-  notice.value = '已安排位置，請確認並儲存名單。';
+  notice.value = '已安排位置，請儲存排表。';
   skipped.value = [];
   return true;
 }
@@ -472,7 +465,7 @@ function closeDialog() {
 function restoreFocus() {
   nextTick(() => {
     if (dialogOpener?.isConnected) dialogOpener.focus();
-    else document.getElementById(focusMode.value ? 'exit-lineup-focus' : 'lineup-history')?.focus();
+    else document.getElementById(focusMode.value ? 'exit-lineup-focus' : 'lineup-event')?.focus();
   });
 }
 function openSeat(teamId, index) {
@@ -526,7 +519,7 @@ function saveSeat() {
   slot.note = seatNote.value.trim();
   slot.dutyIds = [...seatDutyIds.value];
   error.value = '';
-  notice.value = '已套用分場配置，請確認並儲存名單。';
+  notice.value = '已套用分場配置，請儲存排表。';
   selectedUid.value = '';
   dialog.value = null;
 }
@@ -548,7 +541,7 @@ async function refreshMembers() {
     duties.value = tasks.duties;
     members.value = people.members;
     professions.value = jobs.professions;
-    notice.value = '成員清單已更新，工作區的排表仍保留。';
+    notice.value = '成員清單已更新，目前的排表仍保留。';
   } catch (cause) {
     error.value = cause.message;
   } finally {
@@ -561,9 +554,12 @@ function attempt(previous, payload) {
     ? previous
     : { payload: encoded, requestId: crypto.randomUUID() };
 }
-async function confirm() {
+async function saveLineup() {
+  if (!canSave.value) return;
   busy.value = true;
-  dialogError.value = '';
+  saving.value = true;
+  error.value = '';
+  notice.value = '';
   try {
     const payload = {
       eventId: eventId.value,
@@ -571,23 +567,22 @@ async function confirm() {
       expectedVersion: latestVersion.value,
       teams: editableLineup(teams.value),
     };
-    confirmAttempt = attempt(confirmAttempt, payload);
-    const data = await client.confirm({ ...payload, requestId: confirmAttempt.requestId });
+    saveAttempt = attempt(saveAttempt, payload);
+    const data = await client.confirm({ ...payload, requestId: saveAttempt.requestId });
     if (
       data.version?.eventId !== eventId.value ||
       data.version?.version !== latestVersion.value + 1 ||
       !Array.isArray(data.version?.teams)
     )
-      throw new Error('排表回應格式不正確，請重試以確認結果');
-    versions.value.unshift(data.version);
-    resetDraft(data.version.teams);
-    historyId.value = data.version.id;
-    dialog.value = null;
+      throw new Error('排表回應格式不正確，請重試以確認儲存結果');
+    savedLineup.value = data.version;
+    resetLineup(data.version.teams);
     error.value = '';
-    notice.value = `已確認第 ${data.version.version} 版，保存 ${count.value} 位成員的歷史名單。`;
+    notice.value = `排表已儲存，共 ${count.value} 位成員。`;
   } catch (cause) {
-    dialogError.value = cause.message;
+    error.value = cause.message;
   } finally {
+    saving.value = false;
     busy.value = false;
   }
 }
@@ -621,7 +616,7 @@ async function saveTemplate() {
 async function applyTemplate() {
   if (
     !templateId.value ||
-    !mayDiscard('套用範本會取代工作區目前的隊名、位置、職責及備註，確定要套用嗎？')
+    !mayDiscard('套用範本會取代目前的隊名、位置、職責及備註，確定要套用嗎？')
   )
     return;
   busy.value = true;
@@ -641,24 +636,15 @@ async function applyTemplate() {
     teams.value = data.teams;
     selectedUid.value = '';
     selectedDutyId.value = '';
-    historyId.value = 'draft';
     skipped.value = data.skipped;
     skippedDuties.value = data.skippedDuties || [];
     events.value = events.value.map((event) => (event.id === data.event.id ? data.event : event));
-    notice.value = `範本已載入工作區${data.skipped.length ? `，跳過 ${data.skipped.length} 位成員` : ''}${skippedDuties.value.length ? `，跳過 ${skippedDuties.value.length} 項停用職責` : ''}，尚未確認本場名單。`;
+    notice.value = `範本已套用${data.skipped.length ? `，跳過 ${data.skipped.length} 位成員` : ''}${skippedDuties.value.length ? `，跳過 ${skippedDuties.value.length} 項停用職責` : ''}，請儲存排表。`;
   } catch (cause) {
     error.value = cause.message;
   } finally {
     busy.value = false;
   }
-}
-function copyHistory() {
-  if (!historical.value || !mayDiscard('載入歷史會取代工作區目前的修改，確定要載入嗎？')) return;
-  teams.value = editableLineup(historical.value.teams);
-  historyId.value = 'draft';
-  selectedUid.value = '';
-  selectedDutyId.value = '';
-  notice.value = '已載入歷史位置，姓名與職業使用現有資料；請檢查資格後確認為新版本。';
 }
 onMounted(() => {
   load();
@@ -682,21 +668,21 @@ onUnmounted(() => {
       <div>
         <p class="eyebrow">GUILD MANAGER / 戰場</p>
         <h1 id="lineups-title">戰場排表<span class="heading-dot">.</span></h1>
-        <p class="page-subtitle">安排每一場的出戰名單，保存範本與當時的陣容。</p>
+        <p class="page-subtitle">直接編輯並儲存出戰名單，想保留的配置可另存範本。</p>
       </div>
       <div class="lineup-heading-actions">
         <v-btn
           v-if="currentEvent"
           variant="outlined"
           :prepend-icon="mdiFullscreen"
-          :disabled="loading || historyLoading"
+          :disabled="loading || lineupLoading"
           @click="setFocusMode(true)"
           >專注排表</v-btn
         >
         <v-btn
           variant="outlined"
           :prepend-icon="mdiRefresh"
-          :disabled="loading || busy || catalogBusy || historyLoading"
+          :disabled="loading || busy || catalogBusy || lineupLoading"
           @click="load"
           >重新載入</v-btn
         >
@@ -707,27 +693,19 @@ onUnmounted(() => {
         <strong>{{ eventDisplayTitle(displayedEvent) }}</strong
         ><span
           >{{ eventTypeLabel(displayedEvent?.type) }} · {{ displayedEvent?.dates[0] }} ·
-          {{ positionCount }} / 60 個位置 · {{ count }} 人 ·
-          {{
-            historical ? `第 ${historical.version} 版（唯讀）` : dirty ? '未確認修改' : '工作區'
-          }}</span
+          {{ positionCount }} / 60 個位置 · {{ count }} 人 · {{ saveStatus }}</span
         >
       </div>
       <div class="lineup-actions">
-        <v-btn
-          v-if="historical && !currentEvent?.archived"
-          variant="outlined"
-          :disabled="busy || catalogBusy"
-          @click="copyHistory"
-          >載入工作區</v-btn
-        ><v-btn variant="outlined" :disabled="busy || catalogBusy" @click="openDialog('template')"
+        <v-btn variant="outlined" :disabled="busy || catalogBusy" @click="openDialog('template')"
           >另存範本</v-btn
         ><v-btn
-          v-if="!historical && !currentEvent?.archived"
+          v-if="!archived"
           color="primary"
-          :disabled="busy || catalogBusy || invalidAssignments > 0 || invalidDuties > 0"
-          @click="openDialog('confirm')"
-          >確認並儲存</v-btn
+          :loading="saving"
+          :disabled="!canSave"
+          @click="saveLineup"
+          >{{ saving ? '儲存中…' : '儲存排表' }}</v-btn
         ><v-btn
           id="exit-lineup-focus"
           variant="outlined"
@@ -767,24 +745,15 @@ onUnmounted(() => {
       <v-card v-show="!focusMode" class="lineup-toolbar">
         <div class="lineup-selects">
           <v-select
+            id="lineup-event"
             :model-value="eventId"
             :items="eventOptions"
             label="戰鬥場次"
             density="compact"
             variant="outlined"
             hide-details
-            :disabled="busy || catalogBusy || historyLoading"
+            :disabled="busy || catalogBusy || lineupLoading"
             @update:model-value="changeEvent"
-          /><v-select
-            id="lineup-history"
-            :model-value="historyId"
-            :items="historyOptions"
-            label="瀏覽排表"
-            density="compact"
-            variant="outlined"
-            hide-details
-            :disabled="busy || catalogBusy || historyLoading"
-            @update:model-value="historyId = $event"
           />
         </div>
         <div class="lineup-toolbar-bottom">
@@ -793,36 +762,23 @@ onUnmounted(() => {
             <p>
               {{ eventTypeLabel(displayedEvent?.type) }} · {{ displayedEvent?.dates[0] }} · 已安排
               {{ positionCount }} / 60 個位置 · {{ count }} 人
-              <span class="draft-label">{{
-                historical
-                  ? `第 ${historical.version} 版 · 歷史唯讀`
-                  : dirty
-                    ? '有未確認修改'
-                    : '工作區'
-              }}</span>
+              <span class="lineup-save-status">{{ saveStatus }}</span>
             </p>
           </div>
           <div class="lineup-actions">
             <v-btn
-              v-if="historical && !currentEvent?.archived"
-              variant="outlined"
-              :disabled="busy"
-              @click="copyHistory"
-              >載入工作區</v-btn
-            ><v-btn
               variant="outlined"
               :prepend-icon="mdiContentSaveOutline"
-              :disabled="busy || catalogBusy || historyLoading"
+              :disabled="busy || catalogBusy || lineupLoading"
               @click="openDialog('template')"
               >另存範本</v-btn
             ><v-btn
-              v-if="!historical && !currentEvent?.archived"
+              v-if="!archived"
               color="primary"
-              :disabled="
-                busy || catalogBusy || historyLoading || invalidAssignments > 0 || invalidDuties > 0
-              "
-              @click="openDialog('confirm')"
-              >確認並儲存</v-btn
+              :loading="saving"
+              :disabled="!canSave"
+              @click="saveLineup"
+              >{{ saving ? '儲存中…' : '儲存排表' }}</v-btn
             >
           </div>
         </div>
@@ -836,29 +792,27 @@ onUnmounted(() => {
             clearable
             variant="outlined"
             hide-details
-            :disabled="busy || catalogBusy || historyLoading || currentEvent?.archived"
+            :disabled="busy || catalogBusy || lineupLoading || archived"
           /><v-btn
             variant="outlined"
-            :disabled="
-              !templateId || busy || catalogBusy || historyLoading || currentEvent?.archived
-            "
+            :disabled="!templateId || busy || catalogBusy || lineupLoading || archived"
             @click="applyTemplate"
-            >套用至工作區</v-btn
+            >套用範本</v-btn
           >
         </div>
       </v-card>
-      <v-alert v-if="currentEvent?.archived" type="info" variant="tonal" class="lineup-alert"
-        >原場次已刪除或改為一般活動，歷史排表仍保留，僅供查看與另存範本。</v-alert
+      <v-alert v-if="archived" type="info" variant="tonal" class="lineup-alert"
+        >原場次已刪除或改為一般活動，最後儲存的排表僅供查看與另存範本。</v-alert
       >
       <v-alert
-        v-if="!historical && invalidAssignments"
+        v-if="!archived && invalidAssignments"
         type="warning"
         variant="tonal"
         class="lineup-alert"
         role="alert"
         >有
         {{ invalidAssignments }}
-        位成員的資格或職業不符合本場要求。請編輯位置移除或重新安排，再確認名單。</v-alert
+        位成員的資格或職業不符合本場要求。請編輯位置移除或重新安排，再儲存排表。</v-alert
       >
       <v-alert
         v-if="skipped.length"
@@ -876,12 +830,12 @@ onUnmounted(() => {
         </ul></v-alert
       >
       <v-alert
-        v-if="!historical && invalidDuties"
+        v-if="!archived && invalidDuties"
         type="warning"
         variant="tonal"
         class="lineup-alert"
         role="alert"
-        >有 {{ invalidDuties }} 個位置使用停用或不存在的職責，請編輯位置移除後再確認。</v-alert
+        >有 {{ invalidDuties }} 個位置使用停用或不存在的職責，請編輯位置移除後再儲存。</v-alert
       >
       <v-alert
         v-if="skippedDuties.length"
@@ -896,24 +850,23 @@ onUnmounted(() => {
           </li>
         </ul></v-alert
       >
-      <div v-if="historyLoading" class="lineup-loading" role="status">正在載入本場排表…</div>
+      <div v-if="lineupLoading" class="lineup-loading" role="status">正在載入本場排表…</div>
       <div v-else-if="currentEvent" class="lineup-workspace">
         <aside class="lineup-members-panel">
           <div v-if="notice" class="lineup-focus-notice" role="status">
             {{ notice }}
           </div>
           <v-tabs
-            :model-value="historical || currentEvent.archived ? 'duties' : sidebarTab"
+            :model-value="archived ? 'duties' : sidebarTab"
             aria-label="排表來源清單"
             @update:model-value="sidebarTab = $event"
-            ><v-tab value="members" :disabled="Boolean(historical || currentEvent.archived)"
-              >成員</v-tab
+            ><v-tab value="members" :disabled="archived">成員</v-tab
             ><v-tab value="duties">職責分配</v-tab></v-tabs
           >
           <DutyList
-            v-show="historical || currentEvent.archived || sidebarTab === 'duties'"
+            v-show="archived || sidebarTab === 'duties'"
             :duties="duties"
-            :disabled="busy || historyLoading"
+            :disabled="busy || lineupLoading"
             :assignable="!readOnly"
             :selected-id="selectedDutyId"
             @updated="updateDuties"
@@ -925,10 +878,7 @@ onUnmounted(() => {
             已選職責：{{ duties.find((duty) => duty.id === selectedDutyId)?.name
             }}<v-btn variant="text" @click="selectedDutyId = ''">取消職責選取</v-btn>
           </div>
-          <v-card
-            v-if="!historical && !currentEvent.archived"
-            v-show="sidebarTab === 'members'"
-            class="lineup-members-card"
+          <v-card v-if="!archived" v-show="sidebarTab === 'members'" class="lineup-members-card"
             ><div class="lineup-member-heading">
               <h2><v-icon :icon="mdiAccountGroupOutline" size="22" />成員清單</h2>
               <v-btn
@@ -1074,7 +1024,7 @@ onUnmounted(() => {
           :duties="duties"
           :selected-duty-id="selectedDutyId"
           :read-only="readOnly"
-          :snapshots="Boolean(historical)"
+          :snapshots="archived"
           :selected-uid="selectedUid"
           :selected-profession="memberProfession(findPerson(selectedUid))"
           @place="place"
@@ -1095,13 +1045,7 @@ onUnmounted(() => {
       <v-card class="lineup-dialog"
         ><div class="lineup-dialog-content">
           <h2 id="lineup-dialog-title">
-            {{
-              dialog === 'seat'
-                ? '編輯位置'
-                : dialog === 'template'
-                  ? '另存名單範本'
-                  : '確認本場名單'
-            }}
+            {{ dialog === 'seat' ? '編輯位置' : '另存名單範本' }}
           </h2>
           <v-alert v-if="dialogError" type="error" variant="tonal" role="alert">{{
             dialogError
@@ -1157,7 +1101,7 @@ onUnmounted(() => {
               未指定第二場時沿用第一場成員。選空位可移除該場分配；明確選取已安排成員會移動或交換該場位置。職責與備註兩場共用。
             </p></template
           >
-          <template v-else-if="dialog === 'template'"
+          <template v-else
             ><v-text-field
               v-model="templateName"
               label="範本名稱"
@@ -1168,22 +1112,7 @@ onUnmounted(() => {
             />
             <p>
               保存目前
-              {{ count }} 位成員的位置、上場職業、隊名與備註。套用到其他場次時會重新檢查資格。
-            </p></template
-          >
-          <template v-else
-            ><p>
-              <strong>{{ eventDisplayTitle(currentEvent) }}</strong>
-            </p>
-            <p>{{ eventTypeLabel(currentEvent?.type) }} · {{ currentEvent?.dates[0] }}</p>
-            <p>
-              將確認第 {{ latestVersion + 1 }} 版，共 {{ count }} 位成員，{{
-                60 - positionCount
-              }}
-              個空位。第一場 {{ roundCounts.first }} 人、第二場 {{ roundCounts.second }} 人。
-            </p>
-            <p class="lineup-hint">
-              保存當時的名稱、職業與位置。往後修改會另建版本，原始名單仍可回看。
+              {{ count }} 位成員的位置、上場職業、隊名、職責與備註。套用到其他場次時會重新檢查資格。
             </p></template
           >
         </div>
@@ -1193,18 +1122,8 @@ onUnmounted(() => {
             color="primary"
             :loading="busy"
             :disabled="busy"
-            @click="
-              dialog === 'seat' ? saveSeat() : dialog === 'template' ? saveTemplate() : confirm()
-            "
-            >{{
-              busy
-                ? '儲存中…'
-                : dialog === 'seat'
-                  ? '套用位置'
-                  : dialog === 'template'
-                    ? '儲存範本'
-                    : '確認儲存'
-            }}</v-btn
+            @click="dialog === 'seat' ? saveSeat() : saveTemplate()"
+            >{{ busy ? '儲存中…' : dialog === 'seat' ? '套用位置' : '儲存範本' }}</v-btn
           >
         </div></v-card
       >

@@ -58,7 +58,7 @@ async function refresh() {
   try {
     const data = await client.getDuties();
     emit('updated', data.duties);
-    notice.value = '職責清單已更新，工作區仍保留。';
+    notice.value = '職責清單已更新，目前的排表仍保留。';
   } catch (cause) {
     error.value = cause.message;
   } finally {
@@ -127,7 +127,7 @@ function drag(event, duty) {
         {{
           assignable
             ? '拖曳到任務欄，或點選職責再點位置。同一位置可有多項職責；重複套用不會新增第二份。'
-            : '可維護職責清單，切換至工作區後即可分配。'
+            : '可維護職責清單，選擇可編輯的戰鬥場次後即可分配。'
         }}
       </p>
       <v-alert v-if="error && !open" type="error" variant="tonal" role="alert">{{ error }}</v-alert>

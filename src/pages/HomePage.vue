@@ -27,7 +27,7 @@ const modules = [
     title: '戰場排表',
     icon: mdiSwordCross,
     color: 'orange',
-    description: '出戰陣容、名單範本與歷史排表。',
+    description: '安排出戰陣容，儲存與套用名單範本。',
   },
   {
     id: 'attendance',
