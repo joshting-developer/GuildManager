@@ -65,3 +65,13 @@ function createLineupTemplate(input) {
 function applyLineupTemplate(templateId, eventId) {
   throw new Error('雲端排表範本套用尚未串接 Google 試算表');
 }
+
+function getDuties() {
+  throw new Error('雲端職責清單尚未串接 Google 試算表');
+}
+function addDuty(input) {
+  throw new Error('雲端職責新增尚未串接 Google 試算表');
+}
+function updateDuty(id, input) {
+  throw new Error('雲端職責修改尚未串接 Google 試算表');
+}

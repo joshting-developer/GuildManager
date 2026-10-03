@@ -50,6 +50,13 @@ export function validateLineup(teams) {
           throw new LineupError('成員 UID 格式不正確');
         if (!['primary', 'secondary'].includes(slot.profession))
           throw new LineupError('請選擇主職業或副職業');
+        const dutyIds = slot.dutyIds === undefined ? [] : slot.dutyIds;
+        if (
+          !Array.isArray(dutyIds) ||
+          dutyIds.some((id) => typeof id !== 'string' || !id || id.length > 64) ||
+          new Set(dutyIds).size !== dutyIds.length
+        )
+          throw new LineupError('職責 ID 格式不正確或同一位置重複分配職責');
         if (slot.uid !== null) {
           if (seen.has(slot.uid))
             throw new LineupError(`UID ${slot.uid} 在這份排表中重複`, 422, 'DUPLICATE_LINEUP_UID');
@@ -59,6 +66,7 @@ export function validateLineup(teams) {
           uid: slot.uid,
           profession: slot.profession,
           note: text(slot.note, '任務備註', 160),
+          dutyIds: [...dutyIds],
         };
       }),
     };
@@ -113,10 +121,25 @@ export function createLineupRepository(db) {
   }
   function snapshot(teams, type) {
     const current = members();
+    const catalog = new Map(
+      db
+        .prepare('SELECT id,name FROM duties WHERE active = 1')
+        .all()
+        .map((duty) => [duty.id, duty]),
+    );
     return teams.map((team) => ({
       ...team,
       slots: team.slots.map((slot) => {
-        if (!slot.uid) return { ...slot, member: null };
+        const duties = slot.dutyIds.map((id) => {
+          if (!catalog.has(id))
+            throw new LineupError(
+              '排表使用的職責已停用或不存在，請更新職責清單並移除後再確認',
+              409,
+              'DUTY_UNAVAILABLE',
+            );
+          return catalog.get(id);
+        });
+        if (!slot.uid) return { ...slot, duties, member: null };
         const person = current.get(slot.uid);
         if (!person || (type && !eligibleMember(person, type)))
           throw new LineupError(
@@ -131,6 +154,7 @@ export function createLineupRepository(db) {
           );
         return {
           ...slot,
+          duties,
           member: {
             uid: person.uid,
             name: person.name,
@@ -222,7 +246,8 @@ export function createLineupRepository(db) {
       return db.transaction(() => {
         const prior = db.prepare('SELECT * FROM lineup_versions WHERE request_id = ?').get(key);
         if (prior) {
-          if (prior.payload_json !== payload)
+          const previous = JSON.parse(prior.payload_json);
+          if (JSON.stringify({ ...previous, teams: validateLineup(previous.teams) }) !== payload)
             throw new LineupError(
               '這個操作識別碼已用於其他排表，請重新操作',
               409,
@@ -272,7 +297,8 @@ export function createLineupRepository(db) {
       return db.transaction(() => {
         const prior = db.prepare('SELECT * FROM lineup_templates WHERE request_id = ?').get(key);
         if (prior) {
-          if (prior.payload_json !== payload)
+          const previous = JSON.parse(prior.payload_json);
+          if (JSON.stringify({ ...previous, teams: validateLineup(previous.teams) }) !== payload)
             throw new LineupError('操作識別碼已使用，請重新操作', 409, 'REQUEST_CONFLICT');
           return template(prior);
         }
@@ -299,9 +325,33 @@ export function createLineupRepository(db) {
       if (!row) throw new LineupError('找不到這份範本，請重新載入', 404, 'TEMPLATE_NOT_FOUND');
       const current = members();
       const skipped = [];
-      const teams = editableLineup(JSON.parse(row.teams_json)).map((team) => ({
+      const savedTeams = JSON.parse(row.teams_json);
+      const catalog = new Map(
+        db
+          .prepare('SELECT id,name,active FROM duties')
+          .all()
+          .map((duty) => [duty.id, duty]),
+      );
+      const skippedDuties = [];
+      const teams = editableLineup(savedTeams).map((team) => ({
         ...team,
-        slots: team.slots.map((slot) => {
+        slots: team.slots.map((slot, index) => {
+          const dutyIds = slot.dutyIds.filter((id) => {
+            if (catalog.get(id)?.active) return true;
+            const saved = savedTeams
+              .find((savedTeam) => savedTeam.id === team.id)
+              .slots[index].duties?.find((duty) => duty.id === id);
+            skippedDuties.push({
+              id,
+              name: saved?.name || catalog.get(id)?.name || id,
+              teamId: team.id,
+              teamName: team.name,
+              position: index + 1,
+              reason: '職責已停用或不存在',
+            });
+            return false;
+          });
+          slot = { ...slot, dutyIds };
           if (!slot.uid) return slot;
           const person = current.get(slot.uid);
           let reason = !person
@@ -325,7 +375,7 @@ export function createLineupRepository(db) {
           return slot;
         }),
       }));
-      return { teams, skipped, event: currentEvent };
+      return { teams, skipped, skippedDuties, event: currentEvent };
     },
   };
   return repository;

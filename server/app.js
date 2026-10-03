@@ -1,6 +1,7 @@
 import express from 'express';
 import { EventError } from './event-repository.js';
 import { LineupError } from './lineup-repository.js';
+import { DutyError } from './duty-repository.js';
 import { MemberError } from './member-validation.js';
 
 export function createApp(repository) {
@@ -53,6 +54,15 @@ export function createApp(repository) {
   app.get('/api/lineups', (_request, response) => {
     response.set('Cache-Control', 'no-store').json(repository.getLineupIndex());
   });
+  app.get('/api/duties', (_request, response) => {
+    response.set('Cache-Control', 'no-store').json(repository.listDuties());
+  });
+  app.post('/api/duties', (request, response) => {
+    response.status(201).json({ duty: repository.addDuty(request.body) });
+  });
+  app.patch('/api/duties/:id', (request, response) => {
+    response.json({ duty: repository.updateDuty(request.params.id, request.body) });
+  });
   app.get('/api/lineups/events/:id', (request, response) => {
     response.set('Cache-Control', 'no-store').json(repository.getLineupHistory(request.params.id));
   });
@@ -92,7 +102,8 @@ export function createApp(repository) {
     if (
       error instanceof MemberError ||
       error instanceof EventError ||
-      error instanceof LineupError
+      error instanceof LineupError ||
+      error instanceof DutyError
     ) {
       return response.status(error.status).json({
         error: {

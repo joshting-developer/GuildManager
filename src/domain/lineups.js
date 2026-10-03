@@ -9,7 +9,12 @@ export function emptyLineup() {
     group.teams.map((name, index) => ({
       id: `${group.id}-${index + 1}`,
       name,
-      slots: Array.from({ length: 6 }, () => ({ uid: null, profession: 'primary', note: '' })),
+      slots: Array.from({ length: 6 }, () => ({
+        uid: null,
+        profession: 'primary',
+        note: '',
+        dutyIds: [],
+      })),
     })),
   );
 }
@@ -28,6 +33,7 @@ export function editableLineup(teams) {
       uid: slot.uid,
       profession: slot.profession,
       note: slot.note,
+      dutyIds: [...(slot.dutyIds || [])],
     })),
   }));
 }

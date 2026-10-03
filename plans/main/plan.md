@@ -70,3 +70,7 @@
 ## 戰場排表
 
 新增每場獨立排表、60 人位置、所屬資格篩選、可復用範本與不可變的確認歷史, 見 [battlefield-lineup-plan.md](battlefield-lineup-plan.md)。
+
+## 排表職責清單
+
+使用者要求保鑣、山盟、輔潮等職責有獨立資料表與可拖曳清單, 見 [lineup-duties-plan.md](lineup-duties-plan.md)。
