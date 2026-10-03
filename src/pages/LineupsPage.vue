@@ -18,7 +18,7 @@ import {
   addMemberToSlot,
   slotAssignments,
 } from '../domain/lineups.js';
-import { eventTypeLabel } from '../domain/event-types.js';
+import { eventTypeLabel, eventDisplayTitle } from '../domain/event-types.js';
 import LineupBoard from './LineupBoard.vue';
 import DutyList from './DutyList.vue';
 import { createDutyClient } from '../api/duties.js';
@@ -157,7 +157,7 @@ const visibleMembers = computed(() =>
 );
 const eventOptions = computed(() =>
   events.value.map((event) => ({
-    title: `${event.dates[0]} · ${eventTypeLabel(event.type)} · ${event.title}${event.archived ? '（歷史封存）' : ''}`,
+    title: `${event.dates[0]} · ${eventTypeLabel(event.type)}${event.title ? ` · ${event.title}` : ''}${event.archived ? '（歷史封存）' : ''}`,
     value: event.id,
   })),
 );
@@ -616,7 +616,7 @@ onUnmounted(() => {
     </section>
     <div v-if="focusMode" class="lineup-focus-bar">
       <div class="lineup-focus-caption">
-        <strong>{{ displayedEvent?.title }}</strong
+        <strong>{{ eventDisplayTitle(displayedEvent) }}</strong
         ><span
           >{{ eventTypeLabel(displayedEvent?.type) }} · {{ displayedEvent?.dates[0] }} ·
           {{ positionCount }} / 60 個位置 · {{ count }} 人 ·
@@ -701,7 +701,7 @@ onUnmounted(() => {
         </div>
         <div class="lineup-toolbar-bottom">
           <div>
-            <strong>{{ displayedEvent?.title }}</strong>
+            <strong>{{ eventDisplayTitle(displayedEvent) }}</strong>
             <p>
               {{ eventTypeLabel(displayedEvent?.type) }} · {{ displayedEvent?.dates[0] }} · 已安排
               {{ positionCount }} / 60 個位置 · {{ count }} 人
@@ -1024,7 +1024,7 @@ onUnmounted(() => {
           >
           <template v-else
             ><p>
-              <strong>{{ currentEvent?.title }}</strong>
+              <strong>{{ eventDisplayTitle(currentEvent) }}</strong>
             </p>
             <p>{{ eventTypeLabel(currentEvent?.type) }} · {{ currentEvent?.dates[0] }}</p>
             <p>

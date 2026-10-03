@@ -4,7 +4,7 @@ import { createEventClient } from '../api/events.js';
 import CalendarGrid from './CalendarGrid.vue';
 import EventCreateDialog from './EventCreateDialog.vue';
 import './events.css';
-import { eventTypeLabel } from '../domain/event-types.js';
+import { eventTypeLabel, eventDisplayTitle } from '../domain/event-types.js';
 const client = createEventClient({ source: import.meta.env.VITE_DATA_SOURCE || 'local' });
 const events = ref([]);
 const loading = ref(true);
@@ -49,8 +49,8 @@ function onCreated(saved) {
   const event = saved[0];
   notice.value =
     saved.length > 1
-      ? `「${event.title}」已建立 ${saved.length} 筆獨立安排，每個日期各自一筆。`
-      : `「${event.title}」已建立，共 ${event.dates.length} 天。`;
+      ? `「${eventDisplayTitle(event)}」已建立 ${saved.length} 筆獨立安排，每個日期各自一筆。`
+      : `「${eventDisplayTitle(event)}」已建立，共 ${event.dates.length} 天。`;
 }
 function restoreFocus() {
   if (opener?.isConnected) opener.focus();
@@ -98,7 +98,7 @@ function restoreFocus() {
       <ul class="calendar-details-list">
         <li v-for="event in selectedDay?.events" :key="event.id">
           <span :class="['event-type', event.type]">{{ eventTypeLabel(event.type) }}</span
-          ><strong>{{ event.title }}</strong>
+          ><strong>{{ eventDisplayTitle(event) }}</strong>
         </li>
       </ul>
       <div class="event-dialog-actions">

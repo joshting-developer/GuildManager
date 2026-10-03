@@ -19,6 +19,7 @@ const calendarDate = computed(() => props.event?.dates[0] || props.initialDate);
 const typeOptions = EVENT_TYPE_OPTIONS;
 const saving = ref(false);
 const form = ref({ title: '', type: 'activity', dates: [] });
+const optionalTitle = computed(() => isBattleType(form.value.type));
 const batchCreating = computed(() => !editing.value && isBattleType(form.value.type));
 function allowsMultipleDates(type) {
   return type === 'activity' || (!editing.value && isBattleType(type));
@@ -54,6 +55,7 @@ function restoreFocus() {
 }
 function changeType(type) {
   errors.value.type = '';
+  errors.value.title = '';
   typeNotice.value = '';
   if (!allowsMultipleDates(type) && form.value.dates.length > 1) {
     form.value.dates = [];
@@ -72,7 +74,7 @@ function changeDates(dates) {
 async function save() {
   if (saving.value) return;
   errors.value = {};
-  if (!form.value.title.trim()) errors.value.title = '請填寫安排名稱';
+  if (!optionalTitle.value && !form.value.title.trim()) errors.value.title = '請填寫安排名稱';
   if (!form.value.dates.length) errors.value.dates = '請選擇日期';
   if (!multipleDates.value && form.value.dates.length !== 1)
     errors.value.dates = `${eventTypeLabel(form.value.type)}每筆安排只能選擇一天`;
@@ -158,7 +160,11 @@ function formatDate(date) {
           >
           <v-text-field
             v-model="form.title"
-            label="安排名稱 *"
+            :class="{ 'event-title-optional': optionalTitle }"
+            :label="optionalTitle ? '安排名稱（選填）' : '安排名稱 *'"
+            :aria-required="!optionalTitle"
+            :hint="optionalTitle ? '對手尚未確定時可留空，會以類型與日期顯示。' : ''"
+            :persistent-hint="optionalTitle"
             variant="outlined"
             maxlength="120"
             :disabled="saving"

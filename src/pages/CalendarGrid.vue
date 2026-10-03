@@ -165,7 +165,8 @@ function goToday() {
                   v-for="event in eventsByDate.get(day.iso).slice(0, 2)"
                   :key="event.id"
                   :class="['calendar-event-label', event.type]"
-                  >{{ eventTypeLabel(event.type) }} · {{ event.title }}</span
+                  >{{ eventTypeLabel(event.type)
+                  }}{{ event.title ? ` · ${event.title}` : '' }}</span
                 >
                 <span v-if="eventsByDate.get(day.iso).length > 2" class="calendar-event-more"
                   >另 {{ eventsByDate.get(day.iso).length - 2 }} 筆</span

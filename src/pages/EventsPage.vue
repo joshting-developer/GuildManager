@@ -10,7 +10,7 @@ import {
 import { createEventClient } from '../api/events.js';
 import EventCreateDialog from './EventCreateDialog.vue';
 import './events.css';
-import { EVENT_TYPE_OPTIONS, eventTypeLabel } from '../domain/event-types.js';
+import { EVENT_TYPE_OPTIONS, eventTypeLabel, eventDisplayTitle } from '../domain/event-types.js';
 const client = createEventClient({ source: import.meta.env.VITE_DATA_SOURCE || 'local' });
 const events = ref([]);
 const loading = ref(true);
@@ -63,8 +63,8 @@ function onSaved(value, edited = false) {
   page.value = Math.floor(filtered.value.findIndex((value) => value.id === event.id) / 20) + 1;
   notice.value =
     saved.length > 1
-      ? `「${event.title}」已建立 ${saved.length} 筆獨立安排，每筆可分別修改、刪除。`
-      : `「${event.title}」已${edited ? '修改' : '建立'}，共 ${event.dates.length} 天，首頁行事曆已更新。`;
+      ? `「${eventDisplayTitle(event)}」已建立 ${saved.length} 筆獨立安排，每筆可分別修改、刪除。`
+      : `「${eventDisplayTitle(event)}」已${edited ? '修改' : '建立'}，共 ${event.dates.length} 天，首頁行事曆已更新。`;
 }
 function restoreEditFocus() {
   const button =
@@ -100,7 +100,7 @@ async function remove() {
     if (data?.id !== deleteTarget.value.id) throw new Error('刪除回應格式不正確，請重試確認結果');
     events.value = events.value.filter((event) => event.id !== data.id);
     page.value = Math.min(page.value, pageCount.value);
-    notice.value = `「${deleteTarget.value.title}」已刪除，首頁行事曆已移除這筆安排。`;
+    notice.value = `「${eventDisplayTitle(deleteTarget.value)}」已刪除，首頁行事曆已移除這筆安排。`;
     deleteDialog.value = false;
   } catch (error) {
     deleteError.value = error.message;
@@ -207,7 +207,7 @@ function formatDate(date) {
             </thead>
             <tbody>
               <tr v-for="event in visible" :key="event.id">
-                <td class="event-name">{{ event.title }}</td>
+                <td class="event-name">{{ eventDisplayTitle(event) }}</td>
                 <td>
                   <span :class="['event-type', event.type]">{{ eventTypeLabel(event.type) }}</span>
                 </td>
@@ -235,7 +235,7 @@ function formatDate(date) {
                       color="primary"
                       :prepend-icon="mdiPencilOutline"
                       :data-edit-event="event.id"
-                      :aria-label="`修改安排：${event.title}`"
+                      :aria-label="`修改安排：${eventDisplayTitle(event)}${!event.title ? `（${formatDate(event.dates[0])}）` : ''}`"
                       @click="openForm(event)"
                       >修改</v-btn
                     >
@@ -243,7 +243,7 @@ function formatDate(date) {
                       variant="text"
                       color="error"
                       :prepend-icon="mdiTrashCanOutline"
-                      :aria-label="`刪除安排：${event.title}`"
+                      :aria-label="`刪除安排：${eventDisplayTitle(event)}${!event.title ? `（${formatDate(event.dates[0])}）` : ''}`"
                       @click="openDelete(event)"
                       >刪除</v-btn
                     >
@@ -281,7 +281,7 @@ function formatDate(date) {
     <v-card class="event-dialog">
       <div class="event-dialog-content">
         <h2 id="event-delete-title">刪除安排</h2>
-        <p class="event-delete-name">{{ deleteTarget?.title }}</p>
+        <p class="event-delete-name">{{ eventDisplayTitle(deleteTarget) }}</p>
         <p class="event-description">
           確定刪除此{{ eventTypeLabel(deleteTarget?.type) }}？ 這筆安排會從清單及全部
           {{ deleteTarget?.dates.length }} 個日期的行事曆移除。

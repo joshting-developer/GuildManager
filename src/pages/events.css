@@ -215,3 +215,7 @@
     padding: 12px 20px;
   }
 }
+
+.event-dialog .event-title-optional {
+  margin-bottom: 12px;
+}
