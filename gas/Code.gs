@@ -105,3 +105,15 @@ function addGuestRegistration(eventId, input) {
 function cancelGuestRegistration(eventId, id, revision) {
   throw new Error('雲端取消報名尚未串接 Google 試算表');
 }
+function getBattleRecords(page) {
+  throw new Error('雲端戰績清單尚未串接 Google 試算表');
+}
+function getBattleRecord(id) {
+  throw new Error('雲端戰績詳情尚未串接 Google 試算表');
+}
+function saveBattleRecords(input) {
+  throw new Error('雲端戰績上傳尚未串接 Google 試算表與 Drive');
+}
+function getBattleAttachment(id, kind) {
+  throw new Error('雲端戰績附件尚未串接 Drive');
+}

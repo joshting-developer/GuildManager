@@ -6,6 +6,7 @@ import { LineupError } from './lineup-repository.js';
 import { DutyError } from './duty-repository.js';
 import { MemberError } from './member-validation.js';
 import { ParticipationError } from './participation-repository.js';
+import { BattleRecordError } from '../src/domain/battle-records.js';
 
 export function createApp(repository, { authNow } = {}) {
   const app = express();
@@ -28,6 +29,7 @@ export function createApp(repository, { authNow } = {}) {
   });
   app.use('/api/members/import', express.json({ limit: '512kb' }));
   app.use('/api/lineups', express.json({ limit: '64kb' }));
+  app.use('/api/battle-records', express.json({ limit: '10mb' }));
   app.use(express.json({ limit: '16kb' }));
   installAuth(app, repository, { now: authNow });
   app.get('/api/calendar/members', (_request, response) => {
@@ -57,6 +59,29 @@ export function createApp(repository, { authNow } = {}) {
   });
   app.get('/api/professions', (_request, response) => {
     response.set('Cache-Control', 'no-store').json(repository.listProfessions());
+  });
+  app.get('/api/battle-records', (request, response) => {
+    response.json(
+      repository.listBattleRecords({
+        page: request.query.page === undefined ? 1 : Number(request.query.page),
+      }),
+    );
+  });
+  app.post('/api/battle-records', (request, response) => {
+    response.status(201).json(repository.saveBattleRecords(request.body));
+  });
+  app.get('/api/battle-records/:id', (request, response) => {
+    response.json({ record: repository.getBattleRecord(request.params.id) });
+  });
+  app.get('/api/battle-records/:id/attachments/:kind', (request, response) => {
+    const attachment = repository.getBattleAttachment(request.params.id, request.params.kind);
+    response.set('X-Content-Type-Options', 'nosniff');
+    response.set('Content-Type', attachment.mimeType);
+    response.set(
+      'Content-Disposition',
+      `attachment; filename="download.${request.params.kind === 'csv' ? 'csv' : attachment.mimeType.split('/')[1]}"; filename*=UTF-8''${encodeURIComponent(attachment.name)}`,
+    );
+    response.send(attachment.bytes);
   });
   app.get('/api/events/:id/participation', (request, response) => {
     response
@@ -137,7 +162,8 @@ export function createApp(repository, { authNow } = {}) {
       error instanceof EventError ||
       error instanceof LineupError ||
       error instanceof DutyError ||
-      error instanceof ParticipationError
+      error instanceof ParticipationError ||
+      error instanceof BattleRecordError
     ) {
       return response.status(error.status).json({
         error: {
