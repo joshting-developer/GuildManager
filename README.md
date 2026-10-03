@@ -2,7 +2,7 @@
 
 Vue 3／Vuetify 管理介面, 本機透過 Node.js／Express API 讀寫 SQLite, 後期接入 GAS／Google 試算表
 
-首頁直接顯示活動行事曆與場次報名／請假, 原管理入口與可建立安排的月曆移至 `#/magament`；成員清單支援成員／編外分頁、加入、編輯、移至編外及所屬狀態與過去名稱查詢, 活動安排支援四類安排的建立／修改／刪除, 戰場排表支援三類成員來源、無 UID 額外報名者、職責、分場、範本與歷史版本。登入與正式試算表尚未串接
+首頁直接顯示活動行事曆與場次報名／請假, 右上提供本機帳號密碼登入。登入後可使用管理總覽、成員清單、活動安排與戰場排表；管理頁與管理 API 都檢查登入。Google 登入與正式試算表尚未串接
 
 ## 使用 Docker 開發
 
@@ -14,7 +14,7 @@ docker compose up --build -d
 
 開啟 [首頁](http://localhost:5173)、[成員清單](http://localhost:5173/#/members) 、[活動安排](http://localhost:5173/#/events) 或 [戰場排表](http://localhost:5173/#/lineups), 前端支援熱更新, API 使用 Node watch
 
-原首頁總覽改為 [管理總覽](http://localhost:5173/#/magament), `magament` 沿用使用者指定拼字；網址使用 hash 以支援後期單一 GAS HTML。
+原首頁總覽改為 [管理總覽](http://localhost:5173/#/magament), `magament` 沿用使用者指定拼字, 也接受 `#/management`。未登入時直接開管理網址會回到首頁並開啟登入視窗；網址使用 hash 以支援後期單一 GAS HTML。
 
 - API 健康檢查：`http://localhost:3001/api/health`
 - 成員資料：`http://localhost:3001/api/members`
@@ -37,9 +37,39 @@ docker compose down
 
 `down` 保留資料 volume, 加上 `-v` 會刪除資料, 不作為一般停止方式
 
+## 本機登入
+
+首頁右上「登入」使用本機帳號密碼, 登入後顯示帳號、登出及管理導覽。登入維持 8 小時, 重新整理仍保留；登出立即撤銷伺服器 session。管理操作未儲存時沿用離開確認。
+
+此工作環境已建立 `admin` 帳號, 隨機密碼保存在 `data/local-admin.json`；這是本機私有檔案, 已由 `.gitignore` 排除, 不包含在提交中。其他開發環境第一次啟動 Docker 後可建立自己的帳號：
+
+```sh
+node --input-type=module -e 'import {mkdirSync,writeFileSync} from "node:fs"; import {randomBytes} from "node:crypto"; mkdirSync("data",{recursive:true}); writeFileSync("data/local-admin.json",JSON.stringify({username:"admin",password:randomBytes(24).toString("base64url")},null,2)+"\n",{mode:0o600,flag:"wx"});'
+docker compose exec -T api node server/create-account.js < data/local-admin.json
+```
+
+工具從 stdin 讀取帳號 JSON, 帳號為 3–32 個英數字／底線／點／減號, 密碼 12–128 字元。既有帳號拒絕覆寫；使用不同私有檔案及帳號可新增其他登入者。直接使用 Node API 的環境改用 `npm run account:create < data/local-admin.json`, 需使用與 API 相同的 `DATABASE_PATH`。
+
+- `auth_accounts` 保存 scrypt 密碼雜湊與獨立 salt, 不保存明文密碼
+- `auth_sessions` 保存 session token 的 SHA-256 雜湊及到期時間；瀏覽器使用 HttpOnly／SameSite=Lax cookie, 不使用 localStorage 保存登入憑證
+- 管理資料讀取須有 session, 管理修改另須 `X-CSRF-Token`；前端 adapter 自動附加, API 的 Origin／JSON 檢查仍保留
+- 登入失敗訊息不區分帳號不存在或密碼錯誤, 同一來源 5 分鐘最多 10 次嘗試
+- 所有已由本機工具建立的帳號都能管理, 本次沒有公開註冊或幫主／幹部等角色分級
+- 公開行事曆、報名／請假沿用原操作方式, `/api/calendar/members` 僅提供 UID／名稱選單；登入帳號尚未與遊戲 UID 綁定
+- Google 登入之後透過 auth adapter 接入, GAS 的登入函式目前明確回報未設定, 不以本機密碼或前端旗標假裝雲端登入成功
+
+| 方法 | 路徑 | 用途 |
+| --- | --- | --- |
+| GET | `/api/auth/session` | 查詢登入狀態；匿名回傳 user=null |
+| POST | `/api/auth/login` | 帳號密碼登入, 設定 session cookie |
+| POST | `/api/auth/logout` | 驗證 session／CSRF 後登出 |
+| GET | `/api/calendar/members` | 公開報名用 UID／名稱選單 |
+
+本機 cookie 使用 HTTP loopback；後續正式 HTTP 後端須使用 HTTPS 並設 `NODE_ENV=production` 以啟用 Secure cookie。GAS 使用不同身分／通訊機制, 不直接搬入 Node session 或 scrypt；部署方式與 Google OAuth client 待後續設定。[Google 身分服務](https://developers.google.com/identity/gsi/web/guides/overview)、[GAS Session 身分限制](https://developers.google.com/apps-script/reference/base/session#getActiveUser())
+
 ## 建立示範成員
 
-啟動本機 API 後, 在專案目錄手動執行：
+啟動本機 API 並建立登入帳號後, 在專案目錄手動執行；指令讀取 `data/local-admin.json` 登入, 結束時登出, 可用 `LOGIN_CREDENTIALS_PATH` 指定其他私有設定檔：
 
 ```sh
 npm run seed:demo
@@ -123,7 +153,7 @@ npm run build:gas
 
 幫會公告功能已取消, 訊息主要在 Discord 處理；新資料庫不再建立公告表, 舊資料庫中的 `announcements` 表不刪除也不讀取
 
-本機服務提供成員讀寫 API, 只發布到 loopback, 尚無正式登入；瀏覽器寫入限本機開發來源並要求 JSON
+本機服務只發布到 loopback, 成員與管理 API 須登入；瀏覽器寫入限本機開發來源並要求 JSON, 管理修改另檢查 session 的 CSRF token
 
 ## 成員與職業資料
 
@@ -246,7 +276,7 @@ UID Name 主職業 副職業
 - 「額外報名」填名稱、職業及自己的備註, 不需要 UID, 不加入正式名冊；同場同名有效報名會拒絕重複, 可取消後重新報名。
 - 每場獨立保存, 不影響其他日期。取消請假可重新安排；取消額外報名後不再出現在本場來源, 已確認歷史保留。
 - 已在名冊者請使用成員回應, 避免以額外報名建立第二種身分；無 UID 無法可靠判定是否同一位真人。
-- 本機尚未串接登入, 選成員不是身分驗證；正式本人操作權限與報名截止未定案, GAS 報名／請假資料函式明確回報尚未串接。
+- 帳號密碼登入保護管理功能, 公開報名選成員仍不是本人驗證；帳號／UID 綁定、正式本人操作權限與報名截止未定案, GAS 報名／請假資料函式明確回報尚未串接。
 
 | 方法 | 路徑 | 用途 |
 | --- | --- | --- |

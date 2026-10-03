@@ -1,8 +1,5 @@
-export function createEventClient({
-  source = 'local',
-  fetchImpl = globalThis.fetch,
-  googleRun,
-} = {}) {
+import { sessionFetch } from './session.js';
+export function createEventClient({ source = 'local', fetchImpl = sessionFetch, googleRun } = {}) {
   if (!['local', 'gas'].includes(source)) throw new Error('未知的資料來源設定');
   async function call(method, input, id) {
     if (source === 'gas') {

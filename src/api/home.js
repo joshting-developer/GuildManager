@@ -1,8 +1,5 @@
-export function createHomeClient({
-  source = 'local',
-  fetchImpl = globalThis.fetch,
-  googleRun,
-} = {}) {
+import { sessionFetch } from './session.js';
+export function createHomeClient({ source = 'local', fetchImpl = sessionFetch, googleRun } = {}) {
   if (!['local', 'gas'].includes(source)) throw new Error('未知的資料來源設定');
   return {
     async getHomeData() {

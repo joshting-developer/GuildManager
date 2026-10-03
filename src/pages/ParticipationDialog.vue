@@ -44,7 +44,7 @@ async function load() {
   try {
     const [participation, members, jobs] = await Promise.all([
       client.getParticipation(props.event.id),
-      memberClient.getMembers(),
+      memberClient.getParticipationMembers(),
       memberClient.getProfessions(),
     ]);
     if (disposed || currentToken !== token) return;
@@ -220,7 +220,7 @@ async function cancelGuest(row) {
         <v-btn variant="text" :disabled="busy || loading" @click="load">重新載入</v-btn>
       </div>
       <p class="lineup-hint">
-        目前本機尚未登入，請確認選擇的是自己的成員資料；回應只適用於這一場。
+        請確認選擇的是自己的成員資料；回應只適用於這一場, 登入帳號尚未與遊戲 UID 綁定。
       </p>
       <p v-if="loading" role="status">正在載入本場報名資料…</p>
       <v-alert v-else-if="loadError" type="error" variant="tonal" role="alert">{{

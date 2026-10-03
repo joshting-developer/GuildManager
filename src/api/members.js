@@ -1,8 +1,5 @@
-export function createMemberClient({
-  source = 'local',
-  fetchImpl = globalThis.fetch,
-  googleRun,
-} = {}) {
+import { sessionFetch } from './session.js';
+export function createMemberClient({ source = 'local', fetchImpl = sessionFetch, googleRun } = {}) {
   if (!['local', 'gas'].includes(source)) throw new Error('未知的資料來源設定');
   async function call(method, path, body, operation, args = []) {
     if (source === 'gas') {
@@ -43,6 +40,7 @@ export function createMemberClient({
     return data;
   }
   return {
+    getParticipationMembers: () => call('GET', 'calendar/members', null, 'getParticipationMembers'),
     getMembers: () => call('GET', 'members', null, 'getMembers'),
     getProfessions: () => call('GET', 'professions', null, 'getProfessions'),
     previewMemberImport: (input) =>

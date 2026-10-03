@@ -32,7 +32,7 @@
 - 日期統一傳 ISO 8601 字串, 活動的日曆日期傳 YYYY-MM-DD 不轉成時刻, 不跨介面傳 `Date`、資料庫連線或工作表物件
 - 可共用不依賴執行環境的資料驗證與運算, 平台入口及資料存取仍要各自實作
 - SQLite 的交易、唯一鍵與外鍵不會自動變成試算表功能, GAS 需補固定 ID、驗證、鎖定與部分失敗處理
-- 多頁面使用 hash 路由, 不依賴伺服器 rewrite；`#/` 為行事曆首頁, `#/magament` 為管理總覽, `#/members`、`#/events` 與 `#/lineups` 為成員清單、活動安排及戰場排表, 尚無 Router 套件
+- 多頁面使用 hash 路由, 不依賴伺服器 rewrite；`#/` 為公開行事曆首頁, `#/magament`／`#/management` 為管理總覽, `#/members`、`#/events` 與 `#/lineups` 為成員清單、活動安排及戰場排表, 管理頁須登入, 尚無 Router 套件
 - GAS 使用 iframe sandbox, 外部資源、導覽與瀏覽器功能需依 [HTML Service 限制](https://developers.google.com/apps-script/guides/html/restrictions) 實測
 - 本機測試不能代替 Google 授權、部署身分與試算表權限驗證, 不等到全部功能完成才做第一次 GAS 整合
 - SQLite 測試資料不會自動匯入正式試算表, 後續依確認的欄位另做資料遷移
@@ -43,7 +43,7 @@
 - 前端以開發代理轉送 `/api`, 避免元件綁定本機 API 網址
 - SQLite 檔案放入獨立 volume, 容器重建時保留資料；參考 [Docker volumes](https://docs.docker.com/engine/storage/volumes/)
 - 初始化只在沒有首頁設定資料時建立空白設定, 不播種示範資料或覆寫既有資料
-- 本機服務只發布到 loopback, 尚無正式登入前不對外提供管理 API
+- 本機服務只發布到 loopback, 管理 API 已使用帳號密碼／session 驗證, 正式公開部署仍需另外設定
 - SQLite 成員、職業、名稱歷史與活動安排已依確認需求實作, 活動以安排表與日期表關聯, 約戰單日、活動可多日；幫戰／龍虎戰多選日期批次建立獨立單日安排, 每場可分別連結後續紀錄, 批次請求用於防重複
 
 ## 驗證狀態
@@ -60,7 +60,17 @@ GAS 資料函式與正式試算表 repository 尚待後續實作, 不宣稱本�
 
 確認重新讀取本場有效報名與請假, 將額外報名姓名、職業、ID／場次及原報名備註嵌入不可變快照。跨場套用範本不複製額外報名, 不符合或取消者留空並提示。取消／請假不修改已確認版本。前端更新來源保留工作區並標示無效人員, 不默默刪掉排表。
 
-GAS 需新增對應工作表、本人操作驗證、鎖定／防重複／部分失敗處理；目前只有明確回報未串接的資料函式。本機仍限 loopback, 尚未驗證登入或正式公開部署。
+GAS 需新增對應工作表、本人操作驗證、鎖定／防重複／部分失敗處理；目前只有明確回報未串接的資料函式。本機帳號密碼登入已驗證且仍限 loopback, 尚未驗證 Google 登入或正式公開部署。
+
+## 登入介面與平台差異
+
+`src/api/auth.js` 提供 getSession／login／logout, `src/api/session.js` 在記憶體保存 CSRF token, 共用 HTTP 呼叫附加 cookie／CSRF 並通知 session 失效。App 啟動先向後端確認身分, 不以 localStorage 或網址判定登入；伺服器採公開端點白名單, 其他 API 全部須登入。
+
+`server/auth-repository.js` 使用獨立 auth_accounts／auth_sessions 表, 密碼 scrypt 雜湊及 salt, session token 隨機且只存 SHA-256 雜湊, 到期 8 小時；重啟保留 session, 登出或重新登入撤銷舊 token。`server/create-account.js` 只接受本機 stdin 建立帳號, 無公開註冊。
+
+首頁行事曆與既有報名操作保持公開, 成員選單僅使用 UID／名稱的 `/api/calendar/members`, 完整名冊／歷史僅管理端可讀；登入帳號尚未綁定遊戲 UID。
+
+後續 GAS 需實作 Google 身分驗證與允許管理的帳號, 不能直接移植 Node cookie middleware 或 scrypt。GAS「以開發者身分執行」並不保證 `Session.getActiveUser().getEmail()` 有值, 不可用 effective user 當訪客身分；需確認部署方式並實測。[GAS Session 官方文件](https://developers.google.com/apps-script/reference/base/session#getActiveUser())。雲端 auth 函式目前明確回報未設定, 不接受本機登入作為 Google 身分。
 
 ## 排表與歷史
 

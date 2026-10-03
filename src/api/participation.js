@@ -1,6 +1,7 @@
+import { sessionFetch } from './session.js';
 export function createParticipationClient({
   source = 'local',
-  fetchImpl = globalThis.fetch,
+  fetchImpl = sessionFetch,
   googleRun,
 } = {}) {
   if (!['local', 'gas'].includes(source)) throw new Error('未知的資料來源設定');

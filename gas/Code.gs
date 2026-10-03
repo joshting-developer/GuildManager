@@ -4,6 +4,20 @@ function doGet() {
     .addMetaTag('viewport', 'width=device-width, initial-scale=1.0');
 }
 
+// Google identity and allowed management accounts must be verified server-side before enabling these.
+function getAuthSession() {
+  throw new Error('Google 登入尚未設定');
+}
+function login(input) {
+  throw new Error('雲端不使用本機帳號密碼, Google 登入尚未設定');
+}
+function logout() {
+  throw new Error('Google 登入尚未設定');
+}
+function getParticipationMembers() {
+  throw new Error('雲端報名成員選單尚未串接');
+}
+
 // This deployment scaffold intentionally has no access to the live spreadsheet.
 // Implement authentication and the home DTO contract before reading live data.
 function getHomeData() {
