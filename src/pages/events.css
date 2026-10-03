@@ -195,6 +195,18 @@
 .calendar-details-list strong {
   overflow-wrap: anywhere;
 }
+.calendar-detail-content {
+  flex: 1;
+  min-width: 0;
+}
+.calendar-participation-summary {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+.calendar-participation-summary [role='alert'] {
+  color: var(--color-danger);
+}
 .calendar-details-card {
   padding: 28px;
 }

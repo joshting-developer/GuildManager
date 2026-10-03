@@ -1,16 +1,22 @@
 <script setup>
-import { onMounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref, watch } from 'vue';
 import { createEventClient } from '../api/events.js';
+import { createParticipationClient } from '../api/participation.js';
 import CalendarGrid from './CalendarGrid.vue';
 import EventCreateDialog from './EventCreateDialog.vue';
 import ParticipationDialog from './ParticipationDialog.vue';
 import { LINEUP_TYPES } from '../domain/lineups.js';
 import './events.css';
 import { eventTypeLabel, eventDisplayTitle } from '../domain/event-types.js';
-defineProps({ management: { type: Boolean, default: true } });
+const props = defineProps({ management: { type: Boolean, default: true } });
 const selectedEvent = ref(null);
 const participationDialog = ref(false);
 const client = createEventClient({ source: import.meta.env.VITE_DATA_SOURCE || 'local' });
+const participationClient = createParticipationClient({
+  source: import.meta.env.VITE_DATA_SOURCE || 'local',
+});
+const participationCounts = ref({});
+let participationToken = 0;
 const events = ref([]);
 const loading = ref(true);
 const error = ref('');
@@ -39,7 +45,51 @@ function openDay(day) {
   opener = document.activeElement;
   selectedDay.value = day;
   dayDialog.value = true;
+  loadParticipationCounts();
 }
+async function loadParticipationCounts() {
+  const currentToken = ++participationToken;
+  participationCounts.value = {};
+  if (!props.management || !selectedDay.value || !dayDialog.value) return;
+  const battles = selectedDay.value.events.filter((event) => LINEUP_TYPES.includes(event.type));
+  for (const event of battles) participationCounts.value[event.id] = { loading: true };
+  await Promise.allSettled(
+    battles.map(async (event) => {
+      try {
+        const data = await participationClient.getParticipation(event.id);
+        if (
+          data.eventId !== event.id ||
+          !Array.isArray(data.responses) ||
+          !Array.isArray(data.registrations) ||
+          !Array.isArray(data.registrationLeaves)
+        )
+          throw new Error('報名資料格式不正確, 請重試');
+        if (currentToken !== participationToken) return;
+        participationCounts.value[event.id] = {
+          registered:
+            data.responses.filter((row) => row.status === 'registered').length +
+            data.registrations.length,
+          leave:
+            data.responses.filter((row) => row.status === 'leave').length +
+            data.registrationLeaves.length,
+        };
+      } catch (cause) {
+        if (currentToken === participationToken)
+          participationCounts.value[event.id] = { error: cause.message };
+      }
+    }),
+  );
+}
+watch(
+  dayDialog,
+  (open) => {
+    if (!open) participationToken++;
+  },
+  { flush: 'sync' },
+);
+onUnmounted(() => {
+  participationToken++;
+});
 function openCreate(date) {
   initialDate.value = date;
   notice.value = '';
@@ -123,8 +173,31 @@ function restoreFocus() {
       ><h2 id="calendar-day-title">{{ selectedDay?.date.replaceAll('-', '/') }} 的安排</h2>
       <ul class="calendar-details-list">
         <li v-for="event in selectedDay?.events" :key="event.id">
-          <span :class="['event-type', event.type]">{{ eventTypeLabel(event.type) }}</span
-          ><strong>{{ eventDisplayTitle(event) }}</strong>
+          <span :class="['event-type', event.type]">{{ eventTypeLabel(event.type) }}</span>
+          <div class="calendar-detail-content">
+            <strong>{{ eventDisplayTitle(event) }}</strong>
+            <div
+              v-if="management && LINEUP_TYPES.includes(event.type)"
+              class="calendar-participation-summary"
+              aria-live="polite"
+            >
+              <span v-if="participationCounts[event.id]?.loading">正在載入報名／請假人數…</span>
+              <template v-else-if="participationCounts[event.id]?.error">
+                <p role="alert">{{ participationCounts[event.id].error }}</p>
+                <v-btn
+                  variant="text"
+                  size="small"
+                  :aria-label="`重新載入 ${eventDisplayTitle(event)} 的報名／請假人數`"
+                  @click="loadParticipationCounts"
+                  >重試</v-btn
+                >
+              </template>
+              <span v-else-if="participationCounts[event.id]"
+                >報名 {{ participationCounts[event.id].registered }} 人／請假
+                {{ participationCounts[event.id].leave }} 人</span
+              >
+            </div>
+          </div>
           <v-btn
             v-if="!management && LINEUP_TYPES.includes(event.type)"
             variant="tonal"
