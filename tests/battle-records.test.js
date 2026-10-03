@@ -145,7 +145,7 @@ test('batch save validates every item, rolls back database failure and prevents 
     db = new Database(filename);
   try {
     assert.throws(() =>
-      repo.saveBattleRecords(input({ records: [record(), record({ winner: '' })] })),
+      repo.saveBattleRecords(input({ records: [record(), record({ winner: 'invalid' })] })),
     );
     assert.equal(repo.listBattleRecords().total, 0);
     db.exec(
@@ -306,6 +306,25 @@ test('upload, list, detail and download APIs require login, mutation requires CS
       [round.id],
     );
     assert.equal((await client.getRecords(1, 'another-event')).total, 0);
+    const optional = (
+      await client.saveRecords(
+        input({
+          requestId: 'api-internal',
+          records: [
+            record({
+              type: event.type,
+              eventId: event.id,
+              roundNumber: 1,
+              datetime: event.dates[0],
+              winner: '',
+              ourSide: '',
+            }),
+          ],
+        }),
+      )
+    ).records[0];
+    assert.equal(optional.winner, null);
+    assert.equal(optional.ourSide, null);
     await assert.rejects(
       client.saveRecords(
         input({
@@ -449,14 +468,58 @@ test('round migration preserves legacy rows and retry hashes across reopening', 
     db.exec(
       'DROP INDEX battle_records_by_event_round; ALTER TABLE battle_records DROP COLUMN round_number',
     );
+    const columns = db
+      .pragma('table_info(battle_records)')
+      .map((column) => column.name)
+      .join(',');
+    const schema = db
+      .prepare("SELECT sql FROM sqlite_master WHERE name='battle_records'")
+      .get().sql;
+    db.exec(
+      schema
+        .replace(/^CREATE TABLE (?:"battle_records"|battle_records)/, 'CREATE TABLE old_records')
+        .replace('winner TEXT CHECK', 'winner TEXT NOT NULL CHECK'),
+    );
+    db.exec(`INSERT INTO old_records (${columns}) SELECT ${columns} FROM battle_records;
+      DROP TABLE battle_records; ALTER TABLE old_records RENAME TO battle_records;`);
+    assert.equal(
+      db.pragma('table_info(battle_records)').find((column) => column.name === 'winner').notnull,
+      1,
+    );
     db.close();
     repo = createRepository({ filename });
     assert.deepEqual(repo.getBattleRecord(saved.id), saved);
     assert.deepEqual(repo.saveBattleRecords(input()).records[0], saved);
     assert.equal(repo.listBattleRecords().total, 1);
+    const optional = repo.saveBattleRecords(
+      input({ requestId: 'no-result', records: [record({ winner: null })] }),
+    ).records[0];
+    assert.equal(optional.winner, null);
+    assert.equal(optional.ourSide, null);
+    assert.throws(
+      () =>
+        repo.saveBattleRecords(
+          input({ requestId: 'bad-side', records: [record({ ourSide: 'unknown' })] }),
+        ),
+      /我方/,
+    );
+    assert.throws(
+      () =>
+        repo.saveBattleRecords(
+          input({ requestId: 'bad-result', records: [record({ winner: 'draw' })] }),
+        ),
+      /獲勝方/,
+    );
+    const chosen = repo.saveBattleRecords(
+      input({ requestId: 'chosen-side', records: [record({ winner: 'blue', ourSide: 'red' })] }),
+    ).records[0];
+    assert.equal(chosen.ourSide, 'red');
+    assert.equal(chosen.winner, 'blue');
     repo.close();
     repo = createRepository({ filename });
     assert.deepEqual(repo.getBattleRecord(saved.id), saved);
+    assert.deepEqual(repo.getBattleRecord(optional.id), optional);
+    assert.deepEqual(repo.getBattleRecord(chosen.id), chosen);
   } finally {
     repo.close();
     rmSync(directory, { recursive: true, force: true });

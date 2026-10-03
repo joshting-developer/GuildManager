@@ -47,7 +47,7 @@ export function createBattleRecordRepository(db) {
       id TEXT PRIMARY KEY, upload_id TEXT NOT NULL REFERENCES battle_uploads(id),
       event_id TEXT REFERENCES scheduled_events(id), event_snapshot_json TEXT,
       battle_type TEXT NOT NULL, played_at TEXT NOT NULL, red_team TEXT NOT NULL,
-      blue_team TEXT NOT NULL, winner TEXT NOT NULL CHECK(winner IN ('red','blue')),
+      blue_team TEXT NOT NULL, winner TEXT CHECK(winner IN ('red','blue')),
       filename TEXT NOT NULL, csv_text TEXT NOT NULL, players_json TEXT NOT NULL,
       content_hash TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL
     );
@@ -58,6 +58,33 @@ export function createBattleRecordRepository(db) {
     db.exec(
       'ALTER TABLE battle_records ADD COLUMN round_number INTEGER CHECK(round_number IN (1,2))',
     );
+  if (!db.pragma('table_info(battle_records)').some((column) => column.name === 'our_side'))
+    db.exec(
+      "ALTER TABLE battle_records ADD COLUMN our_side TEXT CHECK(our_side IN ('red','blue'))",
+    );
+  if (db.pragma('table_info(battle_records)').find((column) => column.name === 'winner').notnull) {
+    // SQLite cannot remove NOT NULL with ALTER COLUMN; copy every column in one transaction.
+    db.transaction(() => {
+      const schema = db
+        .prepare("SELECT sql FROM sqlite_master WHERE name='battle_records'")
+        .get().sql;
+      const columns = db
+        .pragma('table_info(battle_records)')
+        .map((column) => column.name)
+        .join(',');
+      db.exec(
+        schema
+          .replace(
+            /^CREATE TABLE (?:"battle_records"|battle_records)/,
+            'CREATE TABLE battle_records_optional',
+          )
+          .replace('winner TEXT NOT NULL', 'winner TEXT'),
+      );
+      db.exec(`INSERT INTO battle_records_optional (${columns}) SELECT ${columns} FROM battle_records ORDER BY rowid;
+        DROP TABLE battle_records; ALTER TABLE battle_records_optional RENAME TO battle_records;
+        CREATE INDEX battle_records_by_date ON battle_records(played_at DESC);`);
+    })();
+  }
   db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS battle_records_by_event_round
     ON battle_records(event_id,round_number) WHERE round_number IS NOT NULL`);
   function get(id) {
@@ -78,6 +105,7 @@ export function createBattleRecordRepository(db) {
       redTeam: row.red_team,
       blueTeam: row.blue_team,
       winner: row.winner,
+      ourSide: row.our_side,
       filename: row.filename,
       createdAt: row.created_at,
       redCount: players.filter((p) => p.side === 'red').length,
@@ -126,7 +154,18 @@ export function createBattleRecordRepository(db) {
           (typeof record.eventId !== 'string' || record.eventId.length > 64)
         )
           throw new BattleRecordError('場次格式不正確');
-        if (!['red', 'blue'].includes(record.winner)) throw new BattleRecordError('請選擇獲勝方');
+        if (
+          record.winner != null &&
+          record.winner !== '' &&
+          !['red', 'blue'].includes(record.winner)
+        )
+          throw new BattleRecordError('獲勝方只能選擇紅方或藍方, 也可留空');
+        if (
+          record.ourSide != null &&
+          record.ourSide !== '' &&
+          !['red', 'blue'].includes(record.ourSide)
+        )
+          throw new BattleRecordError('我方只能選擇紅方或藍方, 也可留空');
         if (
           record.roundNumber !== undefined &&
           (!record.eventId ||
@@ -142,11 +181,12 @@ export function createBattleRecordRepository(db) {
           playedAt: taipeiBattleTime(record.datetime),
           redTeam: text(record.redTeam, '紅方名稱'),
           blueTeam: text(record.blueTeam, '藍方名稱'),
-          winner: record.winner,
+          winner: record.winner || null,
           filename,
           csvText: record.csvText,
           players: parsed.players,
           ...(record.roundNumber !== undefined ? { roundNumber: record.roundNumber } : {}),
+          ...(record.ourSide ? { ourSide: record.ourSide } : {}),
         };
       });
       const hash = (value) => createHash('sha256').update(value).digest('hex');
@@ -248,7 +288,7 @@ export function createBattleRecordRepository(db) {
           const id = randomUUID();
           ids.push(id);
           db.prepare(
-            'INSERT INTO battle_records (id,upload_id,event_id,event_snapshot_json,battle_type,played_at,red_team,blue_team,winner,filename,csv_text,players_json,content_hash,created_at,round_number) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            'INSERT INTO battle_records (id,upload_id,event_id,event_snapshot_json,battle_type,played_at,red_team,blue_team,winner,filename,csv_text,players_json,content_hash,created_at,round_number,our_side) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
           ).run(
             id,
             uploadId,
@@ -265,6 +305,7 @@ export function createBattleRecordRepository(db) {
             contentHash,
             now,
             record.roundNumber ?? null,
+            record.ourSide ?? null,
           );
         }
         return { records: ids.map(get) };
