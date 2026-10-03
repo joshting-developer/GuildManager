@@ -139,7 +139,8 @@ async function confirmImport() {
           />
         </div>
         <p class="member-dialog-description">
-          貼上名單或讀取 UTF-8 CSV／TSV／TXT，每行一位成員。既有 UID 會跳過，保留原有名稱與職業。
+          貼上名單或讀取 UTF-8 CSV／TSV／TXT，每行一位成員。既有 UID
+          會跳過，保留原有名稱、職業與所屬狀態。
         </p>
         <div class="import-format">
           <strong>格式範例</strong>
@@ -152,6 +153,9 @@ UID Name 主職業 副職業
             或逗號分隔；名稱含空白時請用 Tab 或 CSV 引號。
           </p>
         </div>
+        <p class="member-import-membership-note">
+          新增成員預設為「幫派內：是／俱樂部內：否」，匯入後可編輯。重新加入會沿用既有狀態。
+        </p>
         <details class="import-jobs">
           <summary>可用職業名稱</summary>
           <p>{{ professions.map((job) => job.name).join('、') }}</p>

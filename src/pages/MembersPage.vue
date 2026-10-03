@@ -23,12 +23,22 @@ const loadError = ref('');
 const notice = ref('');
 const search = ref('');
 const jobFilter = ref(null);
+const membershipFilter = ref('all');
+const membershipOptions = [
+  { title: '俱樂部', value: 'club' },
+  { title: '幫派', value: 'guild' },
+  { title: '不篩選', value: 'all' },
+];
 const page = ref(1);
 const pageSize = 20;
 const filtered = computed(() => {
   const query = (search.value || '').trim().toLocaleLowerCase();
   return members.value.filter(
     (member) =>
+      (membershipFilter.value === 'all' ||
+        (membershipFilter.value === 'club'
+          ? member.isInClub === true
+          : member.isInGuild === true)) &&
       (!jobFilter.value || member.primaryProfessionId === jobFilter.value) &&
       (!query ||
         [member.uid, member.name, ...member.previousNames.map((entry) => entry.name)].some(
@@ -40,7 +50,7 @@ const pageCount = computed(() => Math.max(1, Math.ceil(filtered.value.length / p
 const visibleMembers = computed(() =>
   filtered.value.slice((page.value - 1) * pageSize, page.value * pageSize),
 );
-watch([search, jobFilter], () => {
+watch([search, jobFilter, membershipFilter], () => {
   page.value = 1;
 });
 watch(pageCount, (count) => {
@@ -68,6 +78,7 @@ onMounted(load);
 function clearFilters() {
   search.value = '';
   jobFilter.value = null;
+  membershipFilter.value = 'all';
 }
 function jobColor(id) {
   const color = professions.value.find((job) => job.job_id === id)?.colorcode;
@@ -79,7 +90,14 @@ const secondaryOptions = computed(() => [
 ]);
 const dialog = ref(false);
 const editing = ref(null);
-const form = ref({ uid: '', name: '', primaryProfessionId: null, secondaryProfessionId: null });
+const form = ref({
+  uid: '',
+  name: '',
+  primaryProfessionId: null,
+  secondaryProfessionId: null,
+  isInGuild: true,
+  isInClub: false,
+});
 const baseline = ref('');
 const errors = ref({});
 const saveError = ref('');
@@ -94,6 +112,8 @@ function openForm(member = null) {
     name: member?.name || '',
     primaryProfessionId: member?.primaryProfessionId ?? null,
     secondaryProfessionId: member?.secondaryProfessionId ?? null,
+    isInGuild: member?.isInGuild ?? true,
+    isInClub: member?.isInClub ?? false,
   };
   baseline.value = JSON.stringify(form.value);
   errors.value = {};
@@ -107,6 +127,7 @@ function closeForm(value = false) {
 }
 function restoreFocus() {
   if (opener?.isConnected) opener.focus();
+  else document.getElementById('main')?.focus({ preventScroll: true });
 }
 async function save() {
   if (saving.value) return;
@@ -209,7 +230,7 @@ function formatDate(value) {
     <div>
       <p class="eyebrow">GUILD MEMBERS <span class="eyebrow-divider">/</span> 成員管理</p>
       <h1 id="members-title">成員清單<span class="heading-dot">.</span></h1>
-      <p class="page-subtitle">管理成員名稱與職業，留存每一次改名。</p>
+      <p class="page-subtitle">管理成員名稱、職業與幫派／俱樂部狀態，留存每一次改名。</p>
     </div>
     <div class="member-page-actions">
       <v-btn
@@ -233,12 +254,12 @@ function formatDate(value) {
       notice
     }}</v-alert>
   </div>
-  <section class="panel member-panel" aria-label="幫會成員名冊">
+  <section class="panel member-panel" aria-label="成員名冊">
     <div class="section-header">
       <div class="member-list-heading">
         <span class="icon-box blue"><v-icon :icon="mdiAccountGroupOutline" size="22" /></span>
         <div>
-          <h2>幫會成員</h2>
+          <h2>成員名冊</h2>
           <p v-if="!loading && !loadError" class="member-count">共 {{ members.length }} 位成員</p>
         </div>
       </div>
@@ -278,7 +299,18 @@ function formatDate(value) {
           hide-details
           clearable
         />
-        <v-btn variant="text" :disabled="!search && !jobFilter" @click="clearFilters"
+        <v-select
+          v-model="membershipFilter"
+          :items="membershipOptions"
+          label="篩選幫派／俱樂部"
+          variant="outlined"
+          density="compact"
+          hide-details
+        />
+        <v-btn
+          variant="text"
+          :disabled="!search && !jobFilter && membershipFilter === 'all'"
+          @click="clearFilters"
           >清除篩選</v-btn
         >
       </div>
@@ -302,6 +334,8 @@ function formatDate(value) {
                 <th scope="col">名稱</th>
                 <th scope="col">主職業</th>
                 <th scope="col">副職業</th>
+                <th scope="col">幫派內</th>
+                <th scope="col">俱樂部內</th>
                 <th scope="col">過去名稱</th>
                 <th scope="col">操作</th>
               </tr>
@@ -327,6 +361,20 @@ function formatDate(value) {
                     ></span
                     >{{ member.secondaryProfession }}</span
                   ><span v-else class="member-muted">—</span>
+                </td>
+                <td>
+                  <span
+                    :class="['membership-status', { 'membership-yes': member.isInGuild }]"
+                    :aria-label="`幫派內：${member.isInGuild ? '是' : '否'}`"
+                    >{{ member.isInGuild ? '是' : '否' }}</span
+                  >
+                </td>
+                <td>
+                  <span
+                    :class="['membership-status', { 'membership-yes': member.isInClub }]"
+                    :aria-label="`俱樂部內：${member.isInClub ? '是' : '否'}`"
+                    >{{ member.isInClub ? '是' : '否' }}</span
+                  >
                 </td>
                 <td>
                   <v-btn
@@ -382,101 +430,127 @@ function formatDate(value) {
     @update:model-value="closeForm"
     @after-leave="restoreFocus"
   >
-    <v-card class="member-dialog">
-      <form @submit.prevent="save">
-        <div class="member-dialog-heading">
-          <div>
-            <p class="eyebrow">MEMBER PROFILE</p>
-            <h2 id="member-form-title">{{ editing ? '編輯成員' : '加入成員' }}</h2>
+    <v-card class="member-dialog member-profile-dialog">
+      <form class="member-profile-form" @submit.prevent="save">
+        <div class="member-profile-content">
+          <div class="member-dialog-heading">
+            <div>
+              <p class="eyebrow">MEMBER PROFILE</p>
+              <h2 id="member-form-title">{{ editing ? '編輯成員' : '加入成員' }}</h2>
+            </div>
+            <v-btn
+              variant="text"
+              :icon="mdiClose"
+              aria-label="關閉成員表單"
+              :disabled="saving"
+              @click="closeForm()"
+            />
           </div>
-          <v-btn
-            variant="text"
-            :icon="mdiClose"
-            aria-label="關閉成員表單"
-            :disabled="saving"
-            @click="closeForm()"
-          />
+          <p class="member-dialog-description">
+            {{
+              editing
+                ? 'UID 固定不變，改名後會自動保留過去名稱。'
+                : '填寫遊戲內 UID、名稱與職業。主職業為必填。'
+            }}
+          </p>
+          <v-alert
+            v-if="saveError"
+            type="error"
+            variant="tonal"
+            class="member-form-alert"
+            role="alert"
+            >{{ saveError
+            }}<span v-if="saveError.includes('重新載入')">
+              請關閉表單後重新載入清單。</span
+            ></v-alert
+          >
+          <fieldset :disabled="saving" class="member-fields">
+            <v-text-field
+              v-model="form.uid"
+              label="UID（遊戲內 ID）*"
+              variant="outlined"
+              :disabled="!!editing || saving"
+              maxlength="64"
+              :error-messages="errors.uid"
+              hint="以文字保存，保留前導零"
+              persistent-hint
+              autocomplete="off"
+              @update:model-value="errors.uid = ''"
+            />
+            <v-text-field
+              v-model="form.name"
+              label="名稱 *"
+              variant="outlined"
+              maxlength="64"
+              :disabled="saving"
+              :error-messages="errors.name"
+              autocomplete="off"
+              @update:model-value="errors.name = ''"
+            />
+            <v-select
+              v-model="form.primaryProfessionId"
+              label="主職業 *"
+              :items="professions"
+              item-title="name"
+              item-value="job_id"
+              variant="outlined"
+              :disabled="saving"
+              :error-messages="errors.primaryProfessionId"
+              @update:model-value="errors.primaryProfessionId = ''"
+            >
+              <template #item="{ props, item }"
+                ><v-list-item v-bind="props"
+                  ><template #prepend
+                    ><span
+                      class="profession-dot selector-dot"
+                      :style="{ backgroundColor: jobColor(item.job_id) }"
+                    ></span></template></v-list-item
+              ></template>
+            </v-select>
+            <v-select
+              v-model="form.secondaryProfessionId"
+              label="副職業"
+              :items="secondaryOptions"
+              item-title="name"
+              item-value="job_id"
+              variant="outlined"
+              :disabled="saving"
+              :error-messages="errors.secondaryProfessionId"
+              @update:model-value="errors.secondaryProfessionId = ''"
+            >
+              <template #item="{ props, item }"
+                ><v-list-item v-bind="props"
+                  ><template #prepend
+                    ><span
+                      class="profession-dot selector-dot"
+                      :style="{ backgroundColor: jobColor(item.job_id) }"
+                    ></span></template></v-list-item
+              ></template>
+            </v-select>
+            <div class="member-membership-fields">
+              <h3>所屬狀態</h3>
+              <v-checkbox
+                v-model="form.isInGuild"
+                label="是否在幫派內"
+                color="primary"
+                :disabled="saving"
+                :error-messages="errors.isInGuild"
+                hide-details="auto"
+                @update:model-value="errors.isInGuild = ''"
+              />
+              <v-checkbox
+                v-model="form.isInClub"
+                label="是否在俱樂部內"
+                color="primary"
+                :disabled="saving"
+                :error-messages="errors.isInClub"
+                hide-details="auto"
+                @update:model-value="errors.isInClub = ''"
+              />
+              <p>兩者可同時勾選或都不勾選，取消勾選不會移除成員。</p>
+            </div>
+          </fieldset>
         </div>
-        <p class="member-dialog-description">
-          {{
-            editing
-              ? 'UID 固定不變，改名後會自動保留過去名稱。'
-              : '填寫遊戲內 UID、名稱與職業。主職業為必填。'
-          }}
-        </p>
-        <v-alert
-          v-if="saveError"
-          type="error"
-          variant="tonal"
-          class="member-form-alert"
-          role="alert"
-          >{{ saveError
-          }}<span v-if="saveError.includes('重新載入')"> 請關閉表單後重新載入清單。</span></v-alert
-        >
-        <fieldset :disabled="saving" class="member-fields">
-          <v-text-field
-            v-model="form.uid"
-            label="UID（遊戲內 ID）*"
-            variant="outlined"
-            :disabled="!!editing || saving"
-            maxlength="64"
-            :error-messages="errors.uid"
-            hint="以文字保存，保留前導零"
-            persistent-hint
-            autocomplete="off"
-            @update:model-value="errors.uid = ''"
-          />
-          <v-text-field
-            v-model="form.name"
-            label="名稱 *"
-            variant="outlined"
-            maxlength="64"
-            :disabled="saving"
-            :error-messages="errors.name"
-            autocomplete="off"
-            @update:model-value="errors.name = ''"
-          />
-          <v-select
-            v-model="form.primaryProfessionId"
-            label="主職業 *"
-            :items="professions"
-            item-title="name"
-            item-value="job_id"
-            variant="outlined"
-            :disabled="saving"
-            :error-messages="errors.primaryProfessionId"
-            @update:model-value="errors.primaryProfessionId = ''"
-          >
-            <template #item="{ props, item }"
-              ><v-list-item v-bind="props"
-                ><template #prepend
-                  ><span
-                    class="profession-dot selector-dot"
-                    :style="{ backgroundColor: jobColor(item.job_id) }"
-                  ></span></template></v-list-item
-            ></template>
-          </v-select>
-          <v-select
-            v-model="form.secondaryProfessionId"
-            label="副職業"
-            :items="secondaryOptions"
-            item-title="name"
-            item-value="job_id"
-            variant="outlined"
-            :disabled="saving"
-            :error-messages="errors.secondaryProfessionId"
-            @update:model-value="errors.secondaryProfessionId = ''"
-          >
-            <template #item="{ props, item }"
-              ><v-list-item v-bind="props"
-                ><template #prepend
-                  ><span
-                    class="profession-dot selector-dot"
-                    :style="{ backgroundColor: jobColor(item.job_id) }"
-                  ></span></template></v-list-item
-            ></template>
-          </v-select>
-        </fieldset>
         <div class="member-dialog-actions">
           <v-btn variant="outlined" :disabled="saving" @click="closeForm()">取消</v-btn
           ><v-btn type="submit" color="primary" :loading="saving" :disabled="saving">{{
@@ -501,7 +575,7 @@ function formatDate(value) {
       </p>
       <p class="member-remove-uid">UID：{{ removing?.uid }}</p>
       <p class="member-dialog-description">
-        這位成員將離開清單，過去名稱會保留。日後以相同 UID 加入時可延續紀錄。
+        這位成員將移出名冊，資料與過去名稱會保留。若只需更改幫派或俱樂部狀態，請使用「編輯」。
       </p>
       <v-alert v-if="removeError" type="error" variant="tonal" role="alert">{{
         removeError
@@ -574,7 +648,7 @@ function formatDate(value) {
           <dd>{{ importSummary?.skipped }} 位</dd>
         </div>
       </dl>
-      <p class="member-dialog-description">既有成員的名稱與職業保持原樣。</p>
+      <p class="member-dialog-description">既有成員的名稱、職業與所屬狀態保持原樣。</p>
       <div class="member-dialog-actions">
         <v-btn color="primary" @click="importResultDialog = false">知道了</v-btn>
       </div>

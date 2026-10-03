@@ -2,7 +2,7 @@
 
 Vue 3／Vuetify 管理介面, 本機透過 Node.js／Express API 讀寫 SQLite, 後期接入 GAS／Google 試算表
 
-首頁上方集中管理入口, 下方呈現近期活動行事曆, 未完成的功能顯示「待開發」, 不呈現示範數字或安排；成員清單已支援加入、編輯、移除與過去名稱查詢, 活動安排支援建立活動／約戰並顯示於首頁月曆, 登入與正式試算表尚未串接
+首頁上方集中管理入口, 下方呈現近期活動行事曆, 未完成的功能顯示「待開發」, 不呈現示範數字或安排；成員清單已支援加入、編輯、移除、幫派／俱樂部狀態與過去名稱查詢, 活動安排支援建立活動／約戰並顯示於首頁月曆, 登入與正式試算表尚未串接
 
 ## 使用 Docker 開發
 
@@ -111,12 +111,12 @@ npm run build:gas
 
 ## 成員與職業資料
 
-- `members`：UID (TEXT 主鍵)、名稱、主／副職業 ID、加入／更新／移除時間、revision
+- `members`：UID (TEXT 主鍵)、名稱、主／副職業 ID、是否在幫派／俱樂部內、加入／更新／移除時間、revision
 - `professions`：`job_id`、`colorcode`、`name`, 依使用者提供的九筆正式職業初始化, 不放示範成員
 - `member_name_history`：紀錄 ID、`member_uid`、過去名稱、改名時間, 以 UID 關聯
 - 主職業必填, 副職業可選「無副職業」；UID 加入後不可修改, 保留前導零與長 ID
 - 改名會在同一交易保存舊名, 只修改職業不增加改名紀錄
-- 移除採退會標記, 隱藏成員但保留歷史；同 UID 重新加入會恢復並延續紀錄
+- 移除採名冊移除標記, 隱藏成員但保留資料與歷史；同 UID 重新加入會恢復並延續紀錄
 - 編輯與移除需帶 revision, 舊版本會拒絕, 請重新載入後再操作
 - 舊文字職業欄位保留作遷移相容, 讀寫以 ID 關聯為準, 不刪除既有資料
 - 職業選單與色點讀取資料表, 未來新增職業資料列即可, 不需修改前端選項
@@ -124,16 +124,28 @@ npm run build:gas
 | 方法 | 路徑 | 用途 |
 | --- | --- | --- |
 | GET | `/api/professions` | 職業 ID、色碼與名稱 |
-| GET | `/api/members` | 在會成員及過去名稱 |
+| GET | `/api/members` | 未移除的名冊成員、所屬狀態及過去名稱 |
 | POST | `/api/members` | 加入成員 |
 | POST | `/api/members/import/preview` | 解析並預覽匯入內容, 不寫入 |
 | POST | `/api/members/import` | 確認預覽後整批匯入 |
-| PATCH | `/api/members/:uid` | 修改名稱及職業 |
+| PATCH | `/api/members/:uid` | 修改名稱、職業及所屬狀態 |
 | DELETE | `/api/members/:uid` | 移除成員, JSON body 帶 revision |
 
-加入資料格式：`{ uid: '001', name: '角色名稱', primaryProfessionId: 3, secondaryProfessionId: null }`；編輯不傳 uid, 加上 revision
+加入資料格式：`{ uid: '001', name: '角色名稱', primaryProfessionId: 3, secondaryProfessionId: null, isInGuild: true, isInClub: false }`；編輯不傳 uid, 加上 revision
 
 `src/api/members.js` 在本機呼叫 HTTP, GAS 模式呼叫同名 `google.script.run` 函式, 不會將失敗寫入自動重試或退回本機資料
+
+## 幫派與俱樂部狀態
+
+- 新增／編輯表單提供「是否在幫派內」「是否在俱樂部內」兩個勾選欄位, 可以都勾選或都不勾選。
+- 清單顯示「幫派內」「俱樂部內」的「是／否」, 不只用顏色區分。
+- 篩選「俱樂部」檢查 isInClub、「幫派」檢查 isInGuild、「不篩選」顯示所有未移除紀錄, 預設不篩選。
+- 名稱／UID／過去名稱、主職業與所屬篩選採交集, 修改條件回到第一頁, 清除篩選恢復不篩選。
+- 取消幫派內勾選後成員仍留在名冊, 可作為俱樂部成員；「移除成員」才將紀錄移出清單。
+- 新成員預設 isInGuild=true、isInClub=false；前端可直接調整, API 只接受 boolean, 不接受字串或數字。
+- 舊資料首次新增欄位時：未移除成員幫派內為 true、已移除為 false。俱樂部原先未記錄, 預設未勾選 false, 請依實際狀態編輯。
+- API 回傳真正 boolean, SQLite 使用 is_in_guild／is_in_club 的 0／1, 重啟不重設。
+- 修改狀態會增加 revision, 不產生名稱歷史；舊客戶端編輯省略這兩欄會保留原值。
 
 ## 匯入成員
 
@@ -154,7 +166,8 @@ UID Name 主職業 副職業
 - 無副職業填 `-` 或 `無副職業`, CSV／TSV 副職業可以留空欄
 - Excel 檔請先另存為 UTF-8 CSV；每批最多 500 位、256 KiB
 - UID 全程以文字保存, 保留前導零與長 ID, 請避免 Excel 自動轉數字
-- 清單內已存在的 UID 跳過, 不修改既有名稱或職業
+- 清單內已存在的 UID 跳過, 不修改既有名稱、職業或所屬狀態
+- 四欄格式維持不變, 新 UID 預設幫派內是／俱樂部內否, 匯入後可編輯；恢復已移除 UID 時保留既有狀態
 - 已移除的 UID 會在預覽標示「重新加入」, 恢復時沿用過去名稱紀錄
 - 任何格式、職業或匯入內重複 UID 錯誤需先修正, 不部分匯入
 - 預覽不寫入, 確認時重新驗證並檢查預覽版本, 整批寫入使用交易
