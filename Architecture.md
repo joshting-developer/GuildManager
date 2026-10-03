@@ -7,7 +7,7 @@
 | 層級 | 本機開發 | GAS 部署 |
 | --- | --- | --- |
 | 頁面 | Vue 3＋Vuetify＋Vite, 支援熱更新 | 相同前端來源, 編譯為單一 HTML |
-| 前端資料介面 | `getHomeData()` 呼叫 `/api/home` | `getHomeData()` 包裝 `google.script.run` |
+| 前端資料介面 | `src/api/` 呼叫 HTTP 成員／職業 API | 同名資料函式包裝 `google.script.run` |
 | 執行入口 | Node.js／Express | GAS `.gs` 函式與 `doGet()` |
 | 資料存取 | SQLite repository | Google 試算表 repository |
 | 環境 | Docker Compose | Apps Script Web App |
@@ -32,7 +32,7 @@
 - 日期統一傳 ISO 8601 字串, 不跨介面傳 `Date`、資料庫連線或工作表物件
 - 可共用不依賴執行環境的資料驗證與運算, 平台入口及資料存取仍要各自實作
 - SQLite 的交易、唯一鍵與外鍵不會自動變成試算表功能, GAS 需補固定 ID、驗證、鎖定與部分失敗處理
-- 多頁面導覽優先評估 hash 或 memory 路由, 不依賴伺服器 rewrite；首頁先不加入 Router
+- 多頁面導覽優先評估 hash 或 memory 路由, 不依賴伺服器 rewrite；使用 `#/members` 切換成員清單, 尚無 Router 套件
 - GAS 使用 iframe sandbox, 外部資源、導覽與瀏覽器功能需依 [HTML Service 限制](https://developers.google.com/apps-script/guides/html/restrictions) 實測
 - 本機測試不能代替 Google 授權、部署身分與試算表權限驗證, 不等到全部功能完成才做第一次 GAS 整合
 - SQLite 測試資料不會自動匯入正式試算表, 後續依確認的欄位另做資料遷移
@@ -44,10 +44,10 @@
 - SQLite 檔案放入獨立 volume, 容器重建時保留資料；參考 [Docker volumes](https://docs.docker.com/engine/storage/volumes/)
 - 初始化只在沒有首頁設定資料時建立空白設定, 不播種示範資料或覆寫既有資料
 - 本機服務只發布到 loopback, 尚無正式登入前不對外提供管理 API
-- 目前 SQLite schema 為首頁示範, 不代表正式成員與活動欄位已定案
+- SQLite 成員、職業與名稱歷史已依確認需求實作, 活動資料尚未定案
 
 ## 驗證狀態
 
-官方文件確認此架構具備可行性, 實際單檔編譯、本機 API、Docker 與首頁驗證結果記錄於 `plans/main/step.md`
+官方文件確認此架構具備可行性, 實際單檔編譯、本機 API、Docker 與首頁驗證結果記錄於 `plans/main/step.md` 與 `plans/main/members-step.md`
 
 GAS 資料函式與正式試算表 repository 尚待後續實作, 不宣稱本機 Node 後端可以原樣部署至 GAS

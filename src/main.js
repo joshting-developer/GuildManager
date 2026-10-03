@@ -1,6 +1,19 @@
 import { createApp } from 'vue';
 import { createVuetify } from 'vuetify';
-import { VApp, VBtn, VCard, VChip, VDialog, VIcon, VSkeletonLoader } from 'vuetify/components';
+import {
+  VApp,
+  VBtn,
+  VCard,
+  VChip,
+  VDialog,
+  VIcon,
+  VSkeletonLoader,
+  VAlert,
+  VTextField,
+  VSelect,
+  VListItem,
+  VPagination,
+} from 'vuetify/components';
 import { aliases, mdi } from 'vuetify/iconsets/mdi-svg';
 import { zhHant } from 'vuetify/locale';
 import 'vuetify/styles';
@@ -8,7 +21,20 @@ import './styles.css';
 import App from './App.vue';
 
 const vuetify = createVuetify({
-  components: { VApp, VBtn, VCard, VChip, VDialog, VIcon, VSkeletonLoader },
+  components: {
+    VApp,
+    VBtn,
+    VCard,
+    VChip,
+    VDialog,
+    VIcon,
+    VSkeletonLoader,
+    VAlert,
+    VTextField,
+    VSelect,
+    VListItem,
+    VPagination,
+  },
   icons: { defaultSet: 'mdi', aliases, sets: { mdi } },
   locale: { locale: 'zhHant', messages: { zhHant } },
   theme: {

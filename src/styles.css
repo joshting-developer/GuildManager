@@ -1,5 +1,6 @@
 :root {
   --color-page: #f7f9fc;
+  --color-muted-surface: #f1f5f9;
   --color-text: #0f172a;
   --color-text-muted: #64748b;
   --color-border: #e2e8f0;
@@ -164,7 +165,7 @@ p {
 .page {
   max-width: 1440px;
   width: 100%;
-  margin: auto;
+  margin: 0 auto;
   padding: 36px 40px 0;
 }
 section {

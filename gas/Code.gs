@@ -9,3 +9,20 @@ function doGet() {
 function getHomeData() {
   throw new Error('雲端首頁資料尚未串接');
 }
+
+// Local member functions share these names; cloud persistence is implemented later.
+function getMembers() {
+  throw new Error('雲端成員資料尚未串接');
+}
+function getProfessions() {
+  throw new Error('雲端職業資料尚未串接');
+}
+function addMember(input) {
+  throw new Error('雲端成員新增尚未串接');
+}
+function updateMember(uid, input) {
+  throw new Error('雲端成員修改尚未串接');
+}
+function removeMember(uid, revision) {
+  throw new Error('雲端成員移除尚未串接');
+}

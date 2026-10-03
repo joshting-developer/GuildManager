@@ -6,11 +6,11 @@
 
 - 介面、文件與操作訊息使用繁體中文
 - 視覺參考相鄰專案 `../NSHM_history`, 本專案的具體規則以 [Style.md](Style.md) 為準
-- 已建立 Vuetify 首頁、Docker 本機環境、SQLite API 與 GAS 單檔編譯流程, 尚未部署至 GAS
+- 已建立 Vuetify 首頁／成員管理、Docker 本機環境、SQLite 讀寫 API 與 GAS 單檔編譯流程, 尚未部署至 GAS
 - 使用者已確認本機使用 SQLite, 後期資料來源為 Google 試算表
-- 試算表 ID 已取得, 工作表名稱與欄位、登入方式、角色權限與第一版功能仍待後續需求確定
+- 試算表 ID 已取得, 正式工作表名稱、登入方式與角色權限待確認；成員、職業及過去名稱欄位已依需求實作於本機
 
-幫會成員、活動報名、出勤及幫戰紀錄可以作為後續討論方向, 目前不視為已定案需求
+成員管理已確認並實作；活動報名、出勤及幫戰紀錄仍為後續討論方向
 
 ## 工作方式
 
@@ -55,11 +55,11 @@
 
 | 檔案 | 用途 |
 | --- | --- |
-| `src/App.vue` | 首頁元件與互動 |
+| `src/App.vue`、`src/pages/` | 共用導覽、首頁與成員管理畫面 |
 | `src/main.js`、`src/styles.css` | Vuetify 主題與共用樣式 |
-| `src/api/home.js` | 本機／GAS 資料呼叫 adapter |
+| `src/api/` | 本機／GAS 資料呼叫 adapter |
 | `server/app.js`、`server/index.js` | Express API 與啟動入口 |
-| `server/repository.js` | SQLite 初始化與讀取 |
+| `server/repository.js` | SQLite 初始化、職業資料與成員交易讀寫 |
 | `gas/Code.gs` | GAS 頁面入口, 資料介面待後續串接 |
 | `gas/appsscript.json` | Apps Script 執行環境與時區 |
 | `vite.config.js`、`tools/package-gas.js` | 一般與 GAS 單檔編譯流程 |
@@ -80,6 +80,16 @@ Apps Script 的 `.gs` 檔案共用全域環境, 避免重複命名與載入時�
 - 錯誤訊息讓使用者知道原因與下一步, 記錄中不包含憑證或不必要的個資
 - 載入玩家名稱、備註等使用者輸入時, 優先用 `textContent`, 不直接插入未處理的 HTML
 - 註解用來說明原因與限制, 不逐行翻譯程式碼
+
+## 已確認成員規則
+
+- UID 是不可修改的文字主鍵, 名稱及主職業必填, 副職業可空
+- `professions(job_id, colorcode, name)` 保存使用者提供的九個職業, 名稱採最新提供的「神相」
+- 前端選單讀取職業 API, 成員以職業 ID 關聯, 未來擴充資料列不需改選項
+- `member_name_history` 用 UID 關聯, 改名與寫入歷史使用交易, 職業修改不產生名稱歷史
+- 移除是退會標記, 保留資料與歷史, 相同 UID 重新加入會恢復
+- 編輯與移除檢查 revision, 不覆寫其他人的新版本
+- 本機驗證使用隔離 SQLite, 不播種假成員或寫入正式試算表
 
 ## Google 試算表資料規則
 

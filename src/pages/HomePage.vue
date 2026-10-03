@@ -7,6 +7,7 @@ import {
   mdiBullhornOutline,
   mdiSwordCross,
 } from '@mdi/js';
+const emit = defineEmits(['open-members']);
 const stats = [
   { title: '幫會成員', icon: mdiAccountGroupOutline, color: 'blue' },
   { title: '近期活動', icon: mdiCalendarMonthOutline, color: 'violet' },
@@ -103,12 +104,21 @@ const dateLabel = new Intl.DateTimeFormat('zh-TW', {
       </div>
     </div>
     <div class="modules-grid">
-      <div v-for="module in modules" :key="module.title" class="module-card">
+      <component
+        :is="module.title === '成員名冊' ? 'button' : 'div'"
+        v-for="module in modules"
+        :key="module.title"
+        class="module-card"
+        :type="module.title === '成員名冊' ? 'button' : undefined"
+        @click="module.title === '成員名冊' && emit('open-members')"
+      >
         <span :class="['icon-box', module.color]"><v-icon :icon="module.icon" size="24" /></span>
         <h3>{{ module.title }}</h3>
         <p>{{ module.description }}</p>
-        <span class="module-status">待開發</span>
-      </div>
+        <span class="module-status">{{
+          module.title === '成員名冊' ? '開啟成員清單 →' : '待開發'
+        }}</span>
+      </component>
     </div>
   </section>
 </template>
