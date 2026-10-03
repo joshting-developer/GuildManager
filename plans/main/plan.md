@@ -102,3 +102,7 @@
 ## 玩家 UID 顯示範圍
 
 UID 僅在成員管理頁顯示, 報名／排表／歷史等畫面以名稱呈現, 見 [uid-display-plan.md](uid-display-plan.md)。
+
+## 約戰排表來源整理
+
+已安排人員從約戰左側來源清單隱藏, 移出後恢復, 見 [lineup-available-members-plan.md](lineup-available-members-plan.md)。
