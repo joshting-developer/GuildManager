@@ -31,6 +31,7 @@ export function createParticipationRepository(db) {
       member_uid TEXT NOT NULL REFERENCES members(uid),
       status TEXT NOT NULL CHECK(status IN ('registered', 'leave', 'none')),
       note TEXT NOT NULL, revision INTEGER NOT NULL CHECK(revision > 0), updated_at TEXT NOT NULL,
+      profession_id INTEGER REFERENCES professions(job_id),
       PRIMARY KEY(event_id, member_uid)
     );
     CREATE TABLE IF NOT EXISTS event_registrations (
@@ -47,6 +48,15 @@ export function createParticipationRepository(db) {
       input_json TEXT NOT NULL, result_json TEXT NOT NULL
     );
   `);
+  if (
+    !db
+      .pragma('table_info(event_member_responses)')
+      .some((column) => column.name === 'profession_id')
+  ) {
+    db.exec(
+      'ALTER TABLE event_member_responses ADD COLUMN profession_id INTEGER REFERENCES professions(job_id)',
+    );
+  }
   function checkEvent(id) {
     const event = db.prepare('SELECT type, deleted_at FROM scheduled_events WHERE id = ?').get(id);
     if (!event || event.deleted_at || !LINEUP_TYPES.includes(event.type)) {
@@ -66,7 +76,8 @@ export function createParticipationRepository(db) {
     return db
       .prepare(
         `SELECT event_id AS eventId, member_uid AS uid, status, note, revision,
-      updated_at AS updatedAt FROM event_member_responses WHERE event_id = ? AND member_uid = ?`,
+      updated_at AS updatedAt, profession_id AS professionId
+      FROM event_member_responses WHERE event_id = ? AND member_uid = ?`,
       )
       .get(eventId, uid);
   }
@@ -102,9 +113,9 @@ export function createParticipationRepository(db) {
         responses: db
           .prepare(
             `SELECT r.event_id AS eventId, r.member_uid AS uid, r.status, r.note, r.revision,
-              r.updated_at AS updatedAt, m.name, p.name AS profession, p.colorcode
+              r.updated_at AS updatedAt, m.name, p.job_id AS professionId, p.name AS profession, p.colorcode
             FROM event_member_responses r JOIN members m ON m.uid = r.member_uid
-            JOIN professions p ON p.job_id = m.primary_profession_id
+            JOIN professions p ON p.job_id = COALESCE(r.profession_id, m.primary_profession_id)
             WHERE r.event_id = ? ORDER BY r.member_uid`,
           )
           .all(eventId),
@@ -210,6 +221,7 @@ export function createParticipationRepository(db) {
             status,
             note,
             revision: response(eventId, uid)?.revision || 0,
+            ...(status === 'registered' ? { professionId } : {}),
           });
         } else if (guest) {
           db.prepare(
@@ -256,11 +268,20 @@ export function createParticipationRepository(db) {
           throw new ParticipationError('找不到這位成員，請重新選擇', 404, 'MEMBER_NOT_FOUND');
         }
         const prior = response(eventId, uid);
+        const professionId =
+          input.professionId === undefined ? (prior?.professionId ?? null) : input.professionId;
+        if (
+          professionId !== null &&
+          (!Number.isSafeInteger(professionId) ||
+            !db.prepare('SELECT job_id FROM professions WHERE job_id = ?').get(professionId))
+        )
+          throw new ParticipationError('職業不存在, 請重新載入職業清單');
         if ((prior?.revision || 0) !== input.revision) {
           if (
             prior?.revision === input.revision + 1 &&
             prior.status === status &&
-            prior.note === note
+            prior.note === note &&
+            prior.professionId === professionId
           )
             return prior;
           throw new ParticipationError(
@@ -271,10 +292,13 @@ export function createParticipationRepository(db) {
         }
         const now = new Date().toISOString();
         db.prepare(
-          `INSERT INTO event_member_responses VALUES (?, ?, ?, ?, 1, ?)
+          `INSERT INTO event_member_responses
+            (event_id, member_uid, status, note, revision, updated_at, profession_id)
+            VALUES (?, ?, ?, ?, 1, ?, ?)
           ON CONFLICT(event_id, member_uid) DO UPDATE SET status = excluded.status,
-          note = excluded.note, revision = event_member_responses.revision + 1, updated_at = excluded.updated_at`,
-        ).run(eventId, uid, status, note, now);
+          note = excluded.note, revision = event_member_responses.revision + 1,
+          updated_at = excluded.updated_at, profession_id = excluded.profession_id`,
+        ).run(eventId, uid, status, note, now, professionId);
         return response(eventId, uid);
       })();
     },

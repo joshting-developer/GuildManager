@@ -1,4 +1,8 @@
 import { test } from 'node:test';
+import Database from 'better-sqlite3';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import assert from 'node:assert/strict';
 import { createRepository } from '../server/repository.js';
 import { createApp } from '../server/app.js';
@@ -245,4 +249,115 @@ test('unified GAS operation preserves the input and reports unconnected without 
   });
   await assert.rejects(client.submitParticipation('event', input), /尚未串接/);
   assert.equal(typeof success, 'function');
+});
+
+test('member registrations retain their selected battle profession without changing the roster or saved lineup', () => {
+  const { repo, events, submit } = setup();
+  const event = events[0];
+  try {
+    const teams = emptyLineup();
+    teams[0].slots[0].uid = 'guild';
+    const snapshot = repo.confirmLineup({
+      eventId: event.id,
+      eventRevision: 1,
+      expectedVersion: 0,
+      requestId: 'profession-snapshot',
+      teams,
+    });
+    submit('幫內成員', 'registered', { professionId: 3 });
+    const row = () =>
+      repo.getEventParticipation(event.id).responses.find((response) => response.uid === 'guild');
+    assert.equal(row().professionId, 3);
+    assert.equal(row().profession, '碎夢');
+    assert.equal(
+      repo.listMembers().members.find((member) => member.uid === 'guild').primaryProfessionId,
+      1,
+    );
+    submit('幫內成員', 'leave', { professionId: null });
+    assert.equal(row().status, 'leave');
+    assert.equal(row().professionId, 3);
+    submit('幫內成員', 'registered', { professionId: 4 });
+    assert.equal(row().professionId, 4);
+    assert.equal(row().profession, '潮光');
+    assert.equal(repo.getEventParticipation(events[1].id).responses.length, 0);
+    assert.deepEqual(repo.getLineupHistory(event.id).versions[0], snapshot);
+    const input = {
+      uid: 'guild',
+      status: 'registered',
+      note: '',
+      professionId: 2,
+      revision: row().revision,
+    };
+    const saved = repo.saveMemberResponse(event.id, input);
+    assert.deepEqual(repo.saveMemberResponse(event.id, input), saved);
+    assert.throws(
+      () => repo.saveMemberResponse(event.id, { ...input, professionId: 3 }),
+      code('PARTICIPATION_CHANGED'),
+    );
+    assert.throws(
+      () => repo.saveMemberResponse(event.id, { ...input, professionId: 99 }),
+      code('PARTICIPATION_INVALID'),
+    );
+    assert.equal(row().professionId, 2);
+  } finally {
+    repo.close();
+  }
+});
+
+test('old response schema upgrades without rewriting rows and selected professions persist after restart', () => {
+  const folder = mkdtempSync(join(tmpdir(), 'guild-response-professions-'));
+  const filename = join(folder, 'test.sqlite');
+  let repo = createRepository({ filename });
+  try {
+    repo.addMember({ uid: 'legacy', name: '舊成員', primaryProfessionId: 1 });
+    const event = repo.createEvent({
+      title: '舊約戰',
+      type: 'scrimmage',
+      dates: ['2026-10-24'],
+      requestId: 'legacy-event',
+    });
+    repo.saveMemberResponse(event.id, {
+      uid: 'legacy',
+      status: 'registered',
+      note: '既有備註',
+      revision: 0,
+    });
+    repo.close();
+    const oldDb = new Database(filename);
+    oldDb.exec('ALTER TABLE event_member_responses DROP COLUMN profession_id');
+    const before = oldDb.prepare('SELECT * FROM event_member_responses').all();
+    oldDb.close();
+    repo = createRepository({ filename });
+    const inspect = new Database(filename, { readonly: true });
+    assert.deepEqual(
+      inspect
+        .prepare(
+          'SELECT event_id, member_uid, status, note, revision, updated_at FROM event_member_responses',
+        )
+        .all(),
+      before,
+    );
+    assert.equal(inspect.pragma('foreign_key_check').length, 0);
+    inspect.close();
+    const legacy = repo.getEventParticipation(event.id).responses[0];
+    assert.equal(legacy.professionId, 1);
+    assert.equal(legacy.profession, '素問');
+    const input = {
+      name: '舊成員',
+      status: 'registered',
+      professionId: 3,
+      note: '新備註',
+      requestId: 'selected-profession',
+      revision: repo.getEventParticipation(event.id).revision,
+    };
+    const result = repo.submitParticipation(event.id, input);
+    repo.close();
+    repo = createRepository({ filename });
+    assert.deepEqual(repo.submitParticipation(event.id, input), result);
+    assert.equal(repo.getEventParticipation(event.id).responses[0].professionId, 3);
+    assert.equal(repo.getEventParticipation(event.id).responses[0].note, '新備註');
+  } finally {
+    repo.close();
+    rmSync(folder, { recursive: true, force: true });
+  }
 });

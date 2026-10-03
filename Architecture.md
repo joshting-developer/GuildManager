@@ -58,6 +58,8 @@ GAS 資料函式與正式試算表 repository 尚待後續實作, 不宣稱本�
 
 統一 `submitParticipation(eventId, input)` 依名稱比對名冊／本場報名, 只接受 registered／leave。名冊成員沿用 UID 回應, 不修改名冊職業；外援沿用獨立 ID, active=false 表示請假, 再報名恢復同一筆。找不到可請假對象時拒絕, 同名不明確時不寫入。資料讀取附帶 revision 雜湊及 registrationLeaves, 回應含顯示名稱／職業；舊 none／取消介面保留相容, 不刪除資料或快照。`event_participation_requests` 在同一交易保存輸入及回應, 重試不反轉較新的狀態, 新送出以整場 revision 防止覆寫其他更新。
 
+成員回應的可空 `profession_id` 保存本場報名選擇, 查詢回傳 professionId／職業／色彩；舊回應為 null 時沿用名冊主職業, 不反推或回填既有報名。初始化只補缺少欄位, 不重寫舊列；請假保留先前報名職業, 再報名可更新本場職業, 不修改名冊及排表快照。舊 saveMemberResponse 未提供 professionId 時保留原值, 並行／重試判定包含此欄位。GAS 後續須採同一資料契約。
+
 排表 slot／secondRound 使用 uid 或 registrationId 互斥引用, 空位仍 uid=null；舊成員引用與 requestId 正規化保持相容。participantKey 以 member／registration 命名空間支援拖曳、選人及唯一檢查, 不當成遊戲 UID 保存。三類來源與每場請假由前後端檢查, 未在幫派／俱樂部的編外人員必須先回應 registered。
 
 儲存重新讀取本場有效報名與請假, 將額外報名姓名、職業、ID／場次及原報名備註嵌入不可變快照。跨場套用範本不複製額外報名, 不符合或取消者留空並提示。取消／請假不修改已保存版本。前端更新來源保留目前排表並標示無效人員, 不默默刪掉排表。
