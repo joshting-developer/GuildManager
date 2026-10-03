@@ -1,4 +1,5 @@
 import express from 'express';
+import { EventError } from './event-repository.js';
 import { MemberError } from './member-validation.js';
 
 export function createApp(repository) {
@@ -29,6 +30,12 @@ export function createApp(repository) {
   app.get('/api/home', (_request, response) => {
     response.set('Cache-Control', 'no-store').json(repository.readHome());
   });
+  app.get('/api/events', (_request, response) => {
+    response.set('Cache-Control', 'no-store').json(repository.listEvents());
+  });
+  app.post('/api/events', (request, response) => {
+    response.status(201).json({ event: repository.createEvent(request.body) });
+  });
   app.get('/api/professions', (_request, response) => {
     response.set('Cache-Control', 'no-store').json(repository.listProfessions());
   });
@@ -54,17 +61,15 @@ export function createApp(repository) {
     response.status(404).json({ error: { code: 'NOT_FOUND', message: '找不到這個資料介面' } });
   });
   app.use((error, _request, response, _next) => {
-    if (error instanceof MemberError) {
-      return response
-        .status(error.status)
-        .json({
-          error: {
-            code: error.code,
-            message: error.message,
-            fields: error.fields,
-            ...(error.rows ? { rows: error.rows } : {}),
-          },
-        });
+    if (error instanceof MemberError || error instanceof EventError) {
+      return response.status(error.status).json({
+        error: {
+          code: error.code,
+          message: error.message,
+          fields: error.fields,
+          ...(error.rows ? { rows: error.rows } : {}),
+        },
+      });
     }
     if (error.type === 'entity.parse.failed' || error.type === 'entity.too.large') {
       return response
