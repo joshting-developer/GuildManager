@@ -1,3 +1,4 @@
+import { authenticatedFetch } from './helpers/authenticated-fetch.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -158,6 +159,7 @@ test('import APIs return preview/summary, accept payloads larger than a single-m
   const repo = createRepository({ filename: ':memory:' });
   const server = createApp(repo).listen(0, '127.0.0.1');
   await new Promise((resolve, reject) => server.once('listening', resolve).once('error', reject));
+  const fetch = await authenticatedFetch(server, repo);
   const base = `http://127.0.0.1:${server.address().port}/api/members/import`;
   const send = (path, body) =>
     fetch(`${base}${path}`, {

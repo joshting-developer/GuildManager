@@ -1,3 +1,4 @@
+import { authenticatedFetch } from './helpers/authenticated-fetch.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -46,6 +47,7 @@ test('local API returns the home contract and rejects unsupported writes', async
   const repository = createRepository({ filename: ':memory:' });
   const server = createApp(repository).listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
+  const fetch = await authenticatedFetch(server, repository);
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
     const client = createHomeClient({ fetchImpl: (path) => fetch(`${base}${path}`) });

@@ -1,11 +1,13 @@
 import express from 'express';
+import { installAuth } from './auth.js';
+import { AuthError } from './auth-repository.js';
 import { EventError } from './event-repository.js';
 import { LineupError } from './lineup-repository.js';
 import { DutyError } from './duty-repository.js';
 import { MemberError } from './member-validation.js';
 import { ParticipationError } from './participation-repository.js';
 
-export function createApp(repository) {
+export function createApp(repository, { authNow } = {}) {
   const app = express();
   app.disable('x-powered-by');
   app.use('/api', (request, response, next) => {
@@ -27,6 +29,10 @@ export function createApp(repository) {
   app.use('/api/members/import', express.json({ limit: '512kb' }));
   app.use('/api/lineups', express.json({ limit: '64kb' }));
   app.use(express.json({ limit: '16kb' }));
+  installAuth(app, repository, { now: authNow });
+  app.get('/api/calendar/members', (_request, response) => {
+    response.json(repository.listParticipationMembers());
+  });
   app.get('/api/health', (_request, response) => {
     repository.readHome();
     response.json({ status: 'ok' });
@@ -123,6 +129,7 @@ export function createApp(repository) {
   });
   app.use((error, _request, response, _next) => {
     if (
+      error instanceof AuthError ||
       error instanceof MemberError ||
       error instanceof EventError ||
       error instanceof LineupError ||

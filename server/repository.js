@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import { createAuthRepository } from './auth-repository.js';
 import { createEventRepository } from './event-repository.js';
 import { createLineupRepository } from './lineup-repository.js';
 import { createParticipationRepository } from './participation-repository.js';
@@ -9,7 +10,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import { parseMemberImport } from './member-import.js';
 import { MemberError, validateMember, validateRevision } from './member-validation.js';
 
-export function createRepository({ filename }) {
+export function createRepository({ filename, authNow }) {
   if (filename !== ':memory:') mkdirSync(dirname(filename), { recursive: true });
   const db = new Database(filename);
   db.pragma('journal_mode = WAL');
@@ -195,6 +196,7 @@ export function createRepository({ filename }) {
   );
 
   const repository = {
+    ...createAuthRepository(db, { now: authNow }),
     ...createEventRepository(db),
     ...createDutyRepository(db),
     ...createParticipationRepository(db),
@@ -228,6 +230,13 @@ export function createRepository({ filename }) {
       return {
         professions: db
           .prepare('SELECT job_id, colorcode, name FROM professions ORDER BY job_id')
+          .all(),
+      };
+    },
+    listParticipationMembers() {
+      return {
+        members: db
+          .prepare('SELECT uid, name FROM members WHERE removed_at IS NULL ORDER BY name, uid')
           .all(),
       };
     },

@@ -1,3 +1,4 @@
+import { authenticatedFetch } from './helpers/authenticated-fetch.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -248,6 +249,7 @@ test('HTTP duty adapter maps CRUD, validation and conflicts; GAS preserves argum
   const repo = createRepository({ filename: ':memory:' });
   const server = createApp(repo).listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
+  const fetch = await authenticatedFetch(server, repo);
   const base = `http://127.0.0.1:${server.address().port}`;
   const client = createDutyClient({ fetchImpl: (path, init) => fetch(base + path, init) });
   try {

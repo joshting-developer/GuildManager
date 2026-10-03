@@ -1,3 +1,4 @@
+import { authenticatedFetch } from './helpers/authenticated-fetch.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -201,6 +202,7 @@ test('API supports add/edit/remove and returns actionable validation/conflict re
   const repository = createRepository({ filename: ':memory:' });
   const server = createApp(repository).listen(0, '127.0.0.1');
   await new Promise((resolve, reject) => server.once('listening', resolve).once('error', reject));
+  const fetch = await authenticatedFetch(server, repository);
   const base = `http://127.0.0.1:${server.address().port}/api/members`;
   const send = (method, body, uid = '') =>
     fetch(`${base}${uid ? `/${uid}` : ''}`, {

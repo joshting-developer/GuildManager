@@ -94,3 +94,7 @@
 ## 行事曆首頁與場次參與
 
 管理總覽移至 magament、新首頁行事曆報名／請假、排表三類來源與無 UID 額外報名, 見 [event-participation-plan.md](event-participation-plan.md)。
+
+## 登入與管理頁保護
+
+首頁登入入口、本機帳號密碼與管理頁／API 權限檢查, 見 [auth-plan.md](auth-plan.md)。
