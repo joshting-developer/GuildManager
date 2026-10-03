@@ -23,6 +23,13 @@ const modules = [
     description: '活動、約戰、幫戰與龍虎戰安排。',
   },
   {
+    id: 'lineups',
+    title: '戰場排表',
+    icon: mdiSwordCross,
+    color: 'orange',
+    description: '出戰陣容、名單範本與歷史排表。',
+  },
+  {
     id: 'attendance',
     title: '出勤紀錄',
     icon: mdiClipboardTextOutline,
@@ -64,18 +71,20 @@ const dateLabel = new Intl.DateTimeFormat('zh-TW', {
     <h2 id="management-title" class="sr-only">幫會管理功能</h2>
     <div class="modules-grid">
       <component
-        :is="['members', 'events'].includes(module.id) ? 'button' : 'div'"
+        :is="['members', 'events', 'lineups'].includes(module.id) ? 'button' : 'div'"
         v-for="module in modules"
         :key="module.id"
         class="module-card"
-        :type="['members', 'events'].includes(module.id) ? 'button' : undefined"
-        @click="['members', 'events'].includes(module.id) && emit('open-page', module.id)"
+        :type="['members', 'events', 'lineups'].includes(module.id) ? 'button' : undefined"
+        @click="
+          ['members', 'events', 'lineups'].includes(module.id) && emit('open-page', module.id)
+        "
       >
         <span :class="['icon-box', module.color]"><v-icon :icon="module.icon" size="24" /></span>
         <h3>{{ module.title }}</h3>
         <p>{{ module.description }}</p>
         <span class="module-status">{{
-          ['members', 'events'].includes(module.id) ? `開啟${module.title} →` : '待開發'
+          ['members', 'events', 'lineups'].includes(module.id) ? `開啟${module.title} →` : '待開發'
         }}</span>
       </component>
     </div>

@@ -2,7 +2,7 @@
 
 Vue 3／Vuetify 管理介面, 本機透過 Node.js／Express API 讀寫 SQLite, 後期接入 GAS／Google 試算表
 
-首頁上方集中管理入口, 下方呈現近期活動行事曆, 未完成的功能顯示「待開發」, 不呈現示範數字或安排；成員清單已支援成員／編外分頁、加入、編輯、移至編外及幫派／俱樂部狀態與過去名稱查詢, 活動安排支援建立、修改、刪除活動／約戰／幫戰／龍虎戰並顯示於首頁月曆, 登入與正式試算表尚未串接
+首頁上方集中管理入口, 下方呈現近期活動行事曆, 未完成的功能顯示「待開發」, 不呈現示範數字或安排；成員清單已支援成員／編外分頁、加入、編輯、移至編外及幫派／俱樂部狀態與過去名稱查詢, 活動安排支援建立、修改、刪除活動／約戰／幫戰／龍虎戰並顯示於首頁月曆, 戰場排表支援拖曳安排、名單範本與歷史版本, 登入與正式試算表尚未串接
 
 ## 使用 Docker 開發
 
@@ -12,11 +12,12 @@ Vue 3／Vuetify 管理介面, 本機透過 Node.js／Express API 讀寫 SQLite, 
 docker compose up --build -d
 ```
 
-開啟 [首頁](http://localhost:5173)、[成員清單](http://localhost:5173/#/members) 或 [活動安排](http://localhost:5173/#/events), 前端支援熱更新, API 使用 Node watch
+開啟 [首頁](http://localhost:5173)、[成員清單](http://localhost:5173/#/members) 、[活動安排](http://localhost:5173/#/events) 或 [戰場排表](http://localhost:5173/#/lineups), 前端支援熱更新, API 使用 Node watch
 
 - API 健康檢查：`http://localhost:3001/api/health`
 - 成員資料：`http://localhost:3001/api/members`
 - 活動安排：`http://localhost:3001/api/events`
+- 戰場排表：`http://localhost:3001/api/lineups`
 - 職業清單：`http://localhost:3001/api/professions`
 - SQLite 保存在 `guild_data` volume 的 `/data/guildmanager.sqlite`
 - 本機資料庫不再加入示範資料, 重啟不覆寫既有設定
@@ -60,7 +61,7 @@ npm run build
 npm run build:gas
 ```
 
-- `npm test`：SQLite 保存、成員 CRUD、歷史交易回滾、職業擴充、舊欄位遷移、活動日期規則與重複提交、API 與 adapter 錯誤處理
+- `npm test`：SQLite 保存、成員 CRUD、歷史交易回滾、職業擴充、舊欄位遷移、活動日期規則、排表資格／唯一 UID／不可變快照／範本、版本與重複提交、API 與 adapter 錯誤處理
 - `npm run build`：一般本機前端 build, 輸出到 `dist/`
 - `npm run build:gas`：GAS 模式, 輸出單一前端 `build/gas/Index.html`, 以及 `Code.gs` 和 `appsscript.json`
 - GAS 打包指令會檢查是否仍有外部 JS／CSS 檔案或多餘輸出
@@ -71,10 +72,10 @@ npm run build:gas
 1. 執行 `npm run build:gas`
 2. 在 Apps Script 專案建立 HTML 檔案 `Index`, 貼上 `build/gas/Index.html` 內容
 3. 將 `build/gas/Code.gs` 與 manifest 匯入專案
-4. 依目標登入與權限方案完成成員／職業／活動資料函式及試算表 repository
+4. 依目標登入與權限方案完成成員／職業／活動／排表資料函式及試算表 repository
 5. 使用 Apps Script 測試部署驗證後, 再決定正式部署身分與存取對象
 
-目前 GAS 後端提供頁面入口, 成員、職業與活動函式會明確回報尚未串接, 不會讀寫正式試算表或回傳假的成功資料
+目前 GAS 後端提供頁面入口, 成員、職業、活動與排表函式會明確回報尚未串接, 不會讀寫正式試算表或回傳假的成功資料
 
 ## 資料介面
 
@@ -101,7 +102,7 @@ npm run build:gas
 
 日期傳 ISO 8601 字串, 畫面以台北時區顯示；沒有出勤統計時使用 `null`, 不用 `0` 代替未知值
 
-首頁保留上方一排管理入口, 「成員清單」與「活動安排」可進入操作, 下方重複入口已移除
+首頁保留上方一排管理入口, 「成員清單」「活動安排」與「戰場排表」可進入操作, 下方重複入口已移除
 
 近期活動提供可切換月份及返回今天的行事曆, 日期以台北時區為準, 顯示本機保存的四種活動安排, 不顯示假活動；點日期格開啟建立安排視窗並預選當天, 點安排名稱或筆數查看完整清單
 
@@ -188,9 +189,9 @@ UID Name 主職業 副職業
 - 點「刪除」查看名稱與影響日期, 確認後移出清單及所有日期的月曆；取消不寫入, 失敗保留視窗可重試。
 - 編輯／刪除會檢查版本, 若其他操作已修改安排, 提示重新載入並保留輸入, 避免覆寫新資料。
 - 活動可逐日選擇 1–366 天, 同一筆安排可跨多天。
-- 幫戰／龍虎戰建立可多選 1–366 天, 每個日期各自一筆安排及獨立 ID, 例如選 10/24、10/31 會建立兩場, 可分別修改、刪除並在未來連結影片／紀錄／排表。
+- 幫戰／龍虎戰建立可多選 1–366 天, 每個日期各自一筆安排及獨立 ID, 例如選 10/24、10/31 會建立兩場, 可分別修改、刪除, 並連結排表與未來的影片／紀錄。
 - 幫戰／龍虎戰編輯僅修改該場的一個日期, 不影響同批其他場次；建立時提示將新增的筆數, 清單與月曆使用正確類型名稱, 篩選支援四種類型。
-- 目前手動選擇循環賽日期, 未加入每週／每兩週自動排程或影片、紀錄、排表功能。
+- 目前手動選擇循環賽日期, 未加入每週／每兩週自動排程或影片、戰鬥紀錄功能。
 - 約戰只能選擇一天, 點選另一個日期會替換原日期。
 - 建立時活動、幫戰、龍虎戰間切換保留多選日期, 切換成約戰會清除多選並提示；編輯時幫戰／龍虎戰與約戰皆為單日。
 - 已選日期可再次點擊取消, 或移除下方日期標籤。
@@ -221,10 +222,43 @@ UID Name 主職業 副職業
 
 `src/api/events.js` 統一呼叫本機 API 或 GAS `getEvents()`／`createEvent(input)`／`updateEvent(id, input)`／`deleteEvent(id, revision)`；GAS 資料層仍未串接 Google 試算表, 不會回傳假的成功結果
 
+## 戰場排表
+
+開啟 [戰場排表](http://localhost:5173/#/lineups), 選擇已建立的約戰、幫戰或龍虎戰。
+
+1. 從成員清單拖曳至位置, 或點選成員再點位置；手機／鍵盤也可直接開啟位置視窗選人。
+2. 點位置可移除人員 (選「空位」)、選主／副職業及修改任務備註, 隊名可直接修改。
+3. 「確認並儲存」建立本場新的歷史版本, 不要求填滿 60 人。
+4. 「另存範本」保存名單與位置, 在另一場選擇範本後「套用至工作區」, 檢查跳過名單再確認。
+5. 「瀏覽排表」可看歷史版本, 「載入工作區」以當前成員資料重新編輯並另存新版本。
+
+- 版型共用進攻團 3 隊、機動團 3 隊、防守團 4 隊, 每隊 6 人。
+- 幫戰來源只顯示幫派內成員, 龍虎戰只顯示俱樂部內成員, 約戰包含全部與編外人員。
+- 同一份排表每 UID 最多一個位置, 不同場次可安排同一人；拖曳已安排的人會移動或交換, 任務備註保留在原位置。
+- 範本保存 UID 與位置, 套用時使用現有成員／職業並重新檢查資格；不符合的人留空並列出原因, 不改範本或既有歷史。
+- 每次確認都由後端產生不可變快照, 保存 UID、當時名稱、主／副職業名稱與顏色、上場職業、位置、隊名、備註及場次資料。往後改名、改職業、移至編外不改歷史。
+- 刪除安排或將類型改為一般活動後, 已確認排表會在場次選單標示「歷史封存」, 仍可查看與另存範本。
+- 工作區尚未確認的修改保留在目前頁面, 切換場次、套用／載入取代、離開頁面或關閉分頁會提醒；沒有自動存草稿。
+- 檢查排表版本與活動 revision 防止覆寫, 儲存失敗保留輸入, 更新成員清單可保留工作區；重試使用同一 requestId 避免重複版本。
+- `lineup_versions` 保存獨立版本與 JSON 快照, 以 event_id 關聯場次, 禁止 UPDATE／DELETE；`lineup_templates` 獨立保存可復用配置, 空位用 null、UID 用文字。
+- 本機 SQLite 表透過新增初始化, 不搬移或覆寫既有成員／活動資料；GAS 排表資料函式尚未串接。
+
+| 方法 | 路徑 | 用途 |
+| --- | --- | --- |
+| GET | `/api/lineups` | 現有戰鬥／封存場次與範本 |
+| GET | `/api/lineups/events/:id` | 本場所有確認快照 (新版本在前) |
+| POST | `/api/lineups/confirm` | 建立不可變版本, `{ eventId, eventRevision, expectedVersion, teams, requestId }` |
+| POST | `/api/lineups/templates` | 建立範本, `{ name, teams, requestId }` |
+| GET | `/api/lineups/templates/:id/apply/:eventId` | 按現有資格取得配置與 skipped, 不寫入排表 |
+
+`teams` 依固定版型傳十隊 `{ id, name, slots }`, 每隊六位置 `{ uid: string | null, profession: 'primary' | 'secondary', note }`；前端不提供可信的姓名或職業快照。
+
+`src/api/lineups.js` 統一呼叫 HTTP 或 GAS `getLineupIndex()`／`getLineupHistory(eventId)`／`confirmLineup(input)`／`createLineupTemplate(input)`／`applyLineupTemplate(templateId, eventId)`。
+
 ## 專案結構
 
 ```text
-src/              Vue 首頁、成員清單、活動安排、共用樣式與前端資料 adapter
+src/              Vue 首頁、成員清單、活動安排、戰場排表、共用樣式與前端資料 adapter
 server/           Express 入口與 SQLite repository
 gas/              GAS 頁面入口與 manifest
 tools/            GAS 打包工具

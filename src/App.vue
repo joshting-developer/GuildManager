@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, onMounted, onUnmounted, nextTick, provide } from 'vue';
 import {
   mdiSwordCross,
   mdiViewDashboardOutline,
@@ -11,22 +11,34 @@ import {
 import HomePage from './pages/HomePage.vue';
 import MembersPage from './pages/MembersPage.vue';
 import EventsPage from './pages/EventsPage.vue';
+import LineupsPage from './pages/LineupsPage.vue';
 
 const mobileMenu = ref(false);
+const pageGuard = ref(null);
+provide('registerNavigationGuard', (guard) => {
+  pageGuard.value = guard;
+  return () => {
+    if (pageGuard.value === guard) pageGuard.value = null;
+  };
+});
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 function currentView() {
   const route = window.location.hash.slice(2);
-  return ['members', 'events'].includes(route) ? route : 'home';
+  return ['members', 'events', 'lineups'].includes(route) ? route : 'home';
 }
 const view = ref(currentView());
 function syncView() {
+  if (currentView() !== view.value && pageGuard.value && !pageGuard.value()) {
+    window.location.hash = view.value === 'home' ? '/' : `/${view.value}`;
+    return;
+  }
   view.value = currentView();
   mobileMenu.value = false;
   window.scrollTo({ top: 0, behavior: 'instant' });
   nextTick(() => document.getElementById('main')?.focus({ preventScroll: true }));
 }
 function navigate(page) {
-  window.location.hash = ['members', 'events'].includes(page) ? `/${page}` : '/';
+  window.location.hash = ['members', 'events', 'lineups'].includes(page) ? `/${page}` : '/';
   mobileMenu.value = false;
 }
 onMounted(() => window.addEventListener('hashchange', syncView));
@@ -73,6 +85,14 @@ function skipToMain() {
           >
             <v-icon :icon="mdiCalendarMonthOutline" size="18" />活動安排
           </button>
+          <button
+            type="button"
+            :class="{ 'nav-current': view === 'lineups' }"
+            :aria-current="view === 'lineups' ? 'page' : undefined"
+            @click="navigate('lineups')"
+          >
+            <v-icon :icon="mdiSwordCross" size="18" />戰場排表
+          </button>
         </nav>
         <div class="header-actions">
           <span class="environment-tag"
@@ -97,12 +117,16 @@ function skipToMain() {
         <v-btn variant="text" :prepend-icon="mdiCalendarMonthOutline" @click="navigate('events')"
           >活動安排</v-btn
         >
+        <v-btn variant="text" :prepend-icon="mdiSwordCross" @click="navigate('lineups')"
+          >戰場排表</v-btn
+        >
       </nav>
     </header>
     <main id="main" class="page" tabindex="-1">
       <HomePage v-if="view === 'home'" @open-page="navigate" />
       <MembersPage v-else-if="view === 'members'" />
-      <EventsPage v-else />
+      <EventsPage v-else-if="view === 'events'" />
+      <LineupsPage v-else />
       <footer class="page-footer">
         <span>逆水寒 <span class="footer-divider">/</span> 幫會管理平台</span
         ><span>每一次集結，都有跡可循。</span>
