@@ -62,6 +62,10 @@ export function createBattleRecordRepository(db) {
     db.exec(
       "ALTER TABLE battle_records ADD COLUMN our_side TEXT CHECK(our_side IN ('red','blue'))",
     );
+  if (!db.pragma('table_info(battle_records)').some((column) => column.name === 'is_internal'))
+    db.exec(
+      'ALTER TABLE battle_records ADD COLUMN is_internal INTEGER NOT NULL DEFAULT 0 CHECK(is_internal IN (0,1))',
+    );
   if (db.pragma('table_info(battle_records)').find((column) => column.name === 'winner').notnull) {
     // SQLite cannot remove NOT NULL with ALTER COLUMN; copy every column in one transaction.
     db.transaction(() => {
@@ -106,6 +110,7 @@ export function createBattleRecordRepository(db) {
       blueTeam: row.blue_team,
       winner: row.winner,
       ourSide: row.our_side,
+      isInternal: Boolean(row.is_internal),
       filename: row.filename,
       createdAt: row.created_at,
       redCount: players.filter((p) => p.side === 'red').length,
@@ -147,6 +152,12 @@ export function createBattleRecordRepository(db) {
       const records = input.records.map((record) => {
         if (!record || !['scrimmage', 'guild_war', 'dragon_tiger'].includes(record.type))
           throw new BattleRecordError('請選擇戰鬥類型');
+        if (record.isInternal !== undefined && typeof record.isInternal !== 'boolean')
+          throw new BattleRecordError('是否為內推須為是／否');
+        if (record.isInternal && record.type !== 'scrimmage')
+          throw new BattleRecordError('只有約戰可以設定內推');
+        if (record.isInternal && (record.winner || record.ourSide))
+          throw new BattleRecordError('內推不指定敵我與勝方, 請清除後再送出');
         const filename = text(record.filename, 'CSV 檔名', 160);
         if (!/\.csv$/i.test(filename)) throw new BattleRecordError('只能上傳 CSV 檔案');
         if (
@@ -187,6 +198,7 @@ export function createBattleRecordRepository(db) {
           players: parsed.players,
           ...(record.roundNumber !== undefined ? { roundNumber: record.roundNumber } : {}),
           ...(record.ourSide ? { ourSide: record.ourSide } : {}),
+          ...(record.isInternal ? { isInternal: true } : {}),
         };
       });
       const hash = (value) => createHash('sha256').update(value).digest('hex');
@@ -288,7 +300,7 @@ export function createBattleRecordRepository(db) {
           const id = randomUUID();
           ids.push(id);
           db.prepare(
-            'INSERT INTO battle_records (id,upload_id,event_id,event_snapshot_json,battle_type,played_at,red_team,blue_team,winner,filename,csv_text,players_json,content_hash,created_at,round_number,our_side) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            'INSERT INTO battle_records (id,upload_id,event_id,event_snapshot_json,battle_type,played_at,red_team,blue_team,winner,filename,csv_text,players_json,content_hash,created_at,round_number,our_side,is_internal) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
           ).run(
             id,
             uploadId,
@@ -306,6 +318,7 @@ export function createBattleRecordRepository(db) {
             now,
             record.roundNumber ?? null,
             record.ourSide ?? null,
+            record.isInternal ? 1 : 0,
           );
         }
         return { records: ids.map(get) };

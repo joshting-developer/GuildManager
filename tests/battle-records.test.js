@@ -318,6 +318,7 @@ test('upload, list, detail and download APIs require login, mutation requires CS
               datetime: event.dates[0],
               winner: '',
               ourSide: '',
+              isInternal: true,
             }),
           ],
         }),
@@ -325,6 +326,7 @@ test('upload, list, detail and download APIs require login, mutation requires CS
     ).records[0];
     assert.equal(optional.winner, null);
     assert.equal(optional.ourSide, null);
+    assert.equal(optional.isInternal, true);
     await assert.rejects(
       client.saveRecords(
         input({
@@ -463,10 +465,11 @@ test('round migration preserves legacy rows and retry hashes across reopening', 
   try {
     const saved = repo.saveBattleRecords(input()).records[0];
     assert.equal(saved.roundNumber, null);
+    assert.equal(saved.isInternal, false);
     repo.close();
     const db = new Database(filename);
     db.exec(
-      'DROP INDEX battle_records_by_event_round; ALTER TABLE battle_records DROP COLUMN round_number',
+      'DROP INDEX battle_records_by_event_round; ALTER TABLE battle_records DROP COLUMN round_number; ALTER TABLE battle_records DROP COLUMN is_internal',
     );
     const columns = db
       .pragma('table_info(battle_records)')
@@ -520,6 +523,63 @@ test('round migration preserves legacy rows and retry hashes across reopening', 
     assert.deepEqual(repo.getBattleRecord(saved.id), saved);
     assert.deepEqual(repo.getBattleRecord(optional.id), optional);
     assert.deepEqual(repo.getBattleRecord(chosen.id), chosen);
+  } finally {
+    repo.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('internal scrimmages keep an explicit flag, omit enemy/result, preserve retries and reject other battle types', () => {
+  const directory = mkdtempSync('/private/tmp/battle-internal-'),
+    filename = directory + '/test.sqlite';
+  let repo = createRepository({ filename });
+  try {
+    const event = repo.createEvent({
+      type: 'scrimmage',
+      title: '內推',
+      dates: ['2026-10-24'],
+      requestId: 'internal-event',
+    });
+    const payload = input({
+      records: [
+        record({
+          type: event.type,
+          eventId: event.id,
+          datetime: event.dates[0],
+          roundNumber: 2,
+          isInternal: true,
+          winner: null,
+          ourSide: null,
+        }),
+      ],
+    });
+    const saved = repo.saveBattleRecords(payload).records[0];
+    assert.equal(saved.isInternal, true);
+    assert.equal(saved.winner, null);
+    assert.equal(saved.ourSide, null);
+    assert.deepEqual(repo.saveBattleRecords(payload).records[0], saved);
+    for (const extra of [
+      { isInternal: 'true' },
+      { type: 'guild_war' },
+      { type: 'dragon_tiger' },
+      { winner: 'red' },
+      { ourSide: 'blue' },
+    ]) {
+      assert.throws(() =>
+        repo.saveBattleRecords({
+          ...payload,
+          requestId: 'bad-internal',
+          records: [{ ...payload.records[0], ...extra }],
+        }),
+      );
+    }
+    repo.close();
+    repo = createRepository({ filename });
+    assert.deepEqual(repo.getBattleRecord(saved.id), saved);
+    const first = repo.saveBattleRecords(
+      input({ requestId: 'internal-first', records: [{ ...payload.records[0], roundNumber: 1 }] }),
+    ).records[0];
+    assert.equal(first.isInternal, true);
   } finally {
     repo.close();
     rmSync(directory, { recursive: true, force: true });
