@@ -44,3 +44,8 @@
 - 以上為首頁初版的歷史紀錄, 後續已移除示範資料與公告。
 - 本次原始需求：「活動安排可以開始製作了；selector 是活動／約戰, 約戰只能選一天, 活動可選很多天」。
 - 本次計畫與驗證記錄見 [event-scheduling-plan.md](event-scheduling-plan.md)。
+
+## 成員幫派／俱樂部狀態後續需求
+
+- 本次需求與相容規則見 [member-membership-plan.md](member-membership-plan.md)。
+- 兩個獨立 boolean、清單顯示與編輯、俱樂部／幫派／不篩選選單。

@@ -42,17 +42,28 @@ export function validateMember(input, { editing = false } = {}) {
     else if (!Number.isSafeInteger(value) || value < 1) fields[key] = `請選擇${label}`;
     else values[key] = value;
   }
+  for (const [key, label] of [
+    ['isInGuild', '是否在幫派內'],
+    ['isInClub', '是否在俱樂部內'],
+  ]) {
+    if (input[key] === undefined) {
+      if (!editing) values[key] = key === 'isInGuild';
+    } else if (typeof input[key] !== 'boolean') fields[key] = `${label}必須為布林值`;
+    else values[key] = input[key];
+  }
   const allowed = new Set([
     ...Object.keys(definitions),
     'primaryProfessionId',
     'secondaryProfessionId',
+    'isInGuild',
+    'isInClub',
     ...(editing ? ['revision'] : []),
   ]);
   if (Object.keys(input).some((key) => !allowed.has(key))) {
     throw new MemberError(
       422,
       'VALIDATION_ERROR',
-      editing ? 'UID 不可修改，請只修改名稱與職業' : '包含不支援的成員欄位',
+      editing ? 'UID 不可修改，請只修改名稱、職業與所屬狀態' : '包含不支援的成員欄位',
     );
   }
   if (Object.keys(fields).length)

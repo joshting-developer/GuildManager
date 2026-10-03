@@ -80,6 +80,16 @@ export function createRepository({ filename }) {
       if (!columns.includes(column))
         db.exec(`ALTER TABLE members ADD COLUMN ${column} INTEGER REFERENCES professions(job_id)`);
     }
+    if (!columns.includes('is_in_guild')) {
+      db.exec(
+        'ALTER TABLE members ADD COLUMN is_in_guild INTEGER NOT NULL DEFAULT 1 CHECK (is_in_guild IN (0, 1))',
+      );
+      db.exec('UPDATE members SET is_in_guild = 0 WHERE removed_at IS NOT NULL');
+    }
+    if (!columns.includes('is_in_club'))
+      db.exec(
+        'ALTER TABLE members ADD COLUMN is_in_club INTEGER NOT NULL DEFAULT 0 CHECK (is_in_club IN (0, 1))',
+      );
     for (const type of ['primary', 'secondary']) {
       db.exec(`UPDATE members SET ${type}_profession_id =
         (SELECT job_id FROM professions WHERE name = members.${type}_profession)
@@ -88,6 +98,7 @@ export function createRepository({ filename }) {
   })();
   const memberColumns = `m.uid, m.name, m.primary_profession_id AS primaryProfessionId,
     m.secondary_profession_id AS secondaryProfessionId,
+    m.is_in_guild AS isInGuild, m.is_in_club AS isInClub,
     COALESCE(p.name, m.primary_profession) AS primaryProfession,
     COALESCE(s.name, m.secondary_profession) AS secondaryProfession,
     m.joined_at AS joinedAt, m.updated_at AS updatedAt, m.revision`;
@@ -127,7 +138,12 @@ export function createRepository({ filename }) {
       )
       .get(uid);
     if (!row) throw new MemberError(404, 'MEMBER_NOT_FOUND', '找不到這位成員，可能已被移除');
-    return { ...row, previousNames: previousNames(uid) };
+    return {
+      ...row,
+      isInGuild: Boolean(row.isInGuild),
+      isInClub: Boolean(row.isInClub),
+      previousNames: previousNames(uid),
+    };
   }
   function checkRevision(member, revision) {
     if (member.revision !== revision) {
@@ -225,6 +241,8 @@ export function createRepository({ filename }) {
       return {
         members: members.map((member) => ({
           ...member,
+          isInGuild: Boolean(member.isInGuild),
+          isInClub: Boolean(member.isInClub),
           previousNames: byUid.get(member.uid) || [],
         })),
       };
@@ -241,24 +259,29 @@ export function createRepository({ filename }) {
           });
         }
         if (existing) {
+          // Four-column imports retain archived membership flags when restoring a UID.
+          if (input.isInGuild === undefined) member.isInGuild = Boolean(existing.is_in_guild);
+          if (input.isInClub === undefined) member.isInClub = Boolean(existing.is_in_club);
           if (existing.name !== member.name) recordName(member.uid, existing.name, now);
           db.prepare(
             `UPDATE members SET name = ?, primary_profession_id = ?, secondary_profession_id = ?, primary_profession = ?, secondary_profession = ?,
-            joined_at = ?, updated_at = ?, removed_at = NULL, revision = revision + 1 WHERE uid = ?`,
+            is_in_guild = ?, is_in_club = ?, joined_at = ?, updated_at = ?, removed_at = NULL, revision = revision + 1 WHERE uid = ?`,
           ).run(
             member.name,
             member.primaryProfessionId,
             member.secondaryProfessionId,
             primaryName,
             secondaryName,
+            Number(member.isInGuild),
+            Number(member.isInClub),
             now,
             now,
             member.uid,
           );
         } else {
           db.prepare(
-            `INSERT INTO members (uid, name, primary_profession_id, secondary_profession_id, primary_profession, secondary_profession, joined_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO members (uid, name, primary_profession_id, secondary_profession_id, primary_profession, secondary_profession, is_in_guild, is_in_club, joined_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           ).run(
             member.uid,
             member.name,
@@ -266,6 +289,8 @@ export function createRepository({ filename }) {
             member.secondaryProfessionId,
             primaryName,
             secondaryName,
+            Number(member.isInGuild),
+            Number(member.isInClub),
             now,
             now,
           );
@@ -279,23 +304,29 @@ export function createRepository({ filename }) {
         const [primaryName, secondaryName] = professionNames(member);
         const current = getMember(uid);
         checkRevision(current, member.revision);
+        member.isInGuild ??= current.isInGuild;
+        member.isInClub ??= current.isInClub;
         if (
           current.name === member.name &&
           current.primaryProfessionId === member.primaryProfessionId &&
-          current.secondaryProfessionId === member.secondaryProfessionId
+          current.secondaryProfessionId === member.secondaryProfessionId &&
+          current.isInGuild === member.isInGuild &&
+          current.isInClub === member.isInClub
         )
           return current;
         const now = new Date().toISOString();
         if (current.name !== member.name) recordName(uid, current.name, now);
         db.prepare(
           `UPDATE members SET name = ?, primary_profession_id = ?, secondary_profession_id = ?, primary_profession = ?, secondary_profession = ?,
-          updated_at = ?, revision = revision + 1 WHERE uid = ?`,
+          is_in_guild = ?, is_in_club = ?, updated_at = ?, revision = revision + 1 WHERE uid = ?`,
         ).run(
           member.name,
           member.primaryProfessionId,
           member.secondaryProfessionId,
           primaryName,
           secondaryName,
+          Number(member.isInGuild),
+          Number(member.isInClub),
           now,
           uid,
         );
