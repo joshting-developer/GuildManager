@@ -31,7 +31,6 @@ const entries = computed(() => [
 const registeredCount = computed(
   () => entries.value.filter((row) => row.status === 'registered').length,
 );
-const leaveCount = computed(() => entries.value.filter((row) => row.status === 'leave').length);
 const professionCounts = computed(() =>
   professions.value.map((job) => ({
     ...job,
@@ -181,7 +180,7 @@ async function submit() {
         loadError
       }}</v-alert>
       <template v-else>
-        <p class="participation-count">報名 {{ registeredCount }} 人 · 請假 {{ leaveCount }} 人</p>
+        <p class="participation-count">報名 {{ registeredCount }} 人</p>
         <v-tabs v-model="tab" color="primary" aria-label="場次報名資訊">
           <v-tab
             id="participation-form-tab"
