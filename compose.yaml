@@ -1,0 +1,41 @@
+services:
+  api:
+    build: .
+    command: npm run server
+    environment:
+      API_HOST: 0.0.0.0
+      DATABASE_PATH: /data/guildmanager.sqlite
+      SEED_DEMO: 'true'
+    ports:
+      - '127.0.0.1:3001:3001'
+    volumes:
+      - ./server:/app/server
+      - guild_data:/data
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3001/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    init: true
+  frontend:
+    build: .
+    environment:
+      API_PROXY_TARGET: http://api:3001
+    ports:
+      - '127.0.0.1:5173:5173'
+    volumes:
+      - ./src:/app/src
+      - ./index.html:/app/index.html
+      - ./vite.config.js:/app/vite.config.js
+    depends_on:
+      api:
+        condition: service_healthy
+    init: true
+volumes:
+  guild_data:

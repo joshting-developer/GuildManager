@@ -122,7 +122,7 @@
 
 ## 共用 CSS 變數建議
 
-後續可放入 `Styles.html` 的 `<style>` 內, 不需為了使用這組設定引入 Tailwind 或建置工具
+目前放入 `src/styles.css`, Vuetify 主題與共用元件設定集中於 `src/main.js`, 維持本文件的視覺規則
 
 ```css
 :root {

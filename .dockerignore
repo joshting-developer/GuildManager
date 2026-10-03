@@ -1,0 +1,10 @@
+.git
+node_modules
+dist
+build
+data
+artifacts
+.env
+.env.local
+.env.*.local
+*.sqlite*

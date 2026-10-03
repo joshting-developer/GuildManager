@@ -31,7 +31,7 @@
 - GAS 請求走 [非同步 `google.script.run`](https://developers.google.com/apps-script/guides/html/communication), adapter 包成 Promise, 錯誤需交給畫面處理
 - 日期統一傳 ISO 8601 字串, 不跨介面傳 `Date`、資料庫連線或工作表物件
 - 可共用不依賴執行環境的資料驗證與運算, 平台入口及資料存取仍要各自實作
-- SQLite 的交易、唯一鍵與外鍵不會自動變成試算表功能, GAS 需補固定 ID、驗證、锁定與部分失敗處理
+- SQLite 的交易、唯一鍵與外鍵不會自動變成試算表功能, GAS 需補固定 ID、驗證、鎖定與部分失敗處理
 - 多頁面導覽優先評估 hash 或 memory 路由, 不依賴伺服器 rewrite；首頁先不加入 Router
 - GAS 使用 iframe sandbox, 外部資源、導覽與瀏覽器功能需依 [HTML Service 限制](https://developers.google.com/apps-script/guides/html/restrictions) 實測
 - 本機測試不能代替 Google 授權、部署身分與試算表權限驗證, 不等到全部功能完成才做第一次 GAS 整合

@@ -2,12 +2,12 @@
 
 ## 專案定位與目前階段
 
-本專案是「逆水寒 — 幫會管理平台」, 主要使用 Google Apps Script 製作 Web App, Google 試算表作為資料庫
+本專案是「逆水寒 — 幫會管理平台」, 先以 Vue／Vuetify、Node.js API 與 SQLite 本機開發, 後期部署 Google Apps Script Web App, 使用 Google 試算表作為正式資料來源
 
 - 介面、文件與操作訊息使用繁體中文
 - 視覺參考相鄰專案 `../NSHM_history`, 本專案的具體規則以 [Style.md](Style.md) 為準
-- 目前只建立開發與風格規範, 使用者已提供試算表連結, 尚未建立應用程式或部署
-- 使用者已確認資料來源為 Google 試算表
+- 已建立 Vuetify 首頁、Docker 本機環境、SQLite API 與 GAS 單檔編譯流程, 尚未部署至 GAS
+- 使用者已確認本機使用 SQLite, 後期資料來源為 Google 試算表
 - 試算表 ID 已取得, 工作表名稱與欄位、登入方式、角色權限與第一版功能仍待後續需求確定
 
 幫會成員、活動報名、出勤及幫戰紀錄可以作為後續討論方向, 目前不視為已定案需求
@@ -35,32 +35,35 @@
 
 ## 技術方向
 
-- 後端：Google Apps Script, 採 V8 執行環境
-- 前端：HTML Service 提供 HTML、CSS 與瀏覽器 JavaScript
+- 前端：Vue 3／Vuetify／Vite, 日常編輯 `.vue`、JS 與 CSS 原始碼
+- 本機後端：Node.js／Express, 由 SQLite repository 存取資料
+- 本機環境：Docker Compose 的 frontend／api 服務, SQLite 使用獨立 volume 保存
+- GAS 後端：Google Apps Script, 採 V8 執行環境, 不直接搬入 Node.js 專用套件或 API
+- GAS 前端：以 HTML Service 提供 Vite 單檔編譯的 HTML
 - Web App 入口：`doGet()` 回傳 HTML 頁面, 依 [HTML Service 官方文件](https://developers.google.com/apps-script/guides/html) 實作
-- 前後端通訊：使用非同步 `google.script.run`, 每次呼叫處理成功與失敗回應, 不假設呼叫依序完成；參考 [官方通訊文件](https://developers.google.com/apps-script/guides/html/communication)
+- 前後端通訊：統一由 `src/api/` 呼叫, 本機使用 HTTP API, GAS 使用非同步 `google.script.run`, 每次呼叫處理成功與失敗回應, 不假設呼叫依序完成；參考 [官方通訊文件](https://developers.google.com/apps-script/guides/html/communication)
 - 資料存取：由後端透過 `SpreadsheetApp` 操作 Google 試算表, 參考 [官方 API 文件](https://developers.google.com/apps-script/reference/spreadsheet/spreadsheet-app)
 - 日期顯示與專案／試算表時區統一採 `Asia/Taipei`
 
 `NSHM_history` 的 Laravel、Vue、Inertia 與資料庫架構只作背景參考, 本專案沿用其視覺語言, 不直接搬入這些框架
 
-初期優先使用原生 HTML、CSS、JavaScript, 有實際需要時再加入套件或建置流程
+使用者已確認採用 Vue／Vuetify 與本機 API／SQLite, 取代最初的原生 HTML 方向；開發與編譯方式見 [README.md](README.md), 平台切換規則見 [Architecture.md](Architecture.md)
 
 ## 建議檔案分工
 
-以下為後續實作的建議, 不表示檔案已存在；可依功能規模調整, 不需先建立空檔
+目前分工如下, 後續依需求增加檔案, 不需先建立空檔
 
 | 檔案 | 用途 |
 | --- | --- |
-| `Code.gs` | Web App 入口與頁面組裝 |
-| `Config.gs` | 讀取設定、工作表名稱與時區 |
-| `SheetRepository.gs` | 試算表讀寫與欄位轉換 |
-| `GuildService.gs` | 已確認功能的資料驗證與業務規則 |
-| `Auth.gs` | 登入身分與角色權限檢查, 待登入方案確定後建立 |
-| `Index.html` | 主畫面與語意化 HTML |
-| `Styles.html` | 共用 CSS, 與文件 `Style.md` 區分 |
-| `Scripts.html` | 瀏覽器端事件、畫面狀態與伺服器呼叫 |
-| `appsscript.json` | Apps Script 執行環境、時區與授權範圍設定 |
+| `src/App.vue` | 首頁元件與互動 |
+| `src/main.js`、`src/styles.css` | Vuetify 主題與共用樣式 |
+| `src/api/home.js` | 本機／GAS 資料呼叫 adapter |
+| `server/app.js`、`server/index.js` | Express API 與啟動入口 |
+| `server/repository.js` | SQLite 初始化與讀取 |
+| `gas/Code.gs` | GAS 頁面入口, 資料介面待後續串接 |
+| `gas/appsscript.json` | Apps Script 執行環境與時區 |
+| `vite.config.js`、`tools/package-gas.js` | 一般與 GAS 單檔編譯流程 |
+| `compose.yaml`、`Dockerfile` | 本機開發環境 |
 
 Apps Script 的 `.gs` 檔案共用全域環境, 避免重複命名與載入時就執行資料讀寫
 
@@ -69,6 +72,9 @@ Apps Script 的 `.gs` 檔案共用全域環境, 避免重複命名與載入時�
 - JavaScript 預設使用 2 格縮排、單引號、分號, 優先使用 `const`, 需要重新賦值才用 `let`
 - 函式與變數使用 `camelCase`, 常數使用 `UPPER_SNAKE_CASE`, 試算表欄位使用 `snake_case`
 - 前端處理顯示與操作狀態, 後端處理資料驗證、權限與資料存取
+- Vue 元件不直接呼叫 HTTP、`google.script.run` 或資料庫, 統一透過前端資料介面
+- SQL 留在 SQLite repository, 不把 JOIN 或交易行為當成試算表一定支援的功能
+- 鎖定套件版本並維護 lockfile, 不手改編譯產物
 - DOM ID、class 與 `data-*` 使用一致且具功能語意的命名
 - 後端傳回可序列化的資料, 日期轉成 ISO 8601 字串, 不直接傳回 `Date`、`Range` 或 `Sheet`
 - 錯誤訊息讓使用者知道原因與下一步, 記錄中不包含憑證或不必要的個資
@@ -131,6 +137,8 @@ Apps Script 的 `.gs` 檔案共用全域環境, 避免重複命名與載入時�
 - 文件調整：確認連結、名稱、設定與兩份文件的敘述一致
 - 前端調整：確認桌面與手機版面、鍵盤操作及必要畫面狀態
 - 資料調整：使用測試試算表確認新增、修改、查詢及失敗處理, 視變更檢查重複提交與並行寫入
+- 本機資料調整：執行 `npm test`, 驗證 API 契約、SQLite 保存與 adapter 的成功／失敗處理
+- 編譯調整：執行 `npm run build` 與 `npm run build:gas`, 確認 GAS HTML 無外部 JS／CSS 檔案依賴
 - 權限調整：以目標部署方式驗證允許與拒絕存取的情境
 - 本機靜態預覽不能驗證 `google.script.run` 或 Google 授權, 這些流程需在 Apps Script 測試部署確認
 - 尚未有部署或試算表時, 如實寫出未驗證項目, 不宣稱已完成端到端測試
