@@ -8,78 +8,85 @@ const emit = defineEmits(['update:modelValue', 'closed']);
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 const client = createParticipationClient({ source });
 const memberClient = createMemberClient({ source });
-const people = ref([]),
-  professions = ref([]),
+const professions = ref([]),
   responses = ref([]),
-  registrations = ref([]);
+  registrations = ref([]),
+  registrationLeaves = ref([]),
+  revision = ref('');
 const loading = ref(true),
   busy = ref(false),
   loadError = ref(''),
   error = ref(''),
   notice = ref('');
-const tab = ref('member'),
-  uid = ref(null),
+const name = ref(''),
+  professionId = ref(null),
   status = ref('registered'),
   note = ref('');
-const guestName = ref(''),
-  guestProfession = ref(null),
-  guestNote = ref('');
-const currentResponse = computed(() => responses.value.find((row) => row.uid === uid.value));
-const labels = { registered: '已報名', leave: '已請假', none: '未回應' };
+const entries = computed(() => [
+  ...responses.value.filter((row) => ['registered', 'leave'].includes(row.status)),
+  ...registrations.value.map((row) => ({ ...row, status: 'registered' })),
+  ...registrationLeaves.value.map((row) => ({ ...row, status: 'leave' })),
+]);
+const registeredCount = computed(
+  () => entries.value.filter((row) => row.status === 'registered').length,
+);
+const leaveCount = computed(() => entries.value.filter((row) => row.status === 'leave').length);
+function formValues() {
+  return JSON.stringify([name.value, professionId.value, status.value, note.value]);
+}
+const baseline = ref(formValues());
+const unsaved = computed(() => formValues() !== baseline.value);
 let token = 0,
   disposed = false,
-  guestAttempt;
-const responseBaseline = ref('');
-const unsaved = computed(
-  () =>
-    Boolean(guestName.value || guestProfession.value || guestNote.value) ||
-    (responseBaseline.value &&
-      JSON.stringify([status.value, note.value]) !== responseBaseline.value),
-);
+  attempt;
+function resetForm() {
+  name.value = '';
+  professionId.value = null;
+  note.value = '';
+  baseline.value = formValues();
+  attempt = null;
+}
 async function load() {
   const currentToken = ++token;
   loading.value = true;
   loadError.value = '';
   error.value = '';
   try {
-    const [participation, members, jobs] = await Promise.all([
+    const [participation, jobs] = await Promise.all([
       client.getParticipation(props.event.id),
-      memberClient.getParticipationMembers(),
       memberClient.getProfessions(),
     ]);
     if (disposed || currentToken !== token) return;
     if (
       participation.eventId !== props.event.id ||
+      typeof participation.revision !== 'string' ||
       !Array.isArray(participation.responses) ||
       !Array.isArray(participation.registrations) ||
-      !Array.isArray(members.members) ||
+      !Array.isArray(participation.registrationLeaves) ||
       !Array.isArray(jobs.professions)
     )
-      throw new Error('資料格式不正確，請重新載入');
-    people.value = members.members;
+      throw new Error('資料格式不正確, 請重新載入');
     professions.value = jobs.professions;
     responses.value = participation.responses;
     registrations.value = participation.registrations;
-    syncResponse();
+    registrationLeaves.value = participation.registrationLeaves;
+    revision.value = participation.revision;
   } catch (cause) {
     if (currentToken === token) loadError.value = cause.message;
   } finally {
     if (currentToken === token) loading.value = false;
   }
 }
-function syncResponse() {
-  status.value = currentResponse.value?.status || 'registered';
-  note.value = currentResponse.value?.note || '';
-  responseBaseline.value = JSON.stringify([status.value, note.value]);
+watch(status, () => {
   error.value = '';
-}
-watch(uid, syncResponse);
+});
 watch(
   () => props.modelValue,
   (open) => {
     if (open) {
       notice.value = '';
-      tab.value = 'member';
+      status.value = 'registered';
+      resetForm();
       load();
     } else token++;
   },
@@ -92,108 +99,48 @@ onUnmounted(() => {
 function close() {
   if (
     !busy.value &&
-    (!unsaved.value || window.confirm('有尚未送出的報名／請假資料，確定要關閉嗎？'))
+    (!unsaved.value || window.confirm('有尚未送出的報名／請假資料, 確定要關閉嗎？'))
   ) {
-    guestName.value = '';
-    guestProfession.value = null;
-    guestNote.value = '';
-    guestAttempt = null;
-    uid.value = null;
+    resetForm();
     emit('update:modelValue', false);
   }
 }
-async function saveResponse() {
-  if (!uid.value) {
-    error.value = '請先選擇自己在名冊中的成員';
+async function submit() {
+  if (busy.value || loading.value) return;
+  if (!name.value.trim()) {
+    error.value = '請填寫名稱';
     return;
   }
-  busy.value = true;
-  error.value = '';
-  notice.value = '';
-  try {
-    const result = await client.saveResponse(props.event.id, {
-      uid: uid.value,
-      status: status.value,
-      note: note.value,
-      revision: currentResponse.value?.revision || 0,
-    });
-    const row = result.response;
-    if (
-      row?.uid !== uid.value ||
-      row.eventId !== props.event.id ||
-      !Number.isSafeInteger(row.revision)
-    )
-      throw new Error('回應格式不正確，請重試以確認結果');
-    const index = responses.value.findIndex((value) => value.uid === row.uid);
-    if (index < 0) responses.value.push(row);
-    else responses.value[index] = row;
-    responseBaseline.value = JSON.stringify([status.value, note.value]);
-    notice.value =
-      row.status === 'none'
-        ? '已取消本場回應。'
-        : row.status === 'leave'
-          ? '本場請假已儲存，排表來源將排除此成員。'
-          : '本場報名已儲存。';
-  } catch (cause) {
-    error.value = cause.message;
-  } finally {
-    busy.value = false;
-  }
-}
-async function registerGuest() {
-  if (!guestName.value.trim() || !guestProfession.value) {
-    error.value = '請填寫名稱並選擇職業';
+  if (status.value === 'registered' && !professionId.value) {
+    error.value = '請選擇職業';
     return;
   }
   busy.value = true;
   error.value = '';
   notice.value = '';
   const input = {
-    name: guestName.value.trim(),
-    professionId: guestProfession.value,
-    note: guestNote.value.trim(),
+    name: name.value.trim(),
+    professionId: status.value === 'registered' ? professionId.value : null,
+    status: status.value,
+    note: note.value.trim(),
+    revision: revision.value,
   };
   const encoded = JSON.stringify(input);
-  if (guestAttempt?.encoded !== encoded) guestAttempt = { encoded, requestId: crypto.randomUUID() };
+  if (attempt?.encoded !== encoded) attempt = { encoded, requestId: crypto.randomUUID() };
   try {
-    const result = await client.registerGuest(props.event.id, {
+    const result = await client.submitParticipation(props.event.id, {
       ...input,
-      requestId: guestAttempt.requestId,
+      requestId: attempt.requestId,
     });
-    if (!result.registration?.id || result.registration.eventId !== props.event.id)
-      throw new Error('報名回應格式不正確，請重試以確認結果');
-    if (result.registration.active === false) {
-      guestAttempt = null;
-      throw new Error('這筆報名已取消，請重新送出報名');
-    }
-    if (result.registration.active !== true) throw new Error('報名回應格式不正確，請重試');
     if (
-      !registrations.value.some((row) => row.id === result.registration.id) &&
-      result.registration.active
+      result.eventId !== props.event.id ||
+      result.name !== input.name ||
+      result.status !== input.status
     )
-      registrations.value.push(result.registration);
-    notice.value = '額外報名成功，已加入本場排表來源。';
-    guestName.value = '';
-    guestProfession.value = null;
-    guestNote.value = '';
-    guestAttempt = null;
-  } catch (cause) {
-    error.value = cause.message;
-  } finally {
-    busy.value = false;
-  }
-}
-async function cancelGuest(row) {
-  if (!window.confirm(`確定取消「${row.name}」在本場的額外報名？`)) return;
-  busy.value = true;
-  error.value = '';
-  notice.value = '';
-  try {
-    const result = await client.cancelGuest(props.event.id, row.id, row.revision);
-    if (result.registration?.id !== row.id || result.registration.active !== false)
-      throw new Error('取消回應格式不正確，請重試');
-    registrations.value = registrations.value.filter((value) => value.id !== row.id);
-    notice.value = '額外報名已取消，原有排表歷史仍保留。';
+      throw new Error('回應格式不正確, 請重試以確認結果');
+    resetForm();
+    notice.value = input.status === 'registered' ? '報名成功' : '請假成功';
+    await load();
   } catch (cause) {
     error.value = cause.message;
   } finally {
@@ -205,7 +152,7 @@ async function cancelGuest(row) {
 <template>
   <v-dialog
     :model-value="modelValue"
-    max-width="720"
+    max-width="640"
     :persistent="busy"
     aria-labelledby="participation-title"
     @after-leave="emit('closed')"
@@ -219,52 +166,47 @@ async function cancelGuest(row) {
         </div>
         <v-btn variant="text" :disabled="busy || loading" @click="load">重新載入</v-btn>
       </div>
-      <p class="lineup-hint">
-        請確認選擇的是自己的成員資料；回應只適用於這一場, 登入帳號尚未與遊戲角色綁定。
-      </p>
       <p v-if="loading" role="status">正在載入本場報名資料…</p>
       <v-alert v-else-if="loadError" type="error" variant="tonal" role="alert">{{
         loadError
       }}</v-alert>
       <template v-else>
-        <p class="participation-count">
-          成員報名 {{ responses.filter((row) => row.status === 'registered').length }} 人 · 請假
-          {{ responses.filter((row) => row.status === 'leave').length }} 人 · 額外報名
-          {{ registrations.length }} 人
-        </p>
-        <v-tabs v-model="tab" aria-label="報名方式" :disabled="busy"
-          ><v-tab value="member">成員報名／請假</v-tab><v-tab value="guest">額外報名</v-tab></v-tabs
-        >
-        <form v-if="tab === 'member'" class="participation-form" @submit.prevent="saveResponse">
-          <v-autocomplete
-            v-model="uid"
-            :items="
-              people.map((person) => ({
-                title: person.name,
-                value: person.uid,
-              }))
-            "
-            label="選擇自己的成員資料"
+        <p class="participation-count">報名 {{ registeredCount }} 人 · 請假 {{ leaveCount }} 人</p>
+        <form class="participation-form" @submit.prevent="submit">
+          <v-select
+            v-model="status"
+            :items="[
+              { title: '報名', value: 'registered' },
+              { title: '請假', value: 'leave' },
+            ]"
+            label="狀態"
             variant="outlined"
             density="compact"
             :disabled="busy"
             hide-details
           />
-          <p v-if="uid" class="lineup-hint">
-            目前狀態：{{ labels[currentResponse?.status || 'none'] }}
-          </p>
-          <v-select
-            v-model="status"
-            :items="[
-              { title: '我要報名', value: 'registered' },
-              { title: '我要請假', value: 'leave' },
-              { title: '取消報名／請假', value: 'none' },
-            ]"
-            label="本場參與狀態"
+          <v-text-field
+            v-model="name"
+            label="名稱"
+            maxlength="64"
             variant="outlined"
             density="compact"
             :disabled="busy"
             hide-details
+            aria-required="true"
+          />
+          <v-select
+            v-if="status === 'registered'"
+            v-model="professionId"
+            :items="professions"
+            item-title="name"
+            item-value="job_id"
+            label="職業"
+            variant="outlined"
+            density="compact"
+            :disabled="busy"
+            hide-details
+            aria-required="true"
           />
           <v-text-field
             v-model="note"
@@ -275,65 +217,30 @@ async function cancelGuest(row) {
             :disabled="busy"
             hide-details
           />
-          <v-btn type="submit" color="primary" :loading="busy" :disabled="busy">儲存回應</v-btn>
-        </form>
-        <form v-else class="participation-form" @submit.prevent="registerGuest">
-          <p class="lineup-hint">若已在成員名冊，請改用「成員報名／請假」，避免重複身分。</p>
-          <v-text-field
-            v-model="guestName"
-            label="報名名稱"
-            maxlength="64"
-            variant="outlined"
-            density="compact"
-            :disabled="busy"
-            hide-details
-            aria-required="true"
-          />
-          <v-select
-            v-model="guestProfession"
-            :items="professions"
-            item-title="name"
-            item-value="job_id"
-            label="報名職業"
-            variant="outlined"
-            density="compact"
-            :disabled="busy"
-            hide-details
-            aria-required="true"
-          />
-          <v-text-field
-            v-model="guestNote"
-            label="報名備註（選填）"
-            maxlength="160"
-            variant="outlined"
-            density="compact"
-            :disabled="busy"
-            hide-details
-          />
-          <v-btn type="submit" color="primary" :loading="busy" :disabled="busy">送出額外報名</v-btn>
-          <ul v-if="registrations.length" class="registration-list" aria-label="本場額外報名清單">
-            <li v-for="row in registrations" :key="row.id">
-              <div>
-                <strong>{{ row.name }}</strong
-                ><span class="registration-job" :style="{ '--job-color': row.colorcode }">{{
-                  row.profession
-                }}</span>
-                <p v-if="row.note">{{ row.note }}</p>
-              </div>
-              <v-btn
-                variant="text"
-                size="small"
-                :disabled="busy"
-                :aria-label="`取消 ${row.name} 的額外報名`"
-                @click="cancelGuest(row)"
-                >取消報名</v-btn
-              >
-            </li>
-          </ul>
-          <p v-else class="lineup-hint">本場尚無額外報名。</p>
+          <v-btn type="submit" color="primary" :loading="busy" :disabled="busy">{{
+            status === 'registered' ? '送出報名' : '送出請假'
+          }}</v-btn>
         </form>
         <v-alert v-if="error" type="error" variant="tonal" role="alert">{{ error }}</v-alert>
         <v-alert v-if="notice" type="success" variant="tonal" role="status">{{ notice }}</v-alert>
+        <ul v-if="entries.length" class="registration-list" aria-label="本場報名／請假名單">
+          <li v-for="row in entries" :key="row.id || row.uid">
+            <div>
+              <strong>{{ row.name }}</strong>
+              <span class="registration-job" :style="{ '--job-color': row.colorcode }">{{
+                row.profession
+              }}</span>
+              <p v-if="row.note">{{ row.note }}</p>
+            </div>
+            <v-chip
+              :color="row.status === 'registered' ? 'success' : 'warning'"
+              size="small"
+              variant="tonal"
+              >{{ row.status === 'registered' ? '報名' : '請假' }}</v-chip
+            >
+          </li>
+        </ul>
+        <p v-else class="lineup-hint">本場尚無報名／請假資料</p>
       </template>
       <div class="event-dialog-actions">
         <v-btn variant="outlined" :disabled="busy" @click="close">關閉</v-btn>
@@ -352,9 +259,6 @@ async function cancelGuest(row) {
 .participation-card > .section-header {
   margin-bottom: 16px;
   align-items: flex-start;
-}
-.participation-card > .v-tabs {
-  margin-top: 12px;
 }
 .participation-card > .v-alert {
   margin: 12px 0;

@@ -122,10 +122,12 @@ Apps Script 的 `.gs` 檔案共用全域環境, 避免重複命名與載入時�
 
 ## 已確認場次報名／請假規則
 
-- `event_member_responses` 以 event_id／member_uid 關聯, 保存 registered／leave／none、備註及 revision；同日多場分開回應, 取消請假即可回到資格名單。
-- `event_registrations` 獨立保存額外報名 ID、event_id、名稱、profession_id、備註、有效狀態及 revision, 無遊戲 UID 且不加入正式成員表。已有 UID 的編外人員可使用成員報名, 顯示在額外報名來源。
-- 額外報名檢查有效職業、同場有效名稱重複及 requestId 重試；取消檢查場次與 revision, 保留已確認排表歷史。
-- 本機帳號密碼保護管理頁與 API, 公開報名仍由使用者自行選擇自己的成員, 不作為本人驗證。帳號／UID 綁定、正式 Google 登入與本人操作權限、報名截止尚待定案, GAS 回報未串接。
+- 公開入口只提供單一名稱、職業、備註與狀態表單, 狀態只有「報名／請假」, 請假不要求職業, 不再分成員／額外報名頁或顯示取消操作。
+- 後端按名稱精確比對成員或本場報名；幫會／俱樂部成員可直接請假, 編外需已有本場回應, 未知名稱顯示「沒有報名或沒有資料」, 同名無法唯一辨識時拒絕並提示聯絡管理者。
+- 名冊成員沿用 UID, 不新增重複外援或改名冊職業；`event_member_responses` 保存 registered／leave、備註及 revision, 舊 none 保留相容但不在前台顯示。同日多場分開回應, 請假後再報名可回到資格名單。
+- `event_registrations` 獨立保存額外報名 ID、event_id、名稱、profession_id、備註、有效狀態及 revision, 無 UID 且不加入名冊；請假改為 active=false, 再報名沿用 ID, 保留已確認排表快照。
+- 統一送出檢查有效職業、場次 revision 及 requestId, 同一交易保存變更與重試回應；舊 API 保留相容, 不刪除既有資料。送出失敗保留輸入, 過期版本須重新載入後再送出。
+- 本機帳號密碼保護管理頁與 API, 公開報名由使用者自行填寫名稱, 不作為本人驗證。帳號／UID 綁定、正式 Google 登入與本人操作權限、報名截止尚待定案, GAS 回報未串接。
 
 ## 已確認戰場排表規則
 

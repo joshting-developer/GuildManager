@@ -274,21 +274,21 @@ UID Name 主職業 副職業
 
 首頁點有安排的日期格, 同日多場會先列出各場次；選戰鬥的「報名／請假」後：
 
-- 「成員報名／請假」搜尋自己的名稱, 選我要報名、我要請假或取消回應, 可填備註。
-- 「額外報名」填名稱、職業及自己的備註, 不需要 UID, 不加入正式名冊；同場同名有效報名會拒絕重複, 可取消後重新報名。
-- 每場獨立保存, 不影響其他日期。取消請假可重新安排；取消額外報名後不再出現在本場來源, 已確認歷史保留。
-- 已在名冊者請使用成員回應, 避免以額外報名建立第二種身分；無 UID 無法可靠判定是否同一位真人。
-- 帳號密碼登入保護管理功能, 公開報名選成員仍不是本人驗證；帳號／UID 綁定、正式本人操作權限與報名截止未定案, GAS 報名／請假資料函式明確回報尚未串接。
+- 使用單一表單填名稱、狀態與備註, 狀態只有「報名／請假」；報名必選職業, 請假不需要職業。
+- 請假會確認是否為本場已報名者或幫會／俱樂部成員, 找不到顯示「沒有報名或沒有資料」。編外尚未報名者不能直接請假；同名資料無法辨識時請聯絡管理者。
+- 既有名冊成員以名稱連結原 UID, 不建立第二種身分或修改名冊職業；外援以獨立 ID 保存, 不需 UID 或加入正式名冊。
+- 外援取消改選「請假」, 可重新報名恢復同一筆資料。每場獨立保存, 請假者不在可排名單中, 已儲存排表快照保留。
+- 帳號密碼登入保護管理功能, 公開填寫名稱仍不是本人驗證；帳號／UID 綁定、正式本人操作權限與報名截止未定案, GAS 資料函式明確回報尚未串接。
 
 | 方法 | 路徑 | 用途 |
 | --- | --- | --- |
-| GET | `/api/events/:id/participation` | 本場成員回應與有效額外報名 |
+| GET | `/api/events/:id/participation` | 本場成員回應、有效額外報名、外援請假及 revision |
 | POST | `/api/events/:id/participation` | 統一名稱、status (registered／leave)、professionId (報名必填)、note、requestId、revision；依名稱連結成員或外援 |
-| PATCH | `/api/events/:id/participation` | 儲存 uid、status、note、revision, 新回應 revision=0 |
-| POST | `/api/events/:id/registrations` | 名稱、professionId、note、requestId 建立額外報名 |
-| DELETE | `/api/events/:id/registrations/:registrationId` | 取消本場額外報名, 傳 revision |
+| PATCH | `/api/events/:id/participation` | 舊介面相容：儲存 uid、status、note、revision |
+| POST | `/api/events/:id/registrations` | 舊介面相容：建立額外報名 |
+| DELETE | `/api/events/:id/registrations/:registrationId` | 舊介面相容：取消額外報名 |
 
-`event_member_responses` 以場次 ID／UID 關聯, `event_registrations` 使用獨立報名 ID／場次 ID／名稱／職業 ID／備註與版本。排表以 UID 或 registrationId 互斥引用, 第一／第二場皆可安排；儲存保存額外報名原備註及姓名／職業快照。日常更新來源會保留目前排表, 請假／取消者標為無效並要求調整。
+`event_member_responses` 以場次 ID／UID 關聯, `event_registrations` 使用獨立報名 ID／場次 ID／名稱／職業 ID／備註與版本。排表以 UID 或 registrationId 互斥引用, 第一／第二場皆可安排；儲存保存額外報名原備註及姓名／職業快照。日常更新來源會保留目前排表, 請假者標為無效並要求調整。
 
 ## 戰場排表
 

@@ -72,7 +72,7 @@ GAS 需新增對應工作表、本人操作驗證、鎖定／防重複／部分�
 
 `server/auth-repository.js` 使用獨立 auth_accounts／auth_sessions 表, 密碼 scrypt 雜湊及 salt, session token 隨機且只存 SHA-256 雜湊, 到期 8 小時；重啟保留 session, 登出或重新登入撤銷舊 token。`server/create-account.js` 只接受本機 stdin 建立帳號, 無公開註冊。
 
-首頁行事曆與既有報名操作保持公開, 成員選單僅使用 UID／名稱的 `/api/calendar/members`, 完整名冊／歷史僅管理端可讀；登入帳號尚未綁定遊戲 UID。
+首頁行事曆與統一報名／請假保持公開, 表單只填名稱, 不載入成員選單；`/api/calendar/members` 保留舊介面相容, 完整名冊／歷史僅管理端可讀。登入帳號尚未綁定遊戲 UID。
 
 後續 GAS 需實作 Google 身分驗證與允許管理的帳號, 不能直接移植 Node cookie middleware 或 scrypt。GAS「以開發者身分執行」並不保證 `Session.getActiveUser().getEmail()` 有值, 不可用 effective user 當訪客身分；需確認部署方式並實測。[GAS Session 官方文件](https://developers.google.com/apps-script/reference/base/session#getActiveUser())。雲端 auth 函式目前明確回報未設定, 不接受本機登入作為 Google 身分。
 
