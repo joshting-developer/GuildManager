@@ -66,6 +66,9 @@ export function createApp(repository, { authNow } = {}) {
   app.patch('/api/events/:id/participation', (request, response) => {
     response.json({ response: repository.saveMemberResponse(request.params.id, request.body) });
   });
+  app.post('/api/events/:id/participation', (request, response) => {
+    response.json(repository.submitParticipation(request.params.id, request.body));
+  });
   app.post('/api/events/:id/registrations', (request, response) => {
     response
       .status(201)

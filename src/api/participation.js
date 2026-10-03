@@ -25,7 +25,7 @@ export function createParticipationClient({
     }
     const path = registrationId
       ? `registrations/${encodeURIComponent(registrationId)}`
-      : method === 'POST'
+      : operation === 'addGuestRegistration'
         ? 'registrations'
         : 'participation';
     let response;
@@ -54,6 +54,7 @@ export function createParticipationClient({
   }
   return {
     getParticipation: (eventId) => call('getEventParticipation', eventId),
+    submitParticipation: (eventId, input) => call('submitParticipation', eventId, 'POST', input),
     saveResponse: (eventId, input) => call('saveMemberResponse', eventId, 'PATCH', input),
     registerGuest: (eventId, input) => call('addGuestRegistration', eventId, 'POST', input),
     cancelGuest: (eventId, id, revision) =>

@@ -96,6 +96,9 @@ function getEventParticipation(eventId) {
 function saveMemberResponse(eventId, input) {
   throw new Error('雲端報名／請假尚未串接 Google 試算表');
 }
+function submitParticipation(eventId, input) {
+  throw new Error('雲端報名／請假尚未串接 Google 試算表');
+}
 function addGuestRegistration(eventId, input) {
   throw new Error('雲端額外報名尚未串接 Google 試算表');
 }

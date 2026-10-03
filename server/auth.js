@@ -22,7 +22,10 @@ function publicRequest(request) {
   )
     return true;
   if (request.method === 'POST' && path === '/auth/login') return true;
-  if (['GET', 'PATCH'].includes(request.method) && /^\/events\/[^/]+\/participation$/.test(path))
+  if (
+    ['GET', 'POST', 'PATCH'].includes(request.method) &&
+    /^\/events\/[^/]+\/participation$/.test(path)
+  )
     return true;
   if (request.method === 'POST' && /^\/events\/[^/]+\/registrations$/.test(path)) return true;
   return request.method === 'DELETE' && /^\/events\/[^/]+\/registrations\/[^/]+$/.test(path);

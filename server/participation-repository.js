@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { LINEUP_TYPES } from '../src/domain/lineups.js';
 
 export class ParticipationError extends Error {
@@ -42,6 +42,10 @@ export function createParticipationRepository(db) {
     );
     CREATE UNIQUE INDEX IF NOT EXISTS active_registration_name
       ON event_registrations(event_id, name COLLATE NOCASE) WHERE active = 1;
+    CREATE TABLE IF NOT EXISTS event_participation_requests (
+      request_id TEXT PRIMARY KEY, event_id TEXT NOT NULL REFERENCES scheduled_events(id),
+      input_json TEXT NOT NULL, result_json TEXT NOT NULL
+    );
   `);
   function checkEvent(id) {
     const event = db.prepare('SELECT type, deleted_at FROM scheduled_events WHERE id = ?').get(id);
@@ -76,24 +80,168 @@ export function createParticipationRepository(db) {
       .get(id);
     return row ? { ...row, active: Boolean(row.active) } : null;
   }
-  return {
+  function participationRevision(eventId) {
+    const responses = db
+      .prepare(
+        'SELECT member_uid, revision FROM event_member_responses WHERE event_id = ? ORDER BY member_uid',
+      )
+      .all(eventId);
+    const registrations = db
+      .prepare('SELECT id, revision FROM event_registrations WHERE event_id = ? ORDER BY id')
+      .all(eventId);
+    return createHash('sha256')
+      .update(JSON.stringify([responses, registrations]))
+      .digest('hex');
+  }
+  const repository = {
     getEventParticipation(eventId) {
       checkEvent(eventId);
       return {
         eventId,
+        revision: participationRevision(eventId),
         responses: db
           .prepare(
-            'SELECT member_uid FROM event_member_responses WHERE event_id = ? ORDER BY member_uid',
+            `SELECT r.event_id AS eventId, r.member_uid AS uid, r.status, r.note, r.revision,
+              r.updated_at AS updatedAt, m.name, p.name AS profession, p.colorcode
+            FROM event_member_responses r JOIN members m ON m.uid = r.member_uid
+            JOIN professions p ON p.job_id = m.primary_profession_id
+            WHERE r.event_id = ? ORDER BY r.member_uid`,
           )
-          .all(eventId)
-          .map((row) => response(eventId, row.member_uid)),
+          .all(eventId),
         registrations: db
           .prepare(
             'SELECT id FROM event_registrations WHERE event_id = ? AND active = 1 ORDER BY created_at, id',
           )
           .all(eventId)
           .map((row) => registration(row.id)),
+        registrationLeaves: db
+          .prepare(
+            `SELECT r.id FROM event_registrations r WHERE r.event_id = ? AND r.active = 0
+          AND NOT EXISTS (SELECT 1 FROM event_registrations newer
+            WHERE newer.event_id = r.event_id AND newer.name = r.name COLLATE NOCASE
+            AND (newer.active = 1 OR newer.created_at > r.created_at
+              OR (newer.created_at = r.created_at AND newer.id > r.id)))
+          ORDER BY r.updated_at, r.id`,
+          )
+          .all(eventId)
+          .map((row) => registration(row.id)),
       };
+    },
+    submitParticipation(eventId, input) {
+      const name = text(input?.name, '名稱', 64, true);
+      const note = text(input?.note ?? '', '備註', 160);
+      const status = input?.status;
+      const professionId = status === 'registered' ? input?.professionId : null;
+      if (!['registered', 'leave'].includes(status))
+        throw new ParticipationError('請選擇報名或請假');
+      if (status === 'registered' && (!Number.isSafeInteger(professionId) || professionId < 1))
+        throw new ParticipationError('請選擇職業');
+      if (typeof input?.requestId !== 'string' || !/^[a-zA-Z0-9_-]{1,64}$/.test(input.requestId))
+        throw new ParticipationError('缺少有效的操作識別碼, 請重新操作');
+      if (typeof input?.revision !== 'string' || !/^[a-f0-9]{64}$/.test(input.revision))
+        throw new ParticipationError('資料版本不正確, 請重新載入');
+      const encoded = JSON.stringify({
+        name,
+        note,
+        status,
+        professionId,
+        revision: input.revision,
+      });
+      return db.transaction(() => {
+        const priorRequest = db
+          .prepare(
+            'SELECT event_id, input_json, result_json FROM event_participation_requests WHERE request_id = ?',
+          )
+          .get(input.requestId);
+        if (priorRequest) {
+          if (priorRequest.event_id === eventId && priorRequest.input_json === encoded)
+            return JSON.parse(priorRequest.result_json);
+          throw new ParticipationError(
+            '操作識別碼已用於其他回應, 請重新操作',
+            409,
+            'REQUEST_CONFLICT',
+          );
+        }
+        if (
+          db.prepare('SELECT id FROM event_registrations WHERE request_id = ?').get(input.requestId)
+        )
+          throw new ParticipationError(
+            '操作識別碼已用於其他報名, 請重新操作',
+            409,
+            'REQUEST_CONFLICT',
+          );
+        checkEvent(eventId);
+        if (participationRevision(eventId) !== input.revision)
+          throw new ParticipationError(
+            '本場報名資料已更新, 請重新載入後再送出',
+            409,
+            'PARTICIPATION_CHANGED',
+          );
+        if (
+          status === 'registered' &&
+          !db.prepare('SELECT job_id FROM professions WHERE job_id = ?').get(professionId)
+        )
+          throw new ParticipationError('職業不存在, 請重新載入職業清單');
+        const members = db
+          .prepare(
+            `SELECT m.uid FROM members m LEFT JOIN event_member_responses r
+            ON r.member_uid = m.uid AND r.event_id = ?
+          WHERE m.name = ? COLLATE NOCASE AND m.removed_at IS NULL
+            AND (? = 'registered' OR m.is_in_guild = 1 OR m.is_in_club = 1
+              OR r.status IN ('registered', 'leave'))`,
+          )
+          .all(eventId, name, status);
+        const guest = db
+          .prepare(
+            `SELECT id FROM event_registrations WHERE event_id = ? AND name = ? COLLATE NOCASE
+          ORDER BY active DESC, created_at DESC, id DESC LIMIT 1`,
+          )
+          .get(eventId, name);
+        if (members.length > 1 || (members.length && guest))
+          throw new ParticipationError(
+            '有同名資料, 無法確認人員, 請聯絡管理者',
+            409,
+            'PARTICIPATION_AMBIGUOUS',
+          );
+        if (members.length) {
+          const uid = members[0].uid;
+          repository.saveMemberResponse(eventId, {
+            uid,
+            status,
+            note,
+            revision: response(eventId, uid)?.revision || 0,
+          });
+        } else if (guest) {
+          db.prepare(
+            `UPDATE event_registrations SET active = ?, note = ?,
+              profession_id = COALESCE(?, profession_id), revision = revision + 1, updated_at = ?
+            WHERE id = ?`,
+          ).run(
+            status === 'registered' ? 1 : 0,
+            note,
+            professionId,
+            new Date().toISOString(),
+            guest.id,
+          );
+        } else if (status === 'registered') {
+          repository.addGuestRegistration(eventId, {
+            name,
+            note,
+            professionId,
+            requestId: input.requestId,
+          });
+        } else {
+          throw new ParticipationError('沒有報名或沒有資料', 404, 'PARTICIPATION_NOT_FOUND');
+        }
+        const result = { eventId, name, status };
+        db.prepare('INSERT INTO event_participation_requests VALUES (?, ?, ?, ?)').run(
+          input.requestId,
+          eventId,
+          encoded,
+          JSON.stringify(result),
+        );
+        return result;
+      })();
     },
     saveMemberResponse(eventId, input) {
       const uid = text(input?.uid, '成員資料', 64, true);
@@ -206,4 +354,5 @@ export function createParticipationRepository(db) {
       })();
     },
   };
+  return repository;
 }

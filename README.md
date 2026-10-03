@@ -283,6 +283,7 @@ UID Name 主職業 副職業
 | 方法 | 路徑 | 用途 |
 | --- | --- | --- |
 | GET | `/api/events/:id/participation` | 本場成員回應與有效額外報名 |
+| POST | `/api/events/:id/participation` | 統一名稱、status (registered／leave)、professionId (報名必填)、note、requestId、revision；依名稱連結成員或外援 |
 | PATCH | `/api/events/:id/participation` | 儲存 uid、status、note、revision, 新回應 revision=0 |
 | POST | `/api/events/:id/registrations` | 名稱、professionId、note、requestId 建立額外報名 |
 | DELETE | `/api/events/:id/registrations/:registrationId` | 取消本場額外報名, 傳 revision |
