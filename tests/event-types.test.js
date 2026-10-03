@@ -156,6 +156,7 @@ test('a failed schema migration rolls back table replacement and restores enable
   const db = new Database(':memory:');
   try {
     db.exec(oldSchema);
+    db.pragma('foreign_keys = OFF');
     db.exec(
       "INSERT INTO scheduled_events VALUES ('old', '舊活動', 'activity', 'old-request', '2026-10-01T00:00:00Z', 3, '2026-10-02T00:00:00Z', NULL); INSERT INTO event_dates VALUES ('missing', '2026-10-24');",
     );
