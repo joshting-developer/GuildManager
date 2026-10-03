@@ -78,3 +78,7 @@
 ## 排表密度
 
 依使用者要求縮小排表位置與操作留白, 增加專注排表以利同畫面查看 60 人, 見 [lineup-density-plan.md](lineup-density-plan.md)。
+
+## 同位置分場
+
+拖入第二位成員後保留第一場／第二場配置, 見 [lineup-rounds-plan.md](lineup-rounds-plan.md)。

@@ -43,13 +43,29 @@ export function validateLineup(teams) {
       id: team.id,
       name: text(team.name, '隊名', 40, true),
       slots: team.slots.map((slot) => {
-        if (
-          !slot ||
-          (slot.uid !== null && (typeof slot.uid !== 'string' || !slot.uid || slot.uid.length > 64))
-        )
-          throw new LineupError('成員 UID 格式不正確');
-        if (!['primary', 'secondary'].includes(slot.profession))
-          throw new LineupError('請選擇主職業或副職業');
+        function validateAssignment(person, allowEmpty = false) {
+          if (
+            !person ||
+            (person.uid === null
+              ? !allowEmpty
+              : typeof person.uid !== 'string' || !person.uid || person.uid.length > 64)
+          )
+            throw new LineupError('成員 UID 格式不正確');
+          if (!['primary', 'secondary'].includes(person.profession))
+            throw new LineupError('請選擇主職業或副職業');
+          if (person.uid !== null) {
+            if (seen.has(person.uid))
+              throw new LineupError(
+                `UID ${person.uid} 在這份排表中重複`,
+                422,
+                'DUPLICATE_LINEUP_UID',
+              );
+            seen.add(person.uid);
+          }
+          return { uid: person.uid, profession: person.profession };
+        }
+        const first = validateAssignment(slot, true);
+        const secondRound = slot.secondRound == null ? null : validateAssignment(slot.secondRound);
         const dutyIds = slot.dutyIds === undefined ? [] : slot.dutyIds;
         if (
           !Array.isArray(dutyIds) ||
@@ -57,14 +73,9 @@ export function validateLineup(teams) {
           new Set(dutyIds).size !== dutyIds.length
         )
           throw new LineupError('職責 ID 格式不正確或同一位置重複分配職責');
-        if (slot.uid !== null) {
-          if (seen.has(slot.uid))
-            throw new LineupError(`UID ${slot.uid} 在這份排表中重複`, 422, 'DUPLICATE_LINEUP_UID');
-          seen.add(slot.uid);
-        }
         return {
-          uid: slot.uid,
-          profession: slot.profession,
+          ...first,
+          secondRound,
           note: text(slot.note, '任務備註', 160),
           dutyIds: [...dutyIds],
         };
@@ -127,6 +138,40 @@ export function createLineupRepository(db) {
         .all()
         .map((duty) => [duty.id, duty]),
     );
+    function snapshotPerson(slot) {
+      if (!slot.uid) return { ...slot, member: null };
+      const person = current.get(slot.uid);
+      if (!person || (type && !eligibleMember(person, type)))
+        throw new LineupError(
+          `UID ${slot.uid} 已不存在或不符合這場戰鬥的資格，請重新載入成員清單`,
+          409,
+          'INELIGIBLE_MEMBER',
+        );
+      const chosen = slot.profession;
+      if (!person[`${chosen}Id`])
+        throw new LineupError(
+          `${person.name} 沒有可用的${chosen === 'secondary' ? '副' : '主'}職業，請重新選擇`,
+        );
+      return {
+        ...slot,
+        member: {
+          uid: person.uid,
+          name: person.name,
+          primaryProfession: {
+            job_id: person.primaryId,
+            name: person.primaryName,
+            colorcode: person.primaryColor,
+          },
+          secondaryProfession: person.secondaryId
+            ? {
+                job_id: person.secondaryId,
+                name: person.secondaryName,
+                colorcode: person.secondaryColor,
+              }
+            : null,
+        },
+      };
+    }
     return teams.map((team) => ({
       ...team,
       slots: team.slots.map((slot) => {
@@ -139,38 +184,10 @@ export function createLineupRepository(db) {
             );
           return catalog.get(id);
         });
-        if (!slot.uid) return { ...slot, duties, member: null };
-        const person = current.get(slot.uid);
-        if (!person || (type && !eligibleMember(person, type)))
-          throw new LineupError(
-            `UID ${slot.uid} 已不存在或不符合這場戰鬥的資格，請重新載入成員清單`,
-            409,
-            'INELIGIBLE_MEMBER',
-          );
-        const chosen = slot.profession;
-        if (!person[`${chosen}Id`])
-          throw new LineupError(
-            `${person.name} 沒有可用的${chosen === 'secondary' ? '副' : '主'}職業，請重新選擇`,
-          );
         return {
-          ...slot,
+          ...snapshotPerson(slot),
           duties,
-          member: {
-            uid: person.uid,
-            name: person.name,
-            primaryProfession: {
-              job_id: person.primaryId,
-              name: person.primaryName,
-              colorcode: person.primaryColor,
-            },
-            secondaryProfession: person.secondaryId
-              ? {
-                  job_id: person.secondaryId,
-                  name: person.secondaryName,
-                  colorcode: person.secondaryColor,
-                }
-              : null,
-          },
+          secondRound: slot.secondRound ? snapshotPerson(slot.secondRound) : null,
         };
       }),
     }));
@@ -352,27 +369,33 @@ export function createLineupRepository(db) {
             return false;
           });
           slot = { ...slot, dutyIds };
-          if (!slot.uid) return slot;
-          const person = current.get(slot.uid);
-          let reason = !person
-            ? '成員已不存在'
-            : !eligibleMember(person, currentEvent.type)
-              ? '不符合本場成員資格'
-              : !person[`${slot.profession}Id`]
-                ? '原本的職業已無法使用'
-                : '';
-          if (reason) {
+          function applyPerson(person, round) {
+            if (!person?.uid) return person;
+            const currentPerson = current.get(person.uid);
+            const reason = !currentPerson
+              ? '成員已不存在'
+              : !eligibleMember(currentPerson, currentEvent.type)
+                ? '不符合本場成員資格'
+                : !currentPerson[`${person.profession}Id`]
+                  ? '原本的職業已無法使用'
+                  : '';
+            if (!reason) return person;
+            const savedSlot = savedTeams.find((t) => t.id === team.id).slots[index];
+            const savedPerson = round === 2 ? savedSlot.secondRound : savedSlot;
             skipped.push({
-              uid: slot.uid,
-              name:
-                JSON.parse(row.teams_json)
-                  .find((t) => t.id === team.id)
-                  .slots.find((s) => s.uid === slot.uid)?.member?.name || slot.uid,
+              uid: person.uid,
+              name: savedPerson?.member?.name || person.uid,
               reason,
+              teamName: team.name,
+              position: index + 1,
+              round,
             });
-            return { ...slot, uid: null, profession: 'primary' };
+            return round === 2 ? null : { ...person, uid: null, profession: 'primary' };
           }
-          return slot;
+          return {
+            ...applyPerson(slot, 1),
+            secondRound: applyPerson(slot.secondRound, 2),
+          };
         }),
       }));
       return { teams, skipped, skippedDuties, event: currentEvent };

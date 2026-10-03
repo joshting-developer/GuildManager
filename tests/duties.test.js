@@ -146,7 +146,11 @@ test('old lineup snapshots, templates and original request retries remain unchan
   try {
     const battle = event(repo);
     const teams = emptyLineup();
-    for (const team of teams) for (const slot of team.slots) delete slot.dutyIds;
+    for (const team of teams)
+      for (const slot of team.slots) {
+        delete slot.dutyIds;
+        delete slot.secondRound;
+      }
     teams[0].slots[0].note = '原本自由文字';
     const payload = confirmInput(battle, teams);
     const snapshot = {
@@ -191,6 +195,7 @@ test('old lineup snapshots, templates and original request retries remain unchan
     );
     const applied = repo.applyLineupTemplate('legacy-template', battle.id);
     assert.deepEqual(applied.teams[0].slots[0].dutyIds, []);
+    assert.equal(applied.teams[0].slots[0].secondRound, null);
     assert.equal(applied.teams[0].slots[0].note, '原本自由文字');
     assert.deepEqual(
       JSON.parse(raw.prepare('SELECT snapshot_json FROM lineup_versions').get().snapshot_json),
