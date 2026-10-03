@@ -118,3 +118,7 @@ UID 僅在成員管理頁顯示, 報名／排表／歷史等畫面以名稱呈�
 ## 排表工具列單列
 
 桌面縮短場次選單, 摘要、範本與儲存操作在同列顯示, 見 [lineup-toolbar-row-plan.md](lineup-toolbar-row-plan.md)。
+
+## 所有排表來源只列尚未安排者
+
+幫戰與龍虎戰也隱藏已安排人員, 三種戰鬥共用來源規則, 見 [lineup-all-available-members-plan.md](lineup-all-available-members-plan.md)。
