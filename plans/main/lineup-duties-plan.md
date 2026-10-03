@@ -16,8 +16,24 @@
 ## 步驟與驗證
 
 1. [x] 職責表及維護 API、排表／範本／歷史相容與 adapter, 驗證重複名、版本衝突、重試、停用、舊資料／舊請求相容、歷史不變及持久化, 提交。
-2. [ ] 職責清單維護、拖曳／點選安排、多選與移除、範本與歷史顯示, 文件及桌面／手機／鍵盤／錯誤檢查、本機與 Docker 測試、一般與 GAS build, 提交。
+2. [x] 職責清單維護、拖曳／點選安排、多選與移除、範本與歷史顯示, 文件及桌面／手機／鍵盤／錯誤檢查、本機與 Docker 測試、一般與 GAS build, 提交。
 
 ## 驗證結果
 
 資料步驟：本機 76 項測試通過, 包含清單新增／改名／停用／啟用、版本／重複名／重試、多職責快照、範本跳過、舊 payload 與歷史／範本相容、重啟保存及 HTTP／GAS adapter。
+
+
+介面步驟：
+
+- 本機與 Docker Linux 的 76 項測試全部通過；日常 Docker API 健康, GET /api/duties 回傳保鑣／山盟／輔潮, 未加入測試項目。
+- 一般 build 與 GAS 單檔 build 成功, Index.html 約 788.5 KiB, 無外部 JS／CSS；編譯頁面可渲染, 缺 bridge 明確報錯且不回退本機 API。
+- 隔離 SQLite／API／Chrome：無場次仍可維護職責, 新增／重複名稱／改名／停用／重新啟用, 儲存回應遺失重試同 requestId 不重複新增。
+- 成員／職責分配來源互斥, 成員與職責拖曳均通過；同位置多項、重複拖曳不重複、新職責可分配空位與多人、移除標籤及自由備註保留通過。
+- 確認快照保留舊職責名稱, 改名／停用不改歷史；範本套用取得現有名稱, 跳過停用職責並列隊伍／位置／原因。
+- 1440／1024／768／390／320px 無整頁橫向溢出, 手機鍵盤分配／多選／移除及焦點返回通過, 無 page error 或 Vue warning。
+- 職責維護未儲存導覽提醒、並行停用後確認拒絕、維護版本衝突及讀取失敗均保留輸入；更新清單後顯示停用職責, 移除後恢復確認。
+- 檢查程式 `/private/tmp/guild-duties-ui-check.mjs`、`/private/tmp/guild-duties-ui-followup.mjs`；截圖 `artifacts/duties-desktop.png`、`artifacts/duties-mobile-position.png` 不納入 Git。測試資料庫 `/private/tmp/guild-duties-ui-20261003*.sqlite` 與日常資料隔離。
+
+## 尚未完成
+
+GAS／Google 試算表的職責資料存取與正式身分／權限仍待後續實作, 本次未部署或寫入正式試算表。

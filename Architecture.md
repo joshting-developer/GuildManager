@@ -57,3 +57,5 @@ GAS 資料函式與正式試算表 repository 尚待後續實作, 不宣稱本�
 `src/domain/lineups.js` 共用固定版型與 UID 安排運算, Docker API 另掛載 `src/domain/` 以維持熱更新。`server/lineup-repository.js` 使用獨立版本與範本表, 確認快照不 JOIN 可變成員資料, 場次刪除後仍可讀。快照 JSON 為可序列化資料, 不以 SQLite 列號當 ID。
 
 後續 GAS 須依同一契約保存範本及不可變快照, 並補資格、唯一 UID、版本及 requestId 檢查與 script lock／部分失敗處理；目前 `.gs` 排表函式只明確回報尚未串接。
+
+職責來源使用 `server/duty-repository.js`／`src/api/duties.js`, 職責表只追加初始化, 不更動成員與場次。排表位置以 dutyIds 引用, 確認時將職責 ID／名稱嵌入不可變快照, 範本套用則重新驗證 active。缺 dutyIds 的舊 payload 以正規化比較維持 requestId 相容, 不修改舊 JSON 或觸發快照 UPDATE。後期試算表須另建職責工作表並保留相同規則。

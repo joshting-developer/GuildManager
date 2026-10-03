@@ -4,11 +4,22 @@ const props = defineProps({
   teams: { type: Array, required: true },
   members: { type: Array, default: () => [] },
   professions: { type: Array, default: () => [] },
+  duties: { type: Array, default: () => [] },
   readOnly: Boolean,
   snapshots: Boolean,
   selectedUid: String,
+  selectedDutyId: String,
 });
-const emit = defineEmits(['place', 'edit-seat', 'rename-team']);
+const emit = defineEmits(['place', 'assign-duty', 'edit-seat', 'rename-team']);
+function dutiesFor(slot) {
+  return props.snapshots
+    ? slot.duties || []
+    : (slot.dutyIds || []).map((id) => ({
+        id,
+        name: props.duties.find((duty) => duty.id === id)?.name || '職責不存在',
+        active: props.duties.find((duty) => duty.id === id)?.active,
+      }));
+}
 function person(slot) {
   if (props.snapshots) return slot.member;
   const member = props.members.find((member) => member.uid === slot.uid);
@@ -24,6 +35,11 @@ function job(slot) {
 }
 function drop(event, teamId, index) {
   if (props.readOnly) return;
+  const dutyId = event.dataTransfer.getData('application/x-guild-duty');
+  if (dutyId) {
+    emit('assign-duty', dutyId, teamId, index);
+    return;
+  }
   const uid = event.dataTransfer.getData('application/x-guild-member');
   if (uid) emit('place', uid, teamId, index);
 }
@@ -35,7 +51,8 @@ function drag(event, slot) {
 }
 function activate(team, index) {
   if (props.readOnly) return;
-  if (props.selectedUid) emit('place', props.selectedUid, team.id, index);
+  if (props.selectedDutyId) emit('assign-duty', props.selectedDutyId, team.id, index);
+  else if (props.selectedUid) emit('place', props.selectedUid, team.id, index);
   else emit('edit-seat', team.id, index);
 }
 </script>
@@ -68,17 +85,24 @@ function activate(team, index) {
               @input="emit('rename-team', team.id, $event.target.value)"
           /></label>
           <div class="seat-columns" aria-hidden="true">
-            <span>職業／成員</span><span>任務備註</span>
+            <span>職業／成員</span><span>職責／備註</span>
           </div>
           <div
             v-for="(slot, index) in team.slots"
             :key="index"
             :class="[
               'lineup-seat',
-              { occupied: slot.uid, 'seat-target': selectedUid && !readOnly },
+              { occupied: slot.uid, 'seat-target': (selectedUid || selectedDutyId) && !readOnly },
             ]"
             :data-seat="`${team.id}-${index}`"
-            @dragover.prevent="!readOnly && ($event.dataTransfer.dropEffect = 'move')"
+            @dragover.prevent="
+              !readOnly &&
+              ($event.dataTransfer.dropEffect = $event.dataTransfer.types.includes(
+                'application/x-guild-duty',
+              )
+                ? 'copy'
+                : 'move')
+            "
             @drop.prevent="drop($event, team.id, index)"
           >
             <component
@@ -89,7 +113,7 @@ function activate(team, index) {
               :aria-label="
                 readOnly
                   ? undefined
-                  : `${group.name} ${team.name} 第 ${index + 1} 位，${person(slot)?.name || '空位'}${selectedUid ? '，安排已選成員' : '，編輯位置'}`
+                  : `${group.name} ${team.name} 第 ${index + 1} 位，${person(slot)?.name || '空位'}${selectedDutyId ? '，分配已選職責' : selectedUid ? '，安排已選成員' : '，編輯位置'}`
               "
               @dragstart="drag($event, slot)"
               @click="activate(team, index)"
@@ -109,7 +133,31 @@ function activate(team, index) {
                 selectedUid && !readOnly ? '點此安排' : '尚未安排'
               }}</span>
             </component>
-            <span class="seat-note">{{ slot.note || '—' }}</span>
+            <button
+              v-if="!readOnly"
+              type="button"
+              class="seat-note seat-duty-button"
+              :aria-label="`${group.name} ${team.name} 第 ${index + 1} 位職責與備註，${selectedDutyId ? '分配已選職責' : '編輯位置'}`"
+              @click="
+                selectedDutyId
+                  ? emit('assign-duty', selectedDutyId, team.id, index)
+                  : emit('edit-seat', team.id, index)
+              "
+            >
+              <span
+                v-for="duty in dutiesFor(slot)"
+                :key="duty.id"
+                class="seat-duty"
+                :class="{ 'duty-inactive': !duty.active }"
+                >{{ duty.name }}<small v-if="!duty.active">（停用）</small></span
+              ><span>{{ slot.note || (dutiesFor(slot).length ? '' : '—') }}</span>
+            </button>
+            <div v-else class="seat-note">
+              <span v-for="duty in dutiesFor(slot)" :key="duty.id" class="seat-duty">{{
+                duty.name
+              }}</span
+              ><span>{{ slot.note || (dutiesFor(slot).length ? '' : '—') }}</span>
+            </div>
           </div>
         </article>
       </div>

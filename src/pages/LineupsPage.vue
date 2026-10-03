@@ -6,10 +6,20 @@ import { createMemberClient } from '../api/members.js';
 import { emptyLineup, editableLineup, eligibleMember, placeMember } from '../domain/lineups.js';
 import { eventTypeLabel } from '../domain/event-types.js';
 import LineupBoard from './LineupBoard.vue';
+import DutyList from './DutyList.vue';
+import { createDutyClient } from '../api/duties.js';
 
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 const client = createLineupClient({ source });
 const memberClient = createMemberClient({ source });
+const dutyClient = createDutyClient({ source });
+const sidebarTab = ref('members');
+const duties = ref([]),
+  catalogBusy = ref(false),
+  dutyEditingDirty = ref(false),
+  selectedDutyId = ref(''),
+  skippedDuties = ref([]),
+  seatDutyIds = ref([]);
 const events = ref([]),
   templates = ref([]),
   members = ref([]),
@@ -46,7 +56,13 @@ const currentEvent = computed(() => events.value.find((event) => event.id === ev
 const historical = computed(() => versions.value.find((version) => version.id === historyId.value));
 const displayedEvent = computed(() => historical.value?.event || currentEvent.value);
 const readOnly = computed(() =>
-  Boolean(historical.value || currentEvent.value?.archived || busy.value || historyLoading.value),
+  Boolean(
+    historical.value ||
+    currentEvent.value?.archived ||
+    busy.value ||
+    catalogBusy.value ||
+    historyLoading.value,
+  ),
 );
 const displayedTeams = computed(() => historical.value?.teams || teams.value);
 const dirty = computed(() => JSON.stringify(teams.value) !== baseline.value);
@@ -54,7 +70,8 @@ const dialogDirty = computed(() =>
   dialog.value === 'template'
     ? Boolean(templateName.value.trim())
     : dialog.value === 'seat' &&
-      JSON.stringify([seatUid.value, seatProfession.value, seatNote.value]) !== seatBaseline,
+      JSON.stringify([seatUid.value, seatProfession.value, seatNote.value, seatDutyIds.value]) !==
+        seatBaseline,
 );
 const latestVersion = computed(() => versions.value[0]?.version || 0);
 const assigned = computed(
@@ -122,6 +139,53 @@ const invalidAssignments = computed(
             ]),
       ).length,
 );
+const invalidDuties = computed(
+  () =>
+    teams.value
+      .flatMap((team) => team.slots)
+      .filter((slot) =>
+        (slot.dutyIds || []).some(
+          (id) => !duties.value.some((duty) => duty.id === id && duty.active),
+        ),
+      ).length,
+);
+const seatDutyOptions = computed(() => [
+  ...duties.value
+    .filter((duty) => duty.active || seatDutyIds.value.includes(duty.id))
+    .map((duty) => ({
+      title: `${duty.name}${duty.active ? '' : '（停用，請移除）'}`,
+      value: duty.id,
+    })),
+  ...seatDutyIds.value
+    .filter((id) => !duties.value.some((duty) => duty.id === id))
+    .map((id) => ({ title: '職責不存在（請移除）', value: id })),
+]);
+function updateDuties(data) {
+  duties.value = data;
+  if (!data.some((duty) => duty.id === selectedDutyId.value && duty.active))
+    selectedDutyId.value = '';
+}
+function selectDuty(id) {
+  selectedDutyId.value = id;
+  selectedUid.value = '';
+}
+function selectMember(uid) {
+  selectedUid.value = selectedUid.value === uid ? '' : uid;
+  selectedDutyId.value = '';
+}
+function assignDuty(id, teamId, index) {
+  if (readOnly.value) return;
+  if (!duties.value.some((duty) => duty.id === id && duty.active)) {
+    error.value = '這項職責已停用或不存在，請更新職責清單';
+    return;
+  }
+  const slot = teams.value.find((team) => team.id === teamId)?.slots[index];
+  if (!slot) return;
+  if (!slot.dutyIds) slot.dutyIds = [];
+  if (!slot.dutyIds.includes(id)) slot.dutyIds.push(id);
+  selectedDutyId.value = '';
+  notice.value = '已分配職責，請確認並儲存本場名單。';
+}
 const qualification = computed(() =>
   currentEvent.value?.type === 'guild_war'
     ? '僅顯示幫派內成員'
@@ -137,12 +201,21 @@ function formatTime(value) {
   }).format(new Date(value));
 }
 function mayDiscard(message = '排表有尚未確認的修改，確定要放棄嗎？') {
-  return !busy.value && (!(dirty.value || dialogDirty.value) || window.confirm(message));
+  return (
+    !(busy.value || catalogBusy.value) &&
+    (!(dirty.value || dialogDirty.value || dutyEditingDirty.value) || window.confirm(message))
+  );
 }
 const registerGuard = inject('registerNavigationGuard', null);
 const unregisterGuard = registerGuard?.(() => mayDiscard());
 function beforeUnload(event) {
-  if (dirty.value || dialogDirty.value || busy.value) {
+  if (
+    dirty.value ||
+    dialogDirty.value ||
+    dutyEditingDirty.value ||
+    busy.value ||
+    catalogBusy.value
+  ) {
     event.preventDefault();
     event.returnValue = '';
   }
@@ -151,6 +224,7 @@ function resetDraft(data) {
   teams.value = editableLineup(data || emptyLineup());
   baseline.value = JSON.stringify(teams.value);
   selectedUid.value = '';
+  selectedDutyId.value = '';
   confirmAttempt = null;
 }
 async function load() {
@@ -158,14 +232,16 @@ async function load() {
   loading.value = true;
   error.value = '';
   try {
-    const [index, people, jobs] = await Promise.all([
+    const [index, tasks, people, jobs] = await Promise.all([
       client.getIndex(),
+      dutyClient.getDuties(),
       memberClient.getMembers(),
       memberClient.getProfessions(),
     ]);
     if (disposed) return;
     events.value = index.events;
     templates.value = index.templates;
+    duties.value = tasks.duties;
     members.value = people.members;
     professions.value = jobs.professions;
     const target = events.value.some((event) => event.id === eventId.value)
@@ -189,6 +265,7 @@ async function loadEvent(id) {
   error.value = '';
   notice.value = '';
   skipped.value = [];
+  skippedDuties.value = [];
   try {
     const data = await client.getHistory(id);
     if (disposed || token !== operation) return;
@@ -253,7 +330,13 @@ function openSeat(teamId, index) {
   seatUid.value = slot.uid;
   seatNote.value = slot.note;
   seatProfession.value = slot.profession;
-  seatBaseline = JSON.stringify([seatUid.value, seatProfession.value, seatNote.value]);
+  seatDutyIds.value = [...(slot.dutyIds || [])];
+  seatBaseline = JSON.stringify([
+    seatUid.value,
+    seatProfession.value,
+    seatNote.value,
+    seatDutyIds.value,
+  ]);
   openDialog('seat');
 }
 function saveSeat() {
@@ -269,6 +352,7 @@ function saveSeat() {
   }
   slot.profession = seatUid.value ? seatProfession.value : 'primary';
   slot.note = seatNote.value.trim();
+  slot.dutyIds = [...seatDutyIds.value];
   dialog.value = null;
 }
 function changeSeatUid(uid) {
@@ -279,10 +363,12 @@ async function refreshMembers() {
   busy.value = true;
   error.value = '';
   try {
-    const [people, jobs] = await Promise.all([
+    const [people, jobs, tasks] = await Promise.all([
       memberClient.getMembers(),
       memberClient.getProfessions(),
+      dutyClient.getDuties(),
     ]);
+    duties.value = tasks.duties;
     members.value = people.members;
     professions.value = jobs.professions;
     notice.value = '成員清單已更新，工作區的排表仍保留。';
@@ -358,25 +444,29 @@ async function saveTemplate() {
 async function applyTemplate() {
   if (
     !templateId.value ||
-    !mayDiscard('套用範本會取代工作區目前的隊名、位置及備註，確定要套用嗎？')
+    !mayDiscard('套用範本會取代工作區目前的隊名、位置、職責及備註，確定要套用嗎？')
   )
     return;
   busy.value = true;
   error.value = '';
   try {
     const data = await client.applyTemplate(templateId.value, eventId.value);
-    const [people, jobs] = await Promise.all([
+    const [people, jobs, tasks] = await Promise.all([
       memberClient.getMembers(),
       memberClient.getProfessions(),
+      dutyClient.getDuties(),
     ]);
+    duties.value = tasks.duties;
     members.value = people.members;
     professions.value = jobs.professions;
     teams.value = data.teams;
     selectedUid.value = '';
+    selectedDutyId.value = '';
     historyId.value = 'draft';
     skipped.value = data.skipped;
+    skippedDuties.value = data.skippedDuties || [];
     events.value = events.value.map((event) => (event.id === data.event.id ? data.event : event));
-    notice.value = `範本已載入工作區${data.skipped.length ? `，跳過 ${data.skipped.length} 位成員` : ''}，尚未確認本場名單。`;
+    notice.value = `範本已載入工作區${data.skipped.length ? `，跳過 ${data.skipped.length} 位成員` : ''}${skippedDuties.value.length ? `，跳過 ${skippedDuties.value.length} 項停用職責` : ''}，尚未確認本場名單。`;
   } catch (cause) {
     error.value = cause.message;
   } finally {
@@ -388,6 +478,7 @@ function copyHistory() {
   teams.value = editableLineup(historical.value.teams);
   historyId.value = 'draft';
   selectedUid.value = '';
+  selectedDutyId.value = '';
   notice.value = '已載入歷史位置，姓名與職業使用現有資料；請檢查資格後確認為新版本。';
 }
 onMounted(() => {
@@ -412,7 +503,7 @@ onUnmounted(() => {
     <v-btn
       variant="outlined"
       :prepend-icon="mdiRefresh"
-      :disabled="loading || busy || historyLoading"
+      :disabled="loading || busy || catalogBusy || historyLoading"
       @click="load"
       >重新載入</v-btn
     >
@@ -429,7 +520,16 @@ onUnmounted(() => {
     <h2>尚無戰鬥場次</h2>
     <p>先到「活動安排」建立約戰、幫戰或龍虎戰，再回來安排成員。</p></v-card
   >
-  <template v-else-if="events.length">
+  <DutyList
+    v-if="!loading && !events.length && !error"
+    :duties="duties"
+    :disabled="busy"
+    :assignable="false"
+    @updated="updateDuties"
+    @busy-changed="catalogBusy = $event"
+    @unsaved-changed="dutyEditingDirty = $event"
+  />
+  <template v-if="!loading && events.length">
     <v-card class="lineup-toolbar">
       <div class="lineup-selects">
         <v-select
@@ -438,7 +538,7 @@ onUnmounted(() => {
           label="戰鬥場次"
           variant="outlined"
           hide-details
-          :disabled="busy || historyLoading"
+          :disabled="busy || catalogBusy || historyLoading"
           @update:model-value="changeEvent"
         /><v-select
           id="lineup-history"
@@ -447,7 +547,7 @@ onUnmounted(() => {
           label="瀏覽排表"
           variant="outlined"
           hide-details
-          :disabled="busy || historyLoading"
+          :disabled="busy || catalogBusy || historyLoading"
           @update:model-value="historyId = $event"
         />
       </div>
@@ -476,13 +576,15 @@ onUnmounted(() => {
           ><v-btn
             variant="outlined"
             :prepend-icon="mdiContentSaveOutline"
-            :disabled="busy || historyLoading"
+            :disabled="busy || catalogBusy || historyLoading"
             @click="openDialog('template')"
             >另存範本</v-btn
           ><v-btn
             v-if="!historical && !currentEvent?.archived"
             color="primary"
-            :disabled="busy || historyLoading || invalidAssignments > 0"
+            :disabled="
+              busy || catalogBusy || historyLoading || invalidAssignments > 0 || invalidDuties > 0
+            "
             @click="openDialog('confirm')"
             >確認並儲存</v-btn
           >
@@ -497,10 +599,10 @@ onUnmounted(() => {
           clearable
           variant="outlined"
           hide-details
-          :disabled="busy || historyLoading || currentEvent?.archived"
+          :disabled="busy || catalogBusy || historyLoading || currentEvent?.archived"
         /><v-btn
           variant="outlined"
-          :disabled="!templateId || busy || historyLoading || currentEvent?.archived"
+          :disabled="!templateId || busy || catalogBusy || historyLoading || currentEvent?.archived"
           @click="applyTemplate"
           >套用至工作區</v-btn
         >
@@ -527,10 +629,57 @@ onUnmounted(() => {
         </li>
       </ul></v-alert
     >
+    <v-alert
+      v-if="!historical && invalidDuties"
+      type="warning"
+      variant="tonal"
+      class="lineup-alert"
+      role="alert"
+      >有 {{ invalidDuties }} 個位置使用停用或不存在的職責，請編輯位置移除後再確認。</v-alert
+    >
+    <v-alert
+      v-if="skippedDuties.length"
+      type="warning"
+      variant="tonal"
+      class="lineup-alert"
+      role="status"
+      ><strong>套用時跳過的職責</strong>
+      <ul>
+        <li v-for="(duty, index) in skippedDuties" :key="index">
+          {{ duty.teamName }} 第 {{ duty.position }} 位：{{ duty.name }} — {{ duty.reason }}
+        </li>
+      </ul></v-alert
+    >
     <div v-if="historyLoading" class="lineup-loading" role="status">正在載入本場排表…</div>
     <div v-else-if="currentEvent" class="lineup-workspace">
-      <aside v-if="!historical && !currentEvent.archived" class="lineup-members-panel">
-        <v-card class="lineup-members-card"
+      <aside class="lineup-members-panel">
+        <v-tabs
+          :model-value="historical || currentEvent.archived ? 'duties' : sidebarTab"
+          aria-label="排表來源清單"
+          @update:model-value="sidebarTab = $event"
+          ><v-tab value="members" :disabled="Boolean(historical || currentEvent.archived)"
+            >成員</v-tab
+          ><v-tab value="duties">職責分配</v-tab></v-tabs
+        >
+        <DutyList
+          v-show="historical || currentEvent.archived || sidebarTab === 'duties'"
+          :duties="duties"
+          :disabled="busy || historyLoading"
+          :assignable="!readOnly"
+          :selected-id="selectedDutyId"
+          @updated="updateDuties"
+          @select="selectDuty"
+          @busy-changed="catalogBusy = $event"
+          @unsaved-changed="dutyEditingDirty = $event"
+        />
+        <div v-if="selectedDutyId" class="lineup-selected" role="status">
+          已選職責：{{ duties.find((duty) => duty.id === selectedDutyId)?.name
+          }}<v-btn variant="text" @click="selectedDutyId = ''">取消職責選取</v-btn>
+        </div>
+        <v-card
+          v-if="!historical && !currentEvent.archived"
+          v-show="sidebarTab === 'members'"
+          class="lineup-members-card"
           ><div class="lineup-member-heading">
             <h2><v-icon :icon="mdiAccountGroupOutline" size="22" />成員清單</h2>
             <v-btn
@@ -543,7 +692,7 @@ onUnmounted(() => {
           </div>
           <p class="lineup-hint">{{ qualification }}</p>
           <p class="lineup-hint">
-            拖曳至位置，或先點選成員再點位置。已安排成員會移動；兩個已占用位置會交換，任務備註保留在原位置。
+            拖曳至位置，或先點選成員再點位置。已安排成員會移動；兩個已占用位置會交換，職責與備註保留在原位置。
           </p>
           <v-text-field
             v-model="search"
@@ -582,7 +731,7 @@ onUnmounted(() => {
               :aria-pressed="selectedUid === member.uid"
               :data-member="member.uid"
               @dragstart="drag($event, member.uid)"
-              @click="selectedUid = selectedUid === member.uid ? '' : member.uid"
+              @click="selectMember(member.uid)"
             >
               <span class="lineup-member-main"
                 ><strong>{{ member.name }}</strong
@@ -610,10 +759,13 @@ onUnmounted(() => {
         :teams="displayedTeams"
         :members="members"
         :professions="professions"
+        :duties="duties"
+        :selected-duty-id="selectedDutyId"
         :read-only="readOnly"
         :snapshots="Boolean(historical)"
         :selected-uid="selectedUid"
         @place="place"
+        @assign-duty="assignDuty"
         @edit-seat="openSeat"
         @rename-team="renameTeam"
       />
@@ -651,9 +803,19 @@ onUnmounted(() => {
             label="上場職業"
             variant="outlined"
             :disabled="busy || !seatUid"
-          /><v-text-field
+          /><v-select
+            v-model="seatDutyIds"
+            :items="seatDutyOptions"
+            label="分配職責"
+            multiple
+            chips
+            closable-chips
+            variant="outlined"
+            :disabled="busy"
+          />
+          <v-text-field
             v-model="seatNote"
-            label="任務備註"
+            label="補充備註"
             maxlength="160"
             variant="outlined"
             :disabled="busy"
@@ -690,7 +852,7 @@ onUnmounted(() => {
         >
       </div>
       <div class="lineup-dialog-actions">
-        <v-btn variant="outlined" :disabled="busy" @click="closeDialog">取消</v-btn
+        <v-btn variant="outlined" :disabled="busy || catalogBusy" @click="closeDialog">取消</v-btn
         ><v-btn
           color="primary"
           :loading="busy"
