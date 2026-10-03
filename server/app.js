@@ -36,6 +36,12 @@ export function createApp(repository) {
   app.post('/api/events', (request, response) => {
     response.status(201).json({ event: repository.createEvent(request.body) });
   });
+  app.patch('/api/events/:id', (request, response) => {
+    response.json({ event: repository.updateEvent(request.params.id, request.body) });
+  });
+  app.delete('/api/events/:id', (request, response) => {
+    response.json(repository.deleteEvent(request.params.id, request.body?.revision));
+  });
   app.get('/api/professions', (_request, response) => {
     response.set('Cache-Control', 'no-store').json(repository.listProfessions());
   });

@@ -7,7 +7,7 @@ export class EventError extends Error {
   }
 }
 
-export function validateEvent(input) {
+export function validateEvent(input, { requireRequestId = true } = {}) {
   const values = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
   const fields = {};
   const title = typeof values.title === 'string' ? values.title.trim() : '';
@@ -32,7 +32,10 @@ export function validateEvent(input) {
     if (new Set(dates).size !== dates.length) fields.dates = '日期不可重複';
     if (values.type === 'scrimmage' && dates.length !== 1) fields.dates = '約戰只能選擇一天';
   }
-  if (typeof values.requestId !== 'string' || !/^[a-zA-Z0-9_-]{1,64}$/.test(values.requestId))
+  if (
+    requireRequestId &&
+    (typeof values.requestId !== 'string' || !/^[a-zA-Z0-9_-]{1,64}$/.test(values.requestId))
+  )
     fields.requestId = '提交識別資料不正確，請重新開啟建立表單';
   if (Object.keys(fields).length) throw new EventError('請修正安排資料後再儲存', fields);
   return { title, type: values.type, dates: [...dates].sort(), requestId: values.requestId };
@@ -55,9 +58,45 @@ export function createEventRepository(db) {
     );
     CREATE INDEX IF NOT EXISTS event_dates_by_date ON event_dates(date);
   `);
+  db.transaction(() => {
+    const columns = db
+      .prepare('PRAGMA table_info(scheduled_events)')
+      .all()
+      .map((column) => column.name);
+    if (!columns.includes('revision'))
+      db.exec(
+        'ALTER TABLE scheduled_events ADD COLUMN revision INTEGER NOT NULL DEFAULT 1 CHECK (revision > 0)',
+      );
+    if (!columns.includes('updated_at'))
+      db.exec("ALTER TABLE scheduled_events ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''");
+    if (!columns.includes('deleted_at'))
+      db.exec('ALTER TABLE scheduled_events ADD COLUMN deleted_at TEXT');
+    db.exec("UPDATE scheduled_events SET updated_at = created_at WHERE updated_at = ''");
+  })();
+  function checkRevision(revision) {
+    if (!Number.isSafeInteger(revision) || revision < 1)
+      throw new EventError('安排版本不正確，請重新載入清單後再試', { revision: '請重新載入安排' });
+  }
+  function conflict() {
+    throw new EventError(
+      '安排已被其他操作修改，請保留輸入並重新載入清單後再試',
+      {},
+      409,
+      'REVISION_CONFLICT',
+    );
+  }
+  function sameValues(event, values) {
+    return (
+      event.title === values.title &&
+      event.type === values.type &&
+      JSON.stringify(event.dates) === JSON.stringify(values.dates)
+    );
+  }
   function getEvent(id) {
     const event = db
-      .prepare('SELECT id, title, type, created_at AS createdAt FROM scheduled_events WHERE id = ?')
+      .prepare(
+        'SELECT id, title, type, created_at AS createdAt, updated_at AS updatedAt, revision FROM scheduled_events WHERE id = ? AND deleted_at IS NULL',
+      )
       .get(id);
     if (!event) return null;
     event.dates = db
@@ -70,8 +109,9 @@ export function createEventRepository(db) {
     listEvents() {
       const rows = db
         .prepare(
-          `SELECT e.id, e.title, e.type, e.created_at AS createdAt, d.date
+          `SELECT e.id, e.title, e.type, e.created_at AS createdAt, e.updated_at AS updatedAt, e.revision, d.date
         FROM scheduled_events e JOIN event_dates d ON d.event_id = e.id
+        WHERE e.deleted_at IS NULL
         ORDER BY d.date, e.created_at, e.id`,
         )
         .all();
@@ -90,11 +130,9 @@ export function createEventRepository(db) {
           .get(values.requestId);
         if (prior) {
           const event = getEvent(prior.id);
-          if (
-            event.title !== values.title ||
-            event.type !== values.type ||
-            JSON.stringify(event.dates) !== JSON.stringify(values.dates)
-          )
+          if (!event)
+            throw new EventError('此安排已刪除，請重新載入清單', {}, 410, 'EVENT_DELETED');
+          if (!sameValues(event, values))
             throw new EventError(
               '上次提交已儲存，請重新載入清單後再建立其他安排',
               {},
@@ -104,12 +142,57 @@ export function createEventRepository(db) {
           return event;
         }
         const id = randomUUID();
+        const now = new Date().toISOString();
         db.prepare(
-          'INSERT INTO scheduled_events (id, title, type, request_id, created_at) VALUES (?, ?, ?, ?, ?)',
-        ).run(id, values.title, values.type, values.requestId, new Date().toISOString());
+          'INSERT INTO scheduled_events (id, title, type, request_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+        ).run(id, values.title, values.type, values.requestId, now, now);
         const insertDate = db.prepare('INSERT INTO event_dates (event_id, date) VALUES (?, ?)');
         for (const date of values.dates) insertDate.run(id, date);
         return getEvent(id);
+      })();
+    },
+    updateEvent(id, input) {
+      const values = validateEvent(input, { requireRequestId: false });
+      checkRevision(input.revision);
+      return db.transaction(() => {
+        const current = getEvent(id);
+        if (!current)
+          throw new EventError(
+            '找不到安排，可能已刪除，請重新載入清單',
+            {},
+            404,
+            'EVENT_NOT_FOUND',
+          );
+        // A lost response can be retried without a second write if exactly this revision was saved.
+        if (current.revision === input.revision + 1 && sameValues(current, values)) return current;
+        if (current.revision !== input.revision) conflict();
+        if (sameValues(current, values)) return current;
+        db.prepare(
+          'UPDATE scheduled_events SET title = ?, type = ?, updated_at = ?, revision = revision + 1 WHERE id = ?',
+        ).run(values.title, values.type, new Date().toISOString(), id);
+        db.prepare('DELETE FROM event_dates WHERE event_id = ?').run(id);
+        const insertDate = db.prepare('INSERT INTO event_dates (event_id, date) VALUES (?, ?)');
+        for (const date of values.dates) insertDate.run(id, date);
+        return getEvent(id);
+      })();
+    },
+    deleteEvent(id, revision) {
+      checkRevision(revision);
+      return db.transaction(() => {
+        const current = db
+          .prepare('SELECT revision, deleted_at FROM scheduled_events WHERE id = ?')
+          .get(id);
+        if (!current)
+          throw new EventError('找不到安排，請重新載入清單', {}, 404, 'EVENT_NOT_FOUND');
+        if (current.deleted_at && current.revision === revision + 1) return { id };
+        if (current.revision !== revision) conflict();
+        if (current.deleted_at)
+          throw new EventError('此安排已刪除，請重新載入清單', {}, 410, 'EVENT_DELETED');
+        const now = new Date().toISOString();
+        db.prepare(
+          'UPDATE scheduled_events SET deleted_at = ?, updated_at = ?, revision = revision + 1 WHERE id = ?',
+        ).run(now, now, id);
+        return { id };
       })();
     },
   };

@@ -41,3 +41,11 @@ function getEvents() {
 function createEvent(input) {
   throw new Error('雲端活動建立尚未串接 Google 試算表');
 }
+
+function updateEvent(id, input) {
+  throw new Error('雲端活動修改尚未串接 Google 試算表');
+}
+
+function deleteEvent(id, revision) {
+  throw new Error('雲端活動刪除尚未串接 Google 試算表');
+}

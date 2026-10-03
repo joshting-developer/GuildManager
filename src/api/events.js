@@ -4,7 +4,7 @@ export function createEventClient({
   googleRun,
 } = {}) {
   if (!['local', 'gas'].includes(source)) throw new Error('未知的資料來源設定');
-  async function call(method, input) {
+  async function call(method, input, id) {
     if (source === 'gas') {
       const run = googleRun || globalThis.google?.script?.run;
       if (!run) throw new Error('雲端活動資料尚未串接');
@@ -15,17 +15,22 @@ export function createEventClient({
             reject(new Error(error?.message || '雲端活動操作失敗，請稍後再試')),
           );
         if (method === 'GET') runner.getEvents();
-        else runner.createEvent(input);
+        else if (method === 'POST') runner.createEvent(input);
+        else if (method === 'PATCH') runner.updateEvent(id, input);
+        else runner.deleteEvent(id, input.revision);
       });
     }
     let response;
     try {
-      response = await fetchImpl('/api/events', {
-        method,
-        ...(input
-          ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) }
-          : {}),
-      });
+      response = await fetchImpl(
+        id === undefined ? '/api/events' : `/api/events/${encodeURIComponent(id)}`,
+        {
+          method,
+          ...(input
+            ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) }
+            : {}),
+        },
+      );
     } catch {
       throw new Error('無法連線，請確認本機服務已啟動後重試');
     }
@@ -43,5 +48,10 @@ export function createEventClient({
     }
     return data;
   }
-  return { getEvents: () => call('GET'), createEvent: (input) => call('POST', input) };
+  return {
+    getEvents: () => call('GET'),
+    createEvent: (input) => call('POST', input),
+    updateEvent: (id, input) => call('PATCH', input, id),
+    deleteEvent: (id, revision) => call('DELETE', { revision }, id),
+  };
 }

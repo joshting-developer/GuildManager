@@ -58,3 +58,7 @@
 ## 行事曆日期建立安排
 
 使用者希望點擊首頁日期格即可建立安排並預選日期。沿用現有表單與 API, 保留安排詳情入口, 計畫與驗證見 [calendar-create-plan.md](calendar-create-plan.md)。
+
+## 活動修改與刪除
+
+使用者要求活動安排可修改及刪除。沿用建立表單、日期規則, 新增版本檢查及刪除確認, 見 [event-management-plan.md](event-management-plan.md)。
