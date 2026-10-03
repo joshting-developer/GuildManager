@@ -124,6 +124,10 @@ export function parseBattleCsv(text) {
 }
 
 export function taipeiBattleTime(value) {
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    taipeiBattleTime(`${value}T00:00`);
+    return value;
+  }
   const match =
     typeof value === 'string' &&
     value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);

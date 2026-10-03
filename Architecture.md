@@ -89,3 +89,13 @@ GAS 需新增對應工作表、本人操作驗證、鎖定／防重複／部分�
 同位置分場沿用 slot.uid／profession 作第一場, 可空的 secondRound 保存第二場 UID／profession, 確認快照另保存第二位 member。slotAssignments 統一列舉兩人的 UID／職業供唯一檢查、資格、計數及範本處理；拖曳 addMemberToSlot 在空位或第二場加入, 明確編輯 placeMember 可交換指定場次。位置 duties／note 共用, 不跟人移動。缺 secondRound 的舊 payload 經 validateLineup／editableLineup 正規化為 null, 讀取舊歷史及重試不改寫 JSON。
 
 幫戰／龍虎戰 title 可留空或省略, validateEvent 正規化為空字串, 仍保留文字格式／120 字限制、日期與重試規則；活動／約戰維持必填。SQLite TEXT NOT NULL 可保存空字串, 不需改表。eventDisplayTitle 只於前端產生類型顯示回退, 不修改資料／表單／既有歷史, GAS 後續須遵守相同驗證契約。
+
+## 戰績與附件
+
+`src/domain/battle-records.js` 共用 CSV 表頭／解析及台北日期時間驗證, 不使用 Node API。`src/api/battle-records.js` 提供本機 HTTP／GAS 同名資料介面, 元件不直接送 HTTP。`server/battle-record-repository.js` 追加 battle_uploads（requestId／輸入雜湊／圖片 BLOB）及 battle_records（活動 ID／基本資料／快照／原始 CSV／玩家 JSON／內容雜湊）, 同批最多兩筆以交易寫入。
+
+戰績頁只選行事曆既有戰鬥場次, 日期／類型由活動資料取得；行事曆入口預選相同場次 ID。後端寫入前驗證活動仍有效且日期／類型符合, 快照不 JOIN 後續可變活動或成員。時間可空, playedAt 為 YYYY-MM-DD 或帶 +08:00 的 ISO 字串, 不以虛構零點填缺值。
+
+原 CSV 與圖片由登入後的附件端點下載, 回傳 attachment 與 nosniff, 檔名使用 RFC 5987 編碼。SQLite BLOB 共用 Docker 資料 volume, 不存前端 localStorage 或容器暫存路徑；前端預覽 object URL 在移除／卸載時釋放。
+
+GAS 後續需以試算表保存戰績／逐人資料, Drive 保存原檔及圖片, 另實作管理權限、script lock、重試／重複檢查與跨試算表／Drive 的部分失敗恢復。現階段雲端函式明確回報未串接, 不寫入正式來源。

@@ -4,6 +4,7 @@ import {
   mdiCalendarMonthOutline,
   mdiClipboardTextOutline,
   mdiSwordCross,
+  mdiFileUploadOutline,
 } from '@mdi/js';
 import MonthCalendar from './MonthCalendar.vue';
 const emit = defineEmits(['open-page']);
@@ -37,11 +38,11 @@ const modules = [
     description: '活動參與與出勤紀錄。',
   },
   {
-    id: 'battles',
-    title: '幫戰資料',
-    icon: mdiSwordCross,
+    id: 'battle-upload',
+    title: '戰績上傳',
+    icon: mdiFileUploadOutline,
     color: 'orange',
-    description: '對戰與結果資料。',
+    description: '匯入戰績 CSV, 保存對戰結果。',
   },
 ];
 const dateLabel = new Intl.DateTimeFormat('zh-TW', {
@@ -71,20 +72,29 @@ const dateLabel = new Intl.DateTimeFormat('zh-TW', {
     <h2 id="management-title" class="sr-only">幫會管理功能</h2>
     <div class="modules-grid">
       <component
-        :is="['members', 'events', 'lineups'].includes(module.id) ? 'button' : 'div'"
+        :is="
+          ['members', 'events', 'lineups', 'battle-upload'].includes(module.id) ? 'button' : 'div'
+        "
         v-for="module in modules"
         :key="module.id"
         class="module-card"
-        :type="['members', 'events', 'lineups'].includes(module.id) ? 'button' : undefined"
+        :type="
+          ['members', 'events', 'lineups', 'battle-upload'].includes(module.id)
+            ? 'button'
+            : undefined
+        "
         @click="
-          ['members', 'events', 'lineups'].includes(module.id) && emit('open-page', module.id)
+          ['members', 'events', 'lineups', 'battle-upload'].includes(module.id) &&
+          emit('open-page', module.id)
         "
       >
         <span :class="['icon-box', module.color]"><v-icon :icon="module.icon" size="24" /></span>
         <h3>{{ module.title }}</h3>
         <p>{{ module.description }}</p>
         <span class="module-status">{{
-          ['members', 'events', 'lineups'].includes(module.id) ? `開啟${module.title} →` : '待開發'
+          ['members', 'events', 'lineups', 'battle-upload'].includes(module.id)
+            ? `開啟${module.title} →`
+            : '待開發'
         }}</span>
       </component>
     </div>

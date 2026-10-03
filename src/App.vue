@@ -9,6 +9,7 @@ import {
   mdiCalendarMonthOutline,
   mdiLogin,
   mdiLogout,
+  mdiFileUploadOutline,
 } from '@mdi/js';
 import { createAuthClient } from './api/auth.js';
 import { setCsrfToken } from './api/session.js';
@@ -18,6 +19,7 @@ import CalendarHomePage from './pages/CalendarHomePage.vue';
 import MembersPage from './pages/MembersPage.vue';
 import EventsPage from './pages/EventsPage.vue';
 import LineupsPage from './pages/LineupsPage.vue';
+import BattleUploadPage from './pages/BattleUploadPage.vue';
 
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 const authClient = createAuthClient({ source });
@@ -27,10 +29,16 @@ const navigation = [
   { page: 'members', label: '成員清單', icon: mdiAccountGroupOutline },
   { page: 'events', label: '活動安排', icon: mdiCalendarMonthOutline },
   { page: 'lineups', label: '戰場排表', icon: mdiSwordCross },
+  { page: 'battle-upload', label: '戰績上傳', icon: mdiFileUploadOutline },
 ];
 const mobileMenu = ref(false);
 const lineupFocus = ref(false);
 const pageGuard = ref(null);
+const battleUploadEventId = ref(null);
+provide('openBattleUpload', (eventId) => {
+  battleUploadEventId.value = eventId;
+  navigate('battle-upload');
+});
 const user = ref(null);
 const authLoading = ref(true);
 const authBusy = ref(false);
@@ -287,6 +295,11 @@ function skipToMain() {
         <MembersPage v-else-if="view === 'members'" />
         <EventsPage v-else-if="view === 'events'" />
         <LineupsPage v-else-if="view === 'lineups'" @focus-changed="lineupFocus = $event" />
+        <BattleUploadPage
+          v-else-if="view === 'battle-upload'"
+          :initial-event-id="battleUploadEventId"
+          @open-page="navigate"
+        />
       </template>
       <footer v-show="!lineupFocus" class="page-footer">
         <span>逆水寒 <span class="footer-divider">/</span> 幫會管理平台</span

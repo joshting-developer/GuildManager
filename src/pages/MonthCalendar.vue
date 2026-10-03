@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, onUnmounted, ref, watch } from 'vue';
+import { onMounted, onUnmounted, ref, watch, inject } from 'vue';
 import { createEventClient } from '../api/events.js';
 import { createParticipationClient } from '../api/participation.js';
 import CalendarGrid from './CalendarGrid.vue';
@@ -9,6 +9,7 @@ import { LINEUP_TYPES } from '../domain/lineups.js';
 import './events.css';
 import { eventTypeLabel, eventDisplayTitle } from '../domain/event-types.js';
 const props = defineProps({ management: { type: Boolean, default: true } });
+const openBattleUpload = inject('openBattleUpload', null);
 const selectedEvent = ref(null);
 const participationDialog = ref(false);
 const client = createEventClient({ source: import.meta.env.VITE_DATA_SOURCE || 'local' });
@@ -198,6 +199,17 @@ function restoreFocus() {
               >
             </div>
           </div>
+          <v-btn
+            v-if="management && openBattleUpload && LINEUP_TYPES.includes(event.type)"
+            variant="tonal"
+            color="primary"
+            :aria-label="`${eventDisplayTitle(event)} ${selectedDay.date} 上傳戰績`"
+            @click="
+              dayDialog = false;
+              openBattleUpload(event.id);
+            "
+            >上傳戰績</v-btn
+          >
           <v-btn
             v-if="!management && LINEUP_TYPES.includes(event.type)"
             variant="tonal"

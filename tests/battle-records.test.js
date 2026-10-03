@@ -71,6 +71,8 @@ test('battle CSV rejects malformed quotes, headers, numeric data, oversized expo
   ])
     assert.throws(() => parseBattleCsv(bad));
   assert.equal(taipeiBattleTime('2026-10-24T00:30'), '2026-10-24T00:30:00+08:00');
+  assert.equal(taipeiBattleTime('2026-10-24'), '2026-10-24');
+  assert.throws(() => taipeiBattleTime('2026-02-29'));
   for (const bad of [
     '2026-02-29T21:00',
     '2026-13-01T21:00',
