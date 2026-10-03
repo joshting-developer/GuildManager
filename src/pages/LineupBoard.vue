@@ -1,5 +1,5 @@
 <script setup>
-import { LINEUP_GROUPS } from '../domain/lineups.js';
+import { LINEUP_GROUPS, slotAssignments } from '../domain/lineups.js';
 const props = defineProps({
   teams: { type: Array, required: true },
   members: { type: Array, default: () => [] },
@@ -95,7 +95,11 @@ function activate(team, index) {
             :key="index"
             :class="[
               'lineup-seat',
-              { occupied: slot.uid, 'seat-target': (selectedUid || selectedDutyId) && !readOnly },
+              {
+                occupied: slot.uid || slot.secondRound?.uid,
+                'has-second-round': Boolean(slot.secondRound),
+                'seat-target': (selectedUid || selectedDutyId) && !readOnly,
+              },
             ]"
             :data-seat="`${team.id}-${index}`"
             @dragover.prevent="
@@ -108,36 +112,47 @@ function activate(team, index) {
             "
             @drop.prevent="drop($event, team.id, index)"
           >
-            <component
-              :is="readOnly ? 'div' : 'button'"
-              :type="readOnly ? undefined : 'button'"
-              class="seat-person"
-              :tabindex="readOnly ? 0 : undefined"
-              :title="slot.uid ? `${person(slot)?.name || slot.uid}（${slot.uid}）` : '尚未安排'"
-              :draggable="!readOnly && Boolean(slot.uid)"
-              :aria-label="
-                readOnly
-                  ? undefined
-                  : `${group.name} ${team.name} 第 ${index + 1} 位，${person(slot)?.name || '空位'}${selectedDutyId ? '，分配已選職責' : selectedUid ? '，安排已選成員' : '，編輯位置'}`
-              "
-              @dragstart="drag($event, slot)"
-              @click="activate(team, index)"
-            >
-              <span class="seat-number">{{ index + 1 }}</span>
-              <span v-if="slot.uid" class="seat-identity"
-                ><span class="seat-job"
-                  ><span
-                    class="profession-dot"
-                    :style="{ backgroundColor: job(slot)?.colorcode || '#64748b' }"
-                  ></span
-                  >{{ job(slot)?.name || '職業未設定'
-                  }}<small v-if="slot.profession === 'secondary'">副</small></span
-                ><strong>{{ person(slot)?.name || slot.uid }}</strong></span
+            <div class="seat-people">
+              <component
+                v-for="(entry, roundIndex) in slotAssignments(slot)"
+                :key="roundIndex"
+                :is="readOnly ? 'div' : 'button'"
+                :type="readOnly ? undefined : 'button'"
+                class="seat-person"
+                :tabindex="readOnly ? 0 : undefined"
+                :title="
+                  entry.uid ? `${person(entry)?.name || entry.uid}（${entry.uid}）` : '尚未安排'
+                "
+                :draggable="!readOnly && Boolean(entry.uid)"
+                :aria-label="
+                  readOnly
+                    ? undefined
+                    : `${group.name} ${team.name} 第 ${index + 1} 位${slot.secondRound ? (roundIndex === 0 ? '第一場' : '第二場') : ''}，${person(entry)?.name || '空位'}${selectedDutyId ? '，分配已選職責' : selectedUid ? '，安排已選成員' : '，編輯位置'}`
+                "
+                @dragstart="drag($event, entry)"
+                @click="activate(team, index)"
               >
-              <span v-else class="empty-seat">{{
-                selectedUid && !readOnly ? '點此安排' : '尚未安排'
-              }}</span>
-            </component>
+                <span class="seat-number" aria-hidden="true">{{
+                  roundIndex === 0 ? index + 1 : ''
+                }}</span>
+                <span v-if="slot.secondRound" class="seat-round-label">{{
+                  roundIndex === 0 ? '第一場' : '第二場'
+                }}</span>
+                <span v-if="entry.uid" class="seat-identity"
+                  ><span class="seat-job"
+                    ><span
+                      class="profession-dot"
+                      :style="{ backgroundColor: job(entry)?.colorcode || '#64748b' }"
+                    ></span
+                    >{{ job(entry)?.name || '職業未設定'
+                    }}<small v-if="entry.profession === 'secondary'">副</small></span
+                  ><strong>{{ person(entry)?.name || entry.uid }}</strong></span
+                >
+                <span v-else class="empty-seat">{{
+                  selectedUid && !readOnly ? '點此安排' : '尚未安排'
+                }}</span>
+              </component>
+            </div>
             <button
               v-if="!readOnly"
               type="button"

@@ -1729,3 +1729,44 @@ button.seat-person {
   border-radius: 8px;
   font-size: 12px;
 }
+
+.seat-people {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.seat-people .seat-person {
+  flex: 1;
+  min-height: 44px;
+}
+.seat-round-label {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+@media (min-width: 1200px) {
+  .lineups-page .seat-people .seat-person {
+    min-height: 27px;
+  }
+  .lineups-page .has-second-round .seat-person {
+    min-height: 13px;
+    padding: 0 3px;
+    gap: 3px;
+    line-height: 13px;
+  }
+  .lineups-page .has-second-round .seat-identity {
+    gap: 3px;
+  }
+  .lineups-page .has-second-round .seat-job,
+  .lineups-page .has-second-round .seat-round-label,
+  .lineups-page .has-second-round .seat-number {
+    font-size: 10px;
+    line-height: 13px;
+  }
+  .lineups-page .has-second-round .seat-identity strong,
+  .lineups-page .has-second-round .empty-seat {
+    font-size: 11px;
+    line-height: 13px;
+  }
+}

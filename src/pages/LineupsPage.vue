@@ -10,7 +10,14 @@ import {
 } from '@mdi/js';
 import { createLineupClient } from '../api/lineups.js';
 import { createMemberClient } from '../api/members.js';
-import { emptyLineup, editableLineup, eligibleMember, placeMember } from '../domain/lineups.js';
+import {
+  emptyLineup,
+  editableLineup,
+  eligibleMember,
+  placeMember,
+  addMemberToSlot,
+  slotAssignments,
+} from '../domain/lineups.js';
 import { eventTypeLabel } from '../domain/event-types.js';
 import LineupBoard from './LineupBoard.vue';
 import DutyList from './DutyList.vue';
@@ -69,7 +76,9 @@ const dialog = ref(null),
   seat = ref(null),
   seatUid = ref(null),
   seatNote = ref(''),
-  seatProfession = ref('primary');
+  seatProfession = ref('primary'),
+  seatSecondUid = ref(null),
+  seatSecondProfession = ref('primary');
 let seatBaseline = '';
 let operation = 0,
   disposed = false,
@@ -94,8 +103,14 @@ const dialogDirty = computed(() =>
   dialog.value === 'template'
     ? Boolean(templateName.value.trim())
     : dialog.value === 'seat' &&
-      JSON.stringify([seatUid.value, seatProfession.value, seatNote.value, seatDutyIds.value]) !==
-        seatBaseline,
+      JSON.stringify([
+        seatUid.value,
+        seatProfession.value,
+        seatSecondUid.value,
+        seatSecondProfession.value,
+        seatNote.value,
+        seatDutyIds.value,
+      ]) !== seatBaseline,
 );
 const latestVersion = computed(() => versions.value[0]?.version || 0);
 const assigned = computed(
@@ -103,13 +118,30 @@ const assigned = computed(
     new Set(
       teams.value
         .flatMap((team) => team.slots)
-        .filter((slot) => slot.uid)
-        .map((slot) => slot.uid),
+        .flatMap(slotAssignments)
+        .filter((person) => person.uid)
+        .map((person) => person.uid),
     ),
 );
 const count = computed(
-  () => displayedTeams.value.flatMap((team) => team.slots).filter((slot) => slot.uid).length,
+  () =>
+    displayedTeams.value
+      .flatMap((team) => team.slots.flatMap(slotAssignments))
+      .filter((person) => person.uid).length,
 );
+const positionCount = computed(
+  () =>
+    displayedTeams.value
+      .flatMap((team) => team.slots)
+      .filter((slot) => slotAssignments(slot).some((person) => person.uid)).length,
+);
+const roundCounts = computed(() => {
+  const slots = displayedTeams.value.flatMap((team) => team.slots);
+  return {
+    first: slots.filter((slot) => slot.uid).length,
+    second: slots.filter((slot) => (slot.secondRound ? slot.secondRound.uid : slot.uid)).length,
+  };
+});
 const eligible = computed(() =>
   members.value.filter((member) => eligibleMember(member, currentEvent.value?.type)),
 );
@@ -139,21 +171,25 @@ const historyOptions = computed(() => [
 const slotOptions = computed(() => [
   { title: '空位', value: null },
   ...eligible.value.map((member) => ({
-    title: `${member.name} · ${member.uid}${assigned.value.has(member.uid) ? '（已安排，選取會移動／交換）' : ''}`,
+    title: `${member.name} · ${member.uid}${assigned.value.has(member.uid) ? '（已安排，可移動或分場）' : ''}`,
     value: member.uid,
   })),
 ]);
-const seatMember = computed(() => members.value.find((member) => member.uid === seatUid.value));
-const seatJobs = computed(() => [
-  { title: `主職業：${seatMember.value?.primaryProfession || '未選成員'}`, value: 'primary' },
-  ...(seatMember.value?.secondaryProfessionId
-    ? [{ title: `副職業：${seatMember.value.secondaryProfession}`, value: 'secondary' }]
-    : []),
-]);
+function seatJobOptions(uid) {
+  const member = members.value.find((member) => member.uid === uid);
+  return [
+    { title: `主職業：${member?.primaryProfession || '未選成員'}`, value: 'primary' },
+    ...(member?.secondaryProfessionId
+      ? [{ title: `副職業：${member.secondaryProfession}`, value: 'secondary' }]
+      : []),
+  ];
+}
+const seatJobs = computed(() => seatJobOptions(seatUid.value));
+const seatSecondJobs = computed(() => seatJobOptions(seatSecondUid.value));
 const invalidAssignments = computed(
   () =>
     teams.value
-      .flatMap((team) => team.slots)
+      .flatMap((team) => team.slots.flatMap(slotAssignments))
       .filter(
         (slot) =>
           slot.uid &&
@@ -313,7 +349,11 @@ function place(uid, teamId, index) {
     error.value = '這位成員不符合本場資格，請重新載入成員清單';
     return false;
   }
-  placeMember(teams.value, uid, teamId, index);
+  if (!addMemberToSlot(teams.value, uid, teamId, index)) {
+    error.value = '這個位置已有第一場與第二場的成員，請點位置編輯後再調整。';
+    return false;
+  }
+  error.value = '';
   selectedUid.value = '';
   notice.value = '已安排位置，請確認並儲存名單。';
   skipped.value = [];
@@ -354,29 +394,56 @@ function openSeat(teamId, index) {
   seatUid.value = slot.uid;
   seatNote.value = slot.note;
   seatProfession.value = slot.profession;
+  seatSecondUid.value = slot.secondRound?.uid || null;
+  seatSecondProfession.value = slot.secondRound?.profession || 'primary';
   seatDutyIds.value = [...(slot.dutyIds || [])];
   seatBaseline = JSON.stringify([
     seatUid.value,
     seatProfession.value,
+    seatSecondUid.value,
+    seatSecondProfession.value,
     seatNote.value,
     seatDutyIds.value,
   ]);
   openDialog('seat');
 }
 function saveSeat() {
-  const slot = teams.value.find((team) => team.id === seat.value.teamId).slots[seat.value.index];
-  if (seatUid.value) {
-    if (!place(seatUid.value, seat.value.teamId, seat.value.index)) {
-      dialogError.value = error.value;
+  if (seatUid.value && seatUid.value === seatSecondUid.value) {
+    dialogError.value = '第一場與第二場請安排不同成員；同一人兩場沿用時，第二場選空位即可。';
+    return;
+  }
+  const choices = [
+    { uid: seatUid.value, profession: seatProfession.value },
+    { uid: seatSecondUid.value, profession: seatSecondProfession.value },
+  ];
+  for (const person of choices) {
+    if (
+      person.uid &&
+      (!eligible.value.some((member) => member.uid === person.uid) ||
+        !members.value.find((member) => member.uid === person.uid)?.[
+          `${person.profession}ProfessionId`
+        ])
+    ) {
+      dialogError.value = '成員資格或上場職業已無法使用，請重新選擇。';
       return;
     }
-  } else {
-    slot.uid = null;
-    slot.profession = 'primary';
   }
-  slot.profession = seatUid.value ? seatProfession.value : 'primary';
+  const slot = teams.value.find((team) => team.id === seat.value.teamId).slots[seat.value.index];
+  choices.forEach((person, index) => {
+    if (person.uid)
+      placeMember(teams.value, person.uid, seat.value.teamId, seat.value.index, index + 1);
+    if (index === 0)
+      Object.assign(slot, {
+        uid: person.uid,
+        profession: person.uid ? person.profession : 'primary',
+      });
+    else slot.secondRound = person.uid ? { ...person } : null;
+  });
   slot.note = seatNote.value.trim();
   slot.dutyIds = [...seatDutyIds.value];
+  error.value = '';
+  notice.value = '已套用分場配置，請確認並儲存名單。';
+  selectedUid.value = '';
   dialog.value = null;
 }
 function changeSeatUid(uid) {
@@ -552,7 +619,7 @@ onUnmounted(() => {
         <strong>{{ displayedEvent?.title }}</strong
         ><span
           >{{ eventTypeLabel(displayedEvent?.type) }} · {{ displayedEvent?.dates[0] }} ·
-          {{ count }} / 60 人 ·
+          {{ positionCount }} / 60 個位置 · {{ count }} 人 ·
           {{
             historical ? `第 ${historical.version} 版（唯讀）` : dirty ? '未確認修改' : '工作區'
           }}</span
@@ -637,7 +704,7 @@ onUnmounted(() => {
             <strong>{{ displayedEvent?.title }}</strong>
             <p>
               {{ eventTypeLabel(displayedEvent?.type) }} · {{ displayedEvent?.dates[0] }} · 已安排
-              {{ count }} / 60 人
+              {{ positionCount }} / 60 個位置 · {{ count }} 人
               <span class="draft-label">{{
                 historical
                   ? `第 ${historical.version} 版 · 歷史唯讀`
@@ -703,7 +770,7 @@ onUnmounted(() => {
         role="alert"
         >有
         {{ invalidAssignments }}
-        個位置的成員或職業不符合本場資格。請編輯位置移除或重新安排，再確認名單。</v-alert
+        位成員的資格或職業不符合本場要求。請編輯位置移除或重新安排，再確認名單。</v-alert
       >
       <v-alert
         v-if="skipped.length"
@@ -714,7 +781,10 @@ onUnmounted(() => {
         ><strong>套用時跳過的成員</strong>
         <ul>
           <li v-for="person in skipped" :key="person.uid">
-            {{ person.name }}（{{ person.uid }}）：{{ person.reason }}
+            {{ person.name }}（{{ person.uid }}）{{
+              person.round ? ` · 第${person.round === 1 ? '一' : '二'}場` : ''
+            }}
+            — {{ person.reason }}
           </li>
         </ul></v-alert
       >
@@ -784,7 +854,7 @@ onUnmounted(() => {
             </div>
             <p class="lineup-hint">{{ qualification }}</p>
             <p class="lineup-hint">
-              拖曳至位置，或先點選成員再點位置。已安排成員會移動；兩個已占用位置會交換，職責與備註保留在原位置。
+              拖曳至位置，或先點選成員再點位置。第二位會安排為第二場；每個位置最多兩人，職責與備註共用。
             </p>
             <v-text-field
               v-model="search"
@@ -891,16 +961,32 @@ onUnmounted(() => {
             ><v-select
               :model-value="seatUid"
               :items="slotOptions"
-              label="安排成員"
+              label="第一場成員"
               variant="outlined"
               :disabled="busy"
               @update:model-value="changeSeatUid"
             /><v-select
               v-model="seatProfession"
               :items="seatJobs"
-              label="上場職業"
+              label="第一場上場職業"
               variant="outlined"
               :disabled="busy || !seatUid"
+            /><v-select
+              :model-value="seatSecondUid"
+              :items="slotOptions"
+              label="第二場成員（選填）"
+              variant="outlined"
+              :disabled="busy"
+              @update:model-value="
+                seatSecondUid = $event;
+                seatSecondProfession = 'primary';
+              "
+            /><v-select
+              v-model="seatSecondProfession"
+              :items="seatSecondJobs"
+              label="第二場上場職業"
+              variant="outlined"
+              :disabled="busy || !seatSecondUid"
             /><v-select
               v-model="seatDutyIds"
               :items="seatDutyOptions"
@@ -919,7 +1005,7 @@ onUnmounted(() => {
               :disabled="busy"
             />
             <p class="lineup-hint">
-              選取已安排的成員會移動或交換位置。選空位可移除此位置的成員。
+              未指定第二場時沿用第一場成員。選空位可移除該場分配；明確選取已安排成員會移動或交換該場位置。職責與備註兩場共用。
             </p></template
           >
           <template v-else-if="dialog === 'template'"
@@ -942,7 +1028,10 @@ onUnmounted(() => {
             </p>
             <p>{{ eventTypeLabel(currentEvent?.type) }} · {{ currentEvent?.dates[0] }}</p>
             <p>
-              將確認第 {{ latestVersion + 1 }} 版，共 {{ count }} 位成員，{{ 60 - count }} 個空位。
+              將確認第 {{ latestVersion + 1 }} 版，共 {{ count }} 位成員，{{
+                60 - positionCount
+              }}
+              個空位。第一場 {{ roundCounts.first }} 人、第二場 {{ roundCounts.second }} 人。
             </p>
             <p class="lineup-hint">
               保存當時的名稱、職業與位置。往後修改會另建版本，原始名單仍可回看。
