@@ -35,6 +35,7 @@ function setup(filename = ':memory:') {
   const events = ['scrimmage', 'guild_war', 'dragon_tiger'].map((type) =>
     repo.createEvent({ title: type, type, dates: ['2026-10-24'], requestId: type }),
   );
+  repo.saveMemberResponse(events[0].id, { uid: '003', status: 'registered', revision: 0 });
   return { repo, events };
 }
 function input(event, uid = '001', extra = {}) {
@@ -57,10 +58,12 @@ test('lineups enforce source membership, unique UID, fixed layout and valid seco
       repo.confirmLineup(input(events[0], '003')).teams[0].slots[0].member.name,
       '名字003',
     );
+    repo.saveMemberResponse(events[1].id, { uid: '002', status: 'leave', revision: 0 });
     assert.throws(
       () => repo.confirmLineup(input(events[1], '002')),
       errorCode('INELIGIBLE_MEMBER'),
     );
+    repo.saveMemberResponse(events[2].id, { uid: '001', status: 'leave', revision: 0 });
     assert.throws(
       () => repo.confirmLineup(input(events[2], '001')),
       errorCode('INELIGIBLE_MEMBER'),
@@ -143,12 +146,12 @@ test('templates resolve current eligibility and professions, disclose skipped pe
     assert.equal(guild.teams[0].slots[0].note, '御拆');
     assert.deepEqual(
       guild.skipped.map((s) => s.uid),
-      ['002', '003'],
+      ['003'],
     );
     assert.equal(repo.applyLineupTemplate(template.id, events[2].id).teams[0].slots[1].uid, '002');
     assert.equal(repo.applyLineupTemplate(template.id, events[0].id).skipped.length, 0);
     repo.removeMember('001', 1);
-    assert.equal(repo.applyLineupTemplate(template.id, events[1].id).skipped.length, 3);
+    assert.equal(repo.applyLineupTemplate(template.id, events[1].id).skipped.length, 2);
     const original = repo.getLineupIndex().templates[0];
     assert.deepEqual(original, template);
     const changed = repo.updateEvent(events[0].id, {
@@ -217,7 +220,7 @@ test('HTTP and adapter cover confirmation, history, template application, failur
       teams: input(events[0]).teams,
       requestId: 'http-template',
     });
-    assert.equal((await client.applyTemplate(template.id, events[2].id)).skipped.length, 1);
+    assert.equal((await client.applyTemplate(template.id, events[2].id)).skipped.length, 0);
     await assert.rejects(
       () => client.confirm(input(events[1], '003')),
       errorCode('INELIGIBLE_MEMBER'),

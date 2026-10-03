@@ -21,10 +21,22 @@ export function emptyLineup() {
 }
 export function eligibleMember(member, type) {
   return (
-    type === 'scrimmage' ||
-    (type === 'guild_war' && member.isInGuild) ||
-    (type === 'dragon_tiger' && member.isInClub)
+    LINEUP_TYPES.includes(type) &&
+    !member.isOnLeave &&
+    Boolean(member.isInGuild || member.isInClub || member.isRegistered || member.registrationId)
   );
+}
+export function participantKey(person) {
+  return person?.registrationId
+    ? `registration:${person.registrationId}`
+    : person?.uid
+      ? `member:${person.uid}`
+      : null;
+}
+export function participantReference(key, profession = 'primary') {
+  return key?.startsWith('registration:')
+    ? { uid: null, registrationId: key.slice(13), profession }
+    : { uid: key?.startsWith('member:') ? key.slice(7) : key || null, profession };
 }
 export function editableLineup(teams) {
   return teams.map((team) => ({
@@ -32,11 +44,18 @@ export function editableLineup(teams) {
     name: team.name,
     slots: team.slots.map((slot) => ({
       uid: slot.uid,
+      ...(slot.registrationId ? { registrationId: slot.registrationId } : {}),
       profession: slot.profession,
       note: slot.note,
       dutyIds: [...(slot.dutyIds || [])],
       secondRound: slot.secondRound
-        ? { uid: slot.secondRound.uid, profession: slot.secondRound.profession }
+        ? {
+            uid: slot.secondRound.uid,
+            ...(slot.secondRound.registrationId
+              ? { registrationId: slot.secondRound.registrationId }
+              : {}),
+            profession: slot.secondRound.profession,
+          }
         : null,
     })),
   }));
@@ -48,32 +67,42 @@ function assignment(slot, round) {
   return round === 2 ? slot.secondRound : slot;
 }
 function setAssignment(slot, round, person) {
-  if (round === 2) slot.secondRound = person.uid ? { ...person } : null;
-  else Object.assign(slot, person);
+  if (round === 2) slot.secondRound = participantKey(person) ? { ...person } : null;
+  else {
+    delete slot.registrationId;
+    Object.assign(slot, person);
+  }
 }
 // Explicit editing can swap assignments; duties and notes always stay on the position.
 export function placeMember(teams, uid, teamId, index, round = 1) {
   const target = teams.find((team) => team.id === teamId)?.slots[index];
   if (!target || !uid || ![1, 2].includes(round)) return;
+  const reference = participantReference(uid);
+  const key = participantKey(reference);
   let source;
   for (const slot of teams.flatMap((team) => team.slots)) {
     for (const sourceRound of [1, 2]) {
-      if (assignment(slot, sourceRound)?.uid === uid) source = { slot, round: sourceRound };
+      if (participantKey(assignment(slot, sourceRound)) === key)
+        source = { slot, round: sourceRound };
     }
   }
   if (source?.slot === target && source.round === round) return;
   const previous = assignment(target, round);
-  const displaced = { uid: previous?.uid || null, profession: previous?.profession || 'primary' };
+  const displaced = participantReference(
+    participantKey(previous),
+    previous?.profession || 'primary',
+  );
   const incoming = assignment(source?.slot || {}, source?.round);
-  setAssignment(target, round, { uid, profession: incoming?.profession || 'primary' });
+  setAssignment(target, round, { ...reference, profession: incoming?.profession || 'primary' });
   if (source) setAssignment(source.slot, source.round, displaced);
 }
 // Dragging adds the next round instead of replacing the person already on this position.
 export function addMemberToSlot(teams, uid, teamId, index) {
   const target = teams.find((team) => team.id === teamId)?.slots[index];
   if (!target || !uid) return false;
-  if (slotAssignments(target).some((person) => person.uid === uid)) return true;
-  if (target.uid && target.secondRound) return false;
-  placeMember(teams, uid, teamId, index, target.uid ? 2 : 1);
+  const key = participantKey(participantReference(uid));
+  if (slotAssignments(target).some((person) => participantKey(person) === key)) return true;
+  if (participantKey(target) && target.secondRound) return false;
+  placeMember(teams, uid, teamId, index, participantKey(target) ? 2 : 1);
   return true;
 }

@@ -3,6 +3,7 @@ import {
   emptyLineup,
   editableLineup,
   eligibleMember,
+  participantKey,
   LINEUP_TYPES,
 } from '../src/domain/lineups.js';
 
@@ -44,25 +45,35 @@ export function validateLineup(teams) {
       name: text(team.name, '隊名', 40, true),
       slots: team.slots.map((slot) => {
         function validateAssignment(person, allowEmpty = false) {
+          const registrationId = person?.registrationId ?? null;
           if (
             !person ||
-            (person.uid === null
-              ? !allowEmpty
-              : typeof person.uid !== 'string' || !person.uid || person.uid.length > 64)
+            (person.uid !== null &&
+              (typeof person.uid !== 'string' || !person.uid || person.uid.length > 64)) ||
+            (registrationId !== null &&
+              (typeof registrationId !== 'string' ||
+                !/^[a-zA-Z0-9_-]{1,64}$/.test(registrationId))) ||
+            (person.uid !== null && registrationId !== null) ||
+            (!allowEmpty && !person.uid && !registrationId)
           )
-            throw new LineupError('成員 UID 格式不正確');
+            throw new LineupError('成員 UID 或報名 ID 格式不正確');
           if (!['primary', 'secondary'].includes(person.profession))
             throw new LineupError('請選擇主職業或副職業');
-          if (person.uid !== null) {
-            if (seen.has(person.uid))
+          const identity = participantKey(person);
+          if (identity) {
+            if (seen.has(identity))
               throw new LineupError(
-                `UID ${person.uid} 在這份排表中重複`,
+                `人員 ${person.uid || registrationId} 在這份排表中重複`,
                 422,
                 'DUPLICATE_LINEUP_UID',
               );
-            seen.add(person.uid);
+            seen.add(identity);
           }
-          return { uid: person.uid, profession: person.profession };
+          return {
+            uid: person.uid,
+            ...(registrationId ? { registrationId } : {}),
+            profession: person.profession,
+          };
         }
         const first = validateAssignment(slot, true);
         const secondRound = slot.secondRound == null ? null : validateAssignment(slot.secondRound);
@@ -116,8 +127,8 @@ export function createLineupRepository(db) {
     if (dates.length !== 1) throw new LineupError('戰鬥排表需要單日場次', 409, 'EVENT_UNAVAILABLE');
     return { id: row.id, title: row.title, type: row.type, revision: row.revision, dates };
   }
-  function members() {
-    return new Map(
+  function members(eventId) {
+    const current = new Map(
       db
         .prepare(
           `SELECT m.uid, m.name, m.is_in_guild AS isInGuild, m.is_in_club AS isInClub,
@@ -127,11 +138,33 @@ export function createLineupRepository(db) {
       LEFT JOIN professions s ON s.job_id = m.secondary_profession_id WHERE m.removed_at IS NULL`,
         )
         .all()
-        .map((m) => [m.uid, m]),
+        .map((m) => [participantKey(m), m]),
     );
+    if (eventId) {
+      for (const row of db
+        .prepare('SELECT member_uid, status FROM event_member_responses WHERE event_id = ?')
+        .all(eventId)) {
+        const member = current.get(participantKey({ uid: row.member_uid }));
+        if (member)
+          Object.assign(member, {
+            isOnLeave: row.status === 'leave',
+            isRegistered: row.status === 'registered',
+          });
+      }
+    }
+    const guests = db
+      .prepare(
+        `SELECT r.id AS registrationId, r.event_id AS eventId, r.name, r.note,
+      p.job_id AS primaryId, p.name AS primaryName, p.colorcode AS primaryColor
+      FROM event_registrations r JOIN professions p ON p.job_id = r.profession_id
+      WHERE r.active = 1 ${eventId ? 'AND r.event_id = ?' : ''}`,
+      )
+      .all(...(eventId ? [eventId] : []));
+    for (const guest of guests) current.set(participantKey(guest), { ...guest, uid: null });
+    return current;
   }
-  function snapshot(teams, type) {
-    const current = members();
+  function snapshot(teams, type, eventId) {
+    const current = members(eventId);
     const catalog = new Map(
       db
         .prepare('SELECT id,name FROM duties WHERE active = 1')
@@ -139,11 +172,11 @@ export function createLineupRepository(db) {
         .map((duty) => [duty.id, duty]),
     );
     function snapshotPerson(slot) {
-      if (!slot.uid) return { ...slot, member: null };
-      const person = current.get(slot.uid);
+      if (!participantKey(slot)) return { ...slot, member: null };
+      const person = current.get(participantKey(slot));
       if (!person || (type && !eligibleMember(person, type)))
         throw new LineupError(
-          `UID ${slot.uid} 已不存在或不符合這場戰鬥的資格，請重新載入成員清單`,
+          '人員已請假、取消報名或不符合這場戰鬥資格，請重新載入成員清單',
           409,
           'INELIGIBLE_MEMBER',
         );
@@ -156,6 +189,9 @@ export function createLineupRepository(db) {
         ...slot,
         member: {
           uid: person.uid,
+          ...(person.registrationId
+            ? { registrationId: person.registrationId, eventId: person.eventId, note: person.note }
+            : {}),
           name: person.name,
           primaryProfession: {
             job_id: person.primaryId,
@@ -286,7 +322,10 @@ export function createLineupRepository(db) {
             409,
             'LINEUP_CONFLICT',
           );
-        const data = { event: currentEvent, teams: snapshot(teams, currentEvent.type) };
+        const data = {
+          event: currentEvent,
+          teams: snapshot(teams, currentEvent.type, currentEvent.id),
+        };
         const row = {
           id: randomUUID(),
           event_id: input.eventId,
@@ -340,7 +379,7 @@ export function createLineupRepository(db) {
       const currentEvent = event(eventId);
       const row = db.prepare('SELECT * FROM lineup_templates WHERE id = ?').get(templateId);
       if (!row) throw new LineupError('找不到這份範本，請重新載入', 404, 'TEMPLATE_NOT_FOUND');
-      const current = members();
+      const current = members(currentEvent.id);
       const skipped = [];
       const savedTeams = JSON.parse(row.teams_json);
       const catalog = new Map(
@@ -370,27 +409,35 @@ export function createLineupRepository(db) {
           });
           slot = { ...slot, dutyIds };
           function applyPerson(person, round) {
-            if (!person?.uid) return person;
-            const currentPerson = current.get(person.uid);
+            if (!participantKey(person)) return person;
+            const currentPerson = current.get(participantKey(person));
             const reason = !currentPerson
-              ? '成員已不存在'
-              : !eligibleMember(currentPerson, currentEvent.type)
-                ? '不符合本場成員資格'
-                : !currentPerson[`${person.profession}Id`]
-                  ? '原本的職業已無法使用'
-                  : '';
+              ? person.registrationId
+                ? '額外報名不屬於本場或已取消'
+                : '成員已不存在'
+              : currentPerson.isOnLeave
+                ? '本場已請假'
+                : !eligibleMember(currentPerson, currentEvent.type)
+                  ? '不符合本場成員資格'
+                  : !currentPerson[`${person.profession}Id`]
+                    ? '原本的職業已無法使用'
+                    : '';
             if (!reason) return person;
             const savedSlot = savedTeams.find((t) => t.id === team.id).slots[index];
             const savedPerson = round === 2 ? savedSlot.secondRound : savedSlot;
             skipped.push({
               uid: person.uid,
-              name: savedPerson?.member?.name || person.uid,
+              ...(person.registrationId ? { registrationId: person.registrationId } : {}),
+              name: savedPerson?.member?.name || person.uid || person.registrationId,
               reason,
               teamName: team.name,
               position: index + 1,
               round,
             });
-            return round === 2 ? null : { ...person, uid: null, profession: 'primary' };
+            if (round === 2) return null;
+            const cleared = { ...person, uid: null, profession: 'primary' };
+            delete cleared.registrationId;
+            return cleared;
           }
           return {
             ...applyPerson(slot, 1),

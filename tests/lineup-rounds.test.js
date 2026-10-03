@@ -101,6 +101,7 @@ test('both rounds are validated for duplicates, eligibility, profession and exac
       dates: ['2026-10-25'],
       requestId: 'round-guild',
     });
+    repo.saveMemberResponse(guild.id, { uid: '002', status: 'leave', revision: 0 });
     assert.throws(
       () => repo.confirmLineup({ ...input, eventId: guild.id }),
       code('INELIGIBLE_MEMBER'),
@@ -143,6 +144,7 @@ test('second round snapshots are immutable and retryable, templates preserve bot
       dates: ['2026-10-25'],
       requestId: 'round-template-guild',
     });
+    repo.saveMemberResponse(guild.id, { uid: '002', status: 'leave', revision: 0 });
     const skipped = repo.applyLineupTemplate(template.id, guild.id);
     assert.equal(skipped.teams[0].slots[0].uid, '001');
     assert.equal(skipped.teams[0].slots[0].secondRound, null);
