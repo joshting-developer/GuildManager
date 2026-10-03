@@ -9,9 +9,11 @@ import {
   mdiHistory,
   mdiMagnify,
   mdiClose,
+  mdiFileImportOutline,
 } from '@mdi/js';
 import { createMemberClient } from '../api/members.js';
 import './members.css';
+import MemberImportDialog from './MemberImportDialog.vue';
 
 const client = createMemberClient({ source: import.meta.env.VITE_DATA_SOURCE || 'local' });
 const members = ref([]);
@@ -166,6 +168,29 @@ function openHistory(member) {
   history.value = member;
   historyDialog.value = true;
 }
+const importDialog = ref(false);
+const importResultDialog = ref(false);
+const importSummary = ref(null);
+const pendingImportSummary = ref(null);
+function openImport() {
+  opener = document.activeElement;
+  importDialog.value = true;
+}
+function acceptImport(data) {
+  for (const member of data.members) {
+    const index = members.value.findIndex((entry) => entry.uid === member.uid);
+    if (index < 0) members.value.push(member);
+    else members.value[index] = member;
+  }
+  pendingImportSummary.value = data.summary;
+}
+function afterImportLeave() {
+  if (pendingImportSummary.value) {
+    importSummary.value = pendingImportSummary.value;
+    pendingImportSummary.value = null;
+    importResultDialog.value = true;
+  } else restoreFocus();
+}
 function formatDate(value) {
   return new Intl.DateTimeFormat('zh-TW', {
     timeZone: 'Asia/Taipei',
@@ -186,13 +211,22 @@ function formatDate(value) {
       <h1 id="members-title">成員清單<span class="heading-dot">.</span></h1>
       <p class="page-subtitle">管理成員名稱與職業，留存每一次改名。</p>
     </div>
-    <v-btn
-      color="primary"
-      :prepend-icon="mdiPlus"
-      :disabled="loading || !!loadError || !professions.length"
-      @click="openForm()"
-      >加入成員</v-btn
-    >
+    <div class="member-page-actions">
+      <v-btn
+        variant="outlined"
+        :prepend-icon="mdiFileImportOutline"
+        :disabled="loading || !!loadError || !professions.length"
+        @click="openImport"
+        >匯入成員</v-btn
+      >
+      <v-btn
+        color="primary"
+        :prepend-icon="mdiPlus"
+        :disabled="loading || !!loadError || !professions.length"
+        @click="openForm()"
+        >加入成員</v-btn
+      >
+    </div>
   </section>
   <div class="member-notices" aria-live="polite">
     <v-alert v-if="notice" type="success" variant="tonal" closable @click:close="notice = ''">{{
@@ -509,5 +543,41 @@ function formatDate(value) {
         <v-btn variant="outlined" @click="historyDialog = false">關閉</v-btn>
       </div></v-card
     >
+  </v-dialog>
+  <MemberImportDialog
+    v-model="importDialog"
+    :professions="professions"
+    @imported="acceptImport"
+    @after-leave="afterImportLeave"
+  />
+  <v-dialog
+    v-model="importResultDialog"
+    max-width="500"
+    aria-labelledby="import-result-title"
+    @after-leave="restoreFocus"
+  >
+    <v-card class="member-dialog">
+      <h2 id="import-result-title">
+        {{ importSummary?.added || importSummary?.restored ? '匯入完成' : '沒有新增成員' }}
+      </h2>
+      <dl class="import-result-counts">
+        <div>
+          <dt>新增成員</dt>
+          <dd>{{ importSummary?.added }} 位</dd>
+        </div>
+        <div v-if="importSummary?.restored">
+          <dt>重新加入</dt>
+          <dd>{{ importSummary.restored }} 位</dd>
+        </div>
+        <div>
+          <dt>跳過既有 UID</dt>
+          <dd>{{ importSummary?.skipped }} 位</dd>
+        </div>
+      </dl>
+      <p class="member-dialog-description">既有成員的名稱與職業保持原樣。</p>
+      <div class="member-dialog-actions">
+        <v-btn color="primary" @click="importResultDialog = false">知道了</v-btn>
+      </div>
+    </v-card>
   </v-dialog>
 </template>

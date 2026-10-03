@@ -37,6 +37,7 @@ export function createMemberClient({
       const error = new Error(data.error?.message || '目前無法完成操作，請稍後再試');
       error.fields = data.error?.fields || {};
       error.code = data.error?.code;
+      error.rows = data.error?.rows || [];
       throw error;
     }
     return data;
@@ -44,6 +45,9 @@ export function createMemberClient({
   return {
     getMembers: () => call('GET', 'members', null, 'getMembers'),
     getProfessions: () => call('GET', 'professions', null, 'getProfessions'),
+    previewMemberImport: (input) =>
+      call('POST', 'members/import/preview', input, 'previewMemberImport', [input]),
+    importMembers: (input) => call('POST', 'members/import', input, 'importMembers', [input]),
     addMember: (input) => call('POST', 'members', input, 'addMember', [input]),
     updateMember: (uid, input) =>
       call('PATCH', `members/${encodeURIComponent(uid)}`, input, 'updateMember', [uid, input]),

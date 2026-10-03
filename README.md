@@ -125,12 +125,41 @@ npm run build:gas
 | GET | `/api/professions` | 職業 ID、色碼與名稱 |
 | GET | `/api/members` | 在會成員及過去名稱 |
 | POST | `/api/members` | 加入成員 |
+| POST | `/api/members/import/preview` | 解析並預覽匯入內容, 不寫入 |
+| POST | `/api/members/import` | 確認預覽後整批匯入 |
 | PATCH | `/api/members/:uid` | 修改名稱及職業 |
 | DELETE | `/api/members/:uid` | 移除成員, JSON body 帶 revision |
 
 加入資料格式：`{ uid: '001', name: '角色名稱', primaryProfessionId: 3, secondaryProfessionId: null }`；編輯不傳 uid, 加上 revision
 
 `src/api/members.js` 在本機呼叫 HTTP, GAS 模式呼叫同名 `google.script.run` 函式, 不會將失敗寫入自動重試或退回本機資料
+
+## 匯入成員
+
+在成員清單點「匯入成員」, 貼上文字或讀取 UTF-8 CSV／TSV／TXT, 再按「預覽資料」確認名單, 最後「確認匯入」
+
+欄位順序固定為 `UID Name 主職業 副職業`, 職業填名稱, 不填 job_id
+
+格式範例 (不會自動寫入)：
+
+```text
+UID Name 主職業 副職業
+001 角色名稱 碎夢 素問
+002 另一位角色 神相 -
+```
+
+- 表頭可省略, 原始 `UID Name Job1 Job2` 與「名稱」表頭也可接受
+- 空白、Tab 或逗號分隔, 必須保留四欄；名稱含空白時用 Tab 或 CSV 引號
+- 無副職業填 `-` 或 `無副職業`, CSV／TSV 副職業可以留空欄
+- Excel 檔請先另存為 UTF-8 CSV；每批最多 500 位、256 KiB
+- UID 全程以文字保存, 保留前導零與長 ID, 請避免 Excel 自動轉數字
+- 清單內已存在的 UID 跳過, 不修改既有名稱或職業
+- 已移除的 UID 會在預覽標示「重新加入」, 恢復時沿用過去名稱紀錄
+- 任何格式、職業或匯入內重複 UID 錯誤需先修正, 不部分匯入
+- 預覽不寫入, 確認時重新驗證並檢查預覽版本, 整批寫入使用交易
+- 輸入或相關成員資料改變後需重新預覽；提交中停用重複操作, 失敗保留輸入
+- 完成後彈窗顯示實際新增／重新加入／跳過數量；全部跳過時顯示「沒有新增成員」
+- GAS 匯入資料層尚未實作, 不會假裝成功或寫入正式試算表
 
 ## 專案結構
 

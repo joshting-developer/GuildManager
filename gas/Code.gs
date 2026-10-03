@@ -26,3 +26,10 @@ function updateMember(uid, input) {
 function removeMember(uid, revision) {
   throw new Error('雲端成員移除尚未串接');
 }
+
+function previewMemberImport(input) {
+  throw new Error('雲端成員匯入預覽尚未串接');
+}
+function importMembers(input) {
+  throw new Error('雲端成員匯入尚未串接');
+}
