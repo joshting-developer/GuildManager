@@ -8,6 +8,7 @@ import {
   mdiContentSaveOutline,
   mdiAccountGroupOutline,
   mdiAccountPlusOutline,
+  mdiDownload,
 } from '@mdi/js';
 import { createLineupClient } from '../api/lineups.js';
 import { createMemberClient } from '../api/members.js';
@@ -22,6 +23,7 @@ import {
   slotAssignments,
 } from '../domain/lineups.js';
 import { eventTypeLabel, eventDisplayTitle } from '../domain/event-types.js';
+import { lineupImageData, lineupJpeg, lineupImageFilename } from '../domain/lineup-image.js';
 import LineupBoard from './LineupBoard.vue';
 import DutyList from './DutyList.vue';
 import { createDutyClient } from '../api/duties.js';
@@ -96,6 +98,7 @@ const loading = ref(true),
   lineupLoading = ref(false),
   busy = ref(false),
   saving = ref(false),
+  exporting = ref(false),
   error = ref(''),
   notice = ref(''),
   skipped = ref([]);
@@ -742,6 +745,46 @@ onMounted(() => {
   load();
   window.addEventListener('beforeunload', beforeUnload);
 });
+async function downloadLineupImage() {
+  if (
+    !displayedEvent.value ||
+    loading.value ||
+    lineupLoading.value ||
+    busy.value ||
+    catalogBusy.value
+  )
+    return;
+  const data = lineupImageData({
+    event: displayedEvent.value,
+    teams: displayedTeams.value,
+    members: participantPeople.value,
+    professions: professions.value,
+    duties: duties.value,
+    snapshots: archived.value,
+    status: saveStatus.value,
+  });
+  busy.value = true;
+  exporting.value = true;
+  error.value = '';
+  try {
+    const blob = await lineupJpeg(data);
+    if (disposed) return;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = lineupImageFilename(data);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    notice.value = '已下載 JPG, 內容為目前排表。';
+  } catch (cause) {
+    if (!disposed) error.value = `排表圖片下載失敗: ${cause.message}。請再試一次`;
+  } finally {
+    busy.value = false;
+    exporting.value = false;
+  }
+}
 onUnmounted(() => {
   if (focusMode.value) {
     document.body.style.overflow = previousBodyOverflow;
@@ -763,6 +806,15 @@ onUnmounted(() => {
         <p class="page-subtitle">直接編輯並儲存出戰名單，想保留的配置可另存範本。</p>
       </div>
       <div class="lineup-heading-actions">
+        <v-btn
+          v-if="currentEvent"
+          variant="outlined"
+          :prepend-icon="mdiDownload"
+          :loading="exporting"
+          :disabled="loading || lineupLoading || busy || catalogBusy"
+          @click="downloadLineupImage"
+          >{{ exporting ? '產生中…' : '下載 JPG' }}</v-btn
+        >
         <v-btn
           v-if="currentEvent"
           variant="outlined"
@@ -789,6 +841,14 @@ onUnmounted(() => {
         >
       </div>
       <div class="lineup-actions">
+        <v-btn
+          variant="outlined"
+          :prepend-icon="mdiDownload"
+          :loading="exporting"
+          :disabled="loading || lineupLoading || busy || catalogBusy"
+          @click="downloadLineupImage"
+          >{{ exporting ? '產生中…' : '下載 JPG' }}</v-btn
+        >
         <v-btn variant="outlined" :disabled="busy || catalogBusy" @click="openDialog('template')"
           >另存範本</v-btn
         ><v-btn
