@@ -370,19 +370,20 @@ plans/main/       需求、計畫與驗證紀錄
 
 登入後開啟 `#/battle-upload`, 或從管理行事曆的戰鬥詳情按「上傳戰績」, 會預選該場次。頁面參考相鄰 NSHM_history 的 CSV 上傳／對戰資料布局。
 
-- 選擇已建立的約戰、幫戰或龍虎戰, 日期與類型直接沿用行事曆, 不再重複輸入日期。
-- 選擇或拖曳 1–2 個 UTF-8 CSV, 每檔最多 1 MB。檔名 `YYYYMMDD_HHMMSS_紅方_藍方.csv` 可帶入時間及隊名, 每份確認紅方、藍方與獲勝方。時間選填, 未填時保存場次日期。
-- CSV 表頭：玩家名字、職業、擊敗、助攻、資源、對玩家傷害、對建築傷害、治療值、承受傷害、重傷、化羽/清泉、焚骨；第一段紅方、第二段藍方。支援 BOM、引號、千分位及欄位重排, 舊版缺少焚骨與空數值保留 null；每檔最多 500 筆玩家。
+- 選擇已建立的約戰、幫戰或龍虎戰, 日期與類型直接沿用行事曆, 不需輸入日期或時間。
+- 約戰提供「第一場／第二場」兩個上傳區, 各有獨立上傳按鈕及內推開關, 單獨送出一場會保留另一場的待上傳資料, 也可用頁首按鈕一起保存；幫戰／龍虎戰只有一場。每場選擇或拖曳一個 UTF-8 CSV, 最多 1 MB；已上傳區提供查看, 每活動每場最多一筆且不覆寫。切換活動會確認清除待上傳資料。
+- 雙方隊名由 CSV 隊名／人數摘要自動帶入且可修改。「我方是哪邊」與「獲勝方」選填並可清空, 約戰每一場各有「是否為內推」開關, 可以一場內推、另一場對外約戰；開啟隱藏敵我／勝方並保存空值, 已上傳戰績標示內推。不從玩家、傷害或擊敗推算勝敗, 未填顯示「結果未填」。
+- CSV 表頭：玩家名字、職業、擊敗、助攻、資源、對玩家傷害、對建築傷害、治療值、承受傷害、重傷、化羽/清泉、焚骨；第一段紅方、第二段藍方。支援隊名／人數摘要（檢查列數一致）、BOM、引號、千分位及欄位重排, 舊版缺少焚骨與空數值保留 null；每檔最多 500 筆玩家。
 - 不提供陣容圖片上傳, 要查看陣容直接使用該場次的戰場排表。
 - 上傳保存原 CSV、逐人戰績與場次資訊快照, 每檔為獨立戰績；同批全部成功才保存, requestId 支援回應遺失後重試, 相同內容與對戰資料不重複新增。場次改名或刪除不會改掉已保存戰績。
 - 下方已上傳列表提供查看玩家戰績及下載原 CSV, 每頁 20 筆；舊戰績已有的圖片保留下載。管理 API 檢查登入與 CSRF, 失敗保留輸入, 不按玩家名稱修改名冊或排表。
 
 | 方法 | API | 用途 |
 | --- | --- | --- |
-| GET | `/api/battle-records?page=1` | 已上傳戰績列表 |
+| GET | `/api/battle-records?page=1` | 已上傳戰績列表, 加 `eventId` 查詢本活動已指定場序的記錄 |
 | POST | `/api/battle-records` | 保存 1–2 筆戰績, 舊圖片介面保留相容 |
 | GET | `/api/battle-records/:id` | 戰績及玩家詳情 |
 | GET | `/api/battle-records/:id/attachments/csv` | 原始 CSV 下載 |
 | GET | `/api/battle-records/:id/attachments/image` | 舊陣容圖片下載 |
 
-SQLite 追加 `battle_uploads`／`battle_records`, 附件存入原有資料 volume 的 SQLite, 不另依賴容器暫存檔。後端保留獨立戰績匯入相容契約, 新頁面一律選擇活動場次。GAS `getBattleRecords`／`getBattleRecord`／`saveBattleRecords`／`getBattleAttachment` 目前明確回報未串接, 未部署 Google 試算表或 Drive。
+SQLite 追加 `battle_uploads`／`battle_records`, `round_number` 記錄場序、`our_side` 選填敵我、`winner` 可空、`is_internal` 保存內推 boolean；舊場序不回填, 舊勝方保存不變。附件存入原有資料 volume 的 SQLite, 不另依賴容器暫存檔。後端保留獨立戰績匯入相容契約, 新頁面一律選擇活動場次。GAS `getBattleRecords`／`getBattleRecord`／`saveBattleRecords`／`getBattleAttachment` 目前明確回報未串接, 未部署 Google 試算表或 Drive。

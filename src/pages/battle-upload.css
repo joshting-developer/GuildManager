@@ -1,8 +1,30 @@
 .battle-upload-grid {
   display: grid;
-  grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.4fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 24px;
   align-items: start;
+}
+.battle-single-round {
+  grid-template-columns: minmax(0, 1fr);
+}
+.battle-round-card .battle-match-form {
+  margin-top: 20px;
+}
+.battle-saved-summary {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.battle-round-card > .v-btn {
+  margin-top: 16px;
+}
+.battle-internal-switch {
+  margin-bottom: 12px;
+}
+.battle-internal-switch .v-selection-control {
+  min-height: 44px;
+}
+.battle-submit-round {
+  justify-self: end;
 }
 .battle-event-card {
   display: flex;
@@ -106,23 +128,6 @@
 .battle-match-form {
   display: grid;
   gap: 16px;
-}
-.battle-match-form + .battle-match-form {
-  margin-top: 24px;
-  padding-top: 24px;
-  border-top: 1px solid var(--color-border);
-}
-.battle-match-title {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  min-width: 0;
-}
-.battle-match-title strong {
-  font-size: 14px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .battle-match-fields {
   display: grid;
@@ -249,10 +254,6 @@
   }
   .battle-dropzone {
     padding: 20px 12px;
-  }
-  .battle-match-title strong {
-    white-space: normal;
-    overflow-wrap: anywhere;
   }
   .battle-detail-footer {
     padding: 16px;

@@ -1,5 +1,6 @@
 <script setup>
-import { computed, inject, nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { VSwitch } from 'vuetify/components';
 import {
   mdiFileUploadOutline,
   mdiFileDelimitedOutline,
@@ -15,7 +16,6 @@ import {
   MAX_CSV_BYTES,
   parseBattleCsv,
   battleFilenameDefaults,
-  taipeiBattleTime,
 } from '../domain/battle-records.js';
 import { eventTypeLabel } from '../domain/event-types.js';
 import './battle-upload.css';
@@ -25,8 +25,9 @@ const props = defineProps({ initialEventId: { type: String, default: null } });
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 const client = createBattleRecordClient({ source }),
   eventClient = createEventClient({ source });
-const csvInput = ref(null),
-  files = ref([]);
+const csvInputs = {};
+const files = ref([]);
+const internalRounds = ref({ 1: false, 2: false });
 const reading = ref(false),
   saving = ref(false),
   loading = ref(true),
@@ -39,7 +40,10 @@ const events = ref([]),
   records = ref([]),
   total = ref(0),
   page = ref(1);
-const draggingCsv = ref(false);
+const draggingRound = ref(null),
+  roundRecords = ref([]),
+  roundsLoading = ref(false),
+  roundsError = ref('');
 const detailOpen = ref(false),
   detailTarget = ref(null),
   detail = ref(null),
@@ -51,6 +55,19 @@ const dirty = computed(() => files.value.length > 0);
 const selectedEventId = ref(null);
 const selectedEvent = computed(() =>
   events.value.find((event) => event.id === selectedEventId.value),
+);
+const uploadSlots = computed(() =>
+  selectedEvent.value
+    ? (selectedEvent.value.type === 'scrimmage' ? [1, 2] : [1]).map((roundNumber) => ({
+        roundNumber,
+        label:
+          selectedEvent.value.type === 'scrimmage'
+            ? `第${roundNumber === 1 ? '一' : '二'}場`
+            : '對戰結果',
+        file: files.value.find((file) => file.roundNumber === roundNumber),
+        saved: roundRecords.value.find((record) => record.roundNumber === roundNumber),
+      }))
+    : [],
 );
 const eventOptions = computed(() => [
   ...events.value
@@ -64,6 +81,7 @@ let disposed = false,
   attempt = null,
   listToken = 0,
   detailToken = 0,
+  roundsToken = 0,
   detailOpener;
 const registerGuard = inject('registerNavigationGuard', null);
 const unregisterGuard = registerGuard?.(
@@ -80,19 +98,81 @@ function sizeLabel(bytes) {
     ? `${(bytes / 1024).toFixed(1)} KB`
     : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+function winnerLabel(record) {
+  if (record.isInternal) return '內推';
+  if (!record.winner) return '結果未填';
+  return `${record.winner === 'red' ? record.redTeam : record.blueTeam} 獲勝`;
+}
+function sideLabel(side, ourSide) {
+  const label = side === 'red' ? '紅方' : '藍方';
+  return ourSide ? `${label}（${side === ourSide ? '我方' : '敵方'}）` : label;
+}
+async function reloadBattleRecords() {
+  await Promise.all([loadRecords(), loadRounds()]);
+}
 function removeFile(id) {
   files.value = files.value.filter((file) => file.id !== id);
   fileError.value = '';
   error.value = '';
 }
-async function addFiles(incoming) {
-  if (busy.value) return;
+function changeEvent(value) {
+  if (value === selectedEventId.value || busy.value) return;
+  if (
+    dirty.value &&
+    !window.confirm('有尚未上傳的戰績, 切換活動會清除檔案與對戰資料, 確定切換嗎？')
+  )
+    return;
+  files.value = [];
+  attempt = null;
+  fileError.value = '';
+  error.value = '';
+  notice.value = '';
+  selectedEventId.value = value;
+  internalRounds.value = { 1: false, 2: false };
+}
+async function loadRounds() {
+  const token = ++roundsToken;
+  const eventId = selectedEventId.value;
+  roundRecords.value = [];
+  roundsError.value = '';
+  roundsLoading.value = Boolean(eventId);
+  if (!eventId) return;
+  try {
+    const result = await client.getRecords(1, eventId);
+    if (!Array.isArray(result.records)) throw new Error('戰績資料格式不正確');
+    if (!disposed && token === roundsToken) {
+      roundRecords.value = result.records;
+      result.records.forEach((record) => {
+        internalRounds.value[record.roundNumber] = record.isInternal;
+      });
+    }
+  } catch (cause) {
+    if (!disposed && token === roundsToken)
+      roundsError.value = `本場已上傳戰績讀取失敗: ${cause.message}`;
+  } finally {
+    if (!disposed && token === roundsToken) roundsLoading.value = false;
+  }
+}
+watch(selectedEventId, loadRounds);
+async function addFiles(incoming, roundNumber) {
+  if (
+    busy.value ||
+    roundsLoading.value ||
+    roundsError.value ||
+    !selectedEvent.value ||
+    roundRecords.value.some((record) => record.roundNumber === roundNumber)
+  )
+    return;
   fileError.value = '';
   error.value = '';
   notice.value = '';
   reading.value = true;
   const issues = [];
   try {
+    if (incoming.length !== 1) {
+      fileError.value = '每一場請選擇一個 CSV';
+      return;
+    }
     for (const file of incoming) {
       if (!/\.csv$/i.test(file.name)) {
         issues.push(`${file.name}：只支援 CSV`);
@@ -103,28 +183,30 @@ async function addFiles(incoming) {
         continue;
       }
       const id = `${file.name}-${file.size}-${file.lastModified}`;
-      if (files.value.some((row) => row.id === id)) {
-        issues.push(`${file.name}：已在待上傳清單`);
+      if (files.value.some((row) => row.roundNumber !== roundNumber && row.id === id)) {
+        issues.push(`${file.name}：已在另一場的待上傳清單`);
         continue;
-      }
-      if (files.value.length >= 2) {
-        issues.push('每次最多 2 個 CSV, 請先移除檔案或送出');
-        break;
       }
       try {
         const csvText = new TextDecoder('utf-8', { fatal: true }).decode(await file.arrayBuffer());
         const parsed = parseBattleCsv(csvText);
         if (disposed) return;
-        files.value.push({
+        const defaults = battleFilenameDefaults(file.name);
+        const row = {
           id,
+          roundNumber,
           filename: file.name,
           size: file.size,
           csvText,
           parsed,
-          ...battleFilenameDefaults(file.name),
-          time: battleFilenameDefaults(file.name).datetime.split('T')[1] || '',
-          winner: '',
-        });
+          redTeam: parsed.redTeam || defaults.redTeam,
+          blueTeam: parsed.blueTeam || defaults.blueTeam,
+          winner: null,
+          ourSide: null,
+        };
+        files.value = [...files.value.filter((file) => file.roundNumber !== roundNumber), row].sort(
+          (a, b) => a.roundNumber - b.roundNumber,
+        );
       } catch (cause) {
         issues.push(
           `${file.name}：${cause instanceof TypeError ? '請使用 UTF-8 編碼' : cause.message}`,
@@ -136,13 +218,13 @@ async function addFiles(incoming) {
     reading.value = false;
   }
 }
-function pickedCsv(event) {
-  addFiles([...event.target.files]);
+function pickedCsv(event, roundNumber) {
+  addFiles([...event.target.files], roundNumber);
   event.target.value = '';
 }
-function dropCsv(event) {
-  draggingCsv.value = false;
-  addFiles([...event.dataTransfer.files]);
+function dropCsv(event, roundNumber) {
+  draggingRound.value = null;
+  addFiles([...event.dataTransfer.files], roundNumber);
 }
 async function loadEvents() {
   eventError.value = '';
@@ -184,11 +266,15 @@ function changePage(value) {
   page.value = value;
   loadRecords();
 }
-async function submit() {
-  if (busy.value) return;
+async function submit(roundNumber = null) {
+  if (busy.value || roundsLoading.value || roundsError.value) return;
   error.value = '';
   notice.value = '';
-  if (!files.value.length) {
+  const pendingFiles =
+    roundNumber == null
+      ? files.value
+      : files.value.filter((file) => file.roundNumber === roundNumber);
+  if (!pendingFiles.length) {
     error.value = '請先加入至少一個 CSV';
     return;
   }
@@ -197,10 +283,11 @@ async function submit() {
     return;
   }
   try {
-    for (const [index, row] of files.value.entries()) {
-      if (!row.redTeam.trim() || !row.blueTeam.trim() || !row.winner)
-        throw new Error(`第 ${index + 1} 筆請填寫紅方、藍方與獲勝方`);
-      taipeiBattleTime(`${selectedEvent.value.dates[0]}${row.time ? `T${row.time}` : ''}`);
+    for (const [index, row] of pendingFiles.entries()) {
+      if (!row.redTeam.trim() || !row.blueTeam.trim())
+        throw new Error(`第 ${index + 1} 筆請填寫紅方與藍方名稱`);
+      if (roundRecords.value.some((record) => record.roundNumber === row.roundNumber))
+        throw new Error('這一場已有戰績, 請移除待上傳檔案後查看已上傳戰績');
     }
   } catch (cause) {
     error.value = cause.message;
@@ -209,16 +296,27 @@ async function submit() {
   saving.value = true;
   try {
     const input = {
-      records: files.value.map(({ filename, csvText, time, redTeam, blueTeam, winner }) => ({
-        filename,
-        csvText,
-        datetime: `${selectedEvent.value.dates[0]}${time ? `T${time}` : ''}`,
-        redTeam,
-        blueTeam,
-        winner,
-        type: selectedEvent.value.type,
-        eventId: selectedEvent.value.id,
-      })),
+      records: pendingFiles.map(
+        ({ filename, csvText, roundNumber, redTeam, blueTeam, winner, ourSide }) => ({
+          filename,
+          csvText,
+          datetime: selectedEvent.value.dates[0],
+          roundNumber,
+          redTeam,
+          blueTeam,
+          winner:
+            selectedEvent.value.type === 'scrimmage' && internalRounds.value[roundNumber]
+              ? null
+              : winner,
+          ourSide:
+            selectedEvent.value.type === 'scrimmage' && internalRounds.value[roundNumber]
+              ? null
+              : ourSide,
+          isInternal: selectedEvent.value.type === 'scrimmage' && internalRounds.value[roundNumber],
+          type: selectedEvent.value.type,
+          eventId: selectedEvent.value.id,
+        }),
+      ),
       image: null,
     };
     const encoded = JSON.stringify(input);
@@ -231,14 +329,18 @@ async function submit() {
       result.records.some((row) => !row.id)
     )
       throw new Error('上傳回應格式不正確, 請重試以確認結果');
-    files.value = [];
+    files.value = files.value.filter(
+      (file) => !pendingFiles.some((pending) => pending.roundNumber === file.roundNumber),
+    );
     attempt = null;
     fileError.value = '';
     notice.value = `上傳成功, 已保存 ${result.records.length} 筆戰績`;
+    roundRecords.value = [...roundRecords.value, ...result.records];
     page.value = 1;
     await loadRecords();
   } catch (cause) {
     if (!disposed) error.value = cause.message;
+    if (!disposed && cause.code === 'BATTLE_ROUND_EXISTS') await loadRounds();
   } finally {
     saving.value = false;
   }
@@ -303,6 +405,7 @@ onUnmounted(() => {
   disposed = true;
   listToken++;
   detailToken++;
+  roundsToken++;
   unregisterGuard?.();
   window.removeEventListener('beforeunload', leaveWarning);
 });
@@ -319,8 +422,8 @@ onUnmounted(() => {
       color="primary"
       :prepend-icon="mdiFileUploadOutline"
       :loading="saving"
-      :disabled="busy"
-      @click="submit"
+      :disabled="busy || roundsLoading || Boolean(roundsError) || !files.length"
+      @click="submit()"
       >{{ saving ? '上傳中…' : '上傳戰績' }}</v-btn
     >
   </section>
@@ -330,7 +433,7 @@ onUnmounted(() => {
   }}</v-alert>
   <v-card class="battle-upload-card battle-event-card">
     <v-select
-      v-model="selectedEventId"
+      :model-value="selectedEventId"
       :items="eventOptions"
       label="戰鬥場次"
       variant="outlined"
@@ -338,7 +441,7 @@ onUnmounted(() => {
       hide-details
       :disabled="busy"
       aria-required="true"
-      @update:model-value="error = ''"
+      @update:model-value="changeEvent"
     />
     <p class="battle-muted">
       {{
@@ -349,132 +452,171 @@ onUnmounted(() => {
     </p>
     <v-btn variant="text" :disabled="busy" @click="emit('open-page', 'events')">活動安排</v-btn>
   </v-card>
-  <div class="battle-upload-grid">
-    <v-card class="battle-upload-card">
+  <v-alert v-if="eventError" type="warning" variant="tonal" role="alert" class="mb-4">
+    {{ eventError }}<v-btn variant="text" :disabled="busy" @click="loadEvents">重新載入場次</v-btn>
+  </v-alert>
+  <v-alert v-if="fileError" type="error" variant="tonal" role="alert" class="mb-4">{{
+    fileError
+  }}</v-alert>
+  <v-alert v-if="roundsError" type="error" variant="tonal" role="alert" class="mb-4">
+    {{ roundsError }}<v-btn variant="text" :disabled="busy" @click="loadRounds">重新載入戰績</v-btn>
+  </v-alert>
+  <p v-if="roundsLoading" role="status" class="battle-muted mb-4">正在載入本場已上傳戰績…</p>
+  <v-card v-if="!selectedEvent" class="battle-upload-card battle-empty">
+    <v-icon :icon="mdiFileDelimitedOutline" size="40" />
+    <p>請先選擇戰鬥場次</p>
+  </v-card>
+  <div
+    v-else
+    class="battle-upload-grid"
+    :class="{ 'battle-single-round': uploadSlots.length === 1 }"
+  >
+    <v-card
+      v-for="slot in uploadSlots"
+      :key="slot.roundNumber"
+      class="battle-upload-card battle-round-card"
+      :aria-label="slot.label"
+    >
       <div class="section-header">
-        <h2><v-icon :icon="mdiFileDelimitedOutline" size="22" /> 對戰結果 CSV</h2>
-        <v-chip>{{ files.length }} / 2</v-chip>
+        <h2><v-icon :icon="mdiFileDelimitedOutline" size="22" /> {{ slot.label }}</h2>
+        <v-chip :color="slot.saved ? 'success' : undefined">{{
+          slot.saved ? '已上傳' : slot.file ? '待上傳' : '尚未上傳'
+        }}</v-chip>
       </div>
-      <input
-        ref="csvInput"
-        class="sr-only"
-        type="file"
-        accept=".csv,text/csv"
-        multiple
-        aria-label="選擇戰績 CSV"
-        tabindex="-1"
-        :disabled="busy"
-        @change="pickedCsv"
+      <v-switch
+        v-if="selectedEvent.type === 'scrimmage' && !slot.saved"
+        v-model="internalRounds[slot.roundNumber]"
+        label="是否為內推"
+        :aria-label="`${slot.label}是否為內推`"
+        color="primary"
+        inset
+        density="compact"
+        hide-details
+        :disabled="busy || roundsLoading || Boolean(roundsError)"
+        class="battle-internal-switch"
       />
-      <button
-        type="button"
-        class="battle-dropzone"
-        :class="{ 'battle-drop-active': draggingCsv }"
-        :disabled="busy"
-        @click="csvInput.click()"
-        @dragenter.prevent="draggingCsv = true"
-        @dragover.prevent
-        @dragleave.prevent="draggingCsv = false"
-        @drop.prevent="dropCsv"
-      >
-        <v-icon :icon="mdiFileUploadOutline" size="32" /><strong>選擇或拖曳 CSV 檔案</strong
-        ><span>UTF-8 · 每次最多 2 個 · 每檔 1 MB</span>
-      </button>
-      <p v-if="reading" role="status" class="battle-muted">正在讀取檔案…</p>
-      <v-alert v-if="fileError" type="error" variant="tonal" role="alert" class="mt-4">{{
-        fileError
-      }}</v-alert>
-      <div v-for="file in files" :key="file.id" class="battle-file-item">
-        <div>
-          <strong :title="file.filename">{{ file.filename }}</strong
-          ><span
-            >{{ sizeLabel(file.size) }} · 紅方 {{ file.parsed.redCount }} 人／藍方
-            {{ file.parsed.blueCount }} 人</span
-          >
-        </div>
+      <template v-if="slot.saved">
+        <p class="battle-saved-summary">{{ slot.saved.redTeam }} 對 {{ slot.saved.blueTeam }}</p>
+        <p class="battle-muted">
+          {{ winnerLabel(slot.saved) }} · {{ slot.saved.redCount }}／{{ slot.saved.blueCount }} 人
+        </p>
         <v-btn
-          variant="text"
-          :icon="mdiDeleteOutline"
-          :aria-label="`移除 ${file.filename}`"
+          variant="outlined"
+          :prepend-icon="mdiEyeOutline"
           :disabled="busy"
-          @click="removeFile(file.id)"
+          @click="openDetail(slot.saved)"
+          >查看戰績</v-btn
+        >
+      </template>
+      <template v-else>
+        <input
+          :ref="(el) => (csvInputs[slot.roundNumber] = el)"
+          class="sr-only"
+          type="file"
+          accept=".csv,text/csv"
+          tabindex="-1"
+          :aria-label="`選擇${slot.label} CSV`"
+          :disabled="busy || roundsLoading || Boolean(roundsError)"
+          @change="pickedCsv($event, slot.roundNumber)"
         />
-      </div>
-      <p v-if="!files.length" class="battle-muted">加入 CSV 後, 右側會產生對戰資料。</p>
-    </v-card>
-    <v-card class="battle-upload-card battle-match-card">
-      <div class="section-header">
-        <h2>對戰資料</h2>
-        <span class="battle-muted">時間以台北時區保存</span>
-      </div>
-      <v-alert v-if="eventError" type="warning" variant="tonal" role="alert" class="mb-4"
-        >{{ eventError
-        }}<v-btn variant="text" :disabled="busy" @click="loadEvents">重新載入場次</v-btn></v-alert
-      >
-      <div v-if="!files.length" class="battle-empty">
-        <v-icon :icon="mdiFileDelimitedOutline" size="40" />
-        <p>尚未加入戰績 CSV</p>
-        <span>檔名中的時間與紅／藍方會自動帶入, 上傳前可修改。</span>
-      </div>
-      <form
-        v-for="(row, index) in files"
-        :key="row.id"
-        class="battle-match-form"
-        @submit.prevent="submit"
-      >
-        <div class="battle-match-title">
-          <v-chip color="primary">第 {{ index + 1 }} 筆</v-chip
-          ><strong :title="row.filename">{{ row.filename }}</strong>
-        </div>
-        <div class="battle-match-fields">
-          <v-text-field
-            v-model="row.redTeam"
-            label="紅方名稱"
-            maxlength="120"
-            variant="outlined"
-            density="compact"
-            hide-details
+        <button
+          type="button"
+          class="battle-dropzone"
+          :class="{ 'battle-drop-active': draggingRound === slot.roundNumber }"
+          :disabled="busy || roundsLoading || Boolean(roundsError)"
+          @click="csvInputs[slot.roundNumber].click()"
+          @dragenter.prevent="draggingRound = slot.roundNumber"
+          @dragover.prevent
+          @dragleave.prevent="draggingRound = null"
+          @drop.prevent="dropCsv($event, slot.roundNumber)"
+        >
+          <v-icon :icon="mdiFileUploadOutline" size="32" />
+          <strong>{{ slot.file ? '重新選擇或拖曳 CSV' : '選擇或拖曳 CSV' }}</strong>
+          <span>一場一個 CSV · UTF-8 · 最多 1 MB</span>
+        </button>
+      </template>
+      <template v-if="slot.file">
+        <div class="battle-file-item">
+          <div>
+            <strong :title="slot.file.filename">{{ slot.file.filename }}</strong>
+            <span
+              >{{ sizeLabel(slot.file.size) }} · 紅方 {{ slot.file.parsed.redCount }} 人／藍方
+              {{ slot.file.parsed.blueCount }} 人</span
+            >
+          </div>
+          <v-btn
+            variant="text"
+            :icon="mdiDeleteOutline"
+            :aria-label="`移除${slot.label} CSV`"
             :disabled="busy"
-            aria-required="true"
-          /><v-text-field
-            v-model="row.blueTeam"
-            label="藍方名稱"
-            maxlength="120"
-            variant="outlined"
-            density="compact"
-            hide-details
-            :disabled="busy"
-            aria-required="true"
+            @click="removeFile(slot.file.id)"
           />
         </div>
-        <v-select
-          v-model="row.winner"
-          :items="[
-            { title: '紅方', value: 'red' },
-            { title: '藍方', value: 'blue' },
-          ]"
-          label="獲勝方"
-          variant="outlined"
-          density="compact"
-          hide-details
-          :disabled="busy"
-          aria-required="true"
-        />
-        <v-text-field
-          v-model="row.time"
-          type="time"
-          step="1"
-          label="對戰時間（選填）"
-          variant="outlined"
-          density="compact"
-          hide-details
-          :disabled="busy"
-        />
-        <p class="battle-muted">
-          已解析 {{ row.parsed.players.length }} 筆玩家戰績 · 第一段表頭為紅方, 第二段為藍方
-        </p>
-        <button type="submit" class="sr-only" tabindex="-1">上傳戰績</button>
-      </form>
+        <form class="battle-match-form" @submit.prevent="submit(slot.roundNumber)">
+          <div class="battle-match-fields">
+            <v-text-field
+              v-model="slot.file.redTeam"
+              label="紅方名稱"
+              maxlength="120"
+              variant="outlined"
+              density="compact"
+              hide-details
+              :disabled="busy"
+              aria-required="true"
+            />
+            <v-text-field
+              v-model="slot.file.blueTeam"
+              label="藍方名稱"
+              maxlength="120"
+              variant="outlined"
+              density="compact"
+              hide-details
+              :disabled="busy"
+              aria-required="true"
+            />
+          </div>
+          <div
+            v-if="!internalRounds[slot.roundNumber] || selectedEvent.type !== 'scrimmage'"
+            class="battle-match-fields"
+          >
+            <v-select
+              v-model="slot.file.ourSide"
+              :items="[
+                { title: `紅方 · ${slot.file.redTeam}`, value: 'red' },
+                { title: `藍方 · ${slot.file.blueTeam}`, value: 'blue' },
+              ]"
+              label="我方是哪邊（選填）"
+              clearable
+              variant="outlined"
+              density="compact"
+              hide-details
+              :disabled="busy"
+            />
+            <v-select
+              v-model="slot.file.winner"
+              :items="[
+                { title: `紅方 · ${slot.file.redTeam}`, value: 'red' },
+                { title: `藍方 · ${slot.file.blueTeam}`, value: 'blue' },
+              ]"
+              label="獲勝方（選填）"
+              clearable
+              variant="outlined"
+              density="compact"
+              hide-details
+              :disabled="busy"
+            />
+          </div>
+          <v-btn
+            v-if="selectedEvent.type === 'scrimmage'"
+            type="submit"
+            color="primary"
+            :disabled="busy || roundsLoading || Boolean(roundsError) || Boolean(slot.saved)"
+            class="battle-submit-round"
+            >上傳{{ slot.label }}</v-btn
+          >
+          <button v-else type="submit" class="sr-only" tabindex="-1">上傳戰績</button>
+        </form>
+      </template>
     </v-card>
   </div>
   <v-card class="battle-upload-card battle-record-list">
@@ -487,7 +629,7 @@ onUnmounted(() => {
         variant="outlined"
         :prepend-icon="mdiRefresh"
         :disabled="loading || busy"
-        @click="loadRecords"
+        @click="reloadBattleRecords"
         >重新載入</v-btn
       >
     </div>
@@ -502,10 +644,12 @@ onUnmounted(() => {
         <table class="battle-record-table">
           <thead>
             <tr>
-              <th>對戰時間／類型</th>
+              <th>活動日期／類型</th>
+              <th>場序</th>
               <th>紅方</th>
               <th>藍方</th>
-              <th>獲勝方</th>
+              <th>我方</th>
+              <th>結果</th>
               <th>人數</th>
               <th>操作</th>
             </tr>
@@ -521,12 +665,28 @@ onUnmounted(() => {
                   }}</small
                 >
               </td>
+              <td>
+                {{
+                  record.roundNumber == null
+                    ? '未指定'
+                    : record.type === 'scrimmage'
+                      ? `第${record.roundNumber === 1 ? '一' : '二'}場`
+                      : '單場'
+                }}
+              </td>
               <td>{{ record.redTeam }}</td>
               <td>{{ record.blueTeam }}</td>
               <td>
-                <v-chip :color="record.winner === 'red' ? 'error' : 'primary'">{{
-                  record.winner === 'red' ? '紅方' : '藍方'
-                }}</v-chip>
+                {{ record.ourSide ? (record.ourSide === 'red' ? '紅方' : '藍方') : '未指定' }}
+              </td>
+              <td>
+                <v-chip v-if="record.isInternal">內推</v-chip>
+                <v-chip
+                  v-else-if="record.winner"
+                  :color="record.winner === 'red' ? 'error' : 'primary'"
+                  >{{ record.winner === 'red' ? '紅方' : '藍方' }}</v-chip
+                >
+                <span v-else class="battle-muted">結果未填</span>
               </td>
               <td>{{ record.redCount }}／{{ record.blueCount }}</td>
               <td>
@@ -579,8 +739,16 @@ onUnmounted(() => {
           ></v-alert
         ><template v-if="detail"
           ><p>
-            {{ detail.playedAt.slice(0, 19).replace('T', ' ') }} · {{ detail.redTeam }} 對
-            {{ detail.blueTeam }} · {{ detail.winner === 'red' ? '紅方勝' : '藍方勝' }}
+            {{ detail.playedAt.slice(0, 19).replace('T', ' ') }} ·
+            {{
+              detail.roundNumber == null
+                ? '場序未指定'
+                : detail.type === 'scrimmage'
+                  ? `第${detail.roundNumber === 1 ? '一' : '二'}場`
+                  : '單場'
+            }}
+            · {{ detail.redTeam }} 對 {{ detail.blueTeam }} ·
+            {{ winnerLabel(detail) }}
           </p>
           <div class="battle-table-wrap">
             <table class="battle-record-table battle-player-table">
@@ -592,7 +760,7 @@ onUnmounted(() => {
               </thead>
               <tbody>
                 <tr v-for="(player, index) in detail.players" :key="index">
-                  <td>{{ player.side === 'red' ? '紅方' : '藍方' }}</td>
+                  <td>{{ sideLabel(player.side, detail.ourSide) }}</td>
                   <td v-for="[, key] in BATTLE_COLUMNS" :key="key">{{ player[key] ?? '—' }}</td>
                 </tr>
               </tbody>
