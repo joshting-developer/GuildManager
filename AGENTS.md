@@ -86,6 +86,7 @@ Apps Script 的 `.gs` 檔案共用全域環境, 避免重複命名與載入時�
 ## 已確認成員規則
 
 - UID 是不可修改的文字主鍵, 名稱及主職業必填, 副職業可空
+- UID 僅在管理端成員清單及相關表單／匯入／歷史視窗顯示；報名、排表、排表歷史、範本提示與 title 不顯示玩家 UID, 內部關聯與快照仍保留 UID
 - isInGuild／isInClub 為獨立 boolean, SQLite is_in_guild／is_in_club 保存 0／1 並有 CHECK 約束。
 - 名冊分成成員／編外人員 tab：成員至少一個所屬狀態 true, 編外兩者 false；成員頁提供俱樂部／幫派／不篩選, 與名稱／職業條件交集。
 - 成員頁新增與四欄匯入新 UID 預設幫派內 true、俱樂部內 false；編外頁新增預設兩者 false, 可編輯調整。

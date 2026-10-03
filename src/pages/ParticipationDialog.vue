@@ -220,7 +220,7 @@ async function cancelGuest(row) {
         <v-btn variant="text" :disabled="busy || loading" @click="load">重新載入</v-btn>
       </div>
       <p class="lineup-hint">
-        請確認選擇的是自己的成員資料；回應只適用於這一場, 登入帳號尚未與遊戲 UID 綁定。
+        請確認選擇的是自己的成員資料；回應只適用於這一場, 登入帳號尚未與遊戲角色綁定。
       </p>
       <p v-if="loading" role="status">正在載入本場報名資料…</p>
       <v-alert v-else-if="loadError" type="error" variant="tonal" role="alert">{{
@@ -240,7 +240,7 @@ async function cancelGuest(row) {
             v-model="uid"
             :items="
               people.map((person) => ({
-                title: `${person.name} · ${person.uid}`,
+                title: person.name,
                 value: person.uid,
               }))
             "
@@ -278,9 +278,7 @@ async function cancelGuest(row) {
           <v-btn type="submit" color="primary" :loading="busy" :disabled="busy">儲存回應</v-btn>
         </form>
         <form v-else class="participation-form" @submit.prevent="registerGuest">
-          <p class="lineup-hint">
-            不需要 UID；若已在成員名冊，請改用「成員報名／請假」，避免重複身分。
-          </p>
+          <p class="lineup-hint">若已在成員名冊，請改用「成員報名／請假」，避免重複身分。</p>
           <v-text-field
             v-model="guestName"
             label="報名名稱"

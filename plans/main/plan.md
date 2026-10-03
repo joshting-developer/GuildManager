@@ -98,3 +98,7 @@
 ## 登入與管理頁保護
 
 首頁登入入口、本機帳號密碼與管理頁／API 權限檢查, 見 [auth-plan.md](auth-plan.md)。
+
+## 玩家 UID 顯示範圍
+
+UID 僅在成員管理頁顯示, 報名／排表／歷史等畫面以名稱呈現, 見 [uid-display-plan.md](uid-display-plan.md)。

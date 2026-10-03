@@ -193,9 +193,7 @@ const visibleMembers = computed(() =>
     const needle = (search.value || '').trim().toLocaleLowerCase();
     return (
       (!needle ||
-        `${member.uid || ''} ${member.name} ${member.registrationNote}`
-          .toLocaleLowerCase()
-          .includes(needle)) &&
+        `${member.name} ${member.registrationNote}`.toLocaleLowerCase().includes(needle)) &&
       (!professionId.value ||
         [member.primaryProfessionId, member.secondaryProfessionId].includes(professionId.value))
     );
@@ -217,7 +215,7 @@ const historyOptions = computed(() => [
 const slotOptions = computed(() => [
   { title: '空位', value: null },
   ...eligible.value.map((member) => ({
-    title: `${member.name} · ${member.uid || '額外報名'}${assigned.value.has(participantKey(member)) ? '（已安排，可移動或分場）' : ''}`,
+    title: `${member.name}${member.registrationId ? '（額外報名）' : ''}${assigned.value.has(participantKey(member)) ? '（已安排，可移動或分場）' : ''}`,
     value: participantKey(member),
   })),
 ]);
@@ -833,10 +831,9 @@ onUnmounted(() => {
         ><strong>套用時跳過的成員</strong>
         <ul>
           <li v-for="person in skipped" :key="participantKey(person)">
-            {{ person.name }}（{{ person.uid || '額外報名' }}）{{
-              person.round ? ` · 第${person.round === 1 ? '一' : '二'}場` : ''
-            }}
-            — {{ person.reason }}
+            {{ person.name }}{{ person.registrationId ? '（額外報名）' : ''
+            }}{{ person.round ? ` · 第${person.round === 1 ? '一' : '二'}場` : '' }} —
+            {{ person.reason }}
           </li>
         </ul></v-alert
       >
@@ -918,7 +915,7 @@ onUnmounted(() => {
             </p>
             <v-text-field
               v-model="search"
-              label="搜尋名稱或 UID"
+              label="搜尋名稱或報名備註"
               density="compact"
               variant="outlined"
               hide-details
@@ -963,7 +960,7 @@ onUnmounted(() => {
               >
                 <span class="lineup-member-main"
                   ><strong>{{ member.name }}</strong
-                  ><small>{{ member.uid || '額外報名' }}</small></span
+                  ><small v-if="member.registrationId">額外報名</small></span
                 ><span class="lineup-member-job"
                   ><span
                     class="profession-dot"

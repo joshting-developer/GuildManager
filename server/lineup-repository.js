@@ -56,14 +56,14 @@ export function validateLineup(teams) {
             (person.uid !== null && registrationId !== null) ||
             (!allowEmpty && !person.uid && !registrationId)
           )
-            throw new LineupError('成員 UID 或報名 ID 格式不正確');
+            throw new LineupError('人員資料格式不正確, 請重新選擇');
           if (!['primary', 'secondary'].includes(person.profession))
             throw new LineupError('請選擇主職業或副職業');
           const identity = participantKey(person);
           if (identity) {
             if (seen.has(identity))
               throw new LineupError(
-                `人員 ${person.uid || registrationId} 在這份排表中重複`,
+                '同一位人員在這份排表中重複, 請調整安排',
                 422,
                 'DUPLICATE_LINEUP_UID',
               );
@@ -428,7 +428,7 @@ export function createLineupRepository(db) {
             skipped.push({
               uid: person.uid,
               ...(person.registrationId ? { registrationId: person.registrationId } : {}),
-              name: savedPerson?.member?.name || person.uid || person.registrationId,
+              name: savedPerson?.member?.name || currentPerson?.name || '找不到人員',
               reason,
               teamName: team.name,
               position: index + 1,

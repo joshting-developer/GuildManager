@@ -28,7 +28,7 @@ function person(slot) {
   const member = props.members.find((member) => participantKey(member) === participantKey(slot));
   if (!member)
     return participantKey(slot)
-      ? { name: slot.registrationId ? '報名已取消或不屬於本場' : `找不到成員（${slot.uid}）` }
+      ? { name: slot.registrationId ? '報名已取消或不屬於本場' : '找不到成員' }
       : null;
   return {
     ...member,
@@ -125,7 +125,7 @@ function activate(team, index) {
                 :tabindex="readOnly ? 0 : undefined"
                 :title="
                   participantKey(entry)
-                    ? `${person(entry)?.name || '找不到人員'}（${entry.uid || '額外報名'}）${person(entry)?.note || person(entry)?.registrationNote ? ` · ${person(entry)?.note || person(entry)?.registrationNote}` : ''}`
+                    ? `${person(entry)?.name || '找不到人員'}${entry.registrationId ? '（額外報名）' : ''}${person(entry)?.note || person(entry)?.registrationNote ? ` · ${person(entry)?.note || person(entry)?.registrationNote}` : ''}`
                     : '尚未安排'
                 "
                 :draggable="!readOnly && Boolean(participantKey(entry))"
@@ -151,7 +151,7 @@ function activate(team, index) {
                     ></span
                     >{{ job(entry)?.name || '職業未設定'
                     }}<small v-if="entry.profession === 'secondary'">副</small></span
-                  ><strong>{{ person(entry)?.name || entry.uid }}</strong></span
+                  ><strong>{{ person(entry)?.name || '找不到成員' }}</strong></span
                 >
                 <span v-else class="empty-seat">{{
                   selectedUid && !readOnly ? '點此安排' : '尚未安排'

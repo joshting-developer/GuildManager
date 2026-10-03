@@ -96,7 +96,7 @@ export function createParticipationRepository(db) {
       };
     },
     saveMemberResponse(eventId, input) {
-      const uid = text(input?.uid, 'UID', 64, true);
+      const uid = text(input?.uid, '成員資料', 64, true);
       const note = text(input?.note ?? '', '備註', 160);
       const status = input?.status;
       if (!['registered', 'leave', 'none'].includes(status))
