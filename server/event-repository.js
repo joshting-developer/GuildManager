@@ -13,7 +13,8 @@ export function validateEvent(input, { requireRequestId = true } = {}) {
   const title = typeof values.title === 'string' ? values.title.trim() : '';
   if (!title || title.length > 120 || /[\u0000-\u001f\u007f]/.test(title))
     fields.title = '請填寫 1–120 字的安排名稱';
-  if (!['activity', 'scrimmage'].includes(values.type)) fields.type = '請選擇活動或約戰';
+  if (!['activity', 'scrimmage', 'guild_war', 'dragon_tiger'].includes(values.type))
+    fields.type = '請選擇活動、約戰、幫戰或龍虎戰';
   const dates = values.dates;
   if (!Array.isArray(dates) || !dates.length || dates.length > 366) {
     fields.dates = '請選擇 1–366 個日期';
@@ -47,7 +48,7 @@ export function createEventRepository(db) {
     CREATE TABLE IF NOT EXISTS scheduled_events (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
-      type TEXT NOT NULL CHECK (type IN ('activity', 'scrimmage')),
+      type TEXT NOT NULL CHECK (type IN ('activity', 'scrimmage', 'guild_war', 'dragon_tiger')),
       request_id TEXT NOT NULL UNIQUE,
       created_at TEXT NOT NULL
     );
@@ -73,6 +74,46 @@ export function createEventRepository(db) {
       db.exec('ALTER TABLE scheduled_events ADD COLUMN deleted_at TEXT');
     db.exec("UPDATE scheduled_events SET updated_at = created_at WHERE updated_at = ''");
   })();
+  const schema = db
+    .prepare("SELECT sql FROM sqlite_schema WHERE name = 'scheduled_events'")
+    .get().sql;
+  if (!schema.includes("'guild_war'") || !schema.includes("'dragon_tiger'")) {
+    const foreignKeys = db.pragma('foreign_keys', { simple: true });
+    // Rebuild only the parent table; keep date references pointing at its original name.
+    // https://www.sqlite.org/lang_altertable.html#making_other_kinds_of_table_schema_changes
+    db.pragma('foreign_keys = OFF');
+    try {
+      db.transaction(() => {
+        const objects = db
+          .prepare(
+            `SELECT sql FROM sqlite_schema
+          WHERE tbl_name = 'scheduled_events' AND type IN ('index', 'trigger') AND sql IS NOT NULL`,
+          )
+          .all();
+        db.exec(`
+          CREATE TABLE scheduled_events_next (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            type TEXT NOT NULL CHECK (type IN ('activity', 'scrimmage', 'guild_war', 'dragon_tiger')),
+            request_id TEXT NOT NULL UNIQUE,
+            created_at TEXT NOT NULL,
+            revision INTEGER NOT NULL DEFAULT 1 CHECK (revision > 0),
+            updated_at TEXT NOT NULL DEFAULT '',
+            deleted_at TEXT
+          );
+          INSERT INTO scheduled_events_next (id, title, type, request_id, created_at, revision, updated_at, deleted_at)
+            SELECT id, title, type, request_id, created_at, revision, updated_at, deleted_at FROM scheduled_events;
+          DROP TABLE scheduled_events;
+          ALTER TABLE scheduled_events_next RENAME TO scheduled_events;
+        `);
+        for (const object of objects) db.exec(object.sql);
+        if (db.pragma('foreign_key_check').length)
+          throw new Error('活動類型遷移的資料關聯檢查失敗');
+      })();
+    } finally {
+      db.pragma(`foreign_keys = ${foreignKeys ? 'ON' : 'OFF'}`);
+    }
+  }
   function checkRevision(revision) {
     if (!Number.isSafeInteger(revision) || revision < 1)
       throw new EventError('安排版本不正確，請重新載入清單後再試', { revision: '請重新載入安排' });

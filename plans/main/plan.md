@@ -62,3 +62,7 @@
 ## 活動修改與刪除
 
 使用者要求活動安排可修改及刪除。沿用建立表單、日期規則, 新增版本檢查及刪除確認, 見 [event-management-plan.md](event-management-plan.md)。
+
+## 幫戰與龍虎戰類型
+
+新增幫戰與龍虎戰兩種可多日的安排, 同步資料驗證、類型篩選及月曆, 計畫見 [event-types-plan.md](event-types-plan.md)。
