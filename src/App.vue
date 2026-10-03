@@ -298,7 +298,6 @@ function skipToMain() {
         <BattleUploadPage
           v-else-if="view === 'battle-upload'"
           :initial-event-id="battleUploadEventId"
-          @open-page="navigate"
         />
       </template>
       <footer v-show="!lineupFocus" class="page-footer">

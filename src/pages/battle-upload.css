@@ -14,9 +14,6 @@
   font-weight: 700;
   overflow-wrap: anywhere;
 }
-.battle-round-card > .v-btn {
-  margin-top: 16px;
-}
 .battle-internal-switch {
   margin-bottom: 12px;
 }
@@ -215,35 +212,11 @@
 .battle-player-table td:nth-child(n + 4) {
   text-align: right;
 }
-.battle-detail-card {
-  display: flex;
-  flex-direction: column;
-  max-height: calc(100dvh - 48px);
-}
-.battle-detail-content {
-  padding: 24px;
-  overflow: auto;
-}
-.battle-detail-content h2 {
-  font-size: 22px;
-  margin-bottom: 16px;
-}
-.battle-detail-content p {
-  margin-bottom: 20px;
-  color: var(--color-text-muted);
-}
-.battle-detail-downloads {
+.battle-data-downloads {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
   margin-top: 20px;
-}
-.battle-detail-footer {
-  padding: 16px 24px;
-  border-top: 1px solid var(--color-border);
-  display: flex;
-  justify-content: flex-end;
-  flex-shrink: 0;
 }
 @media (max-width: 1023px) {
   .battle-upload-grid {
@@ -254,8 +227,7 @@
   .battle-match-fields {
     grid-template-columns: minmax(0, 1fr);
   }
-  .battle-upload-card,
-  .battle-detail-content {
+  .battle-upload-card {
     padding: 16px;
   }
   .battle-upload-card .section-header {
@@ -270,8 +242,5 @@
   }
   .battle-dropzone {
     padding: 20px 12px;
-  }
-  .battle-detail-footer {
-    padding: 16px;
   }
 }
