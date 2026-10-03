@@ -18,11 +18,6 @@
 .battle-event-card > .battle-muted {
   margin: 0;
 }
-.battle-file-column {
-  display: grid;
-  gap: 24px;
-  min-width: 0;
-}
 .battle-upload-card {
   padding: 24px;
   border: 1px solid var(--color-border);
@@ -78,15 +73,6 @@
 .battle-dropzone:focus-visible {
   outline: 3px solid var(--color-primary);
   outline-offset: 3px;
-}
-.battle-image-zone {
-  min-height: 150px;
-}
-.battle-image-zone img {
-  max-width: 100%;
-  max-height: 220px;
-  object-fit: contain;
-  border-radius: 8px;
 }
 .battle-file-item {
   display: flex;
@@ -242,12 +228,8 @@
   .battle-upload-grid {
     grid-template-columns: minmax(0, 1fr);
   }
-  .battle-file-column {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 @media (max-width: 767px) {
-  .battle-file-column,
   .battle-match-fields {
     grid-template-columns: minmax(0, 1fr);
   }

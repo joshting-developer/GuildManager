@@ -3,7 +3,6 @@ import { computed, inject, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import {
   mdiFileUploadOutline,
   mdiFileDelimitedOutline,
-  mdiImagePlus,
   mdiDeleteOutline,
   mdiRefresh,
   mdiDownload,
@@ -14,7 +13,6 @@ import { createEventClient } from '../api/events.js';
 import {
   BATTLE_COLUMNS,
   MAX_CSV_BYTES,
-  MAX_IMAGE_BYTES,
   parseBattleCsv,
   battleFilenameDefaults,
   taipeiBattleTime,
@@ -28,24 +26,20 @@ const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 const client = createBattleRecordClient({ source }),
   eventClient = createEventClient({ source });
 const csvInput = ref(null),
-  imageInput = ref(null),
-  files = ref([]),
-  image = ref(null);
+  files = ref([]);
 const reading = ref(false),
   saving = ref(false),
   loading = ref(true),
   error = ref(''),
   notice = ref(''),
   fileError = ref(''),
-  imageError = ref(''),
   listError = ref(''),
   eventError = ref('');
 const events = ref([]),
   records = ref([]),
   total = ref(0),
   page = ref(1);
-const draggingCsv = ref(false),
-  draggingImage = ref(false);
+const draggingCsv = ref(false);
 const detailOpen = ref(false),
   detailTarget = ref(null),
   detail = ref(null),
@@ -53,7 +47,7 @@ const detailOpen = ref(false),
   detailError = ref(''),
   downloadBusy = ref(false);
 const busy = computed(() => reading.value || saving.value || downloadBusy.value);
-const dirty = computed(() => files.value.length > 0 || Boolean(image.value));
+const dirty = computed(() => files.value.length > 0);
 const selectedEventId = ref(null);
 const selectedEvent = computed(() =>
   events.value.find((event) => event.id === selectedEventId.value),
@@ -85,11 +79,6 @@ function sizeLabel(bytes) {
   return bytes < 1024 * 1024
     ? `${(bytes / 1024).toFixed(1)} KB`
     : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-function clearImage() {
-  if (image.value) URL.revokeObjectURL(image.value.url);
-  image.value = null;
-  imageError.value = '';
 }
 function removeFile(id) {
   files.value = files.value.filter((file) => file.id !== id);
@@ -155,57 +144,6 @@ function dropCsv(event) {
   draggingCsv.value = false;
   addFiles([...event.dataTransfer.files]);
 }
-async function setImage(file) {
-  if (!file || busy.value) return;
-  imageError.value = '';
-  notice.value = '';
-  if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
-    imageError.value = '只支援 PNG、JPEG、WebP 圖片';
-    return;
-  }
-  if (!file.size || file.size > MAX_IMAGE_BYTES) {
-    imageError.value = '圖片不可為空或超過 4 MB';
-    return;
-  }
-  const url = URL.createObjectURL(file);
-  reading.value = true;
-  try {
-    await new Promise((resolve, reject) => {
-      const preview = new Image();
-      preview.onload = resolve;
-      preview.onerror = () => reject(new Error('無法讀取這張圖片'));
-      preview.src = url;
-    });
-    if (disposed) {
-      URL.revokeObjectURL(url);
-      return;
-    }
-    clearImage();
-    image.value = { file, url };
-  } catch (cause) {
-    URL.revokeObjectURL(url);
-    imageError.value = cause.message;
-  } finally {
-    reading.value = false;
-  }
-}
-function pickedImage(event) {
-  setImage(event.target.files[0]);
-  event.target.value = '';
-}
-function dropImage(event) {
-  draggingImage.value = false;
-  setImage(event.dataTransfer.files[0]);
-}
-function pasteImage(event) {
-  const file = [...(event.clipboardData?.files || [])].find((file) =>
-    file.type.startsWith('image/'),
-  );
-  if (file && !busy.value) {
-    event.preventDefault();
-    setImage(file);
-  }
-}
 async function loadEvents() {
   eventError.value = '';
   try {
@@ -246,19 +184,6 @@ function changePage(value) {
   page.value = value;
   loadRecords();
 }
-function imagePayload(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () =>
-      resolve({
-        name: file.name,
-        mimeType: file.type,
-        base64: String(reader.result).split(',')[1],
-      });
-    reader.onerror = () => reject(new Error('圖片讀取失敗, 請重新選擇'));
-    reader.readAsDataURL(file);
-  });
-}
 async function submit() {
   if (busy.value) return;
   error.value = '';
@@ -294,7 +219,7 @@ async function submit() {
         type: selectedEvent.value.type,
         eventId: selectedEvent.value.id,
       })),
-      image: image.value ? await imagePayload(image.value.file) : null,
+      image: null,
     };
     const encoded = JSON.stringify(input);
     if (attempt?.encoded !== encoded) attempt = { encoded, requestId: crypto.randomUUID() };
@@ -307,7 +232,6 @@ async function submit() {
     )
       throw new Error('上傳回應格式不正確, 請重試以確認結果');
     files.value = [];
-    clearImage();
     attempt = null;
     fileError.value = '';
     notice.value = `上傳成功, 已保存 ${result.records.length} 筆戰績`;
@@ -379,7 +303,6 @@ onUnmounted(() => {
   disposed = true;
   listToken++;
   detailToken++;
-  clearImage();
   unregisterGuard?.();
   window.removeEventListener('beforeunload', leaveWarning);
 });
@@ -427,110 +350,58 @@ onUnmounted(() => {
     <v-btn variant="text" :disabled="busy" @click="emit('open-page', 'events')">活動安排</v-btn>
   </v-card>
   <div class="battle-upload-grid">
-    <div class="battle-file-column">
-      <v-card class="battle-upload-card">
-        <div class="section-header">
-          <h2><v-icon :icon="mdiFileDelimitedOutline" size="22" /> 對戰結果 CSV</h2>
-          <v-chip>{{ files.length }} / 2</v-chip>
-        </div>
-        <input
-          ref="csvInput"
-          class="sr-only"
-          type="file"
-          accept=".csv,text/csv"
-          multiple
-          aria-label="選擇戰績 CSV"
-          tabindex="-1"
-          :disabled="busy"
-          @change="pickedCsv"
-        />
-        <button
-          type="button"
-          class="battle-dropzone"
-          :class="{ 'battle-drop-active': draggingCsv }"
-          :disabled="busy"
-          @click="csvInput.click()"
-          @dragenter.prevent="draggingCsv = true"
-          @dragover.prevent
-          @dragleave.prevent="draggingCsv = false"
-          @drop.prevent="dropCsv"
-        >
-          <v-icon :icon="mdiFileUploadOutline" size="32" /><strong>選擇或拖曳 CSV 檔案</strong
-          ><span>UTF-8 · 每次最多 2 個 · 每檔 1 MB</span>
-        </button>
-        <p v-if="reading" role="status" class="battle-muted">正在讀取檔案…</p>
-        <v-alert v-if="fileError" type="error" variant="tonal" role="alert" class="mt-4">{{
-          fileError
-        }}</v-alert>
-        <div v-for="file in files" :key="file.id" class="battle-file-item">
-          <div>
-            <strong :title="file.filename">{{ file.filename }}</strong
-            ><span
-              >{{ sizeLabel(file.size) }} · 紅方 {{ file.parsed.redCount }} 人／藍方
-              {{ file.parsed.blueCount }} 人</span
-            >
-          </div>
-          <v-btn
-            variant="text"
-            :icon="mdiDeleteOutline"
-            :aria-label="`移除 ${file.filename}`"
-            :disabled="busy"
-            @click="removeFile(file.id)"
-          />
-        </div>
-        <p v-if="!files.length" class="battle-muted">加入 CSV 後, 右側會產生對戰資料。</p>
-      </v-card>
-      <v-card class="battle-upload-card">
-        <div class="section-header">
-          <h2><v-icon :icon="mdiImagePlus" size="22" /> 陣容圖片</h2>
-          <v-chip>選填</v-chip>
-        </div>
-        <input
-          ref="imageInput"
-          class="sr-only"
-          type="file"
-          accept="image/png,image/jpeg,image/webp"
-          aria-label="選擇陣容圖片"
-          tabindex="-1"
-          :disabled="busy"
-          @change="pickedImage"
-        />
-        <button
-          type="button"
-          class="battle-dropzone battle-image-zone"
-          :class="{ 'battle-drop-active': draggingImage }"
-          :disabled="busy"
-          aria-label="選擇、拖曳或貼上陣容圖片"
-          @click="imageInput.click()"
-          @paste="pasteImage"
-          @dragenter.prevent="draggingImage = true"
-          @dragover.prevent
-          @dragleave.prevent="draggingImage = false"
-          @drop.prevent="dropImage"
-        >
-          <img v-if="image" :src="image.url" alt="待上傳陣容圖片預覽" /><template v-else
-            ><v-icon :icon="mdiImagePlus" size="28" /><strong>選擇、拖曳或貼上圖片</strong
-            ><span>PNG／JPEG／WebP · 最多 4 MB</span><span>聚焦此區後按 Ctrl／⌘ + V</span></template
+    <v-card class="battle-upload-card">
+      <div class="section-header">
+        <h2><v-icon :icon="mdiFileDelimitedOutline" size="22" /> 對戰結果 CSV</h2>
+        <v-chip>{{ files.length }} / 2</v-chip>
+      </div>
+      <input
+        ref="csvInput"
+        class="sr-only"
+        type="file"
+        accept=".csv,text/csv"
+        multiple
+        aria-label="選擇戰績 CSV"
+        tabindex="-1"
+        :disabled="busy"
+        @change="pickedCsv"
+      />
+      <button
+        type="button"
+        class="battle-dropzone"
+        :class="{ 'battle-drop-active': draggingCsv }"
+        :disabled="busy"
+        @click="csvInput.click()"
+        @dragenter.prevent="draggingCsv = true"
+        @dragover.prevent
+        @dragleave.prevent="draggingCsv = false"
+        @drop.prevent="dropCsv"
+      >
+        <v-icon :icon="mdiFileUploadOutline" size="32" /><strong>選擇或拖曳 CSV 檔案</strong
+        ><span>UTF-8 · 每次最多 2 個 · 每檔 1 MB</span>
+      </button>
+      <p v-if="reading" role="status" class="battle-muted">正在讀取檔案…</p>
+      <v-alert v-if="fileError" type="error" variant="tonal" role="alert" class="mt-4">{{
+        fileError
+      }}</v-alert>
+      <div v-for="file in files" :key="file.id" class="battle-file-item">
+        <div>
+          <strong :title="file.filename">{{ file.filename }}</strong
+          ><span
+            >{{ sizeLabel(file.size) }} · 紅方 {{ file.parsed.redCount }} 人／藍方
+            {{ file.parsed.blueCount }} 人</span
           >
-        </button>
-        <div v-if="image" class="battle-file-item">
-          <div>
-            <strong>{{ image.file.name }}</strong
-            ><span>{{ sizeLabel(image.file.size) }}</span>
-          </div>
-          <v-btn
-            variant="text"
-            :icon="mdiDeleteOutline"
-            aria-label="移除陣容圖片"
-            :disabled="busy"
-            @click="clearImage"
-          />
         </div>
-        <v-alert v-if="imageError" type="error" variant="tonal" role="alert" class="mt-4">{{
-          imageError
-        }}</v-alert>
-      </v-card>
-    </div>
+        <v-btn
+          variant="text"
+          :icon="mdiDeleteOutline"
+          :aria-label="`移除 ${file.filename}`"
+          :disabled="busy"
+          @click="removeFile(file.id)"
+        />
+      </div>
+      <p v-if="!files.length" class="battle-muted">加入 CSV 後, 右側會產生對戰資料。</p>
+    </v-card>
     <v-card class="battle-upload-card battle-match-card">
       <div class="section-header">
         <h2>對戰資料</h2>
