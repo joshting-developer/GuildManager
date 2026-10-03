@@ -18,6 +18,7 @@ const loading = ref(true),
   loadError = ref(''),
   error = ref(''),
   notice = ref('');
+const tab = ref('form');
 const name = ref(''),
   professionId = ref(null),
   status = ref('registered'),
@@ -31,6 +32,14 @@ const registeredCount = computed(
   () => entries.value.filter((row) => row.status === 'registered').length,
 );
 const leaveCount = computed(() => entries.value.filter((row) => row.status === 'leave').length);
+const professionCounts = computed(() =>
+  professions.value.map((job) => ({
+    ...job,
+    count: entries.value.filter(
+      (row) => row.status === 'registered' && row.professionId === job.job_id,
+    ).length,
+  })),
+);
 function formValues() {
   return JSON.stringify([name.value, professionId.value, status.value, note.value]);
 }
@@ -85,6 +94,7 @@ watch(
   (open) => {
     if (open) {
       notice.value = '';
+      tab.value = 'form';
       status.value = 'registered';
       resetForm();
       load();
@@ -172,55 +182,95 @@ async function submit() {
       }}</v-alert>
       <template v-else>
         <p class="participation-count">報名 {{ registeredCount }} 人 · 請假 {{ leaveCount }} 人</p>
-        <form class="participation-form" @submit.prevent="submit">
-          <v-select
-            v-model="status"
-            :items="[
-              { title: '報名', value: 'registered' },
-              { title: '請假', value: 'leave' },
-            ]"
-            label="狀態"
-            variant="outlined"
-            density="compact"
+        <v-tabs v-model="tab" color="primary" aria-label="場次報名資訊">
+          <v-tab
+            id="participation-form-tab"
+            value="form"
+            aria-controls="participation-form-panel"
             :disabled="busy"
-            hide-details
-          />
-          <v-text-field
-            v-model="name"
-            label="名稱"
-            maxlength="64"
-            variant="outlined"
-            density="compact"
+            >報名／請假</v-tab
+          >
+          <v-tab
+            id="participation-professions-tab"
+            value="professions"
+            aria-controls="participation-professions-panel"
             :disabled="busy"
-            hide-details
-            aria-required="true"
-          />
-          <v-select
-            v-if="status === 'registered'"
-            v-model="professionId"
-            :items="professions"
-            item-title="name"
-            item-value="job_id"
-            label="職業"
-            variant="outlined"
-            density="compact"
-            :disabled="busy"
-            hide-details
-            aria-required="true"
-          />
-          <v-text-field
-            v-model="note"
-            label="備註（選填）"
-            maxlength="160"
-            variant="outlined"
-            density="compact"
-            :disabled="busy"
-            hide-details
-          />
-          <v-btn type="submit" color="primary" :loading="busy" :disabled="busy">{{
-            status === 'registered' ? '送出報名' : '送出請假'
-          }}</v-btn>
-        </form>
+            >職業統計</v-tab
+          >
+        </v-tabs>
+        <section
+          v-show="tab === 'form'"
+          id="participation-form-panel"
+          role="tabpanel"
+          aria-labelledby="participation-form-tab"
+          tabindex="0"
+        >
+          <form class="participation-form" @submit.prevent="submit">
+            <v-select
+              v-model="status"
+              :items="[
+                { title: '報名', value: 'registered' },
+                { title: '請假', value: 'leave' },
+              ]"
+              label="狀態"
+              variant="outlined"
+              density="compact"
+              :disabled="busy"
+              hide-details
+            />
+            <v-text-field
+              v-model="name"
+              label="名稱"
+              maxlength="64"
+              variant="outlined"
+              density="compact"
+              :disabled="busy"
+              hide-details
+              aria-required="true"
+            />
+            <v-select
+              v-if="status === 'registered'"
+              v-model="professionId"
+              :items="professions"
+              item-title="name"
+              item-value="job_id"
+              label="職業"
+              variant="outlined"
+              density="compact"
+              :disabled="busy"
+              hide-details
+              aria-required="true"
+            />
+            <v-text-field
+              v-model="note"
+              label="備註（選填）"
+              maxlength="160"
+              variant="outlined"
+              density="compact"
+              :disabled="busy"
+              hide-details
+            />
+            <v-btn type="submit" color="primary" :loading="busy" :disabled="busy">{{
+              status === 'registered' ? '送出報名' : '送出請假'
+            }}</v-btn>
+          </form>
+        </section>
+        <section
+          v-show="tab === 'professions'"
+          id="participation-professions-panel"
+          role="tabpanel"
+          aria-labelledby="participation-professions-tab"
+          tabindex="0"
+        >
+          <ul class="profession-count-list" aria-label="各職業報名人數">
+            <li v-for="job in professionCounts" :key="job.job_id">
+              <span class="profession-count-name" :style="{ '--job-color': job.colorcode }">{{
+                job.name
+              }}</span>
+              <strong>{{ job.count }}<small> 人</small></strong>
+            </li>
+          </ul>
+        </section>
         <v-alert v-if="error" type="error" variant="tonal" role="alert">{{ error }}</v-alert>
         <v-alert v-if="notice" type="success" variant="tonal" role="status">{{ notice }}</v-alert>
       </template>
@@ -257,7 +307,51 @@ async function submit() {
   font-size: 13px;
   color: var(--color-text-muted);
 }
+.profession-count-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  list-style: none;
+  padding: 0;
+  margin: 20px 0;
+}
+.profession-count-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  min-height: 52px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+}
+.profession-count-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.profession-count-name::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px solid #64748b33;
+  background: var(--job-color);
+  flex-shrink: 0;
+}
+.profession-count-list strong {
+  font-size: 18px;
+  white-space: nowrap;
+}
+.profession-count-list small {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
 @media (max-width: 600px) {
+  .profession-count-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .participation-card {
     padding: 16px;
   }
