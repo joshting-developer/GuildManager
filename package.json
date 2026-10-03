@@ -7,6 +7,7 @@
     "node": ">=22.12.0"
   },
   "scripts": {
+    "seed:demo": "node tools/seed-demo-members.js",
     "dev": "vite --host 127.0.0.1",
     "server": "node --watch server/index.js",
     "build": "vite build",

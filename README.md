@@ -21,7 +21,7 @@ docker compose up --build -d
 - 職責清單：`http://localhost:3001/api/duties`
 - 職業清單：`http://localhost:3001/api/professions`
 - SQLite 保存在 `guild_data` volume 的 `/data/guildmanager.sqlite`
-- 本機資料庫不再加入示範資料, 重啟不覆寫既有設定
+- 本機資料庫啟動時不自動加入示範資料, 重啟不覆寫既有設定
 - `src/` 與 `server/` 修改會反映至服務, 依賴或 Dockerfile 變更後重新執行 `docker compose up --build -d`
 - 若 Docker Desktop 的檔案事件通知不穩定, 再依需要開啟 polling
 
@@ -34,6 +34,18 @@ docker compose down
 ```
 
 `down` 保留資料 volume, 加上 `-v` 會刪除資料, 不作為一般停止方式
+
+## 建立示範成員
+
+啟動本機 API 後, 在專案目錄手動執行：
+
+```sh
+npm run seed:demo
+```
+
+透過 `http://127.0.0.1:3001/api` 新增 100 位示範成員：80 位同時在幫派與俱樂部、20 位只在俱樂部, 因此示範俱樂部成員合計 100 位。主、副職業循環分配九種職業, 名稱含「示範資料」, UID 為 `DEMO-GUILD-001`～`080` 與 `DEMO-CLUB-001`～`020`。既有成員另計。
+
+重複執行會跳過已存在的 UID, 保留既有資料及後續編輯；中斷後可重試。此指令只操作上述本機 API, 不寫入 Google 試算表。成員清單搜尋「示範資料」即可單獨查看與篩選這批人員。
 
 ## 不使用 Docker
 

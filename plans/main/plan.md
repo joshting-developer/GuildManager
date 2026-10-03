@@ -86,3 +86,7 @@
 ## 幫戰／龍虎戰名稱選填
 
 因對手事前不確定, 放寬兩類安排的名稱必填並補上顯示回退, 見 [optional-battle-title-plan.md](optional-battle-title-plan.md)。
+
+## 一百位示範成員
+
+依使用者要求在本機新增 80 位幫派兼俱樂部與 20 位僅俱樂部的假資料, 保留原有成員, 見 [demo-members-plan.md](demo-members-plan.md)。
