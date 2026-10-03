@@ -28,13 +28,6 @@ export function createRepository({ filename }) {
       capacity INTEGER NOT NULL,
       note TEXT NOT NULL
     );
-    CREATE TABLE IF NOT EXISTS announcements (
-      id TEXT PRIMARY KEY,
-      title TEXT NOT NULL,
-      body TEXT NOT NULL,
-      published_at TEXT NOT NULL,
-      pinned INTEGER NOT NULL DEFAULT 0
-    );
   `);
   db.exec(`
     CREATE TABLE IF NOT EXISTS professions (
@@ -284,7 +277,6 @@ export function createRepository({ filename }) {
           pendingRegistrations: null,
         },
         events: [],
-        announcements: [],
         meta: { mode: 'empty', updatedAt: row.updated_at },
       };
     },

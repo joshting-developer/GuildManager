@@ -1,0 +1,112 @@
+.calendar-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.calendar-toolbar h3 {
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.calendar-navigation {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.calendar-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  text-align: left;
+}
+.calendar-table th {
+  padding: 12px;
+  text-align: center;
+  background: var(--color-muted-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+.calendar-table td {
+  height: 92px;
+  padding: 12px;
+  vertical-align: top;
+  border: 1px solid var(--color-border);
+}
+.calendar-day {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.calendar-day time {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.calendar-outside {
+  background: #fafbfc;
+}
+.calendar-outside time {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+.calendar-today {
+  background: #eff6ff;
+}
+.calendar-today time {
+  background: var(--color-primary);
+  color: #fff;
+  border-radius: 50%;
+}
+.calendar-today-label {
+  color: var(--color-primary);
+  font-size: 12px;
+}
+.calendar-status {
+  margin-top: 16px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+@media (max-width: 767px) {
+  .calendar-heading {
+    flex-wrap: wrap;
+  }
+  .calendar-toolbar {
+    gap: 12px;
+  }
+  .calendar-toolbar h3 {
+    font-size: 20px;
+  }
+  .calendar-table td {
+    padding: 5px 2px;
+    height: 66px;
+  }
+  .calendar-table th {
+    padding: 10px 2px;
+  }
+  .calendar-day {
+    justify-content: center;
+    gap: 2px;
+  }
+  .calendar-today-label {
+    width: 100%;
+    text-align: center;
+    font-size: 10px;
+  }
+  .calendar-day time {
+    width: 26px;
+    height: 26px;
+    font-size: 13px;
+  }
+}

@@ -37,7 +37,6 @@ test('an unseeded SQLite database contains empty data with unknown attendance', 
     assert.equal(data.meta.mode, 'empty');
     assert.equal(data.summary.attendanceRate, null);
     assert.deepEqual(data.events, []);
-    assert.deepEqual(data.announcements, []);
   } finally {
     repository.close();
   }

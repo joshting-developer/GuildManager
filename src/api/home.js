@@ -27,7 +27,6 @@ export function createHomeClient({
         !data?.guild ||
         !data.summary ||
         !Array.isArray(data.events) ||
-        !Array.isArray(data.announcements) ||
         !['demo', 'empty', 'live'].includes(data.meta?.mode)
       ) {
         throw new Error('資料格式不符，請確認首頁資料介面');

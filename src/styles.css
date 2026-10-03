@@ -336,11 +336,6 @@ h1 {
   margin: 6px -16px;
   height: 62px;
 }
-.content-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr);
-  gap: 24px;
-}
 .panel {
   background: white;
   border: 1px solid var(--color-border);
@@ -528,61 +523,8 @@ h3 {
   padding-top: 14px;
   border-top: 1px solid var(--color-border);
 }
-.notice-heading-icon {
-  color: #94a3b8;
-}
-.notices-panel {
-  display: flex;
-  flex-direction: column;
-}
-.notice-list {
-  flex: 1;
-}
-.notice-item {
-  padding-bottom: 23px;
-}
-.notice-item + .notice-item {
-  padding-top: 22px;
-  border-top: 1px solid #edf1f5;
-}
-.notice-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  color: var(--color-text-muted);
-  font-size: 10px;
-}
-.pinned {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: #b45309;
-  background: #fffbeb;
-  padding: 4px 7px;
-  border-radius: 6px;
-}
-.notice-item h3 {
-  margin: 12px 0 8px;
-}
-.notice-item > p {
-  color: var(--color-text-muted);
-  font-size: 12px;
-  line-height: 1.9;
-}
-.notice-note {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  color: var(--color-text-muted);
-  border-radius: 10px;
-  background: #f8fafc;
-  padding: 13px;
-  font-size: 10px;
-  margin-top: 9px;
-}
-.management-section {
-  margin-top: 32px;
+.home-management {
+  margin-bottom: 32px;
 }
 .section-description {
   color: var(--color-text-muted);
@@ -751,10 +693,6 @@ h3 {
   .page {
     padding: 32px 24px 0;
   }
-  .content-grid {
-    grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
-    gap: 18px;
-  }
   .panel {
     padding: 22px;
   }
@@ -775,24 +713,11 @@ h3 {
   .desktop-nav {
     gap: 18px;
   }
-  .content-grid {
-    grid-template-columns: 1fr;
-  }
-  .stats-grid,
   .modules-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .next-event .v-btn {
     margin-left: 0;
-  }
-  .notice-list {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 24px;
-  }
-  .notice-item + .notice-item {
-    padding-top: 0;
-    border-top: 0;
   }
 }
 @media (max-width: 767px) {
@@ -951,17 +876,6 @@ h3 {
     width: 44px;
     height: 44px;
     margin-right: -10px;
-  }
-  .notice-list {
-    display: block;
-  }
-  .notice-item + .notice-item {
-    padding-top: 20px;
-    border-top: 1px solid var(--color-border);
-  }
-  .management-section > .section-header {
-    align-items: flex-start;
-    flex-direction: column;
   }
   .module-card {
     padding: 16px;
