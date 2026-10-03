@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import { createEventRepository } from './event-repository.js';
 import { createLineupRepository } from './lineup-repository.js';
+import { createParticipationRepository } from './participation-repository.js';
 import { createDutyRepository } from './duty-repository.js';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -196,6 +197,7 @@ export function createRepository({ filename }) {
   const repository = {
     ...createEventRepository(db),
     ...createDutyRepository(db),
+    ...createParticipationRepository(db),
     ...createLineupRepository(db),
     previewMemberImport,
     importMembers(input) {

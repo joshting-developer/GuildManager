@@ -3,6 +3,7 @@ import { EventError } from './event-repository.js';
 import { LineupError } from './lineup-repository.js';
 import { DutyError } from './duty-repository.js';
 import { MemberError } from './member-validation.js';
+import { ParticipationError } from './participation-repository.js';
 
 export function createApp(repository) {
   const app = express();
@@ -50,6 +51,28 @@ export function createApp(repository) {
   });
   app.get('/api/professions', (_request, response) => {
     response.set('Cache-Control', 'no-store').json(repository.listProfessions());
+  });
+  app.get('/api/events/:id/participation', (request, response) => {
+    response
+      .set('Cache-Control', 'no-store')
+      .json(repository.getEventParticipation(request.params.id));
+  });
+  app.patch('/api/events/:id/participation', (request, response) => {
+    response.json({ response: repository.saveMemberResponse(request.params.id, request.body) });
+  });
+  app.post('/api/events/:id/registrations', (request, response) => {
+    response
+      .status(201)
+      .json({ registration: repository.addGuestRegistration(request.params.id, request.body) });
+  });
+  app.delete('/api/events/:id/registrations/:registrationId', (request, response) => {
+    response.json({
+      registration: repository.cancelGuestRegistration(
+        request.params.id,
+        request.params.registrationId,
+        request.body?.revision,
+      ),
+    });
   });
   app.get('/api/lineups', (_request, response) => {
     response.set('Cache-Control', 'no-store').json(repository.getLineupIndex());
@@ -103,7 +126,8 @@ export function createApp(repository) {
       error instanceof MemberError ||
       error instanceof EventError ||
       error instanceof LineupError ||
-      error instanceof DutyError
+      error instanceof DutyError ||
+      error instanceof ParticipationError
     ) {
       return response.status(error.status).json({
         error: {

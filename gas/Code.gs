@@ -75,3 +75,16 @@ function addDuty(input) {
 function updateDuty(id, input) {
   throw new Error('雲端職責修改尚未串接 Google 試算表');
 }
+
+function getEventParticipation(eventId) {
+  throw new Error('雲端報名／請假尚未串接 Google 試算表');
+}
+function saveMemberResponse(eventId, input) {
+  throw new Error('雲端報名／請假尚未串接 Google 試算表');
+}
+function addGuestRegistration(eventId, input) {
+  throw new Error('雲端額外報名尚未串接 Google 試算表');
+}
+function cancelGuestRegistration(eventId, id, revision) {
+  throw new Error('雲端取消報名尚未串接 Google 試算表');
+}

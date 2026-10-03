@@ -90,3 +90,7 @@
 ## 一百位示範成員
 
 依使用者要求在本機新增 80 位幫派兼俱樂部與 20 位僅俱樂部的假資料, 保留原有成員, 見 [demo-members-plan.md](demo-members-plan.md)。
+
+## 行事曆首頁與場次參與
+
+管理總覽移至 magament、新首頁行事曆報名／請假、排表三類來源與無 UID 額外報名, 見 [event-participation-plan.md](event-participation-plan.md)。
