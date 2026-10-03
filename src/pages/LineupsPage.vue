@@ -898,12 +898,6 @@ onUnmounted(() => {
               ><v-tab value="guild">幫會成員</v-tab><v-tab value="club">俱樂部成員</v-tab
               ><v-tab value="extra">額外報名</v-tab></v-tabs
             >
-            <p class="lineup-hint">
-              拖曳至位置，或先點選成員再點位置。第二位會安排為第二場；每個位置最多兩人，職責與備註共用。
-            </p>
-            <p class="lineup-hint">
-              名單只顯示尚未安排的人員；移出排表後會重新出現。已安排者可點位置編輯調整。
-            </p>
             <v-text-field
               v-model="search"
               label="搜尋名稱或報名備註"
