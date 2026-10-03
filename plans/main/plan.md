@@ -11,12 +11,16 @@
 - 幫會名稱、欄位與權限尚未確定, 首頁以清楚標示的示範資料呈現
 - 活動與管理入口是首頁版面預覽, 不代表後續功能已定案或完成
 - 此步驟不讀寫正式試算表, 不建立假登入與儲存成功行為
-- 加入本機預覽方式及 Apps Script 匯入說明, 不引入前端框架
+- 使用者後續確認改用 Vue＋Vuetify 首頁, 搭配 Docker、小型 API 與 SQLite 本機環境
+- 採 Vue 3、Vuetify、Vite, 本機 API 使用 Node.js／Express／SQLite
+- 前端資料呼叫透過 adapter, 本機使用 HTTP API, GAS 使用 `google.script.run`
+- GAS 編譯將前端 JS／CSS 內嵌為單一 HTML, 後端 `.gs` 另行保留
 
 ## 步驟
 
 1. 記錄製作範圍與驗證方式, 建立本機 commit
-2. 建立 Apps Script HTML Service 首頁與本機預覽, 檢查後建立本機 commit
+2. 確認並記錄本機／GAS 架構, 建立本機 commit
+3. 建立 Docker、API、SQLite 與 Vuetify 首頁, 驗證後建立本機 commit
 
 ## 驗證方式
 
@@ -24,6 +28,9 @@
 - 使用瀏覽器檢查桌面與手機版面, 無橫向溢出及 console 錯誤
 - 檢查活動篩選、示範／空白切換、導覽與對話框鍵盤操作
 - 確認示範資料標示清楚, 未串接功能不假裝寫入
+- 驗證 SQLite 資料經 API 顯示於首頁, 初始化不覆寫既有資料
+- 驗證 GAS 編譯產物無外部 JS／CSS 檔案依賴
+- 檢查 Compose 設定與容器啟動, 無法啟動時如實記錄原因
 - Apps Script 授權與測試部署需在 Google 環境驗證, 本機不宣稱通過
 
 ## 待確認
