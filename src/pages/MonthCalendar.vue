@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue';
 import { createEventClient } from '../api/events.js';
 import CalendarGrid from './CalendarGrid.vue';
+import EventCreateDialog from './EventCreateDialog.vue';
 import './events.css';
 const client = createEventClient({ source: import.meta.env.VITE_DATA_SOURCE || 'local' });
 const events = ref([]);
@@ -9,6 +10,9 @@ const loading = ref(true);
 const error = ref('');
 const dayDialog = ref(false);
 const selectedDay = ref(null);
+const createDialog = ref(false);
+const initialDate = ref('');
+const notice = ref('');
 let opener;
 async function load() {
   loading.value = true;
@@ -30,6 +34,17 @@ function openDay(day) {
   selectedDay.value = day;
   dayDialog.value = true;
 }
+function openCreate(date) {
+  initialDate.value = date;
+  notice.value = '';
+  createDialog.value = true;
+}
+function onCreated(event) {
+  const index = events.value.findIndex((value) => value.id === event.id);
+  if (index < 0) events.value.push(event);
+  else events.value[index] = event;
+  notice.value = `「${event.title}」已建立，共 ${event.dates.length} 天。`;
+}
 function restoreFocus() {
   if (opener?.isConnected) opener.focus();
 }
@@ -43,17 +58,28 @@ function restoreFocus() {
       </div>
       <span class="subtle-tag">活動／約戰行事曆</span>
     </div>
-    <CalendarGrid :events="events" @open-day="openDay" />
+    <CalendarGrid
+      :events="events"
+      :creatable="!loading && !error"
+      @open-day="openDay"
+      @create-date="openCreate"
+    />
+    <div class="event-notices" aria-live="polite">
+      <v-alert v-if="notice" type="success" variant="tonal" closable @click:close="notice = ''">{{
+        notice
+      }}</v-alert>
+    </div>
     <div class="calendar-status" aria-live="polite">
       <p v-if="loading" role="status">正在載入活動與約戰…</p>
       <template v-else-if="error"
         ><p role="alert">{{ error }}</p>
         <v-btn variant="text" @click="load">重新載入</v-btn></template
       >
-      <p v-else-if="!events.length">尚無活動或約戰，可從「活動安排」建立第一筆安排。</p>
-      <p v-else>點選有安排的日期查看詳情，活動的每個日期都會顯示在月曆中。</p>
+      <p v-else-if="!events.length">尚無活動或約戰，點選日期格即可建立第一筆安排。</p>
+      <p v-else>點選日期格建立安排；點選安排名稱或筆數查看當天詳情。</p>
     </div>
   </section>
+  <EventCreateDialog v-model="createDialog" :initial-date="initialDate" @created="onCreated" />
   <v-dialog
     v-model="dayDialog"
     max-width="520"

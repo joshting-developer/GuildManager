@@ -54,3 +54,7 @@
 
 - 新需求與資料相容處理見 [member-tabs-plan.md](member-tabs-plan.md)。
 - 成員頁至少一個所屬狀態為是, 編外頁兩者為否, 原移除操作改為移至編外。
+
+## 行事曆日期建立安排
+
+使用者希望點擊首頁日期格即可建立安排並預選日期。沿用現有表單與 API, 保留安排詳情入口, 計畫與驗證見 [calendar-create-plan.md](calendar-create-plan.md)。

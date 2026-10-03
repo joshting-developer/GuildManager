@@ -5,11 +5,13 @@ import './calendar.css';
 const props = defineProps({
   modelValue: { type: Array, default: () => [] },
   selectable: Boolean,
+  creatable: Boolean,
+  initialDate: { type: String, default: '' },
   multiple: Boolean,
   disabled: Boolean,
   events: { type: Array, default: () => [] },
 });
-const emit = defineEmits(['update:modelValue', 'open-day']);
+const emit = defineEmits(['update:modelValue', 'open-day', 'create-date']);
 const eventsByDate = computed(() => {
   const result = new Map();
   for (const event of props.events)
@@ -39,7 +41,11 @@ const parts = new Intl.DateTimeFormat('en-CA', {
 const today = Object.fromEntries(
   parts.filter((part) => part.type !== 'literal').map((part) => [part.type, Number(part.value)]),
 );
-const view = ref({ year: today.year, month: today.month - 1 });
+const initial = props.initialDate.match(/^([1-9]\d{3})-(0[1-9]|1[0-2])-\d{2}$/);
+const view = ref({
+  year: initial ? Number(initial[1]) : today.year,
+  month: initial ? Number(initial[2]) - 1 : today.month - 1,
+});
 const monthLabel = computed(() => `${view.value.year} 年 ${view.value.month + 1} 月`);
 const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
 function makeDate(year, month, day) {
@@ -75,7 +81,7 @@ function goToday() {
 }
 </script>
 <template>
-  <div :class="['calendar-grid', { 'date-picker': selectable }]">
+  <div :class="['calendar-grid', { 'date-picker': selectable, 'calendar-creatable': creatable }]">
     <div class="calendar-toolbar">
       <h3 aria-live="polite" aria-atomic="true">{{ monthLabel }}</h3>
       <div class="calendar-navigation" aria-label="切換行事曆月份">
@@ -130,6 +136,14 @@ function goToday() {
               {{ day.day }}
             </button>
             <template v-else>
+              <button
+                v-if="creatable"
+                type="button"
+                class="calendar-create-date"
+                :aria-label="`${day.label}，建立安排`"
+                :disabled="disabled || !/^[1-9]\d{3}-/.test(day.iso)"
+                @click="emit('create-date', day.iso)"
+              />
               <div class="calendar-day">
                 <time
                   :datetime="day.iso"

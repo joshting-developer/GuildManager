@@ -32,10 +32,37 @@
   font-weight: 600;
 }
 .calendar-table td {
+  position: relative;
   height: 92px;
   padding: 12px;
   vertical-align: top;
   border: 1px solid var(--color-border);
+}
+.calendar-create-date {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.calendar-create-date:hover:not(:disabled) {
+  background: #dbeafe;
+}
+.calendar-create-date:focus-visible {
+  outline-offset: -3px;
+}
+.calendar-create-date:disabled {
+  cursor: default;
+}
+.calendar-creatable .calendar-day {
+  position: relative;
+  pointer-events: none;
+}
+.calendar-creatable .calendar-day-events {
+  position: relative;
 }
 .calendar-day {
   display: flex;
