@@ -23,17 +23,22 @@ test('guild war and dragon tiger support discrete multi-day creation, editing be
   try {
     for (const type of ['guild_war', 'dragon_tiger']) {
       const values = { ...base, type, requestId: type };
-      const event = repo.createEvent(values);
+      const events = repo.createEventBatch(values);
+      const event = events[0];
       assert.equal(event.type, type);
-      assert.deepEqual(event.dates, base.dates);
-      assert.deepEqual(repo.createEvent(values), event);
+      assert.deepEqual(
+        events.map((event) => event.dates[0]),
+        base.dates,
+      );
+      assert.deepEqual(repo.createEventBatch(values), events);
       const updated = repo.updateEvent(event.id, {
         ...base,
+        dates: event.dates,
         type: type === 'guild_war' ? 'dragon_tiger' : 'guild_war',
         revision: 1,
       });
       assert.equal(updated.revision, 2);
-      assert.deepEqual(updated.dates, base.dates);
+      assert.deepEqual(updated.dates, event.dates);
       const single = repo.updateEvent(event.id, {
         ...base,
         type,
@@ -42,7 +47,7 @@ test('guild war and dragon tiger support discrete multi-day creation, editing be
       });
       assert.deepEqual(single.dates, ['2026-10-24']);
     }
-    assert.equal(repo.listEvents().events.length, 2);
+    assert.equal(repo.listEvents().events.length, 6);
   } finally {
     repo.close();
   }
@@ -54,8 +59,9 @@ test('new multi-day types enforce date limits and valid dates, while scrimmage r
       new Date(Date.UTC(2026, 0, index + 1)).toISOString().slice(0, 10),
     );
     for (const type of ['guild_war', 'dragon_tiger']) {
-      const event = repo.createEvent({ ...base, type, dates: maximum, requestId: type });
-      assert.equal(event.dates.length, 366);
+      const events = repo.createEventBatch({ ...base, type, dates: maximum, requestId: type });
+      const event = events[0];
+      assert.equal(events.length, 366);
       for (const dates of [
         [],
         [...maximum, '2027-01-02'],
@@ -63,7 +69,7 @@ test('new multi-day types enforce date limits and valid dates, while scrimmage r
         ['2026-02-29'],
       ]) {
         assert.throws(
-          () => repo.createEvent({ ...base, type, dates, requestId: 'invalid' }),
+          () => repo.createEventBatch({ ...base, type, dates, requestId: 'invalid' }),
           (error) => Boolean(error.fields.dates),
         );
         assert.throws(
@@ -114,13 +120,29 @@ test('old CHECK migration preserves all metadata, deleted rows, dates, unique ID
       2,
     );
     assert.throws(
-      () => repo.updateEvent('old', { ...base, title: '禁止標題', type: 'guild_war', revision: 7 }),
+      () =>
+        repo.updateEvent('old', {
+          ...base,
+          dates: ['2026-10-24'],
+          title: '禁止標題',
+          type: 'guild_war',
+          revision: 7,
+        }),
       /title trigger/,
     );
-    const saved = repo.updateEvent('old', { ...base, type: 'guild_war', revision: 7 });
+    const saved = repo.updateEvent('old', {
+      ...base,
+      dates: ['2026-10-24'],
+      type: 'guild_war',
+      revision: 7,
+    });
     assert.equal(saved.revision, 8);
     assert.equal(saved.createdAt, rows.find((row) => row.id === 'old').created_at);
-    const created = repo.createEvent({ ...base, type: 'dragon_tiger', requestId: 'new-request' });
+    const created = repo.createEventBatch({
+      ...base,
+      type: 'dragon_tiger',
+      requestId: 'new-request',
+    })[0];
     assert.throws(
       () =>
         repo.createEvent({

@@ -7,7 +7,7 @@ export class EventError extends Error {
   }
 }
 
-export function validateEvent(input, { requireRequestId = true } = {}) {
+export function validateEvent(input, { requireRequestId = true, singleBattleDate = true } = {}) {
   const values = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
   const fields = {};
   const title = typeof values.title === 'string' ? values.title.trim() : '';
@@ -32,6 +32,12 @@ export function validateEvent(input, { requireRequestId = true } = {}) {
     }
     if (new Set(dates).size !== dates.length) fields.dates = '日期不可重複';
     if (values.type === 'scrimmage' && dates.length !== 1) fields.dates = '約戰只能選擇一天';
+    if (
+      singleBattleDate &&
+      ['guild_war', 'dragon_tiger'].includes(values.type) &&
+      dates.length !== 1
+    )
+      fields.dates = '每筆幫戰或龍虎戰只能選擇一天，多個日期請使用批次建立';
   }
   if (
     requireRequestId &&
@@ -58,6 +64,17 @@ export function createEventRepository(db) {
       PRIMARY KEY (event_id, date)
     );
     CREATE INDEX IF NOT EXISTS event_dates_by_date ON event_dates(date);
+    CREATE TABLE IF NOT EXISTS event_batches (
+      request_id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      type TEXT NOT NULL CHECK (type IN ('guild_war', 'dragon_tiger')),
+      dates_json TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS event_batch_items (
+      batch_request_id TEXT NOT NULL REFERENCES event_batches(request_id),
+      event_id TEXT NOT NULL UNIQUE REFERENCES scheduled_events(id),
+      PRIMARY KEY (batch_request_id, event_id)
+    );
   `);
   db.transaction(() => {
     const columns = db
@@ -146,7 +163,7 @@ export function createEventRepository(db) {
       .map((row) => row.date);
     return event;
   }
-  return {
+  const repository = {
     listEvents() {
       const rows = db
         .prepare(
@@ -166,6 +183,17 @@ export function createEventRepository(db) {
     createEvent(input) {
       const values = validateEvent(input);
       return db.transaction(() => {
+        if (
+          db
+            .prepare('SELECT request_id FROM event_batches WHERE request_id = ?')
+            .get(values.requestId)
+        )
+          throw new EventError(
+            '這次提交已用於批次建立，請重新載入清單',
+            {},
+            409,
+            'REQUEST_CONFLICT',
+          );
         const prior = db
           .prepare('SELECT id FROM scheduled_events WHERE request_id = ?')
           .get(values.requestId);
@@ -190,6 +218,67 @@ export function createEventRepository(db) {
         const insertDate = db.prepare('INSERT INTO event_dates (event_id, date) VALUES (?, ?)');
         for (const date of values.dates) insertDate.run(id, date);
         return getEvent(id);
+      })();
+    },
+    createEventBatch(input) {
+      const values = validateEvent(input, { singleBattleDate: false });
+      if (!['guild_war', 'dragon_tiger'].includes(values.type))
+        throw new EventError('批次建立只適用於幫戰或龍虎戰', { type: '請選擇幫戰或龍虎戰' });
+      return db.transaction(() => {
+        const prior = db
+          .prepare('SELECT * FROM event_batches WHERE request_id = ?')
+          .get(values.requestId);
+        if (prior) {
+          if (
+            prior.title !== values.title ||
+            prior.type !== values.type ||
+            prior.dates_json !== JSON.stringify(values.dates)
+          )
+            throw new EventError(
+              '上次批次已儲存，請重新載入清單後再建立其他安排',
+              {},
+              409,
+              'REQUEST_CONFLICT',
+            );
+          const events = db
+            .prepare('SELECT event_id FROM event_batch_items WHERE batch_request_id = ?')
+            .all(values.requestId)
+            .map((row) => getEvent(row.event_id));
+          if (events.some((event) => !event))
+            throw new EventError(
+              '這批安排中已有項目刪除，請重新載入清單',
+              {},
+              410,
+              'EVENT_DELETED',
+            );
+          return events.sort((a, b) => a.dates[0].localeCompare(b.dates[0]));
+        }
+        if (
+          db.prepare('SELECT id FROM scheduled_events WHERE request_id = ?').get(values.requestId)
+        )
+          throw new EventError(
+            '這次提交已儲存其他安排，請重新載入清單',
+            {},
+            409,
+            'REQUEST_CONFLICT',
+          );
+        db.prepare(
+          'INSERT INTO event_batches (request_id, title, type, dates_json) VALUES (?, ?, ?, ?)',
+        ).run(values.requestId, values.title, values.type, JSON.stringify(values.dates));
+        const link = db.prepare(
+          'INSERT INTO event_batch_items (batch_request_id, event_id) VALUES (?, ?)',
+        );
+        const events = values.dates.map((date) => {
+          const event = repository.createEvent({
+            title: values.title,
+            type: values.type,
+            dates: [date],
+            requestId: randomUUID(),
+          });
+          link.run(values.requestId, event.id);
+          return event;
+        });
+        return events;
       })();
     },
     updateEvent(id, input) {
@@ -237,4 +326,5 @@ export function createEventRepository(db) {
       })();
     },
   };
+  return repository;
 }

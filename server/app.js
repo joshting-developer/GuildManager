@@ -34,7 +34,10 @@ export function createApp(repository) {
     response.set('Cache-Control', 'no-store').json(repository.listEvents());
   });
   app.post('/api/events', (request, response) => {
-    response.status(201).json({ event: repository.createEvent(request.body) });
+    const result = ['guild_war', 'dragon_tiger'].includes(request.body?.type)
+      ? { events: repository.createEventBatch(request.body) }
+      : { event: repository.createEvent(request.body) };
+    response.status(201).json(result);
   });
   app.patch('/api/events/:id', (request, response) => {
     response.json({ event: repository.updateEvent(request.params.id, request.body) });
