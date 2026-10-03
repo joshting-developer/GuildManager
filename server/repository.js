@@ -1,11 +1,14 @@
 import Database from 'better-sqlite3';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { MemberError, validateMember, validateRevision } from './member-validation.js';
 
 export function createRepository({ filename }) {
   if (filename !== ':memory:') mkdirSync(dirname(filename), { recursive: true });
   const db = new Database(filename);
   db.pragma('journal_mode = WAL');
+  db.pragma('foreign_keys = ON');
   db.exec(`
     CREATE TABLE IF NOT EXISTS home_settings (
       id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -33,6 +36,117 @@ export function createRepository({ filename }) {
       pinned INTEGER NOT NULL DEFAULT 0
     );
   `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS professions (
+      job_id INTEGER PRIMARY KEY,
+      colorcode TEXT NOT NULL,
+      name TEXT NOT NULL UNIQUE
+    );
+    CREATE TABLE IF NOT EXISTS members (
+      uid TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      primary_profession_id INTEGER REFERENCES professions(job_id),
+      secondary_profession_id INTEGER REFERENCES professions(job_id),
+      primary_profession TEXT NOT NULL,
+      secondary_profession TEXT NOT NULL DEFAULT '',
+      joined_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      removed_at TEXT,
+      revision INTEGER NOT NULL DEFAULT 1
+    );
+    CREATE TABLE IF NOT EXISTS member_name_history (
+      id TEXT PRIMARY KEY,
+      member_uid TEXT NOT NULL REFERENCES members(uid),
+      name TEXT NOT NULL,
+      changed_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS history_by_uid ON member_name_history(member_uid);
+  `);
+
+  const jobs = [
+    [1, '#ffb6c1', '素問'],
+    [2, '#3cb371', '龍吟'],
+    [3, '#add8e6', '碎夢'],
+    [4, '#00bfff', '潮光'],
+    [5, '#f0e68c', '玄機'],
+    [6, '#9932cc', '九靈'],
+    [7, '#ff8c00', '鐵衣'],
+    [8, '#8b0000', '血河'],
+    [9, '#4682b4', '神相'],
+  ];
+  // Keep existing text columns as migration snapshots; IDs are authoritative for new writes.
+  db.transaction(() => {
+    const insert = db.prepare(
+      'INSERT OR IGNORE INTO professions (job_id, colorcode, name) VALUES (?, ?, ?)',
+    );
+    for (const job of jobs) insert.run(...job);
+    const columns = db.pragma('table_info(members)').map((column) => column.name);
+    for (const column of ['primary_profession_id', 'secondary_profession_id']) {
+      if (!columns.includes(column))
+        db.exec(`ALTER TABLE members ADD COLUMN ${column} INTEGER REFERENCES professions(job_id)`);
+    }
+    for (const type of ['primary', 'secondary']) {
+      db.exec(`UPDATE members SET ${type}_profession_id =
+        (SELECT job_id FROM professions WHERE name = members.${type}_profession)
+        WHERE ${type}_profession_id IS NULL AND ${type}_profession != ''`);
+    }
+  })();
+  const memberColumns = `m.uid, m.name, m.primary_profession_id AS primaryProfessionId,
+    m.secondary_profession_id AS secondaryProfessionId,
+    COALESCE(p.name, m.primary_profession) AS primaryProfession,
+    COALESCE(s.name, m.secondary_profession) AS secondaryProfession,
+    m.joined_at AS joinedAt, m.updated_at AS updatedAt, m.revision`;
+  const memberFrom = `members m LEFT JOIN professions p ON p.job_id = m.primary_profession_id
+    LEFT JOIN professions s ON s.job_id = m.secondary_profession_id`;
+  function professionNames(member) {
+    const names = [];
+    for (const [field, label] of [
+      ['primaryProfessionId', '主職業'],
+      ['secondaryProfessionId', '副職業'],
+    ]) {
+      if (member[field] === null) {
+        names.push('');
+        continue;
+      }
+      const job = db.prepare('SELECT name FROM professions WHERE job_id = ?').get(member[field]);
+      if (!job)
+        throw new MemberError(422, 'VALIDATION_ERROR', '請重新選擇職業', {
+          [field]: `${label}不存在，請重新載入職業清單`,
+        });
+      names.push(job.name);
+    }
+    return names;
+  }
+  function previousNames(uid) {
+    return db
+      .prepare(
+        `SELECT id, name, changed_at AS changedAt FROM member_name_history
+      WHERE member_uid = ? ORDER BY changed_at DESC, rowid DESC`,
+      )
+      .all(uid);
+  }
+  function getMember(uid) {
+    const row = db
+      .prepare(
+        `SELECT ${memberColumns} FROM ${memberFrom} WHERE m.uid = ? AND m.removed_at IS NULL`,
+      )
+      .get(uid);
+    if (!row) throw new MemberError(404, 'MEMBER_NOT_FOUND', '找不到這位成員，可能已被移除');
+    return { ...row, previousNames: previousNames(uid) };
+  }
+  function checkRevision(member, revision) {
+    if (member.revision !== revision) {
+      throw new MemberError(409, 'STALE_MEMBER', '這位成員的資料已更新，請重新載入後再操作');
+    }
+  }
+  function recordName(uid, name, time) {
+    db.prepare('INSERT INTO member_name_history VALUES (?, ?, ?, ?)').run(
+      randomUUID(),
+      uid,
+      name,
+      time,
+    );
+  }
 
   // Initialize settings only; never seed fictional people, events or statistics.
   db.prepare('INSERT OR IGNORE INTO home_settings VALUES (1, ?, 0, NULL, 0, ?, ?)').run(
@@ -42,6 +156,123 @@ export function createRepository({ filename }) {
   );
 
   return {
+    listProfessions() {
+      return {
+        professions: db
+          .prepare('SELECT job_id, colorcode, name FROM professions ORDER BY job_id')
+          .all(),
+      };
+    },
+    listMembers() {
+      const members = db
+        .prepare(
+          `SELECT ${memberColumns} FROM ${memberFrom} WHERE m.removed_at IS NULL ORDER BY m.joined_at, m.uid`,
+        )
+        .all();
+      const histories = db
+        .prepare(
+          `SELECT id, member_uid, name, changed_at AS changedAt FROM member_name_history
+        WHERE member_uid IN (SELECT uid FROM members WHERE removed_at IS NULL)
+        ORDER BY changed_at DESC, rowid DESC`,
+        )
+        .all();
+      const byUid = new Map();
+      for (const { member_uid, ...history } of histories) {
+        if (!byUid.has(member_uid)) byUid.set(member_uid, []);
+        byUid.get(member_uid).push(history);
+      }
+      return {
+        members: members.map((member) => ({
+          ...member,
+          previousNames: byUid.get(member.uid) || [],
+        })),
+      };
+    },
+    addMember(input) {
+      const member = validateMember(input);
+      return db.transaction(() => {
+        const [primaryName, secondaryName] = professionNames(member);
+        const existing = db.prepare('SELECT * FROM members WHERE uid = ?').get(member.uid);
+        const now = new Date().toISOString();
+        if (existing && existing.removed_at === null) {
+          throw new MemberError(409, 'DUPLICATE_UID', '這個 UID 已在成員清單中', {
+            uid: '這個 UID 已存在',
+          });
+        }
+        if (existing) {
+          if (existing.name !== member.name) recordName(member.uid, existing.name, now);
+          db.prepare(
+            `UPDATE members SET name = ?, primary_profession_id = ?, secondary_profession_id = ?, primary_profession = ?, secondary_profession = ?,
+            joined_at = ?, updated_at = ?, removed_at = NULL, revision = revision + 1 WHERE uid = ?`,
+          ).run(
+            member.name,
+            member.primaryProfessionId,
+            member.secondaryProfessionId,
+            primaryName,
+            secondaryName,
+            now,
+            now,
+            member.uid,
+          );
+        } else {
+          db.prepare(
+            `INSERT INTO members (uid, name, primary_profession_id, secondary_profession_id, primary_profession, secondary_profession, joined_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          ).run(
+            member.uid,
+            member.name,
+            member.primaryProfessionId,
+            member.secondaryProfessionId,
+            primaryName,
+            secondaryName,
+            now,
+            now,
+          );
+        }
+        return getMember(member.uid);
+      })();
+    },
+    updateMember(uid, input) {
+      const member = validateMember(input, { editing: true });
+      return db.transaction(() => {
+        const [primaryName, secondaryName] = professionNames(member);
+        const current = getMember(uid);
+        checkRevision(current, member.revision);
+        if (
+          current.name === member.name &&
+          current.primaryProfessionId === member.primaryProfessionId &&
+          current.secondaryProfessionId === member.secondaryProfessionId
+        )
+          return current;
+        const now = new Date().toISOString();
+        if (current.name !== member.name) recordName(uid, current.name, now);
+        db.prepare(
+          `UPDATE members SET name = ?, primary_profession_id = ?, secondary_profession_id = ?, primary_profession = ?, secondary_profession = ?,
+          updated_at = ?, revision = revision + 1 WHERE uid = ?`,
+        ).run(
+          member.name,
+          member.primaryProfessionId,
+          member.secondaryProfessionId,
+          primaryName,
+          secondaryName,
+          now,
+          uid,
+        );
+        return getMember(uid);
+      })();
+    },
+    removeMember(uid, revision) {
+      validateRevision(revision);
+      return db.transaction(() => {
+        const current = getMember(uid);
+        checkRevision(current, revision);
+        const now = new Date().toISOString();
+        db.prepare(
+          'UPDATE members SET removed_at = ?, updated_at = ?, revision = revision + 1 WHERE uid = ?',
+        ).run(now, now, uid);
+        return { uid };
+      })();
+    },
     readHome() {
       const row = db.prepare('SELECT guild_name, updated_at FROM home_settings WHERE id = 1').get();
       return {

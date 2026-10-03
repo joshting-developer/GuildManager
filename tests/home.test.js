@@ -54,7 +54,16 @@ test('local API returns the home contract and rejects unsupported writes', async
     assert.equal(data.meta.mode, 'empty');
     assert.equal(data.summary.upcomingEvents, null);
     assert.deepEqual(data.events, []);
-    assert.equal((await fetch(`${base}/api/home`, { method: 'POST' })).status, 404);
+    assert.equal(
+      (
+        await fetch(`${base}/api/home`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}',
+        })
+      ).status,
+      404,
+    );
   } finally {
     await new Promise((resolve) => server.close(resolve));
     repository.close();
