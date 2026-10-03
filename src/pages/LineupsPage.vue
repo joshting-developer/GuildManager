@@ -756,12 +756,32 @@ onUnmounted(() => {
             @update:model-value="changeEvent"
           />
         </div>
+        <div class="lineup-template-tools">
+          <v-select
+            v-model="templateId"
+            :items="templates.map((template) => ({ title: template.name, value: template.id }))"
+            label="名單範本"
+            density="compact"
+            placeholder="尚無範本，先另存一份名單"
+            clearable
+            variant="outlined"
+            hide-details
+            :disabled="busy || catalogBusy || lineupLoading || archived"
+          /><v-btn
+            variant="outlined"
+            :disabled="!templateId || busy || catalogBusy || lineupLoading || archived"
+            @click="applyTemplate"
+            >套用範本</v-btn
+          >
+        </div>
         <div class="lineup-toolbar-bottom">
           <div>
             <strong>{{ eventDisplayTitle(displayedEvent) }}</strong>
             <p>
-              {{ eventTypeLabel(displayedEvent?.type) }} · {{ displayedEvent?.dates[0] }} · 已安排
-              {{ positionCount }} / 60 個位置 · {{ count }} 人
+              <span class="lineup-event-context"
+                >{{ eventTypeLabel(displayedEvent?.type) }} ·
+                {{ displayedEvent?.dates[0] }} · </span
+              >已安排 {{ positionCount }} / 60 個位置 · {{ count }} 人
               <span class="lineup-save-status">{{ saveStatus }}</span>
             </p>
           </div>
@@ -781,24 +801,6 @@ onUnmounted(() => {
               >{{ saving ? '儲存中…' : '儲存排表' }}</v-btn
             >
           </div>
-        </div>
-        <div class="lineup-template-tools">
-          <v-select
-            v-model="templateId"
-            :items="templates.map((template) => ({ title: template.name, value: template.id }))"
-            label="名單範本"
-            density="compact"
-            placeholder="尚無範本，先另存一份名單"
-            clearable
-            variant="outlined"
-            hide-details
-            :disabled="busy || catalogBusy || lineupLoading || archived"
-          /><v-btn
-            variant="outlined"
-            :disabled="!templateId || busy || catalogBusy || lineupLoading || archived"
-            @click="applyTemplate"
-            >套用範本</v-btn
-          >
         </div>
       </v-card>
       <v-alert v-if="archived" type="info" variant="tonal" class="lineup-alert"

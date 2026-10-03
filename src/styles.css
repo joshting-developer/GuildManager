@@ -1605,7 +1605,7 @@ button.seat-person {
     padding: 12px;
     margin-bottom: 12px;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: clamp(220px, 22vw, 320px) minmax(0, 1fr) auto auto;
     gap: 8px 12px;
     align-items: center;
   }
@@ -1617,28 +1617,36 @@ button.seat-person {
     display: contents;
   }
   .lineups-page .lineup-toolbar-bottom > div:first-child {
-    grid-column: 1;
-    grid-row: 2;
+    grid-column: 2;
+    grid-row: 1;
   }
-  .lineups-page .lineup-toolbar-bottom strong {
+  .lineups-page .lineup-toolbar-bottom strong,
+  .lineups-page .lineup-event-context {
     display: none;
   }
   .lineups-page .lineup-toolbar-bottom p {
     margin: 0;
     font-size: 13px;
+    white-space: nowrap;
+  }
+  .lineups-page .lineup-toolbar .lineup-actions {
+    grid-column: 4;
+    grid-row: 1;
+    flex-wrap: nowrap;
   }
   .lineups-page .lineup-actions {
     gap: 8px;
   }
   .lineups-page .lineup-template-tools {
-    grid-column: 2;
-    grid-row: 2;
+    grid-column: 3;
+    grid-row: 1;
     border: 0;
     padding: 0;
     gap: 8px;
+    flex-wrap: nowrap;
   }
   .lineups-page .lineup-template-tools .v-select {
-    width: 210px;
+    width: 180px;
     min-width: 0;
   }
   .lineups-page .lineup-workspace {

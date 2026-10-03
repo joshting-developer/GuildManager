@@ -114,3 +114,7 @@ UID 僅在成員管理頁顯示, 報名／排表／歷史等畫面以名稱呈�
 ## 排表直接編輯與儲存
 
 取消工作區／歷史版本切換, 每場直接編輯並儲存目前排表, 過去配置由使用者另存範本, 見 [lineup-direct-edit-plan.md](lineup-direct-edit-plan.md)。
+
+## 排表工具列單列
+
+桌面縮短場次選單, 摘要、範本與儲存操作在同列顯示, 見 [lineup-toolbar-row-plan.md](lineup-toolbar-row-plan.md)。
