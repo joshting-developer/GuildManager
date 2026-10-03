@@ -101,6 +101,23 @@ const loading = ref(true),
 const selectedUid = ref(''),
   search = ref(''),
   professionId = ref(null);
+const memberProfessions = ref(new Map());
+function memberProfession(member) {
+  return member?.secondaryProfessionId &&
+    memberProfessions.value.get(participantKey(member)) === 'secondary'
+    ? 'secondary'
+    : 'primary';
+}
+function memberJob(member) {
+  return professions.value.find(
+    (job) => job.job_id === member?.[`${memberProfession(member)}ProfessionId`],
+  );
+}
+function chooseMemberProfession(member, profession) {
+  if (!busy.value && (profession === 'primary' || member.secondaryProfessionId)) {
+    memberProfessions.value.set(participantKey(member), profession);
+  }
+}
 const dialog = ref(null),
   templateName = ref(''),
   dialogError = ref(''),
@@ -397,15 +414,30 @@ async function loadEvent(id) {
 async function changeEvent(id) {
   if (id !== eventId.value && mayDiscard()) await loadEvent(id);
 }
-function place(uid, teamId, index) {
+function place(uid, teamId, index, profession) {
   if (readOnly.value) return false;
   if (!eligible.value.some((member) => participantKey(member) === uid)) {
     error.value = '這位成員不符合本場資格，請重新載入成員清單';
     return false;
   }
+  if (
+    profession !== undefined &&
+    (!['primary', 'secondary'].includes(profession) ||
+      (profession === 'secondary' && !findPerson(uid)?.secondaryProfessionId))
+  ) {
+    error.value = '這位成員沒有可使用的副職業，請重新選擇職業';
+    return false;
+  }
   if (!addMemberToSlot(teams.value, uid, teamId, index)) {
     error.value = '這個位置已有第一場與第二場的成員，請點位置編輯後再調整。';
     return false;
+  }
+  if (profession !== undefined) {
+    const entry = teams.value
+      .flatMap((team) => team.slots)
+      .flatMap(slotAssignments)
+      .find((person) => participantKey(person) === uid);
+    entry.profession = profession;
   }
   error.value = '';
   selectedUid.value = '';
@@ -413,8 +445,9 @@ function place(uid, teamId, index) {
   skipped.value = [];
   return true;
 }
-function drag(event, uid) {
-  event.dataTransfer.setData('application/x-guild-member', uid);
+function drag(event, member) {
+  event.dataTransfer.setData('application/x-guild-member', participantKey(member));
+  event.dataTransfer.setData('application/x-guild-profession', memberProfession(member));
   event.dataTransfer.effectAllowed = 'move';
 }
 function renameTeam(id, name) {
@@ -947,44 +980,81 @@ onUnmounted(() => {
               人
             </p>
             <div v-if="selectedUid" class="lineup-selected" role="status">
-              已選：{{ findPerson(selectedUid)?.name
+              已選：{{ findPerson(selectedUid)?.name }} ·
+              {{ memberJob(findPerson(selectedUid))?.name
               }}<v-btn variant="text" size="small" @click="selectedUid = ''">取消選取</v-btn>
             </div>
             <div class="lineup-member-list">
-              <button
+              <div
                 v-for="member in visibleMembers"
                 :key="participantKey(member)"
-                type="button"
                 :class="[
                   'lineup-member',
-                  { 'member-selected': selectedUid === participantKey(member) },
+                  {
+                    'member-selected': selectedUid === participantKey(member),
+                    'member-disabled': busy,
+                  },
                 ]"
-                :draggable="!busy"
-                :disabled="busy"
-                :aria-pressed="selectedUid === participantKey(member)"
                 :data-member="member.uid || member.registrationId"
-                @dragstart="drag($event, participantKey(member))"
-                @click="selectMember(participantKey(member))"
               >
-                <span class="lineup-member-main"
-                  ><strong>{{ member.name }}</strong
-                  ><small v-if="member.registrationId">額外報名</small></span
-                ><span class="lineup-member-job"
-                  ><span
-                    class="profession-dot"
-                    :style="{
-                      backgroundColor: professions.find(
-                        (job) => job.job_id === member.primaryProfessionId,
-                      )?.colorcode,
-                    }"
-                  ></span
-                  >{{ member.primaryProfession
-                  }}<small v-if="assigned.has(participantKey(member))">已安排</small></span
+                <button
+                  type="button"
+                  class="lineup-member-select"
+                  :draggable="!busy"
+                  :disabled="busy"
+                  :aria-pressed="selectedUid === participantKey(member)"
+                  @dragstart="drag($event, member)"
+                  @click="selectMember(participantKey(member))"
                 >
-                <span v-if="member.registrationNote" class="lineup-registration-note">{{
-                  member.registrationNote
-                }}</span>
-              </button>
+                  <span class="lineup-member-main"
+                    ><strong>{{ member.name }}</strong
+                    ><small v-if="member.registrationId">額外報名</small
+                    ><small
+                      v-if="assigned.has(participantKey(member))"
+                      class="lineup-member-assigned"
+                      >已安排</small
+                    ></span
+                  ><span class="lineup-member-job"
+                    ><span
+                      class="profession-dot"
+                      :style="{
+                        backgroundColor: memberJob(member)?.colorcode,
+                      }"
+                    ></span
+                    >{{ memberJob(member)?.name }}</span
+                  >
+                  <span v-if="member.registrationNote" class="lineup-registration-note">{{
+                    member.registrationNote
+                  }}</span>
+                </button>
+                <div
+                  class="lineup-member-professions"
+                  role="group"
+                  :aria-label="`${member.name} 上場職業`"
+                >
+                  <button
+                    type="button"
+                    :disabled="busy"
+                    :title="`主職業：${member.primaryProfession}`"
+                    :aria-label="`${member.name} 使用主職業：${member.primaryProfession}`"
+                    :aria-pressed="memberProfession(member) === 'primary'"
+                    @click="chooseMemberProfession(member, 'primary')"
+                  >
+                    主
+                  </button>
+                  <button
+                    v-if="member.secondaryProfessionId"
+                    type="button"
+                    :disabled="busy"
+                    :title="`副職業：${member.secondaryProfession}`"
+                    :aria-label="`${member.name} 使用副職業：${member.secondaryProfession}`"
+                    :aria-pressed="memberProfession(member) === 'secondary'"
+                    @click="chooseMemberProfession(member, 'secondary')"
+                  >
+                    副
+                  </button>
+                </div>
+              </div>
               <p v-if="!visibleMembers.length" class="lineup-hint">
                 {{
                   availableSourceMembers.length
@@ -1006,6 +1076,7 @@ onUnmounted(() => {
           :read-only="readOnly"
           :snapshots="Boolean(historical)"
           :selected-uid="selectedUid"
+          :selected-profession="memberProfession(findPerson(selectedUid))"
           @place="place"
           @assign-duty="assignDuty"
           @edit-seat="openSeat"

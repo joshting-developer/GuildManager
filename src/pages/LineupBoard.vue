@@ -8,6 +8,7 @@ const props = defineProps({
   readOnly: Boolean,
   snapshots: Boolean,
   selectedUid: String,
+  selectedProfession: String,
   selectedDutyId: String,
 });
 const emit = defineEmits(['place', 'assign-duty', 'edit-seat', 'rename-team']);
@@ -47,18 +48,21 @@ function drop(event, teamId, index) {
     return;
   }
   const uid = event.dataTransfer.getData('application/x-guild-member');
-  if (uid) emit('place', uid, teamId, index);
+  const profession = event.dataTransfer.getData('application/x-guild-profession');
+  if (uid) emit('place', uid, teamId, index, profession || undefined);
 }
 function drag(event, slot) {
   if (!props.readOnly && participantKey(slot)) {
     event.dataTransfer.setData('application/x-guild-member', participantKey(slot));
+    event.dataTransfer.clearData('application/x-guild-profession');
     event.dataTransfer.effectAllowed = 'move';
   }
 }
 function activate(team, index) {
   if (props.readOnly) return;
   if (props.selectedDutyId) emit('assign-duty', props.selectedDutyId, team.id, index);
-  else if (props.selectedUid) emit('place', props.selectedUid, team.id, index);
+  else if (props.selectedUid)
+    emit('place', props.selectedUid, team.id, index, props.selectedProfession);
   else emit('edit-seat', team.id, index);
 }
 </script>

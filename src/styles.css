@@ -1073,6 +1073,7 @@ h3 {
   margin: 0 -6px;
 }
 .lineup-member {
+  position: relative;
   width: 100%;
   min-height: 68px;
   display: flex;
@@ -1095,9 +1096,57 @@ h3 {
   border-color: #1d4ed8;
   background: #eff6ff;
 }
-.lineup-member:disabled {
+.lineup-member.member-disabled {
   opacity: 0.6;
   cursor: default;
+}
+.lineup-member-select {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: grab;
+}
+.lineup-member-select > :last-child {
+  min-height: 24px;
+  padding-right: 70px;
+}
+.lineup-member-professions {
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
+  display: flex;
+  padding: 2px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: #f1f5f9;
+}
+.lineup-member-professions button {
+  min-width: 26px;
+  min-height: 22px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 4px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  background: transparent;
+  cursor: pointer;
+}
+.lineup-member-professions button[aria-pressed='true'] {
+  background: #1d4ed8;
+  color: white;
+}
+.lineup-member-select:focus-visible,
+.lineup-member-professions button:focus-visible {
+  outline: 2px solid #1d4ed8;
+  outline-offset: 2px;
 }
 .lineup-member-main,
 .lineup-member-job {
@@ -1115,7 +1164,7 @@ h3 {
   color: var(--color-text-muted);
   overflow-wrap: anywhere;
 }
-.lineup-member-job small {
+.lineup-member-main .lineup-member-assigned {
   margin-left: auto;
   color: #047857;
 }
@@ -1339,6 +1388,15 @@ button.seat-person:focus-visible {
   }
 }
 @media (max-width: 767px) {
+  .lineup-member-professions button {
+    min-width: 44px;
+    min-height: 44px;
+    font-size: 13px;
+  }
+  .lineup-member-select > :last-child {
+    min-height: 48px;
+    padding-right: 104px;
+  }
   .lineup-selects {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1357,7 +1415,7 @@ button.seat-person:focus-visible {
     grid-template-columns: minmax(0, 1fr);
   }
   .lineup-member-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
   }
   .lineup-group {
     padding: 12px;

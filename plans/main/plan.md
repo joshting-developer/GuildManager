@@ -106,3 +106,7 @@ UID 僅在成員管理頁顯示, 報名／排表／歷史等畫面以名稱呈�
 ## 約戰排表來源整理
 
 已安排人員從約戰左側來源清單隱藏, 移出後恢復, 見 [lineup-available-members-plan.md](lineup-available-members-plan.md)。
+
+## 排表來源主／副職業
+
+成員卡片右下切換主／副職業, 安排時沿用所選職業, 見 [lineup-member-profession-plan.md](lineup-member-profession-plan.md)。
