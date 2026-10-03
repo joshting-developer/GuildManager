@@ -86,6 +86,14 @@
   color: #9a3412;
   background: #fff7ed;
 }
+.event-type.guild_war {
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+.event-type.dragon_tiger {
+  color: #047857;
+  background: #ecfdf5;
+}
 .event-date-list {
   display: flex;
   flex-wrap: wrap;

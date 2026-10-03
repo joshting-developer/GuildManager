@@ -10,15 +10,13 @@ import {
 import { createEventClient } from '../api/events.js';
 import EventCreateDialog from './EventCreateDialog.vue';
 import './events.css';
+import { EVENT_TYPE_OPTIONS, eventTypeLabel } from '../domain/event-types.js';
 const client = createEventClient({ source: import.meta.env.VITE_DATA_SOURCE || 'local' });
 const events = ref([]);
 const loading = ref(true);
 const loadError = ref('');
 const notice = ref('');
-const typeOptions = [
-  { title: '活動', value: 'activity' },
-  { title: '約戰', value: 'scrimmage' },
-];
+const typeOptions = EVENT_TYPE_OPTIONS;
 const filter = ref(null);
 const page = ref(1);
 const filtered = computed(() =>
@@ -53,13 +51,20 @@ function openForm(event = null) {
   notice.value = '';
   dialog.value = true;
 }
-function onSaved(event, edited = false) {
-  const index = events.value.findIndex((value) => value.id === event.id);
-  if (index < 0) events.value.push(event);
-  else events.value[index] = event;
+function onSaved(value, edited = false) {
+  const saved = Array.isArray(value) ? value : [value];
+  for (const event of saved) {
+    const index = events.value.findIndex((value) => value.id === event.id);
+    if (index < 0) events.value.push(event);
+    else events.value[index] = event;
+  }
+  const event = saved[0];
   filter.value = null;
   page.value = Math.floor(filtered.value.findIndex((value) => value.id === event.id) / 20) + 1;
-  notice.value = `「${event.title}」已${edited ? '修改' : '建立'}，共 ${event.dates.length} 天，首頁行事曆已更新。`;
+  notice.value =
+    saved.length > 1
+      ? `「${event.title}」已建立 ${saved.length} 筆獨立安排，每筆可分別修改、刪除。`
+      : `「${event.title}」已${edited ? '修改' : '建立'}，共 ${event.dates.length} 天，首頁行事曆已更新。`;
 }
 function restoreEditFocus() {
   const button =
@@ -113,7 +118,7 @@ function formatDate(date) {
     <div>
       <p class="eyebrow">GUILD SCHEDULE <span class="eyebrow-divider">/</span> 活動管理</p>
       <h1 id="schedule-title">活動安排<span class="heading-dot">.</span></h1>
-      <p class="page-subtitle">安排活動與約戰，讓每一天的集結更清楚。</p>
+      <p class="page-subtitle">安排活動、約戰、幫戰與龍虎戰，讓每一天的集結更清楚。</p>
     </div>
     <v-btn
       ref="createButton"
@@ -129,7 +134,7 @@ function formatDate(date) {
       notice
     }}</v-alert>
   </div>
-  <section ref="listPanel" class="panel event-panel" aria-label="活動與約戰清單">
+  <section ref="listPanel" class="panel event-panel" aria-label="活動安排清單">
     <div class="section-header">
       <div class="event-list-heading">
         <span class="icon-box violet"><v-icon :icon="mdiCalendarMonthOutline" size="22" /></span>
@@ -174,7 +179,7 @@ function formatDate(date) {
       </div>
       <div v-if="!events.length" class="empty-state">
         <span class="empty-icon"><v-icon :icon="mdiCalendarMonthOutline" size="28" /></span>
-        <h3>尚無活動或約戰</h3>
+        <h3>尚無安排</h3>
         <p>點選「建立安排」，選擇類型與日期。</p>
       </div>
       <div v-else-if="!filtered.length" class="empty-state">
@@ -204,9 +209,7 @@ function formatDate(date) {
               <tr v-for="event in visible" :key="event.id">
                 <td class="event-name">{{ event.title }}</td>
                 <td>
-                  <span :class="['event-type', event.type]">{{
-                    event.type === 'scrimmage' ? '約戰' : '活動'
-                  }}</span>
+                  <span :class="['event-type', event.type]">{{ eventTypeLabel(event.type) }}</span>
                 </td>
                 <td>
                   <details v-if="event.dates.length > 3" class="event-date-details">
@@ -280,8 +283,8 @@ function formatDate(date) {
         <h2 id="event-delete-title">刪除安排</h2>
         <p class="event-delete-name">{{ deleteTarget?.title }}</p>
         <p class="event-description">
-          確定刪除此{{ deleteTarget?.type === 'scrimmage' ? '約戰' : '活動' }}？
-          這筆安排會從清單及全部 {{ deleteTarget?.dates.length }} 個日期的行事曆移除。
+          確定刪除此{{ eventTypeLabel(deleteTarget?.type) }}？ 這筆安排會從清單及全部
+          {{ deleteTarget?.dates.length }} 個日期的行事曆移除。
         </p>
         <div class="event-date-list event-delete-dates" aria-label="將移除的安排日期">
           <time v-for="date in deleteTarget?.dates" :key="date" :datetime="date">{{

@@ -201,6 +201,14 @@
   color: #9a3412;
   background: #fff7ed;
 }
+.calendar-event-label.guild_war {
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+.calendar-event-label.dragon_tiger {
+  color: #047857;
+  background: #ecfdf5;
+}
 .calendar-event-more,
 .calendar-event-count {
   font-size: 12px;

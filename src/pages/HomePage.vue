@@ -20,7 +20,7 @@ const modules = [
     title: '活動安排',
     icon: mdiCalendarMonthOutline,
     color: 'violet',
-    description: '活動日期與約戰安排。',
+    description: '活動、約戰、幫戰與龍虎戰安排。',
   },
   {
     id: 'attendance',

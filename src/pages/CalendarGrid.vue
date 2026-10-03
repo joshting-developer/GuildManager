@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 import { mdiChevronLeft, mdiChevronRight } from '@mdi/js';
 import './calendar.css';
+import { eventTypeLabel } from '../domain/event-types.js';
 const props = defineProps({
   modelValue: { type: Array, default: () => [] },
   selectable: Boolean,
@@ -107,7 +108,7 @@ function goToday() {
         {{
           monthLabel
         }}{{
-          selectable ? (multiple ? '，可選取多天' : '，只可選取一天') : '活動與約戰行事曆'
+          selectable ? (multiple ? '，可選取多天' : '，只可選取一天') : '活動安排行事曆'
         }}
       </caption>
       <thead>
@@ -164,7 +165,7 @@ function goToday() {
                   v-for="event in eventsByDate.get(day.iso).slice(0, 2)"
                   :key="event.id"
                   :class="['calendar-event-label', event.type]"
-                  >{{ event.type === 'scrimmage' ? '約戰' : '活動' }} · {{ event.title }}</span
+                  >{{ eventTypeLabel(event.type) }} · {{ event.title }}</span
                 >
                 <span v-if="eventsByDate.get(day.iso).length > 2" class="calendar-event-more"
                   >另 {{ eventsByDate.get(day.iso).length - 2 }} 筆</span
