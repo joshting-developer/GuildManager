@@ -92,7 +92,9 @@ GAS 需新增對應工作表、本人操作驗證、鎖定／防重複／部分�
 
 ## 戰績與附件
 
-`src/domain/battle-records.js` 共用 CSV 表頭／解析及台北日期時間驗證, 不使用 Node API。`src/api/battle-records.js` 提供本機 HTTP／GAS 同名資料介面, 元件不直接送 HTTP。`server/battle-record-repository.js` 追加 battle_uploads（requestId／輸入雜湊／圖片 BLOB）及 battle_records（活動 ID／基本資料／快照／原始 CSV／玩家 JSON／內容雜湊）, 同批最多兩筆以交易寫入。
+`src/domain/battle-records.js` 共用 CSV 表頭／解析及台北日期時間驗證, 不使用 Node API；支援遊戲的隊名／人數摘要並檢查玩家列數。`src/api/battle-records.js` 提供本機 HTTP／GAS 同名資料介面, 元件不直接送 HTTP。`server/battle-record-repository.js` 追加 battle_uploads（requestId／輸入雜湊／圖片 BLOB）及 battle_records（活動 ID／基本資料／快照／原始 CSV／玩家 JSON／內容雜湊）, 同批最多兩筆以交易寫入。
+
+`battle_records.round_number` 為可空場序, 舊資料不推測或回填；新增場序需關聯有效活動, 約戰允許 1／2, 幫戰／龍虎戰僅 1。部分唯一索引保障每活動每場最多一筆, 同批重複、已占用位置拒絕且不覆寫；舊 requestId／內容雜湊保持相容。列表可用 eventId 只讀取該活動已指定場序的記錄, 供上傳區呈現保存狀態；一般列表仍包含舊記錄。
 
 戰績頁只選行事曆既有戰鬥場次, 日期／類型由活動資料取得；行事曆入口預選相同場次 ID。後端寫入前驗證活動仍有效且日期／類型符合, 快照不 JOIN 後續可變活動或成員。時間可空, playedAt 為 YYYY-MM-DD 或帶 +08:00 的 ISO 字串, 不以虛構零點填缺值。
 

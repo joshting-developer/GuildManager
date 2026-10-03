@@ -70,6 +70,8 @@ export function parseBattleCsv(text) {
   let header = null,
     side = 0;
   const players = [];
+  const summaries = [];
+  let pendingSummary = null;
   for (const [index, raw] of rows.entries()) {
     const row = raw.map((value) => value.trim());
     if (row.every((value) => !value)) continue;
@@ -83,7 +85,18 @@ export function parseBattleCsv(text) {
       }
       if (++side > 2) throw new BattleRecordError('每個 CSV 最多包含紅方與藍方兩段資料');
       header = row;
+      summaries.push(pendingSummary);
+      pendingSummary = null;
       continue;
+    }
+    if (row.length === 2 && row[0] && /^\d+$/.test(row[1])) {
+      const next = rows.slice(index + 1).find((cells) => cells.some((value) => value.trim()));
+      if (next?.includes('玩家名字') && next.includes('職業')) {
+        if (row[0].length > 120 || /[\u0000-\u001f\u007f]/.test(row[0]))
+          throw new BattleRecordError(`CSV 第 ${index + 1} 列的隊名不正確`);
+        pendingSummary = { name: row[0], count: Number(row[1]) };
+        continue;
+      }
     }
     // Game exports can include a one-cell title before or between team tables.
     if (row.length === 1) continue;
@@ -116,10 +129,17 @@ export function parseBattleCsv(text) {
     if (players.length > 500) throw new BattleRecordError('每個 CSV 最多 500 筆玩家戰績');
   }
   if (!players.length) throw new BattleRecordError('CSV 沒有可匯入的玩家戰績, 請確認遊戲匯出格式');
+  const counts = ['red', 'blue'].map((side) => players.filter((row) => row.side === side).length);
+  summaries.forEach((summary, index) => {
+    if (summary && summary.count !== counts[index])
+      throw new BattleRecordError(`${summary.name} 的人數與 CSV 玩家列數不符, 請重新匯出`);
+  });
   return {
     players,
-    redCount: players.filter((row) => row.side === 'red').length,
-    blueCount: players.filter((row) => row.side === 'blue').length,
+    redCount: counts[0],
+    blueCount: counts[1],
+    ...(summaries[0] ? { redTeam: summaries[0].name } : {}),
+    ...(summaries[1] ? { blueTeam: summaries[1].name } : {}),
   };
 }
 

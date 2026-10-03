@@ -279,6 +279,49 @@ test('upload, list, detail and download APIs require login, mutation requires CS
       client.saveRecords(input({ requestId: 'duplicate' })),
       (error) => error.code === 'BATTLE_DUPLICATE',
     );
+    const event = repo.createEvent({
+      type: 'scrimmage',
+      title: 'API 場序',
+      dates: ['2026-10-24'],
+      requestId: 'api-event',
+    });
+    const round = (
+      await client.saveRecords(
+        input({
+          requestId: 'api-round',
+          records: [
+            record({
+              type: event.type,
+              eventId: event.id,
+              roundNumber: 2,
+              datetime: event.dates[0],
+            }),
+          ],
+        }),
+      )
+    ).records[0];
+    assert.equal(round.roundNumber, 2);
+    assert.deepEqual(
+      (await client.getRecords(1, event.id)).records.map((r) => r.id),
+      [round.id],
+    );
+    assert.equal((await client.getRecords(1, 'another-event')).total, 0);
+    await assert.rejects(
+      client.saveRecords(
+        input({
+          requestId: 'api-occupied',
+          records: [
+            record({
+              type: event.type,
+              eventId: event.id,
+              roundNumber: 2,
+              datetime: event.dates[0],
+            }),
+          ],
+        }),
+      ),
+      (error) => error.code === 'BATTLE_ROUND_EXISTS',
+    );
     await assert.rejects(createBattleRecordClient({ source: 'gas' }).getRecords(), /尚未串接/);
     const failing = createBattleRecordClient({
       fetchImpl: async () => {
@@ -289,5 +332,133 @@ test('upload, list, detail and download APIs require login, mutation requires CS
   } finally {
     await new Promise((resolve) => server.close(resolve));
     repo.close();
+  }
+});
+
+test('game team summaries supply names and reject incomplete exports without confusing player rows', () => {
+  const exported = `我方,1\n${header}\n空城,碎夢,0,0,780,0,14007676,0,1388582,0,0,0\n\n敵方,1\n${header}\n對手,鐵衣,0,0,0,0,0,0,0,0,0,0\n`;
+  const parsed = parseBattleCsv(exported);
+  assert.deepEqual(
+    [parsed.redTeam, parsed.blueTeam, parsed.redCount, parsed.blueCount],
+    ['我方', '敵方', 1, 1],
+  );
+  assert.equal(parsed.players[1].playerDamage, 0);
+  assert.throws(() => parseBattleCsv(exported.replace('我方,1', '我方,2')), /人數/);
+  assert.throws(() => parseBattleCsv(exported.replace('我方,1', '我方,-1')));
+  assert.throws(() => parseBattleCsv(exported + '假摘要,1\n'));
+});
+
+test('event rounds allow second-round-first, separate retries and reject occupied or invalid rounds atomically', () => {
+  const repo = createRepository({ filename: ':memory:' });
+  try {
+    const events = ['scrimmage', 'guild_war', 'dragon_tiger'].map((type) =>
+      repo.createEvent({
+        type,
+        title: '測試場次',
+        dates: ['2026-10-24'],
+        requestId: `event-${type}`,
+      }),
+    );
+    const linked = (event, roundNumber) =>
+      record({
+        type: event.type,
+        eventId: event.id,
+        datetime: event.dates[0],
+        roundNumber,
+      });
+    const payload = input({ requestId: 'second', records: [linked(events[0], 2)] });
+    const second = repo.saveBattleRecords(payload).records[0];
+    assert.equal(second.roundNumber, 2);
+    assert.equal(second.playedAt, '2026-10-24');
+    assert.deepEqual(repo.saveBattleRecords(payload).records[0], second);
+    assert.throws(
+      () => repo.saveBattleRecords({ ...payload, requestId: 'occupied' }),
+      (error) => error.code === 'BATTLE_ROUND_EXISTS',
+    );
+    for (const roundNumber of [0, 3, '1', null]) {
+      assert.throws(() =>
+        repo.saveBattleRecords(
+          input({ requestId: `invalid-${roundNumber}`, records: [linked(events[0], roundNumber)] }),
+        ),
+      );
+    }
+    assert.throws(() => repo.saveBattleRecords(input({ records: [record({ roundNumber: 1 })] })));
+    for (const event of events.slice(1)) {
+      assert.throws(() =>
+        repo.saveBattleRecords(
+          input({ requestId: event.type, records: [linked(event, 1), linked(event, 2)] }),
+        ),
+      );
+      assert.equal(repo.listBattleRecords({ eventId: event.id }).total, 0);
+      assert.equal(
+        repo.saveBattleRecords(
+          input({ requestId: `one-${event.type}`, records: [linked(event, 1)] }),
+        ).records[0].roundNumber,
+        1,
+      );
+    }
+    const first = repo.saveBattleRecords(
+      input({ requestId: 'first', records: [linked(events[0], 1)] }),
+    ).records[0];
+    assert.equal(first.roundNumber, 1);
+    assert.notEqual(first.id, second.id);
+    assert.deepEqual(
+      repo
+        .listBattleRecords({ eventId: events[0].id })
+        .records.map((r) => r.roundNumber)
+        .sort(),
+      [1, 2],
+    );
+    assert.equal(repo.listBattleRecords().total, 4);
+    const other = repo.createEvent({
+      type: 'scrimmage',
+      title: '另一場',
+      dates: ['2026-10-24'],
+      requestId: 'other',
+    });
+    assert.throws(
+      () =>
+        repo.saveBattleRecords(
+          input({ requestId: 'same-round', records: [linked(other, 1), linked(other, 1)] }),
+        ),
+      /同一場/,
+    );
+    assert.equal(repo.listBattleRecords({ eventId: other.id }).total, 0);
+    assert.equal(
+      repo.saveBattleRecords(
+        input({ requestId: 'two-rounds', records: [linked(other, 1), linked(other, 2)] }),
+      ).records.length,
+      2,
+    );
+    repo.deleteEvent(events[0].id, 1);
+    assert.deepEqual(repo.saveBattleRecords(payload).records[0], second);
+  } finally {
+    repo.close();
+  }
+});
+
+test('round migration preserves legacy rows and retry hashes across reopening', () => {
+  const directory = mkdtempSync('/private/tmp/battle-round-migration-'),
+    filename = directory + '/test.sqlite';
+  let repo = createRepository({ filename });
+  try {
+    const saved = repo.saveBattleRecords(input()).records[0];
+    assert.equal(saved.roundNumber, null);
+    repo.close();
+    const db = new Database(filename);
+    db.exec(
+      'DROP INDEX battle_records_by_event_round; ALTER TABLE battle_records DROP COLUMN round_number',
+    );
+    db.close();
+    repo = createRepository({ filename });
+    assert.deepEqual(repo.getBattleRecord(saved.id), saved);
+    assert.deepEqual(repo.saveBattleRecords(input()).records[0], saved);
+    assert.equal(repo.listBattleRecords().total, 1);
+    repo.close();
+    repo = createRepository({ filename });
+    assert.deepEqual(repo.getBattleRecord(saved.id), saved);
+  } finally {
+    repo.close();
+    rmSync(directory, { recursive: true, force: true });
   }
 });

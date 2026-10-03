@@ -53,6 +53,13 @@ export function createBattleRecordRepository(db) {
     );
     CREATE INDEX IF NOT EXISTS battle_records_by_date ON battle_records(played_at DESC);
   `);
+  // Existing uploads have no reliable round information; keep their original values intact.
+  if (!db.pragma('table_info(battle_records)').some((column) => column.name === 'round_number'))
+    db.exec(
+      'ALTER TABLE battle_records ADD COLUMN round_number INTEGER CHECK(round_number IN (1,2))',
+    );
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS battle_records_by_event_round
+    ON battle_records(event_id,round_number) WHERE round_number IS NOT NULL`);
   function get(id) {
     const row = db
       .prepare(
@@ -64,6 +71,7 @@ export function createBattleRecordRepository(db) {
     return {
       id: row.id,
       eventId: row.event_id,
+      roundNumber: row.round_number,
       event: row.event_snapshot_json ? JSON.parse(row.event_snapshot_json) : null,
       type: row.battle_type,
       playedAt: row.played_at,
@@ -79,14 +87,18 @@ export function createBattleRecordRepository(db) {
     };
   }
   return {
-    listBattleRecords({ page = 1 } = {}) {
+    listBattleRecords({ page = 1, eventId = null } = {}) {
       if (!Number.isSafeInteger(page) || page < 1) throw new BattleRecordError('頁碼不正確');
-      const total = db.prepare('SELECT COUNT(*) AS total FROM battle_records').get().total;
+      const where = eventId == null ? '' : ' WHERE event_id=? AND round_number IS NOT NULL';
+      const args = eventId == null ? [] : [text(eventId, '場次', 64)];
+      const total = db
+        .prepare(`SELECT COUNT(*) AS total FROM battle_records${where}`)
+        .get(...args).total;
       const records = db
         .prepare(
-          'SELECT id FROM battle_records ORDER BY played_at DESC, created_at DESC, id LIMIT 20 OFFSET ?',
+          `SELECT id FROM battle_records${where} ORDER BY played_at DESC, created_at DESC, id LIMIT 20 OFFSET ?`,
         )
-        .all((page - 1) * 20)
+        .all(...args, (page - 1) * 20)
         .map((row) => {
           const { players, ...record } = get(row.id);
           return record;
@@ -115,6 +127,14 @@ export function createBattleRecordRepository(db) {
         )
           throw new BattleRecordError('場次格式不正確');
         if (!['red', 'blue'].includes(record.winner)) throw new BattleRecordError('請選擇獲勝方');
+        if (
+          record.roundNumber !== undefined &&
+          (!record.eventId ||
+            !Number.isInteger(record.roundNumber) ||
+            record.roundNumber < 1 ||
+            record.roundNumber > (record.type === 'scrimmage' ? 2 : 1))
+        )
+          throw new BattleRecordError('約戰只能第一場／第二場, 幫戰與龍虎戰只有一場且需關聯活動');
         const parsed = parseBattleCsv(record.csvText);
         return {
           eventId: record.eventId || null,
@@ -126,6 +146,7 @@ export function createBattleRecordRepository(db) {
           filename,
           csvText: record.csvText,
           players: parsed.players,
+          ...(record.roundNumber !== undefined ? { roundNumber: record.roundNumber } : {}),
         };
       });
       const hash = (value) => createHash('sha256').update(value).digest('hex');
@@ -155,6 +176,7 @@ export function createBattleRecordRepository(db) {
               .map((row) => get(row.id)),
           };
         }
+        const rounds = new Set();
         const prepared = records.map((record) => {
           let event = null;
           if (record.eventId) {
@@ -180,6 +202,21 @@ export function createBattleRecordRepository(db) {
               dates,
               revision: current.revision,
             };
+          }
+          if (record.roundNumber !== undefined) {
+            const key = `${record.eventId}:${record.roundNumber}`;
+            if (rounds.has(key)) throw new BattleRecordError('同一場只能上傳一個 CSV');
+            rounds.add(key);
+            if (
+              db
+                .prepare('SELECT id FROM battle_records WHERE event_id=? AND round_number=?')
+                .get(record.eventId, record.roundNumber)
+            )
+              throw new BattleRecordError(
+                '這一場已有戰績, 請查看已上傳戰績',
+                409,
+                'BATTLE_ROUND_EXISTS',
+              );
           }
           const { filename, csvText, ...content } = record;
           const contentHash = hash(JSON.stringify(content));
@@ -211,7 +248,7 @@ export function createBattleRecordRepository(db) {
           const id = randomUUID();
           ids.push(id);
           db.prepare(
-            'INSERT INTO battle_records (id,upload_id,event_id,event_snapshot_json,battle_type,played_at,red_team,blue_team,winner,filename,csv_text,players_json,content_hash,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            'INSERT INTO battle_records (id,upload_id,event_id,event_snapshot_json,battle_type,played_at,red_team,blue_team,winner,filename,csv_text,players_json,content_hash,created_at,round_number) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
           ).run(
             id,
             uploadId,
@@ -227,6 +264,7 @@ export function createBattleRecordRepository(db) {
             JSON.stringify(record.players),
             contentHash,
             now,
+            record.roundNumber ?? null,
           );
         }
         return { records: ids.map(get) };

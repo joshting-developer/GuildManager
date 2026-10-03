@@ -45,7 +45,13 @@ export function createBattleRecordClient({
     return data;
   }
   return {
-    getRecords: (page = 1) => call('getBattleRecords', `?page=${page}`, undefined, [page]),
+    getRecords: (page = 1, eventId = null) =>
+      call(
+        'getBattleRecords',
+        `?page=${page}${eventId ? `&eventId=${encodeURIComponent(eventId)}` : ''}`,
+        undefined,
+        [page, eventId],
+      ),
     getRecord: (id) => call('getBattleRecord', `/${encodeURIComponent(id)}`, undefined, [id]),
     saveRecords: (input) => call('saveBattleRecords', '', input, [input]),
     async getAttachment(id, kind) {

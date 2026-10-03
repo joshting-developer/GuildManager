@@ -64,6 +64,7 @@ export function createApp(repository, { authNow } = {}) {
     response.json(
       repository.listBattleRecords({
         page: request.query.page === undefined ? 1 : Number(request.query.page),
+        eventId: request.query.eventId,
       }),
     );
   });
