@@ -6,7 +6,7 @@ import {
   mdiSwordCross,
 } from '@mdi/js';
 import MonthCalendar from './MonthCalendar.vue';
-const emit = defineEmits(['open-members']);
+const emit = defineEmits(['open-page']);
 const modules = [
   {
     id: 'members',
@@ -20,7 +20,7 @@ const modules = [
     title: '活動安排',
     icon: mdiCalendarMonthOutline,
     color: 'violet',
-    description: '集合時間與報名資訊。',
+    description: '活動日期與約戰安排。',
   },
   {
     id: 'attendance',
@@ -64,18 +64,18 @@ const dateLabel = new Intl.DateTimeFormat('zh-TW', {
     <h2 id="management-title" class="sr-only">幫會管理功能</h2>
     <div class="modules-grid">
       <component
-        :is="module.id === 'members' ? 'button' : 'div'"
+        :is="['members', 'events'].includes(module.id) ? 'button' : 'div'"
         v-for="module in modules"
         :key="module.id"
         class="module-card"
-        :type="module.id === 'members' ? 'button' : undefined"
-        @click="module.id === 'members' && emit('open-members')"
+        :type="['members', 'events'].includes(module.id) ? 'button' : undefined"
+        @click="['members', 'events'].includes(module.id) && emit('open-page', module.id)"
       >
         <span :class="['icon-box', module.color]"><v-icon :icon="module.icon" size="24" /></span>
         <h3>{{ module.title }}</h3>
         <p>{{ module.description }}</p>
         <span class="module-status">{{
-          module.id === 'members' ? '開啟成員清單 →' : '待開發'
+          ['members', 'events'].includes(module.id) ? `開啟${module.title} →` : '待開發'
         }}</span>
       </component>
     </div>

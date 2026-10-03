@@ -33,3 +33,11 @@ function previewMemberImport(input) {
 function importMembers(input) {
   throw new Error('雲端成員匯入尚未串接');
 }
+
+function getEvents() {
+  throw new Error('雲端活動資料尚未串接 Google 試算表');
+}
+
+function createEvent(input) {
+  throw new Error('雲端活動建立尚未串接 Google 試算表');
+}

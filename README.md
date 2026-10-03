@@ -2,7 +2,7 @@
 
 Vue 3／Vuetify 管理介面, 本機透過 Node.js／Express API 讀寫 SQLite, 後期接入 GAS／Google 試算表
 
-首頁上方集中管理入口, 下方呈現近期活動行事曆, 未完成的功能顯示「待開發」, 不呈現示範數字或約戰；成員清單已支援加入、編輯、移除與過去名稱查詢, 登入與正式試算表尚未串接
+首頁上方集中管理入口, 下方呈現近期活動行事曆, 未完成的功能顯示「待開發」, 不呈現示範數字或安排；成員清單已支援加入、編輯、移除與過去名稱查詢, 活動安排支援建立活動／約戰並顯示於首頁月曆, 登入與正式試算表尚未串接
 
 ## 使用 Docker 開發
 
@@ -12,10 +12,11 @@ Vue 3／Vuetify 管理介面, 本機透過 Node.js／Express API 讀寫 SQLite, 
 docker compose up --build -d
 ```
 
-開啟 [首頁](http://localhost:5173) 或 [成員清單](http://localhost:5173/#/members), 前端支援熱更新, API 使用 Node watch
+開啟 [首頁](http://localhost:5173)、[成員清單](http://localhost:5173/#/members) 或 [活動安排](http://localhost:5173/#/events), 前端支援熱更新, API 使用 Node watch
 
 - API 健康檢查：`http://localhost:3001/api/health`
 - 成員資料：`http://localhost:3001/api/members`
+- 活動安排：`http://localhost:3001/api/events`
 - 職業清單：`http://localhost:3001/api/professions`
 - SQLite 保存在 `guild_data` volume 的 `/data/guildmanager.sqlite`
 - 本機資料庫不再加入示範資料, 重啟不覆寫既有設定
@@ -59,7 +60,7 @@ npm run build
 npm run build:gas
 ```
 
-- `npm test`：SQLite 保存、成員 CRUD、歷史交易回滾、職業擴充、舊欄位遷移、API 與 adapter 錯誤處理
+- `npm test`：SQLite 保存、成員 CRUD、歷史交易回滾、職業擴充、舊欄位遷移、活動日期規則與重複提交、API 與 adapter 錯誤處理
 - `npm run build`：一般本機前端 build, 輸出到 `dist/`
 - `npm run build:gas`：GAS 模式, 輸出單一前端 `build/gas/Index.html`, 以及 `Code.gs` 和 `appsscript.json`
 - GAS 打包指令會檢查是否仍有外部 JS／CSS 檔案或多餘輸出
@@ -70,10 +71,10 @@ npm run build:gas
 1. 執行 `npm run build:gas`
 2. 在 Apps Script 專案建立 HTML 檔案 `Index`, 貼上 `build/gas/Index.html` 內容
 3. 將 `build/gas/Code.gs` 與 manifest 匯入專案
-4. 依目標登入與權限方案完成成員／職業資料函式及試算表 repository
+4. 依目標登入與權限方案完成成員／職業／活動資料函式及試算表 repository
 5. 使用 Apps Script 測試部署驗證後, 再決定正式部署身分與存取對象
 
-目前 GAS 後端提供頁面入口, 成員與職業函式會明確回報尚未串接, 不會讀寫正式試算表或回傳假的成功資料
+目前 GAS 後端提供頁面入口, 成員、職業與活動函式會明確回報尚未串接, 不會讀寫正式試算表或回傳假的成功資料
 
 ## 資料介面
 
@@ -100,9 +101,9 @@ npm run build:gas
 
 日期傳 ISO 8601 字串, 畫面以台北時區顯示；沒有出勤統計時使用 `null`, 不用 `0` 代替未知值
 
-首頁保留上方一排管理入口, 「成員清單」可進入操作, 下方重複入口已移除
+首頁保留上方一排管理入口, 「成員清單」與「活動安排」可進入操作, 下方重複入口已移除
 
-近期活動提供可切換月份及返回今天的行事曆, 日期以台北時區為準, 約戰資料尚未串接, 不顯示假活動
+近期活動提供可切換月份及返回今天的行事曆, 日期以台北時區為準, 顯示本機保存的活動／約戰, 不顯示假活動；點有安排的日期查看完整清單
 
 幫會公告功能已取消, 訊息主要在 Discord 處理；新資料庫不再建立公告表, 舊資料庫中的 `announcements` 表不刪除也不讀取
 
@@ -161,10 +162,34 @@ UID Name 主職業 副職業
 - 完成後彈窗顯示實際新增／重新加入／跳過數量；全部跳過時顯示「沒有新增成員」
 - GAS 匯入資料層尚未實作, 不會假裝成功或寫入正式試算表
 
+## 活動安排
+
+開啟 [活動安排](http://localhost:5173/#/events), 點「建立安排」填寫名稱, 選擇「活動／約戰」與日期, 再儲存
+
+- 活動可逐日選擇 1–366 天, 允許不連續或跨月份的日期。
+- 約戰只能選擇一天, 點選另一個日期會替換原日期。
+- 從多日活動切換成約戰時, 會清除日期並提示重新選一天。
+- 已選日期可再次點擊取消, 或移除下方日期標籤。
+- 保存後更新清單, 首頁月曆在各日期顯示同一筆安排, 手機可點筆數查看詳情。
+- 日期保存 `YYYY-MM-DD`, 畫面顯示 `YYYY/MM/DD`, 不經瀏覽器時區轉換。
+- `scheduled_events(id, title, type, request_id, created_at)` 與 `event_dates(event_id, date)` 用 ID 關聯, SQLite 以交易保存。
+- 同一 requestId、相同內容重試會取得原結果, 改變內容會拒絕並要求重新載入；前端不自動重試失敗寫入。
+- 舊 `events` 表中的示範資料保留但不讀取, 不更動既有成員資料。
+- 第一版只有建立與查詢, 時間、報名、對手及編輯／刪除待後續需求。
+
+| 方法 | 路徑 | 用途 |
+| --- | --- | --- |
+| GET | `/api/events` | 所有安排及日期 |
+| POST | `/api/events` | 建立活動或單日約戰 |
+
+建立資料：`{ title, type: 'activity' | 'scrimmage', dates: ['YYYY-MM-DD'], requestId }`；回傳 `{ event: { id, title, type, dates, createdAt } }`
+
+`src/api/events.js` 統一呼叫本機 API 或 GAS `getEvents()`／`createEvent(input)`；GAS 資料層仍未串接 Google 試算表, 不會回傳假的成功結果
+
 ## 專案結構
 
 ```text
-src/              Vue 首頁、成員清單、共用樣式與前端資料 adapter
+src/              Vue 首頁、成員清單、活動安排、共用樣式與前端資料 adapter
 server/           Express 入口與 SQLite repository
 gas/              GAS 頁面入口與 manifest
 tools/            GAS 打包工具

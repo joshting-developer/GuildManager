@@ -1,53 +1,39 @@
 <script setup>
-import { computed, ref } from 'vue';
-import { mdiChevronLeft, mdiChevronRight } from '@mdi/js';
-import './calendar.css';
-
-const parts = new Intl.DateTimeFormat('en-CA', {
-  timeZone: 'Asia/Taipei',
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-}).formatToParts(new Date());
-const today = Object.fromEntries(
-  parts.filter((part) => part.type !== 'literal').map((part) => [part.type, Number(part.value)]),
-);
-const view = ref({ year: today.year, month: today.month - 1 });
-const monthLabel = computed(() => `${view.value.year} 年 ${view.value.month + 1} 月`);
-const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
-function makeDate(year, month, day) {
-  const date = new Date(0);
-  date.setUTCFullYear(year, month, day);
-  return date;
+import { onMounted, ref } from 'vue';
+import { createEventClient } from '../api/events.js';
+import CalendarGrid from './CalendarGrid.vue';
+import './events.css';
+const client = createEventClient({ source: import.meta.env.VITE_DATA_SOURCE || 'local' });
+const events = ref([]);
+const loading = ref(true);
+const error = ref('');
+const dayDialog = ref(false);
+const selectedDay = ref(null);
+let opener;
+async function load() {
+  loading.value = true;
+  error.value = '';
+  try {
+    const data = await client.getEvents();
+    if (!Array.isArray(data?.events)) throw new Error('資料回應格式不正確，請稍後再試');
+    events.value = data.events;
+  } catch (failure) {
+    error.value = failure.message;
+    events.value = [];
+  } finally {
+    loading.value = false;
+  }
 }
-const weeks = computed(() => {
-  const { year, month } = view.value;
-  const offset = makeDate(year, month, 1).getUTCDay();
-  const days = Array.from({ length: 42 }, (_, index) => {
-    // Calculate calendar dates in UTC so browser timezone and DST cannot shift cells.
-    const date = makeDate(year, month, index + 1 - offset);
-    const dateYear = date.getUTCFullYear();
-    const dateMonth = date.getUTCMonth();
-    const day = date.getUTCDate();
-    return {
-      iso: date.toISOString().slice(0, 10),
-      day,
-      label: `${dateYear} 年 ${dateMonth + 1} 月 ${day} 日`,
-      outside: dateMonth !== month,
-      isToday: dateYear === today.year && dateMonth === today.month - 1 && day === today.day,
-    };
-  });
-  return Array.from({ length: 6 }, (_, index) => days.slice(index * 7, index * 7 + 7));
-});
-function moveMonth(amount) {
-  const date = makeDate(view.value.year, view.value.month + amount, 1);
-  view.value = { year: date.getUTCFullYear(), month: date.getUTCMonth() };
+onMounted(load);
+function openDay(day) {
+  opener = document.activeElement;
+  selectedDay.value = day;
+  dayDialog.value = true;
 }
-function goToday() {
-  view.value = { year: today.year, month: today.month - 1 };
+function restoreFocus() {
+  if (opener?.isConnected) opener.focus();
 }
 </script>
-
 <template>
   <section class="panel calendar-panel" aria-labelledby="events-title">
     <div class="section-header calendar-heading">
@@ -55,46 +41,38 @@ function goToday() {
         <p class="eyebrow">GUILD CALENDAR</p>
         <h2 id="events-title">近期活動</h2>
       </div>
-      <span class="subtle-tag">約戰行事曆</span>
+      <span class="subtle-tag">活動／約戰行事曆</span>
     </div>
-    <div class="calendar-toolbar">
-      <h3 aria-live="polite" aria-atomic="true">{{ monthLabel }}</h3>
-      <div class="calendar-navigation" aria-label="切換行事曆月份">
-        <v-btn variant="outlined" @click="goToday">今天</v-btn>
-        <v-btn variant="text" :icon="mdiChevronLeft" aria-label="上一個月" @click="moveMonth(-1)" />
-        <v-btn variant="text" :icon="mdiChevronRight" aria-label="下一個月" @click="moveMonth(1)" />
-      </div>
+    <CalendarGrid :events="events" @open-day="openDay" />
+    <div class="calendar-status" aria-live="polite">
+      <p v-if="loading" role="status">正在載入活動與約戰…</p>
+      <template v-else-if="error"
+        ><p role="alert">{{ error }}</p>
+        <v-btn variant="text" @click="load">重新載入</v-btn></template
+      >
+      <p v-else-if="!events.length">尚無活動或約戰，可從「活動安排」建立第一筆安排。</p>
+      <p v-else>點選有安排的日期查看詳情，活動的每個日期都會顯示在月曆中。</p>
     </div>
-    <table class="calendar-table">
-      <caption class="sr-only">
-        {{
-          monthLabel
-        }}約戰行事曆，約戰資料尚未串接
-      </caption>
-      <thead>
-        <tr>
-          <th v-for="weekday in weekdays" :key="weekday" scope="col">{{ weekday }}</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="(week, index) in weeks" :key="index">
-          <td
-            v-for="day in week"
-            :key="day.iso"
-            :class="{ 'calendar-outside': day.outside, 'calendar-today': day.isToday }"
-          >
-            <div class="calendar-day">
-              <time
-                :datetime="day.iso"
-                :aria-label="day.label"
-                :aria-current="day.isToday ? 'date' : undefined"
-                >{{ day.day }}</time
-              ><span v-if="day.isToday" class="calendar-today-label">今天</span>
-            </div>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-    <p class="calendar-status">約戰資料尚未串接，串接後會顯示各日期的約戰安排。</p>
   </section>
+  <v-dialog
+    v-model="dayDialog"
+    max-width="520"
+    aria-labelledby="calendar-day-title"
+    @after-leave="restoreFocus"
+  >
+    <v-card class="calendar-details-card"
+      ><h2 id="calendar-day-title">{{ selectedDay?.date.replaceAll('-', '/') }} 的安排</h2>
+      <ul class="calendar-details-list">
+        <li v-for="event in selectedDay?.events" :key="event.id">
+          <span :class="['event-type', event.type]">{{
+            event.type === 'scrimmage' ? '約戰' : '活動'
+          }}</span
+          ><strong>{{ event.title }}</strong>
+        </li>
+      </ul>
+      <div class="event-dialog-actions">
+        <v-btn variant="outlined" @click="dayDialog = false">關閉</v-btn>
+      </div></v-card
+    >
+  </v-dialog>
 </template>
