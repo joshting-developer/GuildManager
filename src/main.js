@@ -15,6 +15,8 @@ import {
   VListItem,
   VPagination,
   VCheckbox,
+  VTabs,
+  VTab,
 } from 'vuetify/components';
 import { aliases, mdi } from 'vuetify/iconsets/mdi-svg';
 import { zhHant } from 'vuetify/locale';
@@ -38,6 +40,8 @@ const vuetify = createVuetify({
     VListItem,
     VPagination,
     VCheckbox,
+    VTabs,
+    VTab,
   },
   icons: { defaultSet: 'mdi', aliases, sets: { mdi } },
   locale: { locale: 'zhHant', messages: { zhHant } },

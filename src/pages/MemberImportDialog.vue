@@ -154,7 +154,8 @@ UID Name 主職業 副職業
           </p>
         </div>
         <p class="member-import-membership-note">
-          新增成員預設為「幫派內：是／俱樂部內：否」，匯入後可編輯。重新加入會沿用既有狀態。
+          匯入新 UID 預設為「幫派內：是／俱樂部內：否」，會顯示在成員頁。已有
+          UID（含編外人員）會跳過，回歸請使用編輯。
         </p>
         <details class="import-jobs">
           <summary>可用職業名稱</summary>

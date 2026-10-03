@@ -24,7 +24,7 @@ function updateMember(uid, input) {
   throw new Error('雲端成員修改尚未串接');
 }
 function removeMember(uid, revision) {
-  throw new Error('雲端成員移除尚未串接');
+  throw new Error('雲端人員移至編外尚未串接');
 }
 
 function previewMemberImport(input) {

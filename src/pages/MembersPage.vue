@@ -5,7 +5,7 @@ import {
   mdiPlus,
   mdiRefresh,
   mdiPencilOutline,
-  mdiDeleteOutline,
+  mdiAccountArrowRightOutline,
   mdiHistory,
   mdiMagnify,
   mdiClose,
@@ -22,6 +22,23 @@ const loading = ref(true);
 const loadError = ref('');
 const notice = ref('');
 const search = ref('');
+const tab = ref('members');
+const memberCount = computed(
+  () => members.value.filter((member) => member.isInGuild || member.isInClub).length,
+);
+const externalCount = computed(() => members.value.length - memberCount.value);
+const tabLabel = computed(() => (tab.value === 'members' ? '成員' : '編外人員'));
+const categoryMembers = computed(() =>
+  members.value.filter((member) =>
+    tab.value === 'members'
+      ? member.isInGuild || member.isInClub
+      : !member.isInGuild && !member.isInClub,
+  ),
+);
+watch(tab, () => {
+  membershipFilter.value = 'all';
+  page.value = 1;
+});
 const jobFilter = ref(null);
 const membershipFilter = ref('all');
 const membershipOptions = [
@@ -33,7 +50,7 @@ const page = ref(1);
 const pageSize = 20;
 const filtered = computed(() => {
   const query = (search.value || '').trim().toLocaleLowerCase();
-  return members.value.filter(
+  return categoryMembers.value.filter(
     (member) =>
       (membershipFilter.value === 'all' ||
         (membershipFilter.value === 'club'
@@ -112,7 +129,7 @@ function openForm(member = null) {
     name: member?.name || '',
     primaryProfessionId: member?.primaryProfessionId ?? null,
     secondaryProfessionId: member?.secondaryProfessionId ?? null,
-    isInGuild: member?.isInGuild ?? true,
+    isInGuild: member?.isInGuild ?? tab.value === 'members',
     isInClub: member?.isInClub ?? false,
   };
   baseline.value = JSON.stringify(form.value);
@@ -147,7 +164,11 @@ async function save() {
     const index = members.value.findIndex((member) => member.uid === data.member.uid);
     if (index < 0) members.value.push(data.member);
     else members.value[index] = data.member;
-    notice.value = editing.value ? '成員資料已儲存' : '成員已加入';
+    const destination = data.member.isInGuild || data.member.isInClub ? 'members' : 'external';
+    tab.value = destination;
+    notice.value = editing.value
+      ? `人員資料已儲存，顯示於${destination === 'members' ? '成員' : '編外人員'}。`
+      : `人員已加入${destination === 'members' ? '成員' : '編外人員'}清單。`;
     dialog.value = false;
   } catch (error) {
     errors.value = error.fields || {};
@@ -156,30 +177,33 @@ async function save() {
     saving.value = false;
   }
 }
-const removing = ref(null);
-const removeDialog = ref(false);
-const deleting = ref(false);
-const removeError = ref('');
-function openRemove(member) {
+const moving = ref(null);
+const moveDialog = ref(false);
+const movingBusy = ref(false);
+const moveError = ref('');
+function openMove(member) {
   opener = document.activeElement;
-  removing.value = member;
-  removeError.value = '';
-  removeDialog.value = true;
+  moving.value = member;
+  moveError.value = '';
+  moveDialog.value = true;
 }
-async function remove() {
-  if (deleting.value) return;
-  deleting.value = true;
-  removeError.value = '';
+async function moveToExternal() {
+  if (movingBusy.value) return;
+  movingBusy.value = true;
+  moveError.value = '';
   notice.value = '';
   try {
-    await client.removeMember(removing.value.uid, removing.value.revision);
-    members.value = members.value.filter((member) => member.uid !== removing.value.uid);
-    notice.value = '成員已移除，過去名稱已保留';
-    removeDialog.value = false;
+    const data = await client.removeMember(moving.value.uid, moving.value.revision);
+    if (!data?.member || data.member.isInGuild !== false || data.member.isInClub !== false)
+      throw new Error('移轉回應不正確，請重試或重新載入確認結果');
+    const index = members.value.findIndex((member) => member.uid === data.member.uid);
+    if (index >= 0) members.value[index] = data.member;
+    notice.value = `「${data.member.name}」已移至編外人員，資料與過去名稱已保留。`;
+    moveDialog.value = false;
   } catch (error) {
-    removeError.value = error.message;
+    moveError.value = error.message;
   } finally {
-    deleting.value = false;
+    movingBusy.value = false;
   }
 }
 const history = ref(null);
@@ -260,7 +284,9 @@ function formatDate(value) {
         <span class="icon-box blue"><v-icon :icon="mdiAccountGroupOutline" size="22" /></span>
         <div>
           <h2>成員名冊</h2>
-          <p v-if="!loading && !loadError" class="member-count">共 {{ members.length }} 位成員</p>
+          <p v-if="!loading && !loadError" class="member-count">
+            成員 {{ memberCount }} 位 · 編外 {{ externalCount }} 位
+          </p>
         </div>
       </div>
       <v-btn variant="outlined" :prepend-icon="mdiRefresh" :disabled="loading" @click="load"
@@ -277,148 +303,181 @@ function formatDate(value) {
       <v-btn variant="outlined" @click="load">重試</v-btn>
     </div>
     <template v-else>
-      <div class="member-filters">
-        <v-text-field
-          v-model="search"
-          label="搜尋 UID、名稱或過去名稱"
-          :prepend-inner-icon="mdiMagnify"
-          variant="outlined"
-          density="compact"
-          hide-details
-          clearable
-          @click:clear="search = ''"
-        />
-        <v-select
-          v-model="jobFilter"
-          :items="professions"
-          item-title="name"
-          item-value="job_id"
-          label="篩選主職業"
-          variant="outlined"
-          density="compact"
-          hide-details
-          clearable
-        />
-        <v-select
-          v-model="membershipFilter"
-          :items="membershipOptions"
-          label="篩選幫派／俱樂部"
-          variant="outlined"
-          density="compact"
-          hide-details
-        />
-        <v-btn
-          variant="text"
-          :disabled="!search && !jobFilter && membershipFilter === 'all'"
-          @click="clearFilters"
-          >清除篩選</v-btn
+      <v-tabs v-model="tab" color="primary" class="member-tabs" aria-label="成員分類">
+        <v-tab id="member-tab-members" value="members" aria-controls="member-list-members"
+          >成員<span class="member-tab-count">{{ memberCount }}</span></v-tab
         >
-      </div>
-      <div v-if="!members.length" class="empty-state">
-        <span class="empty-icon"><v-icon :icon="mdiAccountGroupOutline" size="28" /></span>
-        <h3>尚無成員</h3>
-        <p>從「加入成員」建立第一筆成員資料。</p>
-      </div>
-      <div v-else-if="!filtered.length" class="empty-state">
-        <h3>沒有符合條件的成員</h3>
-        <p>試試其他名稱或清除篩選條件。</p>
-        <v-btn variant="text" @click="clearFilters">清除篩選</v-btn>
-      </div>
-      <template v-else>
-        <p class="member-result" aria-live="polite">顯示 {{ filtered.length }} 位成員</p>
-        <div class="member-table-scroll" tabindex="0" aria-label="成員表格，可左右捲動">
-          <table class="member-table">
-            <thead>
-              <tr>
-                <th scope="col">UID</th>
-                <th scope="col">名稱</th>
-                <th scope="col">主職業</th>
-                <th scope="col">副職業</th>
-                <th scope="col">幫派內</th>
-                <th scope="col">俱樂部內</th>
-                <th scope="col">過去名稱</th>
-                <th scope="col">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="member in visibleMembers" :key="member.uid">
-                <td class="member-uid">{{ member.uid }}</td>
-                <td class="member-name">{{ member.name }}</td>
-                <td>
-                  <span class="profession-label"
-                    ><span
-                      class="profession-dot"
-                      :style="{ backgroundColor: jobColor(member.primaryProfessionId) }"
-                    ></span
-                    >{{ member.primaryProfession || '—' }}</span
-                  >
-                </td>
-                <td>
-                  <span v-if="member.secondaryProfession" class="profession-label"
-                    ><span
-                      class="profession-dot"
-                      :style="{ backgroundColor: jobColor(member.secondaryProfessionId) }"
-                    ></span
-                    >{{ member.secondaryProfession }}</span
-                  ><span v-else class="member-muted">—</span>
-                </td>
-                <td>
-                  <span
-                    :class="['membership-status', { 'membership-yes': member.isInGuild }]"
-                    :aria-label="`幫派內：${member.isInGuild ? '是' : '否'}`"
-                    >{{ member.isInGuild ? '是' : '否' }}</span
-                  >
-                </td>
-                <td>
-                  <span
-                    :class="['membership-status', { 'membership-yes': member.isInClub }]"
-                    :aria-label="`俱樂部內：${member.isInClub ? '是' : '否'}`"
-                    >{{ member.isInClub ? '是' : '否' }}</span
-                  >
-                </td>
-                <td>
-                  <v-btn
-                    v-if="member.previousNames.length"
-                    variant="text"
-                    size="small"
-                    :prepend-icon="mdiHistory"
-                    :aria-label="`查看 ${member.name} 的過去名稱`"
-                    @click="openHistory(member)"
-                    >{{ member.previousNames.length }} 筆紀錄</v-btn
-                  ><span v-else class="member-muted">—</span>
-                </td>
-                <td>
-                  <div class="member-row-actions">
-                    <v-btn
-                      variant="text"
-                      size="small"
-                      :prepend-icon="mdiPencilOutline"
-                      :aria-label="`編輯 ${member.name}`"
-                      @click="openForm(member)"
-                      >編輯</v-btn
-                    ><v-btn
-                      color="error"
-                      variant="text"
-                      size="small"
-                      :prepend-icon="mdiDeleteOutline"
-                      :aria-label="`移除 ${member.name}`"
-                      @click="openRemove(member)"
-                      >移除</v-btn
-                    >
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <v-tab id="member-tab-external" value="external" aria-controls="member-list-external"
+          >編外人員<span class="member-tab-count">{{ externalCount }}</span></v-tab
+        >
+      </v-tabs>
+      <div
+        :id="`member-list-${tab}`"
+        role="tabpanel"
+        :aria-labelledby="`member-tab-${tab}`"
+        tabindex="0"
+        class="member-tab-panel"
+      >
+        <p class="member-tab-description">
+          {{
+            tab === 'members'
+              ? '幫派內或俱樂部內至少一項為是的人員。'
+              : '幫派內與俱樂部內皆為否的人員，可編輯所屬狀態返回成員清單。'
+          }}
+        </p>
+        <div :class="['member-filters', { 'member-filters-external': tab === 'external' }]">
+          <v-text-field
+            v-model="search"
+            label="搜尋 UID、名稱或過去名稱"
+            :prepend-inner-icon="mdiMagnify"
+            variant="outlined"
+            density="compact"
+            hide-details
+            clearable
+            @click:clear="search = ''"
+          />
+          <v-select
+            v-model="jobFilter"
+            :items="professions"
+            item-title="name"
+            item-value="job_id"
+            label="篩選主職業"
+            variant="outlined"
+            density="compact"
+            hide-details
+            clearable
+          />
+          <v-select
+            v-if="tab === 'members'"
+            v-model="membershipFilter"
+            :items="membershipOptions"
+            label="篩選幫派／俱樂部"
+            variant="outlined"
+            density="compact"
+            hide-details
+          />
+          <v-btn
+            variant="text"
+            :disabled="!search && !jobFilter && membershipFilter === 'all'"
+            @click="clearFilters"
+            >清除篩選</v-btn
+          >
         </div>
-        <v-pagination
-          v-if="pageCount > 1"
-          v-model="page"
-          :length="pageCount"
-          :total-visible="5"
-          aria-label="成員清單分頁"
-        />
-      </template>
+        <div v-if="!categoryMembers.length" class="empty-state">
+          <span class="empty-icon"><v-icon :icon="mdiAccountGroupOutline" size="28" /></span>
+          <h3>{{ tab === 'members' ? '尚無成員' : '尚無編外人員' }}</h3>
+          <p>
+            {{
+              tab === 'members'
+                ? '可加入成員，或在編外人員中編輯所屬狀態。'
+                : '將成員移至編外，或新增兩個所屬狀態皆為否的人員。'
+            }}
+          </p>
+        </div>
+        <div v-else-if="!filtered.length" class="empty-state">
+          <h3>沒有符合條件的{{ tabLabel }}</h3>
+          <p>試試其他名稱或清除篩選條件。</p>
+          <v-btn variant="text" @click="clearFilters">清除篩選</v-btn>
+        </div>
+        <template v-else>
+          <p class="member-result" aria-live="polite">
+            顯示 {{ filtered.length }} 位{{ tabLabel }}
+          </p>
+          <div class="member-table-scroll" tabindex="0" :aria-label="`${tabLabel}表格，可左右捲動`">
+            <table class="member-table">
+              <thead>
+                <tr>
+                  <th scope="col">UID</th>
+                  <th scope="col">名稱</th>
+                  <th scope="col">主職業</th>
+                  <th scope="col">副職業</th>
+                  <th scope="col">幫派內</th>
+                  <th scope="col">俱樂部內</th>
+                  <th scope="col">過去名稱</th>
+                  <th scope="col">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="member in visibleMembers" :key="member.uid">
+                  <td class="member-uid">{{ member.uid }}</td>
+                  <td class="member-name">{{ member.name }}</td>
+                  <td>
+                    <span class="profession-label"
+                      ><span
+                        class="profession-dot"
+                        :style="{ backgroundColor: jobColor(member.primaryProfessionId) }"
+                      ></span
+                      >{{ member.primaryProfession || '—' }}</span
+                    >
+                  </td>
+                  <td>
+                    <span v-if="member.secondaryProfession" class="profession-label"
+                      ><span
+                        class="profession-dot"
+                        :style="{ backgroundColor: jobColor(member.secondaryProfessionId) }"
+                      ></span
+                      >{{ member.secondaryProfession }}</span
+                    ><span v-else class="member-muted">—</span>
+                  </td>
+                  <td>
+                    <span
+                      :class="['membership-status', { 'membership-yes': member.isInGuild }]"
+                      :aria-label="`幫派內：${member.isInGuild ? '是' : '否'}`"
+                      >{{ member.isInGuild ? '是' : '否' }}</span
+                    >
+                  </td>
+                  <td>
+                    <span
+                      :class="['membership-status', { 'membership-yes': member.isInClub }]"
+                      :aria-label="`俱樂部內：${member.isInClub ? '是' : '否'}`"
+                      >{{ member.isInClub ? '是' : '否' }}</span
+                    >
+                  </td>
+                  <td>
+                    <v-btn
+                      v-if="member.previousNames.length"
+                      variant="text"
+                      size="small"
+                      :prepend-icon="mdiHistory"
+                      :aria-label="`查看 ${member.name} 的過去名稱`"
+                      @click="openHistory(member)"
+                      >{{ member.previousNames.length }} 筆紀錄</v-btn
+                    ><span v-else class="member-muted">—</span>
+                  </td>
+                  <td>
+                    <div class="member-row-actions">
+                      <v-btn
+                        variant="text"
+                        size="small"
+                        :prepend-icon="mdiPencilOutline"
+                        :aria-label="`編輯 ${member.name}`"
+                        @click="openForm(member)"
+                        >編輯</v-btn
+                      ><v-btn
+                        v-if="tab === 'members'"
+                        color="warning"
+                        variant="text"
+                        size="small"
+                        :prepend-icon="mdiAccountArrowRightOutline"
+                        :aria-label="`移至編外 ${member.name}`"
+                        @click="openMove(member)"
+                        >移至編外</v-btn
+                      >
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <v-pagination
+            v-if="pageCount > 1"
+            v-model="page"
+            :length="pageCount"
+            :total-visible="5"
+            aria-label="成員清單分頁"
+          />
+        </template>
+      </div>
     </template>
   </section>
 
@@ -547,7 +606,9 @@ function formatDate(value) {
                 hide-details="auto"
                 @update:model-value="errors.isInClub = ''"
               />
-              <p>兩者可同時勾選或都不勾選，取消勾選不會移除成員。</p>
+              <p>
+                兩者可同時勾選或都不勾選，兩者皆否會顯示在編外人員，勾選任一項會顯示在成員清單。
+              </p>
             </div>
           </fieldset>
         </div>
@@ -561,30 +622,31 @@ function formatDate(value) {
     </v-card>
   </v-dialog>
   <v-dialog
-    v-model="removeDialog"
-    :persistent="deleting"
+    v-model="moveDialog"
+    :persistent="movingBusy"
     max-width="480"
-    aria-labelledby="remove-title"
+    aria-labelledby="move-title"
     @after-leave="restoreFocus"
   >
     <v-card class="member-dialog"
-      ><h2 id="remove-title">移除成員</h2>
+      ><h2 id="move-title">移至編外人員</h2>
       <p class="member-dialog-description">
-        確定移除 <strong>{{ removing?.name }}</strong
-        >？
+        確定將 <strong>{{ moving?.name }}</strong> 移至編外人員？
       </p>
-      <p class="member-remove-uid">UID：{{ removing?.uid }}</p>
+      <p class="member-remove-uid">UID：{{ moving?.uid }}</p>
       <p class="member-dialog-description">
-        這位成員將移出名冊，資料與過去名稱會保留。若只需更改幫派或俱樂部狀態，請使用「編輯」。
+        「幫派內」與「俱樂部內」都會改為否，資料與過去名稱保留。日後編輯並勾選任一狀態即可返回成員清單。
       </p>
-      <v-alert v-if="removeError" type="error" variant="tonal" role="alert">{{
-        removeError
-      }}</v-alert>
+      <v-alert v-if="moveError" type="error" variant="tonal" role="alert">{{ moveError }}</v-alert>
       <div class="member-dialog-actions">
-        <v-btn variant="outlined" :disabled="deleting" @click="removeDialog = false">取消</v-btn
-        ><v-btn color="error" :loading="deleting" :disabled="deleting" @click="remove">{{
-          deleting ? '移除中…' : '確認移除'
-        }}</v-btn>
+        <v-btn variant="outlined" :disabled="movingBusy" @click="moveDialog = false">取消</v-btn
+        ><v-btn
+          color="warning"
+          :loading="movingBusy"
+          :disabled="movingBusy"
+          @click="moveToExternal"
+          >{{ movingBusy ? '移轉中…' : '確認移至編外' }}</v-btn
+        >
       </div></v-card
     >
   </v-dialog>
@@ -648,7 +710,9 @@ function formatDate(value) {
           <dd>{{ importSummary?.skipped }} 位</dd>
         </div>
       </dl>
-      <p class="member-dialog-description">既有成員的名稱、職業與所屬狀態保持原樣。</p>
+      <p class="member-dialog-description">
+        新匯入人員顯示於成員頁；既有人員（含編外）的名稱、職業與所屬狀態保持原樣。
+      </p>
       <div class="member-dialog-actions">
         <v-btn color="primary" @click="importResultDialog = false">知道了</v-btn>
       </div>
