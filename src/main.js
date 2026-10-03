@@ -1,6 +1,7 @@
 import { createApp } from 'vue';
 import { createVuetify } from 'vuetify';
 import {
+  VAutocomplete,
   VApp,
   VBtn,
   VCard,
@@ -26,6 +27,7 @@ import App from './App.vue';
 
 const vuetify = createVuetify({
   components: {
+    VAutocomplete,
     VApp,
     VBtn,
     VCard,

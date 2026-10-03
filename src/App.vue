@@ -9,6 +9,7 @@ import {
   mdiCalendarMonthOutline,
 } from '@mdi/js';
 import HomePage from './pages/HomePage.vue';
+import CalendarHomePage from './pages/CalendarHomePage.vue';
 import MembersPage from './pages/MembersPage.vue';
 import EventsPage from './pages/EventsPage.vue';
 import LineupsPage from './pages/LineupsPage.vue';
@@ -25,7 +26,7 @@ provide('registerNavigationGuard', (guard) => {
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 function currentView() {
   const route = window.location.hash.slice(2);
-  return ['members', 'events', 'lineups'].includes(route) ? route : 'home';
+  return ['magament', 'members', 'events', 'lineups'].includes(route) ? route : 'home';
 }
 const view = ref(currentView());
 function syncView() {
@@ -39,7 +40,9 @@ function syncView() {
   nextTick(() => document.getElementById('main')?.focus({ preventScroll: true }));
 }
 function navigate(page) {
-  window.location.hash = ['members', 'events', 'lineups'].includes(page) ? `/${page}` : '/';
+  window.location.hash = ['magament', 'members', 'events', 'lineups'].includes(page)
+    ? `/${page}`
+    : '/';
   mobileMenu.value = false;
 }
 onMounted(() => window.addEventListener('hashchange', syncView));
@@ -57,7 +60,7 @@ function skipToMain() {
     <a class="skip-link" href="#main" @click.prevent="skipToMain">跳至主要內容</a>
     <header v-show="!lineupFocus" class="site-header">
       <div class="header-inner">
-        <button class="brand" type="button" aria-label="回到首頁總覽" @click="goHome">
+        <button class="brand" type="button" aria-label="回到行事曆首頁" @click="goHome">
           <span class="brand-mark"><v-icon :icon="mdiSwordCross" size="26" /></span>
           <span class="brand-text"><strong>逆水寒</strong><span>幫會管理平台</span></span>
         </button>
@@ -68,7 +71,15 @@ function skipToMain() {
             :aria-current="view === 'home' ? 'page' : undefined"
             @click="goHome"
           >
-            <v-icon :icon="mdiViewDashboardOutline" size="18" />總覽
+            <v-icon :icon="mdiCalendarMonthOutline" size="18" />行事曆
+          </button>
+          <button
+            type="button"
+            :class="{ 'nav-current': view === 'magament' }"
+            :aria-current="view === 'magament' ? 'page' : undefined"
+            @click="navigate('magament')"
+          >
+            <v-icon :icon="mdiViewDashboardOutline" size="18" />管理總覽
           </button>
           <button
             type="button"
@@ -111,7 +122,10 @@ function skipToMain() {
         </div>
       </div>
       <nav v-if="mobileMenu" id="mobile-navigation" class="mobile-nav" aria-label="手機導覽">
-        <v-btn variant="text" :prepend-icon="mdiViewDashboardOutline" @click="goHome">總覽</v-btn>
+        <v-btn variant="text" :prepend-icon="mdiCalendarMonthOutline" @click="goHome">行事曆</v-btn>
+        <v-btn variant="text" :prepend-icon="mdiViewDashboardOutline" @click="navigate('magament')"
+          >管理總覽</v-btn
+        >
         <v-btn variant="text" :prepend-icon="mdiAccountGroupOutline" @click="navigate('members')"
           >成員清單</v-btn
         >
@@ -124,7 +138,8 @@ function skipToMain() {
       </nav>
     </header>
     <main id="main" class="page" :class="{ 'page-lineups': view === 'lineups' }" tabindex="-1">
-      <HomePage v-if="view === 'home'" @open-page="navigate" />
+      <CalendarHomePage v-if="view === 'home'" />
+      <HomePage v-else-if="view === 'magament'" @open-page="navigate" />
       <MembersPage v-else-if="view === 'members'" />
       <EventsPage v-else-if="view === 'events'" />
       <LineupsPage v-else @focus-changed="lineupFocus = $event" />

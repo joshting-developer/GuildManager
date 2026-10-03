@@ -1,5 +1,5 @@
 <script setup>
-import { LINEUP_GROUPS, slotAssignments } from '../domain/lineups.js';
+import { LINEUP_GROUPS, slotAssignments, participantKey } from '../domain/lineups.js';
 const props = defineProps({
   teams: { type: Array, required: true },
   members: { type: Array, default: () => [] },
@@ -25,8 +25,11 @@ function dutyDescription(slot) {
 }
 function person(slot) {
   if (props.snapshots) return slot.member;
-  const member = props.members.find((member) => member.uid === slot.uid);
-  if (!member) return slot.uid ? { name: `找不到成員（${slot.uid}）` } : null;
+  const member = props.members.find((member) => participantKey(member) === participantKey(slot));
+  if (!member)
+    return participantKey(slot)
+      ? { name: slot.registrationId ? '報名已取消或不屬於本場' : `找不到成員（${slot.uid}）` }
+      : null;
   return {
     ...member,
     primaryProfession: props.professions.find((p) => p.job_id === member.primaryProfessionId),
@@ -47,8 +50,8 @@ function drop(event, teamId, index) {
   if (uid) emit('place', uid, teamId, index);
 }
 function drag(event, slot) {
-  if (!props.readOnly && slot.uid) {
-    event.dataTransfer.setData('application/x-guild-member', slot.uid);
+  if (!props.readOnly && participantKey(slot)) {
+    event.dataTransfer.setData('application/x-guild-member', participantKey(slot));
     event.dataTransfer.effectAllowed = 'move';
   }
 }
@@ -96,7 +99,7 @@ function activate(team, index) {
             :class="[
               'lineup-seat',
               {
-                occupied: slot.uid || slot.secondRound?.uid,
+                occupied: participantKey(slot) || participantKey(slot.secondRound),
                 'has-second-round': Boolean(slot.secondRound),
                 'seat-target': (selectedUid || selectedDutyId) && !readOnly,
               },
@@ -121,9 +124,11 @@ function activate(team, index) {
                 class="seat-person"
                 :tabindex="readOnly ? 0 : undefined"
                 :title="
-                  entry.uid ? `${person(entry)?.name || entry.uid}（${entry.uid}）` : '尚未安排'
+                  participantKey(entry)
+                    ? `${person(entry)?.name || '找不到人員'}（${entry.uid || '額外報名'}）${person(entry)?.note || person(entry)?.registrationNote ? ` · ${person(entry)?.note || person(entry)?.registrationNote}` : ''}`
+                    : '尚未安排'
                 "
-                :draggable="!readOnly && Boolean(entry.uid)"
+                :draggable="!readOnly && Boolean(participantKey(entry))"
                 :aria-label="
                   readOnly
                     ? undefined
@@ -138,7 +143,7 @@ function activate(team, index) {
                 <span v-if="slot.secondRound" class="seat-round-label">{{
                   roundIndex === 0 ? '第一場' : '第二場'
                 }}</span>
-                <span v-if="entry.uid" class="seat-identity"
+                <span v-if="participantKey(entry)" class="seat-identity"
                   ><span class="seat-job"
                     ><span
                       class="profession-dot"

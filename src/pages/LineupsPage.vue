@@ -14,6 +14,8 @@ import {
   emptyLineup,
   editableLineup,
   eligibleMember,
+  participantKey,
+  participantReference,
   placeMember,
   addMemberToSlot,
   slotAssignments,
@@ -22,6 +24,7 @@ import { eventTypeLabel, eventDisplayTitle } from '../domain/event-types.js';
 import LineupBoard from './LineupBoard.vue';
 import DutyList from './DutyList.vue';
 import { createDutyClient } from '../api/duties.js';
+import { createParticipationClient } from '../api/participation.js';
 
 const emit = defineEmits(['focus-changed']);
 const focusMode = ref(false);
@@ -44,6 +47,34 @@ const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 const client = createLineupClient({ source });
 const memberClient = createMemberClient({ source });
 const dutyClient = createDutyClient({ source });
+const participationClient = createParticipationClient({ source });
+const participation = ref({ responses: [], registrations: [] });
+const memberTab = ref('guild');
+const participantPeople = computed(() => [
+  ...members.value.map((member) => {
+    const response = participation.value.responses.find((row) => row.uid === member.uid);
+    return {
+      ...member,
+      isOnLeave: response?.status === 'leave',
+      isRegistered: response?.status === 'registered',
+      registrationNote: response?.note || '',
+    };
+  }),
+  ...participation.value.registrations.map((row) => ({
+    uid: null,
+    registrationId: row.id,
+    name: row.name,
+    primaryProfessionId: row.professionId,
+    primaryProfession: row.profession,
+    secondaryProfessionId: null,
+    isInGuild: false,
+    isInClub: false,
+    registrationNote: row.note,
+  })),
+]);
+function findPerson(key) {
+  return participantPeople.value.find((person) => participantKey(person) === key);
+}
 const sidebarTab = ref('members');
 const duties = ref([]),
   catalogBusy = ref(false),
@@ -119,37 +150,52 @@ const assigned = computed(
       teams.value
         .flatMap((team) => team.slots)
         .flatMap(slotAssignments)
-        .filter((person) => person.uid)
-        .map((person) => person.uid),
+        .filter((person) => participantKey(person))
+        .map(participantKey),
     ),
 );
 const count = computed(
   () =>
     displayedTeams.value
       .flatMap((team) => team.slots.flatMap(slotAssignments))
-      .filter((person) => person.uid).length,
+      .filter((person) => participantKey(person)).length,
 );
 const positionCount = computed(
   () =>
     displayedTeams.value
       .flatMap((team) => team.slots)
-      .filter((slot) => slotAssignments(slot).some((person) => person.uid)).length,
+      .filter((slot) => slotAssignments(slot).some((person) => participantKey(person))).length,
 );
 const roundCounts = computed(() => {
   const slots = displayedTeams.value.flatMap((team) => team.slots);
   return {
-    first: slots.filter((slot) => slot.uid).length,
-    second: slots.filter((slot) => (slot.secondRound ? slot.secondRound.uid : slot.uid)).length,
+    first: slots.filter((slot) => participantKey(slot)).length,
+    second: slots.filter((slot) => participantKey(slot.secondRound || slot)).length,
   };
 });
 const eligible = computed(() =>
-  members.value.filter((member) => eligibleMember(member, currentEvent.value?.type)),
+  participantPeople.value.filter((member) => eligibleMember(member, currentEvent.value?.type)),
+);
+const sourceMembers = computed(() =>
+  eligible.value.filter((person) =>
+    memberTab.value === 'guild'
+      ? person.isInGuild
+      : memberTab.value === 'club'
+        ? person.isInClub && !person.isInGuild
+        : !person.isInGuild && !person.isInClub,
+  ),
+);
+const memberTabLabel = computed(
+  () => ({ guild: '幫會成員', club: '俱樂部成員', extra: '額外報名' })[memberTab.value],
 );
 const visibleMembers = computed(() =>
-  eligible.value.filter((member) => {
+  sourceMembers.value.filter((member) => {
     const needle = (search.value || '').trim().toLocaleLowerCase();
     return (
-      (!needle || `${member.uid} ${member.name}`.toLocaleLowerCase().includes(needle)) &&
+      (!needle ||
+        `${member.uid || ''} ${member.name} ${member.registrationNote}`
+          .toLocaleLowerCase()
+          .includes(needle)) &&
       (!professionId.value ||
         [member.primaryProfessionId, member.secondaryProfessionId].includes(professionId.value))
     );
@@ -171,12 +217,12 @@ const historyOptions = computed(() => [
 const slotOptions = computed(() => [
   { title: '空位', value: null },
   ...eligible.value.map((member) => ({
-    title: `${member.name} · ${member.uid}${assigned.value.has(member.uid) ? '（已安排，可移動或分場）' : ''}`,
-    value: member.uid,
+    title: `${member.name} · ${member.uid || '額外報名'}${assigned.value.has(participantKey(member)) ? '（已安排，可移動或分場）' : ''}`,
+    value: participantKey(member),
   })),
 ]);
 function seatJobOptions(uid) {
-  const member = members.value.find((member) => member.uid === uid);
+  const member = findPerson(uid);
   return [
     { title: `主職業：${member?.primaryProfession || '未選成員'}`, value: 'primary' },
     ...(member?.secondaryProfessionId
@@ -192,11 +238,9 @@ const invalidAssignments = computed(
       .flatMap((team) => team.slots.flatMap(slotAssignments))
       .filter(
         (slot) =>
-          slot.uid &&
-          (!eligible.value.some((member) => member.uid === slot.uid) ||
-            !members.value.find((member) => member.uid === slot.uid)?.[
-              `${slot.profession}ProfessionId`
-            ]),
+          participantKey(slot) &&
+          (!eligible.value.some((member) => participantKey(member) === participantKey(slot)) ||
+            !findPerson(participantKey(slot))?.[`${slot.profession}ProfessionId`]),
       ).length,
 );
 const invalidDuties = computed(
@@ -247,11 +291,11 @@ function assignDuty(id, teamId, index) {
   notice.value = '已分配職責，請確認並儲存本場名單。';
 }
 const qualification = computed(() =>
-  currentEvent.value?.type === 'guild_war'
-    ? '僅顯示幫派內成員'
-    : currentEvent.value?.type === 'dragon_tiger'
-      ? '僅顯示俱樂部內成員'
-      : '顯示所有成員，包含編外人員',
+  memberTab.value === 'guild'
+    ? '幫派內成員，排除本場已請假者。'
+    : memberTab.value === 'club'
+      ? '僅俱樂部成員，排除幫派內及本場已請假者。'
+      : '本場額外報名者及已報名的編外人員。',
 );
 function formatTime(value) {
   return new Intl.DateTimeFormat('zh-TW', {
@@ -327,8 +371,15 @@ async function loadEvent(id) {
   skipped.value = [];
   skippedDuties.value = [];
   try {
-    const data = await client.getHistory(id);
+    const target = events.value.find((event) => event.id === id);
+    const [data, responses] = await Promise.all([
+      client.getHistory(id),
+      target?.archived
+        ? Promise.resolve({ responses: [], registrations: [] })
+        : participationClient.getParticipation(id),
+    ]);
     if (disposed || token !== operation) return;
+    participation.value = responses;
     eventId.value = id;
     versions.value = data.versions;
     resetDraft(data.versions[0]?.teams);
@@ -345,7 +396,7 @@ async function changeEvent(id) {
 }
 function place(uid, teamId, index) {
   if (readOnly.value) return false;
-  if (!eligible.value.some((member) => member.uid === uid)) {
+  if (!eligible.value.some((member) => participantKey(member) === uid)) {
     error.value = '這位成員不符合本場資格，請重新載入成員清單';
     return false;
   }
@@ -391,10 +442,10 @@ function restoreFocus() {
 function openSeat(teamId, index) {
   seat.value = { teamId, index };
   const slot = teams.value.find((team) => team.id === teamId).slots[index];
-  seatUid.value = slot.uid;
+  seatUid.value = participantKey(slot);
   seatNote.value = slot.note;
   seatProfession.value = slot.profession;
-  seatSecondUid.value = slot.secondRound?.uid || null;
+  seatSecondUid.value = participantKey(slot.secondRound);
   seatSecondProfession.value = slot.secondRound?.profession || 'primary';
   seatDutyIds.value = [...(slot.dutyIds || [])];
   seatBaseline = JSON.stringify([
@@ -413,16 +464,14 @@ function saveSeat() {
     return;
   }
   const choices = [
-    { uid: seatUid.value, profession: seatProfession.value },
-    { uid: seatSecondUid.value, profession: seatSecondProfession.value },
+    { key: seatUid.value, profession: seatProfession.value },
+    { key: seatSecondUid.value, profession: seatSecondProfession.value },
   ];
   for (const person of choices) {
     if (
-      person.uid &&
-      (!eligible.value.some((member) => member.uid === person.uid) ||
-        !members.value.find((member) => member.uid === person.uid)?.[
-          `${person.profession}ProfessionId`
-        ])
+      person.key &&
+      (!eligible.value.some((member) => participantKey(member) === person.key) ||
+        !findPerson(person.key)?.[`${person.profession}ProfessionId`])
     ) {
       dialogError.value = '成員資格或上場職業已無法使用，請重新選擇。';
       return;
@@ -430,14 +479,13 @@ function saveSeat() {
   }
   const slot = teams.value.find((team) => team.id === seat.value.teamId).slots[seat.value.index];
   choices.forEach((person, index) => {
-    if (person.uid)
-      placeMember(teams.value, person.uid, seat.value.teamId, seat.value.index, index + 1);
-    if (index === 0)
-      Object.assign(slot, {
-        uid: person.uid,
-        profession: person.uid ? person.profession : 'primary',
-      });
-    else slot.secondRound = person.uid ? { ...person } : null;
+    if (person.key)
+      placeMember(teams.value, person.key, seat.value.teamId, seat.value.index, index + 1);
+    const reference = participantReference(person.key, person.key ? person.profession : 'primary');
+    if (index === 0) {
+      delete slot.registrationId;
+      Object.assign(slot, reference);
+    } else slot.secondRound = person.key ? reference : null;
   });
   slot.note = seatNote.value.trim();
   slot.dutyIds = [...seatDutyIds.value];
@@ -454,11 +502,13 @@ async function refreshMembers() {
   busy.value = true;
   error.value = '';
   try {
-    const [people, jobs, tasks] = await Promise.all([
+    const [people, jobs, tasks, responses] = await Promise.all([
       memberClient.getMembers(),
       memberClient.getProfessions(),
       dutyClient.getDuties(),
+      participationClient.getParticipation(eventId.value),
     ]);
+    participation.value = responses;
     duties.value = tasks.duties;
     members.value = people.members;
     professions.value = jobs.professions;
@@ -542,11 +592,13 @@ async function applyTemplate() {
   error.value = '';
   try {
     const data = await client.applyTemplate(templateId.value, eventId.value);
-    const [people, jobs, tasks] = await Promise.all([
+    const [people, jobs, tasks, responses] = await Promise.all([
       memberClient.getMembers(),
       memberClient.getProfessions(),
       dutyClient.getDuties(),
+      participationClient.getParticipation(eventId.value),
     ]);
+    participation.value = responses;
     duties.value = tasks.duties;
     members.value = people.members;
     professions.value = jobs.professions;
@@ -780,8 +832,8 @@ onUnmounted(() => {
         role="status"
         ><strong>套用時跳過的成員</strong>
         <ul>
-          <li v-for="person in skipped" :key="person.uid">
-            {{ person.name }}（{{ person.uid }}）{{
+          <li v-for="person in skipped" :key="participantKey(person)">
+            {{ person.name }}（{{ person.uid || '額外報名' }}）{{
               person.round ? ` · 第${person.round === 1 ? '一' : '二'}場` : ''
             }}
             — {{ person.reason }}
@@ -853,6 +905,14 @@ onUnmounted(() => {
               />
             </div>
             <p class="lineup-hint">{{ qualification }}</p>
+            <v-tabs
+              v-model="memberTab"
+              class="lineup-member-tabs"
+              density="compact"
+              aria-label="成員來源分類"
+              ><v-tab value="guild">幫會成員</v-tab><v-tab value="club">俱樂部成員</v-tab
+              ><v-tab value="extra">額外報名</v-tab></v-tabs
+            >
             <p class="lineup-hint">
               拖曳至位置，或先點選成員再點位置。第二位會安排為第二場；每個位置最多兩人，職責與備註共用。
             </p>
@@ -877,29 +937,33 @@ onUnmounted(() => {
               :disabled="busy"
             />
             <p class="lineup-list-count">
-              符合 {{ visibleMembers.length }} 人 · 尚未安排
-              {{ eligible.filter((member) => !assigned.has(member.uid)).length }} 人
+              {{ memberTabLabel }} · 符合 {{ visibleMembers.length }} 人 · 尚未安排
+              {{ sourceMembers.filter((member) => !assigned.has(participantKey(member))).length }}
+              人
             </p>
             <div v-if="selectedUid" class="lineup-selected" role="status">
-              已選：{{ members.find((member) => member.uid === selectedUid)?.name
+              已選：{{ findPerson(selectedUid)?.name
               }}<v-btn variant="text" size="small" @click="selectedUid = ''">取消選取</v-btn>
             </div>
             <div class="lineup-member-list">
               <button
                 v-for="member in visibleMembers"
-                :key="member.uid"
+                :key="participantKey(member)"
                 type="button"
-                :class="['lineup-member', { 'member-selected': selectedUid === member.uid }]"
+                :class="[
+                  'lineup-member',
+                  { 'member-selected': selectedUid === participantKey(member) },
+                ]"
                 :draggable="!busy"
                 :disabled="busy"
-                :aria-pressed="selectedUid === member.uid"
-                :data-member="member.uid"
-                @dragstart="drag($event, member.uid)"
-                @click="selectMember(member.uid)"
+                :aria-pressed="selectedUid === participantKey(member)"
+                :data-member="member.uid || member.registrationId"
+                @dragstart="drag($event, participantKey(member))"
+                @click="selectMember(participantKey(member))"
               >
                 <span class="lineup-member-main"
                   ><strong>{{ member.name }}</strong
-                  ><small>{{ member.uid }}</small></span
+                  ><small>{{ member.uid || '額外報名' }}</small></span
                 ><span class="lineup-member-job"
                   ><span
                     class="profession-dot"
@@ -910,18 +974,25 @@ onUnmounted(() => {
                     }"
                   ></span
                   >{{ member.primaryProfession
-                  }}<small v-if="assigned.has(member.uid)">已安排</small></span
+                  }}<small v-if="assigned.has(participantKey(member))">已安排</small></span
                 >
+                <span v-if="member.registrationNote" class="lineup-registration-note">{{
+                  member.registrationNote
+                }}</span>
               </button>
               <p v-if="!visibleMembers.length" class="lineup-hint">
-                {{ eligible.length ? '沒有符合搜尋條件的成員。' : '尚無符合本場資格的成員。' }}
+                {{
+                  sourceMembers.length
+                    ? '沒有符合搜尋條件的成員。'
+                    : `本場尚無可安排的${memberTabLabel}。`
+                }}
               </p>
             </div></v-card
           >
         </aside>
         <LineupBoard
           :teams="displayedTeams"
-          :members="members"
+          :members="participantPeople"
           :professions="professions"
           :duties="duties"
           :selected-duty-id="selectedDutyId"

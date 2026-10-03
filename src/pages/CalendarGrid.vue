@@ -7,6 +7,7 @@ const props = defineProps({
   modelValue: { type: Array, default: () => [] },
   selectable: Boolean,
   creatable: Boolean,
+  browsable: Boolean,
   initialDate: { type: String, default: '' },
   multiple: Boolean,
   disabled: Boolean,
@@ -82,7 +83,16 @@ function goToday() {
 }
 </script>
 <template>
-  <div :class="['calendar-grid', { 'date-picker': selectable, 'calendar-creatable': creatable }]">
+  <div
+    :class="[
+      'calendar-grid',
+      {
+        'date-picker': selectable,
+        'calendar-creatable': creatable || browsable,
+        'calendar-browsable': browsable,
+      },
+    ]"
+  >
     <div class="calendar-toolbar">
       <h3 aria-live="polite" aria-atomic="true">{{ monthLabel }}</h3>
       <div class="calendar-navigation" aria-label="切換行事曆月份">
@@ -138,12 +148,16 @@ function goToday() {
             </button>
             <template v-else>
               <button
-                v-if="creatable"
+                v-if="creatable || (browsable && eventsByDate.has(day.iso))"
                 type="button"
                 class="calendar-create-date"
-                :aria-label="`${day.label}，建立安排`"
+                :aria-label="`${day.label}，${creatable ? '建立安排' : '查看安排及報名／請假'}`"
                 :disabled="disabled || !/^[1-9]\d{3}-/.test(day.iso)"
-                @click="emit('create-date', day.iso)"
+                @click="
+                  creatable
+                    ? emit('create-date', day.iso)
+                    : emit('open-day', { date: day.iso, events: eventsByDate.get(day.iso) })
+                "
               />
               <div class="calendar-day">
                 <time
@@ -153,9 +167,10 @@ function goToday() {
                   >{{ day.day }}</time
                 ><span v-if="day.isToday" class="calendar-today-label">今天</span>
               </div>
-              <button
+              <component
                 v-if="eventsByDate.has(day.iso)"
-                type="button"
+                :is="browsable ? 'div' : 'button'"
+                :type="browsable ? undefined : 'button'"
                 class="calendar-day-events"
                 :aria-label="`${day.label}，${eventsByDate.get(day.iso).length} 筆安排，查看詳情`"
                 @click="emit('open-day', { date: day.iso, events: eventsByDate.get(day.iso) })"
@@ -171,7 +186,7 @@ function goToday() {
                 <span v-if="eventsByDate.get(day.iso).length > 2" class="calendar-event-more"
                   >另 {{ eventsByDate.get(day.iso).length - 2 }} 筆</span
                 >
-              </button>
+              </component>
             </template>
           </td>
         </tr>

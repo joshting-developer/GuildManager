@@ -64,6 +64,9 @@
 .calendar-creatable .calendar-day-events {
   position: relative;
 }
+.calendar-browsable .calendar-day-events {
+  pointer-events: none;
+}
 .calendar-day {
   display: flex;
   align-items: center;

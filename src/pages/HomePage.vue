@@ -55,7 +55,7 @@ const dateLabel = new Intl.DateTimeFormat('zh-TW', {
 <template>
   <section class="page-heading" aria-labelledby="page-title">
     <div>
-      <p class="eyebrow">GUILD MANAGER <span class="eyebrow-divider">/</span> 首頁</p>
+      <p class="eyebrow">GUILD MANAGER <span class="eyebrow-divider">/</span> 管理總覽</p>
       <h1 id="page-title">幫會總覽<span class="heading-dot">.</span></h1>
       <p class="page-subtitle">管理成員資料，掌握近期活動與出勤。</p>
     </div>

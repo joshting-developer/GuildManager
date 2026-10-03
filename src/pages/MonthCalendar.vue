@@ -3,8 +3,13 @@ import { onMounted, ref } from 'vue';
 import { createEventClient } from '../api/events.js';
 import CalendarGrid from './CalendarGrid.vue';
 import EventCreateDialog from './EventCreateDialog.vue';
+import ParticipationDialog from './ParticipationDialog.vue';
+import { LINEUP_TYPES } from '../domain/lineups.js';
 import './events.css';
 import { eventTypeLabel, eventDisplayTitle } from '../domain/event-types.js';
+defineProps({ management: { type: Boolean, default: true } });
+const selectedEvent = ref(null);
+const participationDialog = ref(false);
 const client = createEventClient({ source: import.meta.env.VITE_DATA_SOURCE || 'local' });
 const events = ref([]);
 const loading = ref(true);
@@ -53,7 +58,7 @@ function onCreated(saved) {
       : `「${eventDisplayTitle(event)}」已建立，共 ${event.dates.length} 天。`;
 }
 function restoreFocus() {
-  if (opener?.isConnected) opener.focus();
+  if (!participationDialog.value && opener?.isConnected) opener.focus();
 }
 </script>
 <template>
@@ -67,7 +72,8 @@ function restoreFocus() {
     </div>
     <CalendarGrid
       :events="events"
-      :creatable="!loading && !error"
+      :creatable="management && !loading && !error"
+      :browsable="!management && !loading && !error"
       @open-day="openDay"
       @create-date="openCreate"
     />
@@ -82,11 +88,31 @@ function restoreFocus() {
         ><p role="alert">{{ error }}</p>
         <v-btn variant="text" @click="load">重新載入</v-btn></template
       >
-      <p v-else-if="!events.length">尚無安排，點選日期格即可建立第一筆安排。</p>
-      <p v-else>點選日期格建立安排；點選安排名稱或筆數查看當天詳情。</p>
+      <p v-else-if="!events.length">
+        {{ management ? '尚無安排，點選日期格即可建立第一筆安排。' : '目前尚無活動安排。' }}
+      </p>
+      <p v-else>
+        {{
+          management
+            ? '點選日期格建立安排；點選安排名稱或筆數查看當天詳情。'
+            : '點選有安排的日期查看場次；約戰、幫戰與龍虎戰可報名／請假。'
+        }}
+      </p>
     </div>
   </section>
-  <EventCreateDialog v-model="createDialog" :initial-date="initialDate" @created="onCreated" />
+  <EventCreateDialog
+    v-if="management"
+    v-model="createDialog"
+    :initial-date="initialDate"
+    @created="onCreated"
+  />
+  <ParticipationDialog
+    v-if="selectedEvent"
+    :key="selectedEvent.id"
+    v-model="participationDialog"
+    :event="selectedEvent"
+    @closed="restoreFocus"
+  />
   <v-dialog
     v-model="dayDialog"
     max-width="520"
@@ -99,6 +125,18 @@ function restoreFocus() {
         <li v-for="event in selectedDay?.events" :key="event.id">
           <span :class="['event-type', event.type]">{{ eventTypeLabel(event.type) }}</span
           ><strong>{{ eventDisplayTitle(event) }}</strong>
+          <v-btn
+            v-if="!management && LINEUP_TYPES.includes(event.type)"
+            variant="tonal"
+            color="primary"
+            :aria-label="`${eventDisplayTitle(event)} ${selectedDay.date} 報名／請假`"
+            @click="
+              selectedEvent = event;
+              dayDialog = false;
+              participationDialog = true;
+            "
+            >報名／請假</v-btn
+          >
         </li>
       </ul>
       <div class="event-dialog-actions">
