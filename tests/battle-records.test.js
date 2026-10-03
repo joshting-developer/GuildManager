@@ -404,7 +404,7 @@ test('event rounds allow second-round-first, separate retries and reject occupie
       );
     }
     assert.throws(() => repo.saveBattleRecords(input({ records: [record({ roundNumber: 1 })] })));
-    for (const event of events.slice(1)) {
+    for (const event of events.slice(2)) {
       assert.throws(() =>
         repo.saveBattleRecords(
           input({ requestId: event.type, records: [linked(event, 1), linked(event, 2)] }),
@@ -430,7 +430,7 @@ test('event rounds allow second-round-first, separate retries and reject occupie
         .sort(),
       [1, 2],
     );
-    assert.equal(repo.listBattleRecords().total, 4);
+    assert.equal(repo.listBattleRecords().total, 3);
     const other = repo.createEvent({
       type: 'scrimmage',
       title: '另一場',
@@ -581,6 +581,106 @@ test('internal scrimmages keep an explicit flag, omit enemy/result, preserve ret
     ).records[0];
     assert.equal(first.isInternal, true);
   } finally {
+    repo.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('guild wars persist two rounds with different opponents/results and allow a single-round week or later supplement', async () => {
+  const directory = mkdtempSync('/private/tmp/guild-war-rounds-'),
+    filename = directory + '/test.sqlite';
+  let repo = createRepository({ filename });
+  const server = createApp(repo).listen(0, '127.0.0.1');
+  await new Promise((resolve) => server.once('listening', resolve));
+  try {
+    const event = repo.createEvent({
+      type: 'guild_war',
+      title: '',
+      dates: ['2026-10-24'],
+      requestId: 'guild-two-rounds',
+    });
+    const authFetch = await authenticatedFetch(server, repo);
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const client = createBattleRecordClient({
+      fetchImpl: (url, options) => authFetch(base + url, options),
+    });
+    const linked = (roundNumber, extra = {}) =>
+      record({
+        eventId: event.id,
+        datetime: event.dates[0],
+        roundNumber,
+        redTeam: '我方',
+        blueTeam: roundNumber === 1 ? '第一場對手' : '第二場對手',
+        winner: roundNumber === 1 ? 'red' : 'blue',
+        ourSide: 'red',
+        ...extra,
+      });
+    const payload = input({ requestId: 'guild-second-first', records: [linked(2)] });
+    const second = (await client.saveRecords(payload)).records[0];
+    assert.equal(second.roundNumber, 2);
+    assert.equal(second.blueTeam, '第二場對手');
+    assert.equal(second.winner, 'blue');
+    assert.deepEqual((await client.saveRecords(payload)).records[0], second);
+    assert.deepEqual(
+      (await client.getRecords(1, event.id)).records.map((r) => r.roundNumber),
+      [2],
+    );
+    const first = (
+      await client.saveRecords(input({ requestId: 'guild-first', records: [linked(1)] }))
+    ).records[0];
+    assert.equal(first.blueTeam, '第一場對手');
+    assert.equal(first.winner, 'red');
+    assert.deepEqual(repo.getBattleRecord(second.id), second);
+    await assert.rejects(
+      client.saveRecords(
+        input({ requestId: 'guild-occupied', records: [linked(1, { blueTeam: '另一個對手' })] }),
+      ),
+      (error) => error.code === 'BATTLE_ROUND_EXISTS',
+    );
+    for (const extra of [{ roundNumber: 3 }, { isInternal: true, winner: null, ourSide: null }])
+      await assert.rejects(
+        client.saveRecords(input({ requestId: 'guild-invalid', records: [linked(2, extra)] })),
+      );
+    const week = repo.createEvent({
+      type: 'guild_war',
+      title: '單場週',
+      dates: ['2026-10-31'],
+      requestId: 'guild-one-week',
+    });
+    const single = repo.saveBattleRecords(
+      input({
+        requestId: 'single-week',
+        records: [linked(1, { eventId: week.id, datetime: week.dates[0] })],
+      }),
+    ).records[0];
+    assert.equal(repo.listBattleRecords({ eventId: week.id }).total, 1);
+    const batch = repo.createEvent({
+      type: 'guild_war',
+      title: '雙場週',
+      dates: ['2026-11-07'],
+      requestId: 'guild-batch-week',
+    });
+    const records = repo.saveBattleRecords(
+      input({
+        requestId: 'batch-week',
+        records: [1, 2].map((round) =>
+          linked(round, { eventId: batch.id, datetime: batch.dates[0] }),
+        ),
+      }),
+    ).records;
+    assert.deepEqual(
+      records.map((r) => r.roundNumber),
+      [1, 2],
+    );
+    assert.notEqual(records[0].blueTeam, records[1].blueTeam);
+    await new Promise((resolve) => server.close(resolve));
+    repo.close();
+    repo = createRepository({ filename });
+    assert.deepEqual(repo.getBattleRecord(first.id), first);
+    assert.deepEqual(repo.getBattleRecord(second.id), second);
+    assert.deepEqual(repo.getBattleRecord(single.id), single);
+  } finally {
+    if (server.listening) await new Promise((resolve) => server.close(resolve));
     repo.close();
     rmSync(directory, { recursive: true, force: true });
   }

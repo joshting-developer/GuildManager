@@ -182,9 +182,9 @@ export function createBattleRecordRepository(db) {
           (!record.eventId ||
             !Number.isInteger(record.roundNumber) ||
             record.roundNumber < 1 ||
-            record.roundNumber > (record.type === 'scrimmage' ? 2 : 1))
+            record.roundNumber > (record.type === 'dragon_tiger' ? 1 : 2))
         )
-          throw new BattleRecordError('約戰只能第一場／第二場, 幫戰與龍虎戰只有一場且需關聯活動');
+          throw new BattleRecordError('約戰與幫戰只能第一場／第二場, 龍虎戰只有一場且需關聯活動');
         const parsed = parseBattleCsv(record.csvText);
         return {
           eventId: record.eventId || null,

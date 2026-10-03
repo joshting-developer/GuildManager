@@ -56,14 +56,12 @@ const selectedEventId = ref(null);
 const selectedEvent = computed(() =>
   events.value.find((event) => event.id === selectedEventId.value),
 );
+const hasTwoRounds = computed(() => ['scrimmage', 'guild_war'].includes(selectedEvent.value?.type));
 const uploadSlots = computed(() =>
   selectedEvent.value
-    ? (selectedEvent.value.type === 'scrimmage' ? [1, 2] : [1]).map((roundNumber) => ({
+    ? (hasTwoRounds.value ? [1, 2] : [1]).map((roundNumber) => ({
         roundNumber,
-        label:
-          selectedEvent.value.type === 'scrimmage'
-            ? `第${roundNumber === 1 ? '一' : '二'}場`
-            : '對戰結果',
+        label: hasTwoRounds.value ? `第${roundNumber === 1 ? '一' : '二'}場` : '對戰結果',
         file: files.value.find((file) => file.roundNumber === roundNumber),
         saved: roundRecords.value.find((record) => record.roundNumber === roundNumber),
       }))
@@ -607,7 +605,7 @@ onUnmounted(() => {
             />
           </div>
           <v-btn
-            v-if="selectedEvent.type === 'scrimmage'"
+            v-if="hasTwoRounds"
             type="submit"
             color="primary"
             :disabled="busy || roundsLoading || Boolean(roundsError) || Boolean(slot.saved)"
@@ -669,7 +667,7 @@ onUnmounted(() => {
                 {{
                   record.roundNumber == null
                     ? '未指定'
-                    : record.type === 'scrimmage'
+                    : record.type !== 'dragon_tiger'
                       ? `第${record.roundNumber === 1 ? '一' : '二'}場`
                       : '單場'
                 }}
@@ -743,7 +741,7 @@ onUnmounted(() => {
             {{
               detail.roundNumber == null
                 ? '場序未指定'
-                : detail.type === 'scrimmage'
+                : detail.type !== 'dragon_tiger'
                   ? `第${detail.roundNumber === 1 ? '一' : '二'}場`
                   : '單場'
             }}
