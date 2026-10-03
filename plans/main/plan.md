@@ -82,3 +82,7 @@
 ## 同位置分場
 
 拖入第二位成員後保留第一場／第二場配置, 見 [lineup-rounds-plan.md](lineup-rounds-plan.md)。
+
+## 幫戰／龍虎戰名稱選填
+
+因對手事前不確定, 放寬兩類安排的名稱必填並補上顯示回退, 見 [optional-battle-title-plan.md](optional-battle-title-plan.md)。

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { isBattleType } from '../src/domain/event-types.js';
 
 export class EventError extends Error {
   constructor(message, fields = {}, status = 422, code = 'VALIDATION_ERROR') {
@@ -11,8 +12,14 @@ export function validateEvent(input, { requireRequestId = true, singleBattleDate
   const values = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
   const fields = {};
   const title = typeof values.title === 'string' ? values.title.trim() : '';
-  if (!title || title.length > 120 || /[\u0000-\u001f\u007f]/.test(title))
-    fields.title = '請填寫 1–120 字的安排名稱';
+  const optionalTitle = isBattleType(values.type);
+  if (
+    (values.title !== undefined && typeof values.title !== 'string') ||
+    (!optionalTitle && !title) ||
+    title.length > 120 ||
+    /[\u0000-\u001f\u007f]/.test(title)
+  )
+    fields.title = optionalTitle ? '安排名稱請使用文字，最多 120 字' : '請填寫 1–120 字的安排名稱';
   if (!['activity', 'scrimmage', 'guild_war', 'dragon_tiger'].includes(values.type))
     fields.type = '請選擇活動、約戰、幫戰或龍虎戰';
   const dates = values.dates;

@@ -10,3 +10,7 @@ export function eventTypeLabel(type) {
 export function isBattleType(type) {
   return ['guild_war', 'dragon_tiger'].includes(type);
 }
+
+export function eventDisplayTitle(event) {
+  return event?.title?.trim() || eventTypeLabel(event?.type);
+}
