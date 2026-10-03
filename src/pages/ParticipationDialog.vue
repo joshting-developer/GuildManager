@@ -107,6 +107,8 @@ function close() {
 }
 async function submit() {
   if (busy.value || loading.value) return;
+  error.value = '';
+  notice.value = '';
   if (!name.value.trim()) {
     error.value = '請填寫名稱';
     return;
@@ -116,8 +118,6 @@ async function submit() {
     return;
   }
   busy.value = true;
-  error.value = '';
-  notice.value = '';
   const input = {
     name: name.value.trim(),
     professionId: status.value === 'registered' ? professionId.value : null,
@@ -223,24 +223,6 @@ async function submit() {
         </form>
         <v-alert v-if="error" type="error" variant="tonal" role="alert">{{ error }}</v-alert>
         <v-alert v-if="notice" type="success" variant="tonal" role="status">{{ notice }}</v-alert>
-        <ul v-if="entries.length" class="registration-list" aria-label="本場報名／請假名單">
-          <li v-for="row in entries" :key="row.id || row.uid">
-            <div>
-              <strong>{{ row.name }}</strong>
-              <span class="registration-job" :style="{ '--job-color': row.colorcode }">{{
-                row.profession
-              }}</span>
-              <p v-if="row.note">{{ row.note }}</p>
-            </div>
-            <v-chip
-              :color="row.status === 'registered' ? 'success' : 'warning'"
-              size="small"
-              variant="tonal"
-              >{{ row.status === 'registered' ? '報名' : '請假' }}</v-chip
-            >
-          </li>
-        </ul>
-        <p v-else class="lineup-hint">本場尚無報名／請假資料</p>
       </template>
       <div class="event-dialog-actions">
         <v-btn variant="outlined" :disabled="busy" @click="close">關閉</v-btn>
@@ -274,45 +256,6 @@ async function submit() {
 .participation-count {
   font-size: 13px;
   color: var(--color-text-muted);
-}
-.registration-list {
-  list-style: none;
-  padding: 0;
-}
-.registration-list li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--color-border);
-}
-.registration-list li > div {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.registration-list span {
-  margin-left: 12px;
-  font-size: 13px;
-}
-.registration-list p {
-  color: var(--color-text-muted);
-  font-size: 13px;
-  margin-top: 6px;
-}
-.registration-job {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--color-text-muted);
-}
-.registration-job::before {
-  content: '';
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  border: 1px solid #64748b33;
-  background: var(--job-color);
 }
 @media (max-width: 600px) {
   .participation-card {
