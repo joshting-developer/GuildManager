@@ -23,9 +23,6 @@
 .battle-internal-switch .v-selection-control {
   min-height: 44px;
 }
-.battle-submit-round {
-  justify-self: end;
-}
 .battle-event-card {
   display: flex;
   align-items: center;
@@ -148,8 +145,36 @@
   font-size: 14px;
   max-width: 380px;
 }
-.battle-record-list {
+.battle-preview-card {
   margin-top: 24px;
+}
+.battle-preview-tabs {
+  margin-bottom: 20px;
+}
+.battle-preview-summary {
+  margin-bottom: 16px;
+  overflow-wrap: anywhere;
+}
+.battle-preview-summary p {
+  margin-top: 8px;
+}
+.battle-preview-empty {
+  padding: 20px 0;
+}
+.battle-upload-footer {
+  display: grid;
+  gap: 16px;
+  margin-top: 24px;
+}
+.battle-upload-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.battle-preview-card .battle-table-wrap:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 3px;
 }
 .battle-table-wrap {
   overflow: auto;
@@ -175,15 +200,6 @@
 }
 .battle-record-table tbody tr:last-child td {
   border-bottom: 0;
-}
-.battle-record-table small {
-  display: block;
-  color: var(--color-text-muted);
-  margin-top: 4px;
-}
-.battle-record-actions {
-  display: flex;
-  align-items: center;
 }
 .battle-record-table td {
   max-width: 260px;
