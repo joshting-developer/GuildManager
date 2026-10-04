@@ -1,8 +1,8 @@
 <script setup>
 import { ref, computed, inject, onMounted, onUnmounted } from 'vue';
 import { createAdminClient } from '../api/admin.js';
-import { createPlatformSettingsClient } from '../api/platform-settings.js';
-import { validatePlatformSettings } from '../domain/platform-settings.js';
+import { createPlatformSettingsClient, readPlatformIcon } from '../api/platform-settings.js';
+import { validatePlatformSettings, platformIconSource } from '../domain/platform-settings.js';
 const emit = defineEmits(['platform-updated']);
 const client = createAdminClient({
   source: import.meta.env.VITE_DATA_SOURCE || 'local',
@@ -12,6 +12,37 @@ const platformClient = createPlatformSettingsClient({
 });
 const platform = ref(null),
   platformName = ref('');
+const iconDraft = ref(undefined),
+  iconReading = ref(false),
+  iconInput = ref(null);
+const iconPreview = computed(() =>
+  iconDraft.value === undefined
+    ? platform.value?.iconSrc || null
+    : platformIconSource(iconDraft.value),
+);
+const platformDirty = computed(
+  () =>
+    platform.value &&
+    (platformName.value !== platform.value.name ||
+      (iconDraft.value !== undefined && iconPreview.value !== (platform.value.iconSrc || null))),
+);
+let iconReadVersion = 0;
+async function chooseIcon(event) {
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if (!file || busy.value) return;
+  const version = ++iconReadVersion;
+  iconReading.value = true;
+  error.value = notice.value = '';
+  try {
+    const icon = await readPlatformIcon(file);
+    if (!disposed && version === iconReadVersion) iconDraft.value = icon;
+  } catch (cause) {
+    if (!disposed && version === iconReadVersion) error.value = cause.message;
+  } finally {
+    if (!disposed && version === iconReadVersion) iconReading.value = false;
+  }
+}
 const settings = ref(null),
   loading = ref(true),
   busy = ref(false),
@@ -38,17 +69,20 @@ const dirty = computed(
       tokenPassword.value ||
       tokenConfirm.value ||
       managerOpen.value ||
-      (platform.value && platformName.value !== platform.value.name)
+      platformDirty.value
     ),
 );
 const registerGuard = inject('registerNavigationGuard', null);
 const unregister = registerGuard?.(
-  () => !busy.value && (!dirty.value || window.confirm('有尚未儲存的帳號設定, 確定要離開嗎？')),
+  () =>
+    !busy.value &&
+    !iconReading.value &&
+    (!dirty.value || window.confirm('有尚未儲存的設定, 確定要離開嗎？')),
 );
 let disposed = false,
   loadVersion = 0;
 async function load() {
-  if (busy.value) return;
+  if (busy.value || iconReading.value) return;
   if (dirty.value && !window.confirm('有尚未儲存的設定，確定要重新載入嗎？')) return;
   const version = ++loadVersion;
   loading.value = true;
@@ -68,6 +102,7 @@ async function load() {
     settings.value = result;
     platform.value = platformResult.platform;
     platformName.value = platform.value.name;
+    iconDraft.value = undefined;
     emit('platform-updated', platform.value);
   } catch (cause) {
     if (!disposed && version === loadVersion) error.value = cause.message;
@@ -82,7 +117,7 @@ function checkPassword(value, confirmation, optional = false) {
   return '';
 }
 async function savePlatform() {
-  if (busy.value || !platform.value) return;
+  if (busy.value || iconReading.value || !platform.value) return;
   error.value = notice.value = '';
   try {
     validatePlatformSettings(
@@ -98,11 +133,13 @@ async function savePlatform() {
     const result = await platformClient.updateSettings({
       name: platformName.value,
       revision: platform.value.revision,
+      ...(iconDraft.value !== undefined ? { icon: iconDraft.value } : {}),
     });
     platform.value = result.platform;
     platformName.value = result.platform.name;
+    iconDraft.value = undefined;
     emit('platform-updated', result.platform);
-    notice.value = '平台名稱已更新';
+    notice.value = '平台設定已更新';
   } catch (cause) {
     error.value = cause.message;
   } finally {
@@ -211,6 +248,7 @@ async function saveToken() {
 onMounted(load);
 onUnmounted(() => {
   disposed = true;
+  iconReadVersion++;
   loadVersion++;
   unregister?.();
 });
@@ -221,9 +259,11 @@ onUnmounted(() => {
     <div>
       <p class="eyebrow">ACCOUNT SETTINGS</p>
       <h1 id="admin-title">帳號管理<span class="heading-dot">.</span></h1>
-      <p class="page-subtitle">平台名稱、admin 密碼、manager 帳號與成員通行密碼。</p>
+      <p class="page-subtitle">平台名稱與圖示、admin 密碼、manager 帳號與成員通行密碼。</p>
     </div>
-    <v-btn variant="outlined" :disabled="busy || loading" @click="load">重新載入</v-btn>
+    <v-btn variant="outlined" :disabled="busy || loading || iconReading" @click="load"
+      >重新載入</v-btn
+    >
   </section>
   <v-alert v-if="error && !managerOpen" type="error" variant="tonal" role="alert" class="mb-4">{{
     error
@@ -253,7 +293,7 @@ onUnmounted(() => {
       role="tabpanel"
       aria-labelledby="admin-platform-tab"
     >
-      <h2 class="admin-section-title">平台名稱</h2>
+      <h2 class="admin-section-title">平台名稱與圖示</h2>
       <form class="admin-form" @submit.prevent="savePlatform">
         <v-text-field
           v-model="platformName"
@@ -265,12 +305,50 @@ onUnmounted(() => {
           aria-required="true"
           autocomplete="off"
         />
+        <div class="platform-icon-field">
+          <h3>平台圖示</h3>
+          <div class="platform-icon-preview">
+            <img v-if="iconPreview" :src="iconPreview" alt="平台圖示預覽" />
+            <span v-else>尚未設定圖示</span>
+          </div>
+          <p class="platform-icon-hint">PNG／JPEG／WebP，最多 256 KB，建議使用正方形圖片。</p>
+          <input
+            ref="iconInput"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            aria-label="選擇平台圖示"
+            hidden
+            @change="chooseIcon"
+          />
+          <div class="platform-icon-actions">
+            <v-btn
+              variant="outlined"
+              :disabled="busy || iconReading"
+              :loading="iconReading"
+              @click="iconInput.click()"
+              >選擇圖片</v-btn
+            >
+            <v-btn
+              variant="text"
+              :disabled="busy || iconReading || !iconPreview"
+              @click="iconDraft = null"
+              >移除圖示</v-btn
+            >
+            <v-btn
+              v-if="iconDraft !== undefined"
+              variant="text"
+              :disabled="busy || iconReading"
+              @click="iconDraft = undefined"
+              >還原圖示</v-btn
+            >
+          </div>
+        </div>
         <v-btn
           type="submit"
           color="primary"
           :loading="busy"
-          :disabled="busy || !platform || platformName === platform.name"
-          >儲存名稱</v-btn
+          :disabled="busy || iconReading || !platformDirty"
+          >儲存設定</v-btn
         >
       </form>
     </section>
@@ -449,6 +527,37 @@ onUnmounted(() => {
 }
 .admin-form > .v-btn {
   justify-self: start;
+}
+.platform-icon-field {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.platform-icon-field h3 {
+  font-size: 16px;
+}
+.platform-icon-preview {
+  display: flex;
+  align-items: center;
+  min-height: 88px;
+  color: var(--color-text-muted);
+}
+.platform-icon-preview img {
+  width: 88px;
+  height: 88px;
+  object-fit: contain;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: var(--color-muted-surface);
+}
+.platform-icon-hint {
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+.platform-icon-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 .admin-manager-list {
   list-style: none;

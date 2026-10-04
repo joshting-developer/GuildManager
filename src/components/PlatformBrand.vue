@@ -1,7 +1,7 @@
 <script setup>
 defineProps({
   name: { type: String, required: true },
-  // Future upload flow can supply its resolved image URL; no placeholder is shown.
+  // No placeholder is shown until an admin saves a platform icon.
   iconSrc: { type: String, default: null },
 });
 defineEmits(['home']);

@@ -32,6 +32,7 @@ export function createApp(repository, { authNow } = {}) {
   app.use('/api/members/import', express.json({ limit: '512kb' }));
   app.use('/api/lineups', express.json({ limit: '64kb' }));
   app.use('/api/battle-records', express.json({ limit: '10mb' }));
+  app.use('/api/admin/platform-settings', express.json({ limit: '360kb' }));
   app.use(express.json({ limit: '16kb' }));
   installAuth(app, repository, { now: authNow });
   app.get('/api/platform-settings', (_request, response) => {

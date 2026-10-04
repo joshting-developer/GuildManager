@@ -33,11 +33,13 @@ const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 const authClient = createAuthClient({ source });
 const platformClient = createPlatformSettingsClient({ source });
 const platformName = ref(DEFAULT_PLATFORM_NAME),
+  platformIcon = ref(null),
   platformError = ref('');
 let platformLoadVersion = 0;
 function applyPlatform(platform) {
   platformLoadVersion++;
   platformName.value = platform.name;
+  platformIcon.value = platform.iconSrc || null;
   document.title = `${platform.name} · 幫會管理平台`;
   platformError.value = '';
 }
@@ -320,7 +322,7 @@ function skipToMain() {
     <a class="skip-link" href="#main" @click.prevent="skipToMain">跳至主要內容</a>
     <header v-show="!lineupFocus" class="site-header">
       <div class="header-inner">
-        <PlatformBrand :name="platformName" @home="navigate('home')" />
+        <PlatformBrand :name="platformName" :icon-src="platformIcon" @home="navigate('home')" />
         <nav class="desktop-nav" aria-label="主要導覽">
           <template v-for="item in visibleNavigation" :key="item.page">
             <button

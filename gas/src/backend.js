@@ -3,6 +3,8 @@ import { visibleCalendarEvents } from '../../src/domain/calendar-access.js';
 import {
   DEFAULT_PLATFORM_NAME,
   validatePlatformSettings,
+  validatePlatformIcon,
+  platformIconSource,
 } from '../../src/domain/platform-settings.js';
 import { canonical, fail } from './common.js';
 import { createSheetStore, createPrivateStore } from './storage.js';
@@ -126,20 +128,51 @@ export function rpc(operation, args = [], context = {}) {
             read: (id) => Utilities.base64Encode(DriveApp.getFileById(id).getBlob().getBytes()),
           };
           const methods = {
-            getPlatformSettings: () => ({
-              platform: store.get('settings', 'platform') || {
+            getPlatformSettings: () => {
+              const settings = store.get('settings', 'platform') || {
                 name: DEFAULT_PLATFORM_NAME,
                 revision: 1,
-              },
-            }),
+              };
+              const iconSrc = settings.icon
+                ? platformIconSource({
+                    mimeType: settings.icon.mimeType,
+                    base64: files.read(settings.icon.fileId),
+                  })
+                : null;
+              return {
+                platform: {
+                  name: settings.name,
+                  revision: settings.revision,
+                  ...(iconSrc ? { iconSrc } : {}),
+                },
+              };
+            },
             updatePlatformSettings: ([input]) => {
               const current = methods.getPlatformSettings().platform;
               const name = validatePlatformSettings(input, current);
-              if (name !== current.name)
+              const hasIcon = Object.prototype.hasOwnProperty.call(input, 'icon');
+              const image = hasIcon ? validatePlatformIcon(input.icon) : null;
+              const iconChanged =
+                hasIcon && platformIconSource(image) !== (current.iconSrc || null);
+              if (name !== current.name || iconChanged) {
+                const saved = store.get('settings', 'platform') || current;
+                const icon = iconChanged
+                  ? image
+                    ? {
+                        mimeType: image.mimeType,
+                        fileId: files.createBase64({
+                          ...image,
+                          name: `platform-icon-${options.uuid()}`,
+                        }),
+                      }
+                    : null
+                  : saved.icon || null;
                 store.put('settings', 'platform', {
                   name,
+                  icon,
                   revision: current.revision + 1,
                 });
+              }
               return methods.getPlatformSettings();
             },
             ...catalog.methods,

@@ -1,5 +1,6 @@
 import { callGas } from './gas.js';
 import { sessionFetch } from './session.js';
+import { validatePlatformIcon, platformIconSource } from '../domain/platform-settings.js';
 
 export function createPlatformSettingsClient({
   source = 'local',
@@ -50,7 +51,37 @@ export function createPlatformSettingsClient({
     ) {
       throw new Error('平台設定回應格式不正確，請重新載入');
     }
+    if (data.platform.iconSrc != null) {
+      const match = /^data:(image\/(?:png|jpeg|webp));base64,(.*)$/.exec(data.platform.iconSrc);
+      try {
+        if (!match) throw new Error();
+        validatePlatformIcon({ mimeType: match[1], base64: match[2] });
+      } catch {
+        throw new Error('平台圖示回應格式不正確，請重新載入');
+      }
+    }
     return data;
   }
   return { getSettings: () => call(), updateSettings: (input) => call(input) };
+}
+
+export async function readPlatformIcon(file) {
+  if (!file || file.size > 256 * 1024) throw new Error('圖示最多 256 KB');
+  const base64 = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1]);
+    reader.onerror = () => reject(new Error('無法讀取圖片，請重新選擇'));
+    reader.readAsDataURL(file);
+  });
+  const icon = validatePlatformIcon({ mimeType: file.type, base64 });
+  await new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () =>
+      image.naturalWidth <= 4096 && image.naturalHeight <= 4096
+        ? resolve()
+        : reject(new Error('圖示尺寸最多 4096 × 4096 像素'));
+    image.onerror = () => reject(new Error('無法顯示圖片，請選擇有效的 PNG、JPEG 或 WebP'));
+    image.src = platformIconSource(icon);
+  });
+  return icon;
 }
