@@ -13,6 +13,7 @@ export const BUSINESS_TABLES = [
   'templates',
   'battles',
   'battle_players',
+  'battle_links',
 ];
 const HEADER = ['record_id', 'transaction_id', 'part_number', 'part_count', 'payload_base64'];
 const COMMIT_HEADER = ['transaction_id', 'created_at'];
@@ -64,18 +65,43 @@ export function createSheetStore({
     const commitRows = rows(sheet('commits'), 2);
     const order = new Map(commitRows.map(([id], index) => [id, index]));
     const tables = new Map(),
+      partial = new Map(),
       changes = new Map();
-    function load(table) {
+    function load(table, keys = null) {
       if (!BUSINESS_TABLES.includes(table)) fail('TABLE_INVALID', '資料表不允許存取');
       if (tables.has(table)) return tables.get(table);
+      if (!partial.has(table)) partial.set(table, new Map());
+      const cache = partial.get(table);
+      if (keys && keys.every((key) => cache.has(key))) return cache;
+      const current = sheet(table);
+      let records = rows(current, keys ? 4 : 5);
+      if (keys) {
+        const selected = records.map(
+          ([key, tx]) => order.has(tx) && keys.includes(JSON.parse(key)),
+        );
+        // Read adjacent matching payload chunks together; unrelated battle snapshots stay unread.
+        for (let start = 0; start < records.length; start++) {
+          if (!selected[start]) continue;
+          let end = start + 1;
+          while (selected[end]) end++;
+          const payloads = current.getRange(start + 2, 5, end - start, 1).getValues();
+          for (let index = start; index < end; index++)
+            records[index].push(payloads[index - start][0]);
+          start = end - 1;
+        }
+        records = records.filter((_row, index) => selected[index]);
+      }
       const groups = new Map();
-      for (const [key, tx, part, count, payload] of rows(sheet(table), 5)) {
+      for (const [key, tx, part, count, payload] of records) {
         if (!order.has(tx)) continue;
+        if (keys && !keys.includes(JSON.parse(key))) continue;
         const groupKey = canonical([key, tx]);
         if (!groups.has(groupKey))
           groups.set(groupKey, { key: JSON.parse(key), tx, count, parts: new Map() });
         const group = groups.get(groupKey);
         if (
+          !Number.isSafeInteger(count) ||
+          count < 1 ||
           group.count !== count ||
           group.parts.has(part) ||
           !Number.isSafeInteger(part) ||
@@ -97,21 +123,40 @@ export function createSheetStore({
         if (record.deleted) values.delete(group.key);
         else values.set(group.key, record.value);
       }
+      for (const [key, record] of changes.get(table) || []) {
+        if (record.deleted) values.delete(key);
+        else values.set(key, clone(record.value));
+      }
+      if (keys) {
+        for (const key of keys) cache.set(key, values.get(key));
+        return cache;
+      }
       tables.set(table, values);
       return values;
     }
     const store = {
       all: (table) => [...load(table).values()].map(clone),
-      get: (table, key) => clone(load(table).get(String(key))),
+      get: (table, key) => clone(load(table, [String(key)]).get(String(key))),
+      getMany(table, keys) {
+        keys = keys.map(String);
+        const values = load(table, keys);
+        return new Map(keys.map((key) => [key, clone(values.get(key))]));
+      },
       put(table, key, value) {
         key = String(key);
-        load(table).set(key, clone(value));
+        if (!BUSINESS_TABLES.includes(table)) fail('TABLE_INVALID', '資料表不允許存取');
+        if (tables.has(table)) tables.get(table).set(key, clone(value));
+        if (!partial.has(table)) partial.set(table, new Map());
+        partial.get(table).set(key, clone(value));
         if (!changes.has(table)) changes.set(table, new Map());
         changes.get(table).set(key, { value: clone(value) });
       },
       remove(table, key) {
         key = String(key);
-        load(table).delete(key);
+        if (!BUSINESS_TABLES.includes(table)) fail('TABLE_INVALID', '資料表不允許存取');
+        if (tables.has(table)) tables.get(table).delete(key);
+        if (!partial.has(table)) partial.set(table, new Map());
+        partial.get(table).set(key, undefined);
         if (!changes.has(table)) changes.set(table, new Map());
         changes.get(table).set(key, { deleted: true });
       },

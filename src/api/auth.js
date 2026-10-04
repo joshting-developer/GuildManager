@@ -8,7 +8,7 @@ export function createAuthClient({ source = 'local', fetchImpl = sessionFetch, g
     const currentVersion = ++version;
     let data;
     if (source === 'gas') {
-      data = await callGas(operation, input ? [input] : [], googleRun);
+      data = await callGas(operation, input && operation !== 'logout' ? [input] : [], googleRun);
     } else {
       let response;
       try {

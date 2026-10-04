@@ -99,6 +99,19 @@ test('GAS participation handles roster, outsiders, mixed names, leave, professio
   };
   const first = submit('城', 'registered', 'member');
   call('submitParticipation', [event.id, first]);
+  assert.throws(
+    () =>
+      call('submitParticipation', [
+        event.id,
+        {
+          ...first,
+          professionId: '3',
+          requestId: 'bad-profession',
+          revision: call('getEventParticipation', [event.id]).revision,
+        },
+      ]),
+    { code: 'VALIDATION_ERROR' },
+  );
   assert.deepEqual(call('submitParticipation', [event.id, first]), {
     eventId: event.id,
     name: '城',

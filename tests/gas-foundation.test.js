@@ -139,3 +139,34 @@ test('GAS journal expands sheet rows and flushes before making writes visible', 
     undefined,
   );
 });
+
+test('GAS selective reads leave unrelated snapshots untouched and merge staged changes consistently', () => {
+  const env = gasEnvironment(),
+    storage = createSheetStore(env);
+  storage.initialize();
+  storage.transaction((store) => {
+    store.put('battle_players', 'a', { players: [{ name: '城' }] });
+    store.put('battle_players', 'b', { players: [{ name: '其他人' }] });
+  });
+  // A damaged unrelated payload must not prevent reading this battle's valid snapshot.
+  const rows = env.sheets.get('GM_battle_players').data;
+  rows.find((row) => row[0] === '"b"')[4] = 'not-json';
+  assert.deepEqual(
+    storage.transaction((store) => store.getMany('battle_players', ['a'])).get('a'),
+    { players: [{ name: '城' }] },
+  );
+  assert.throws(() => storage.transaction((store) => store.all('battle_players')));
+  storage.transaction((store) => {
+    store.put('members', 'one', { name: '第一位' });
+    assert.deepEqual(store.get('members', 'one'), { name: '第一位' });
+    assert.equal(store.all('members').length, 1);
+    store.remove('members', 'one');
+    assert.equal(store.get('members', 'one'), undefined);
+    assert.equal(store.all('members').length, 0);
+    store.put('members', 'two', { name: '第二位' });
+  });
+  assert.deepEqual(
+    storage.transaction((store) => store.all('members')),
+    [{ name: '第二位' }],
+  );
+});

@@ -98,7 +98,7 @@ export function gasEnvironment() {
     },
     globals: {
       Utilities: utilities,
-      SpreadsheetApp: { openById: () => spreadsheet },
+      SpreadsheetApp: { openById: () => spreadsheet, flush() {} },
       PropertiesService: { getScriptProperties: () => propertyService },
       LockService: { getScriptLock: () => lock },
       DriveApp: {

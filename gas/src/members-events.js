@@ -18,6 +18,7 @@ export const battleType = (type) => ['scrimmage', 'guild_war', 'dragon_tiger'].i
 export function createCatalog(store, { uuid, now, guildName }) {
   const professions = () => store.all('professions').sort((a, b) => a.job_id - b.job_id);
   function profession(id) {
+    if (!Number.isSafeInteger(id) || id < 1) fail('VALIDATION_ERROR', '請選擇有效職業');
     const job = store.get('professions', id);
     if (!job) fail('VALIDATION_ERROR', '職業不存在，請重新載入職業清單');
     return job;

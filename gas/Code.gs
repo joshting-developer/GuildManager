@@ -1,143 +1,180 @@
+// Frontend-callable wrappers expose only the documented RPC allowlist.
 function doGet() {
-  return HtmlService.createHtmlOutputFromFile('Index')
+  const namespace = JSON.stringify(ScriptApp.getScriptId()).replace(/</g, '\u003c');
+  const html = HtmlService.createHtmlOutputFromFile('Index')
+    .getContent()
+    .replace('</head>', '<script>window.__GUILD_GAS_KEY__=' + namespace + ';</script></head>');
+  return HtmlService.createHtmlOutput(html)
     .setTitle('逆水寒 · 幫會管理')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1.0');
 }
 
-// Google identity and allowed management accounts must be verified server-side before enabling these.
-function getAuthSession() {
-  throw new Error('Google 登入尚未設定');
-}
-function login(input) {
-  throw new Error('雲端不使用本機帳號密碼, Google 登入尚未設定');
-}
-function logout() {
-  throw new Error('Google 登入尚未設定');
-}
-function getAccountSettings() {
-  throw new Error('雲端帳號管理尚未串接');
-}
-function changeAdminPassword(input) {
-  throw new Error('雲端帳號管理尚未串接');
-}
-function createManager(input) {
-  throw new Error('雲端帳號管理尚未串接');
-}
-function updateManager(input) {
-  throw new Error('雲端帳號管理尚未串接');
-}
-function setMemberToken(input) {
-  throw new Error('雲端成員通行密碼管理尚未串接');
-}
-function loginMember(input) {
-  throw new Error('雲端通行密碼登入尚未串接');
-}
-function getMemberBattleRecords(uid, page) {
-  throw new Error('雲端個人戰績尚未串接');
-}
-function getParticipationMembers() {
-  throw new Error('雲端報名成員選單尚未串接');
+// Run once in the editor after setting private Script Properties. The trailing
+// underscore prevents browser calls through google.script.run.
+function setupGas_() {
+  return GuildGas.setup();
 }
 
-// This deployment scaffold intentionally has no access to the live spreadsheet.
-// Implement authentication and the home DTO contract before reading live data.
-function getHomeData() {
-  throw new Error('雲端首頁資料尚未串接');
+function getAuthSession(context) {
+  return GuildGas.rpc('getAuthSession', [], context);
 }
 
-// Local member functions share these names; cloud persistence is implemented later.
-function getMembers() {
-  throw new Error('雲端成員資料尚未串接');
-}
-function getProfessions() {
-  throw new Error('雲端職業資料尚未串接');
-}
-function addMember(input) {
-  throw new Error('雲端成員新增尚未串接');
-}
-function updateMember(uid, input) {
-  throw new Error('雲端成員修改尚未串接');
-}
-function removeMember(uid, revision) {
-  throw new Error('雲端人員移至編外尚未串接');
+function login(input, context) {
+  return GuildGas.rpc('login', [input], context);
 }
 
-function previewMemberImport(input) {
-  throw new Error('雲端成員匯入預覽尚未串接');
-}
-function importMembers(input) {
-  throw new Error('雲端成員匯入尚未串接');
+function loginMember(input, context) {
+  return GuildGas.rpc('loginMember', [input], context);
 }
 
-function getEvents() {
-  throw new Error('雲端活動資料尚未串接 Google 試算表');
+function logout(context) {
+  return GuildGas.rpc('logout', [], context);
 }
 
-function createEvent(input) {
-  throw new Error('雲端活動建立尚未串接 Google 試算表');
+function getAccountSettings(context) {
+  return GuildGas.rpc('getAccountSettings', [], context);
 }
 
-function updateEvent(id, input) {
-  throw new Error('雲端活動修改尚未串接 Google 試算表');
+function changeAdminPassword(input, context) {
+  return GuildGas.rpc('changeAdminPassword', [input], context);
 }
 
-function deleteEvent(id, revision) {
-  throw new Error('雲端活動刪除尚未串接 Google 試算表');
+function createManager(input, context) {
+  return GuildGas.rpc('createManager', [input], context);
 }
 
-function getLineupIndex() {
-  throw new Error('雲端戰場排表尚未串接 Google 試算表');
-}
-function getLineupHistory(eventId) {
-  throw new Error('雲端排表歷史尚未串接 Google 試算表');
-}
-function confirmLineup(input) {
-  throw new Error('雲端排表確認尚未串接 Google 試算表');
-}
-function createLineupTemplate(input) {
-  throw new Error('雲端排表範本尚未串接 Google 試算表');
-}
-function applyLineupTemplate(templateId, eventId) {
-  throw new Error('雲端排表範本套用尚未串接 Google 試算表');
+function updateManager(input, context) {
+  return GuildGas.rpc('updateManager', [input], context);
 }
 
-function getDuties() {
-  throw new Error('雲端職責清單尚未串接 Google 試算表');
-}
-function addDuty(input) {
-  throw new Error('雲端職責新增尚未串接 Google 試算表');
-}
-function updateDuty(id, input) {
-  throw new Error('雲端職責修改尚未串接 Google 試算表');
+function setMemberToken(input, context) {
+  return GuildGas.rpc('setMemberToken', [input], context);
 }
 
-function getEventParticipation(eventId) {
-  throw new Error('雲端報名／請假尚未串接 Google 試算表');
+function getHomeData(context) {
+  return GuildGas.rpc('getHomeData', [], context);
 }
-function getEventParticipationMembers(eventId) {
-  throw new Error('雲端報名成員選單尚未串接');
+
+function getMembers(context) {
+  return GuildGas.rpc('getMembers', [], context);
 }
-function saveMemberResponse(eventId, input) {
-  throw new Error('雲端報名／請假尚未串接 Google 試算表');
+
+function getProfessions(context) {
+  return GuildGas.rpc('getProfessions', [], context);
 }
-function submitParticipation(eventId, input) {
-  throw new Error('雲端報名／請假尚未串接 Google 試算表');
+
+function getParticipationMembers(context) {
+  return GuildGas.rpc('getParticipationMembers', [], context);
 }
-function addGuestRegistration(eventId, input) {
-  throw new Error('雲端額外報名尚未串接 Google 試算表');
+
+function getMemberBattleRecords(uid, page, context) {
+  return GuildGas.rpc('getMemberBattleRecords', [uid, page], context);
 }
-function cancelGuestRegistration(eventId, id, revision) {
-  throw new Error('雲端取消報名尚未串接 Google 試算表');
+
+function addMember(input, context) {
+  return GuildGas.rpc('addMember', [input], context);
 }
-function getBattleRecords(page) {
-  throw new Error('雲端戰績清單尚未串接 Google 試算表');
+
+function updateMember(uid, input, context) {
+  return GuildGas.rpc('updateMember', [uid, input], context);
 }
-function getBattleRecord(id) {
-  throw new Error('雲端戰績詳情尚未串接 Google 試算表');
+
+function removeMember(uid, revision, context) {
+  return GuildGas.rpc('removeMember', [uid, revision], context);
 }
-function saveBattleRecords(input) {
-  throw new Error('雲端戰績上傳尚未串接 Google 試算表與 Drive');
+
+function previewMemberImport(input, context) {
+  return GuildGas.rpc('previewMemberImport', [input], context);
 }
-function getBattleAttachment(id, kind) {
-  throw new Error('雲端戰績附件尚未串接 Drive');
+
+function importMembers(input, context) {
+  return GuildGas.rpc('importMembers', [input], context);
+}
+
+function getEvents(context) {
+  return GuildGas.rpc('getEvents', [], context);
+}
+
+function createEvent(input, context) {
+  return GuildGas.rpc('createEvent', [input], context);
+}
+
+function updateEvent(id, input, context) {
+  return GuildGas.rpc('updateEvent', [id, input], context);
+}
+
+function deleteEvent(id, revision, context) {
+  return GuildGas.rpc('deleteEvent', [id, revision], context);
+}
+
+function getDuties(context) {
+  return GuildGas.rpc('getDuties', [], context);
+}
+
+function addDuty(input, context) {
+  return GuildGas.rpc('addDuty', [input], context);
+}
+
+function updateDuty(id, input, context) {
+  return GuildGas.rpc('updateDuty', [id, input], context);
+}
+
+function getEventParticipation(eventId, context) {
+  return GuildGas.rpc('getEventParticipation', [eventId], context);
+}
+
+function getEventParticipationMembers(eventId, context) {
+  return GuildGas.rpc('getEventParticipationMembers', [eventId], context);
+}
+
+function submitParticipation(eventId, input, context) {
+  return GuildGas.rpc('submitParticipation', [eventId, input], context);
+}
+
+function saveMemberResponse(eventId, input, context) {
+  return GuildGas.rpc('saveMemberResponse', [eventId, input], context);
+}
+
+function addGuestRegistration(eventId, input, context) {
+  return GuildGas.rpc('addGuestRegistration', [eventId, input], context);
+}
+
+function cancelGuestRegistration(eventId, id, revision, context) {
+  return GuildGas.rpc('cancelGuestRegistration', [eventId, id, revision], context);
+}
+
+function getLineupIndex(context) {
+  return GuildGas.rpc('getLineupIndex', [], context);
+}
+
+function getLineupHistory(eventId, context) {
+  return GuildGas.rpc('getLineupHistory', [eventId], context);
+}
+
+function confirmLineup(input, context) {
+  return GuildGas.rpc('confirmLineup', [input], context);
+}
+
+function createLineupTemplate(input, context) {
+  return GuildGas.rpc('createLineupTemplate', [input], context);
+}
+
+function applyLineupTemplate(templateId, eventId, context) {
+  return GuildGas.rpc('applyLineupTemplate', [templateId, eventId], context);
+}
+
+function getBattleRecords(page, eventId, context) {
+  return GuildGas.rpc('getBattleRecords', [page, eventId], context);
+}
+
+function getBattleRecord(id, context) {
+  return GuildGas.rpc('getBattleRecord', [id], context);
+}
+
+function saveBattleRecords(input, context) {
+  return GuildGas.rpc('saveBattleRecords', [input], context);
+}
+
+function getBattleAttachment(id, kind, context) {
+  return GuildGas.rpc('getBattleAttachment', [id, kind], context);
 }
