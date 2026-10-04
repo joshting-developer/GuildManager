@@ -21,19 +21,26 @@ function text(value, label, max, field, required = true, multiline = false) {
     });
   return value.trim();
 }
+// Apps Script V8 has no Web URL constructor; keep validation identical on both backends.
+function isHttpVideoUrl(url) {
+  const match = /^https?:\/\/([^/?#]+)(?:[/?#][^\s\\]*)?$/i.exec(url);
+  if (!match || /[\s@\\%]/.test(match[1])) return false;
+  const authority = /^(\[[0-9a-f:.]+\]|[^:\[\]]+)(?::([0-9]+))?$/i.exec(match[1]);
+  if (!authority || (authority[2] && (authority[2].length > 5 || Number(authority[2]) > 65535)))
+    return false;
+  const host = authority[1];
+  if (host.startsWith('[')) return host.includes(':') && !host.includes(':::');
+  return host
+    .replace(/\.$/, '')
+    .split('.')
+    .every((label) =>
+      /^[a-z0-9\u0080-\uffff](?:[a-z0-9\u0080-\uffff-]*[a-z0-9\u0080-\uffff])?$/i.test(label),
+    );
+}
 function videoUrl(value, field, label) {
   const url = text(value ?? '', label, 2048, field, false);
   if (!url) return '';
-  try {
-    const parsed = new URL(url);
-    if (
-      !['https:', 'http:'].includes(parsed.protocol) ||
-      !parsed.hostname ||
-      parsed.username ||
-      parsed.password
-    )
-      throw new Error();
-  } catch {
+  if (!isHttpVideoUrl(url)) {
     throw new EventVideoError(`請填寫完整的 http／https ${label}`, 422, 'VIDEO_INVALID', {
       [field]: '請填寫完整的 http／https 網址',
     });

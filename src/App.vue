@@ -72,7 +72,7 @@ const navigation = [
     icon: mdiAccountCogOutline,
     adminOnly: true,
   },
-  ...(source === 'local' ? [{ page: 'videos', label: '影片閱覽', icon: mdiVideoOutline }] : []),
+  { page: 'videos', label: '影片閱覽', icon: mdiVideoOutline },
 ];
 const mobileMenu = ref(false);
 const lineupFocus = ref(false);

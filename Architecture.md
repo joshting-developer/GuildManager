@@ -160,3 +160,10 @@ member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admi
 右上登入預設「成員登入」，只填通行密碼；管理者切換至「管理者登入」填帳號密碼。未登入只顯示一般活動及約戰，幫戰／龍虎戰在 member／manager／admin 有效登入後才顯示。`GET /api/events` 依伺服器 session 過濾，未登入回應不含私人場次及其筆數，原始資料與管理功能不改。前端於登入／登出重新載入，立即收起私人場次及視窗，舊請求回應不能覆蓋新登入狀態。
 
 報名視窗移除通行密碼輸入及驗證按鈕，已登入直接使用既有三種名稱來源及報名／請假表單。登入過期或撤銷後收起私人場次，需使用右上共用入口重新登入；約戰仍可匿名報名。GAS 已同步此規則並完成後端生成，尚未部署驗證。
+
+
+## 場次影片連結
+
+本機 event_video_submissions／event_video_requests 與 GAS GM_videos／GM_requests 分別保存雙場連結、團別、備註及 requestId 回應；不遷移兩端資料、不保存影片檔案。getEventVideos／submitEventVideo RPC 沿用場次資格與 CSRF，admin／manager 可讀清單，member 僅能提交；約戰可匿名提交。GAS 在 script lock 內追加資料，影片與重試結果由同一提交 marker 生效，未提交資料不讀取；已初始化的舊專案首次有效使用補建 GM_videos。
+
+共用純 JS 網址驗證不依賴 GAS 缺少的 Web URL 全域，前端只呈現可複製文字。CSV 由瀏覽器依當前場次／團別／名稱篩選產生，不新增後端匯出或 HTTP fallback。隔離測試及編譯 HTML 的模擬 RPC 驗證不代表真實 Sheets 授權或 Google iframe 下載已完成。

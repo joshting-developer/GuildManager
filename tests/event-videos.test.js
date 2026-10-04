@@ -198,7 +198,7 @@ test('API allows calendar submissions; only admin/manager can read videos, with 
   }
 });
 
-test('adapter rejects unsafe saved URLs, malformed replies and GAS calls without HTTP', async () => {
+test('adapter rejects unsafe saved URLs and malformed replies', async () => {
   const client = createEventVideoClient({
     fetchImpl: async () => ({
       ok: true,
@@ -212,12 +212,6 @@ test('adapter rejects unsafe saved URLs, malformed replies and GAS calls without
     }),
   });
   await assert.rejects(client.getVideos('event'), code('VIDEO_INVALID'));
-  const gas = createEventVideoClient({
-    source: 'gas',
-    fetchImpl: () => assert.fail('must not use HTTP'),
-  });
-  await assert.rejects(gas.getVideos('event'), /GAS 尚未串接/);
-  await assert.rejects(gas.submitVideo('event', {}), /GAS 尚未串接/);
   const broken = createEventVideoClient({
     fetchImpl: async () => ({ ok: true, json: async () => ({ videos: [] }) }),
   });

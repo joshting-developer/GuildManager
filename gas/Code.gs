@@ -211,3 +211,11 @@ function saveBattleRecords(input, context) {
 function getBattleAttachment(id, kind, context) {
   return GuildGas.rpc('getBattleAttachment', [id, kind], context);
 }
+
+function getEventVideos(eventId, context) {
+  return GuildGas.rpc('getEventVideos', [eventId], context);
+}
+
+function submitEventVideo(eventId, input, context) {
+  return GuildGas.rpc('submitEventVideo', [eventId, input], context);
+}

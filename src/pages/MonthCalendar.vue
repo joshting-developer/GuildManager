@@ -10,7 +10,6 @@ import './events.css';
 import { visibleCalendarEvents, calendarRequiresLogin } from '../domain/calendar-access.js';
 import { eventTypeLabel, eventDisplayTitle } from '../domain/event-types.js';
 const props = defineProps({ management: { type: Boolean, default: true } });
-const localVideos = (import.meta.env.VITE_DATA_SOURCE || 'local') === 'local';
 const calendarAuth = inject('calendarAuth', null);
 const openBattleUpload = inject('openBattleUpload', null);
 const selectedEvent = ref(null);
@@ -242,13 +241,13 @@ function restoreFocus() {
             v-if="!management && LINEUP_TYPES.includes(event.type)"
             variant="tonal"
             color="primary"
-            :aria-label="`${eventDisplayTitle(event)} ${selectedDay.date} 報名／請假${localVideos ? '／影片' : ''}`"
+            :aria-label="`${eventDisplayTitle(event)} ${selectedDay.date} 報名／請假／影片`"
             @click="
               selectedEvent = event;
               dayDialog = false;
               participationDialog = true;
             "
-            >報名／請假{{ localVideos ? '／影片' : '' }}</v-btn
+            >報名／請假／影片</v-btn
           >
         </li>
       </ul>

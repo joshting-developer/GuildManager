@@ -9,6 +9,7 @@ export const BUSINESS_TABLES = [
   'duties',
   'responses',
   'registrations',
+  'videos',
   'requests',
   'lineup_versions',
   'templates',
@@ -136,6 +137,10 @@ export function createSheetStore({
       return values;
     }
     const store = {
+      ensureTable(table) {
+        if (!BUSINESS_TABLES.includes(table)) fail('TABLE_INVALID', '資料表不允許存取');
+        sheet(table, true);
+      },
       all: (table) => [...load(table).values()].map(clone),
       get: (table, key) => clone(load(table, [String(key)]).get(String(key))),
       getMany(table, keys) {

@@ -293,7 +293,6 @@ async function submit() {
             >職業統計</v-tab
           >
           <v-tab
-            v-if="source === 'local'"
             id="participation-video-tab"
             value="videos"
             aria-controls="participation-video-panel"
@@ -426,7 +425,6 @@ async function submit() {
           </ul>
         </section>
         <section
-          v-if="source === 'local'"
           v-show="tab === 'videos'"
           id="participation-video-panel"
           role="tabpanel"

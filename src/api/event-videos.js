@@ -1,10 +1,22 @@
+import { callGas } from './gas.js';
 import { sessionFetch } from './session.js';
 import { validateVideoDetails } from '../domain/event-videos.js';
 
-export function createEventVideoClient({ source = 'local', fetchImpl = sessionFetch } = {}) {
+export function createEventVideoClient({
+  source = 'local',
+  fetchImpl = sessionFetch,
+  googleRun,
+} = {}) {
   if (!['local', 'gas'].includes(source)) throw new Error('未知的資料來源設定');
   async function call(eventId, input) {
-    if (source !== 'local') throw new Error('影片功能目前僅提供本機預覽，GAS 尚未串接');
+    if (source === 'gas') {
+      const data = await callGas(
+        input ? 'submitEventVideo' : 'getEventVideos',
+        input ? [eventId, input] : [eventId],
+        googleRun,
+      );
+      return validateResponse(data, eventId, input);
+    }
     let response;
     try {
       response = await fetchImpl(`/api/events/${encodeURIComponent(eventId)}/videos`, {
@@ -28,6 +40,9 @@ export function createEventVideoClient({ source = 'local', fetchImpl = sessionFe
       error.fields = data.error?.fields || {};
       throw error;
     }
+    return validateResponse(data, eventId, input);
+  }
+  function validateResponse(data, eventId, input) {
     const videos = input ? [data.video] : data.videos;
     if (
       !Array.isArray(videos) ||

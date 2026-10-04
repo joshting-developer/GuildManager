@@ -13,6 +13,7 @@ import { createCatalog, PROFESSIONS } from './members-events.js';
 import { createLineups } from './lineups.js';
 import { createBattles } from './battles.js';
 import { createParticipation } from './participation.js';
+import { createVideos } from './videos.js';
 
 const AUTH = [
   'getAuthSession',
@@ -30,6 +31,7 @@ const PARTICIPATION = [
   'getEventParticipation',
   'getEventParticipationMembers',
   'submitParticipation',
+  'submitEventVideo',
   'saveMemberResponse',
   'addGuestRegistration',
   'cancelGuestRegistration',
@@ -46,6 +48,7 @@ const WRITES = [
   'addDuty',
   'updateDuty',
   'submitParticipation',
+  'submitEventVideo',
   'saveMemberResponse',
   'addGuestRegistration',
   'cancelGuestRegistration',
@@ -177,6 +180,7 @@ export function rpc(operation, args = [], context = {}) {
             },
             ...catalog.methods,
             ...participation.methods,
+            ...createVideos(store, catalog, options),
             ...createLineups(store, catalog, participation, options),
             ...createBattles(store, catalog, { ...options, files }),
           };

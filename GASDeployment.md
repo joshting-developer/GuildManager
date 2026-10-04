@@ -133,6 +133,7 @@ openssl rand -hex 32
 | `GM_duties` | 職責／啟用狀態／revision |
 | `GM_responses` | 成員場次報名／請假／職業／備註 |
 | `GM_registrations` | 無 UID 外援報名 |
+| `GM_videos` | 角色名稱、雙場影片連結、團別、備註及提交時間 |
 | `GM_requests` | requestId、輸入雜湊與重試回應 |
 | `GM_lineup_versions` | 不可變排表與當時姓名／職業／職責快照 |
 | `GM_templates` | 名單範本 |
@@ -152,6 +153,12 @@ CSV 原始檔及相容圖片保存在專用 Drive 資料夾，不產生公開連
 初版保留完整追加日誌，尚未自動壓縮；資料量增大時仍需掃描 ID／提交紀錄及摘要。戰績清單不讀全部玩家資料，詳情才讀該場快照，個人統計只讀有關聯的場次。雲端並非無限資料庫，需按實際使用觀察 [Google 服務配額](https://developers.google.com/apps-script/guides/services/quotas)。
 
 備份需同時涵蓋試算表全部 GM_ 表、私人 Drive 原始檔、Script Properties 與程式版本。只複製試算表不會包含帳號或附件；搬移及回復資料需另行規劃，初版不自動遷移 SQLite 或改寫既有正式資料。
+
+## 場次影片更新
+
+同步四檔後更新既有 Web App 部署版本，行事曆即可使用影片表單；admin／manager 另可使用影片閱覽、團別／名稱篩選及 CSV 匯出。member 可提交但不能讀清單，約戰維持可匿名提交。只保存網址，不需要額外 Drive 資料夾或 R2。
+
+已初始化的專案首次有效讀取／提交影片時自動補建 `GM_videos`，不需要為此重新執行 `setupGas()`；其餘工作表、帳號及 Script Properties 保留。影片與重試結果經同一提交標記生效。本機影片不會自動搬入試算表。發布後仍需確認真實 Sheets 授權、提交後重載及 Google iframe 中的 CSV 下載，隔離模擬驗證無法取代這些操作。
 
 ## 平台名稱
 
