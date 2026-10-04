@@ -449,6 +449,14 @@ function formatDate(value) {
                       <v-btn
                         variant="text"
                         size="small"
+                        color="primary"
+                        :href="`#/member-records/${encodeURIComponent(member.uid)}`"
+                        :aria-label="`查看 ${member.name} 的數據`"
+                        >查看數據</v-btn
+                      >
+                      <v-btn
+                        variant="text"
+                        size="small"
                         :prepend-icon="mdiPencilOutline"
                         :aria-label="`編輯 ${member.name}`"
                         @click="openForm(member)"

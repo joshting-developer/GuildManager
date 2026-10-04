@@ -32,6 +32,9 @@ function setMemberToken(input) {
 function loginMember(input) {
   throw new Error('雲端通行密碼登入尚未串接');
 }
+function getMemberBattleRecords(uid, page) {
+  throw new Error('雲端個人戰績尚未串接');
+}
 function getParticipationMembers() {
   throw new Error('雲端報名成員選單尚未串接');
 }

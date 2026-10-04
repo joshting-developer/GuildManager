@@ -5,6 +5,7 @@ import {
   taipeiBattleTime,
   MAX_IMAGE_BYTES,
 } from '../src/domain/battle-records.js';
+import { summarizePersonalBattles } from '../src/domain/personal-battle-statistics.js';
 
 function text(value, label, limit = 120) {
   if (
@@ -91,6 +92,16 @@ export function createBattleRecordRepository(db) {
   }
   db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS battle_records_by_event_round
     ON battle_records(event_id,round_number) WHERE round_number IS NOT NULL`);
+  // Keep the immutable CSV/player snapshots and existing retry hashes unchanged.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS battle_player_links (
+      record_id TEXT NOT NULL REFERENCES battle_records(id),
+      player_index INTEGER NOT NULL CHECK(player_index >= 0),
+      member_uid TEXT NOT NULL REFERENCES members(uid),
+      PRIMARY KEY (record_id, player_index)
+    );
+    CREATE INDEX IF NOT EXISTS battle_player_links_by_member ON battle_player_links(member_uid, record_id);
+  `);
   function get(id) {
     const row = db
       .prepare(
@@ -99,6 +110,11 @@ export function createBattleRecordRepository(db) {
       .get(id);
     if (!row) throw new BattleRecordError('找不到這筆戰績', 404, 'BATTLE_NOT_FOUND');
     const players = JSON.parse(row.players_json);
+    for (const link of db
+      .prepare('SELECT player_index, member_uid FROM battle_player_links WHERE record_id = ?')
+      .all(id)) {
+      if (players[link.player_index]) players[link.player_index].memberUid = link.member_uid;
+    }
     return {
       id: row.id,
       eventId: row.event_id,
@@ -139,6 +155,43 @@ export function createBattleRecordRepository(db) {
       return { records, total, page, pageSize: 20 };
     },
     getBattleRecord: get,
+    getMemberBattleRecords(uid, { page = 1 } = {}) {
+      if (!Number.isSafeInteger(page) || page < 1) throw new BattleRecordError('頁碼不正確');
+      const memberUid = text(uid, '成員', 64);
+      const member = db
+        .prepare('SELECT name, primary_profession AS profession FROM members WHERE uid = ?')
+        .get(memberUid);
+      if (!member) throw new BattleRecordError('找不到這位成員', 404, 'MEMBER_NOT_FOUND');
+      const links = db
+        .prepare(
+          `SELECT l.player_index, r.id, r.battle_type, r.played_at, r.round_number,
+        r.red_team, r.blue_team, r.winner, r.is_internal,
+        json_extract(r.players_json, '$[' || l.player_index || ']') AS player_json
+        FROM battle_player_links l JOIN battle_records r ON r.id = l.record_id
+        WHERE l.member_uid = ? ORDER BY r.played_at DESC, r.created_at DESC, r.id, l.player_index`,
+        )
+        .all(memberUid);
+      const entries = links.map((row) => ({
+        recordId: row.id,
+        playerIndex: row.player_index,
+        type: row.battle_type,
+        playedAt: row.played_at,
+        roundNumber: row.round_number,
+        redTeam: row.red_team,
+        blueTeam: row.blue_team,
+        winner: row.winner,
+        isInternal: Boolean(row.is_internal),
+        player: JSON.parse(row.player_json),
+      }));
+      return {
+        member,
+        summary: summarizePersonalBattles(entries),
+        entries: entries.slice((page - 1) * 20, page * 20),
+        total: entries.length,
+        page,
+        pageSize: 20,
+      };
+    },
     saveBattleRecords(input) {
       if (
         !input ||
@@ -320,6 +373,14 @@ export function createBattleRecordRepository(db) {
             record.ourSide ?? null,
             record.isInternal ? 1 : 0,
           );
+          const findMember = db.prepare('SELECT uid FROM members WHERE name = ?');
+          const insertLink = db.prepare(
+            'INSERT INTO battle_player_links (record_id, player_index, member_uid) VALUES (?, ?, ?)',
+          );
+          record.players.forEach((player, index) => {
+            const matches = findMember.all(player.player);
+            if (matches.length === 1) insertLink.run(id, index, matches[0].uid);
+          });
         }
         return { records: ids.map(get) };
       })();

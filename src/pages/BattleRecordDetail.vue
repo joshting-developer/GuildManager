@@ -334,7 +334,15 @@ onUnmounted(() => {
           </thead>
           <tbody>
             <tr v-for="(player, index) in pagePlayers" :key="index">
-              <td>{{ player.player || '—' }}</td>
+              <td>
+                <a
+                  v-if="player.memberUid"
+                  :href="`#/member-records/${encodeURIComponent(player.memberUid)}`"
+                  :aria-label="`查看 ${player.player} 的個人戰績`"
+                  >{{ player.player }}</a
+                >
+                <span v-else>{{ player.player || '—' }}</span>
+              </td>
               <td>
                 <span class="battle-profession-cell"
                   ><span

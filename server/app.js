@@ -59,7 +59,9 @@ export function createApp(repository, { authNow } = {}) {
     });
   });
   app.patch('/api/admin/member-token', async (request, response) => {
-    response.json({ memberToken: await repository.setMemberToken(request.auth.user.id, request.body) });
+    response.json({
+      memberToken: await repository.setMemberToken(request.auth.user.id, request.body),
+    });
   });
   app.get('/api/calendar/members', (_request, response) => {
     response.json(repository.listParticipationMembers());
@@ -169,6 +171,13 @@ export function createApp(repository, { authNow } = {}) {
   });
   app.get('/api/members', (_request, response) => {
     response.set('Cache-Control', 'no-store').json(repository.listMembers());
+  });
+  app.get('/api/members/:uid/battle-records', (request, response) => {
+    response.json(
+      repository.getMemberBattleRecords(request.params.uid, {
+        page: request.query.page === undefined ? 1 : Number(request.query.page),
+      }),
+    );
   });
   app.post('/api/members/import/preview', (request, response) => {
     response.set('Cache-Control', 'no-store').json(repository.previewMemberImport(request.body));

@@ -42,6 +42,14 @@ export function createMemberClient({ source = 'local', fetchImpl = sessionFetch,
   return {
     getParticipationMembers: () => call('GET', 'calendar/members', null, 'getParticipationMembers'),
     getMembers: () => call('GET', 'members', null, 'getMembers'),
+    getBattleRecords: (uid, page = 1) =>
+      call(
+        'GET',
+        `members/${encodeURIComponent(uid)}/battle-records?page=${page}`,
+        null,
+        'getMemberBattleRecords',
+        [uid, page],
+      ),
     getProfessions: () => call('GET', 'professions', null, 'getProfessions'),
     previewMemberImport: (input) =>
       call('POST', 'members/import/preview', input, 'previewMemberImport', [input]),

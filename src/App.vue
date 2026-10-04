@@ -24,6 +24,7 @@ import LineupsPage from './pages/LineupsPage.vue';
 import BattleUploadPage from './pages/BattleUploadPage.vue';
 import BattleRecordsPage from './pages/BattleRecordsPage.vue';
 import AdminPage from './pages/AdminPage.vue';
+import MemberBattleRecordsPage from './pages/MemberBattleRecordsPage.vue';
 
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 const authClient = createAuthClient({ source });
@@ -65,7 +66,7 @@ let expiryTimer;
 let disposed = false;
 let loginOrigin;
 let requestedPage = '';
-let requestedRecordId = null;
+let requestedDetailId = null;
 let sessionVersion = 0;
 provide('registerNavigationGuard', (guard) => {
   pageGuard.value = guard;
@@ -76,20 +77,22 @@ provide('registerNavigationGuard', (guard) => {
 function currentView() {
   const route = window.location.hash.slice(2);
   if (route === 'management') return 'magament';
+  if (route.startsWith('member-records/')) return 'member-records';
   if (route.startsWith('battle-records/')) return 'battle-records';
   return navigation.some((item) => item.page === route) ? route : 'home';
 }
-function currentBattleRecordId() {
+function currentDetailId() {
   const route = window.location.hash.slice(2);
-  if (!route.startsWith('battle-records/')) return null;
-  const id = route.slice('battle-records/'.length);
+  const prefix = route.startsWith('member-records/') ? 'member-records/' : 'battle-records/';
+  if (!route.startsWith(prefix)) return null;
+  const id = route.slice(prefix.length);
   try {
     return decodeURIComponent(id) || null;
   } catch {
     return id;
   }
 }
-const battleRecordId = ref(currentBattleRecordId());
+const detailId = ref(currentDetailId());
 const view = ref(currentView());
 function returnHome() {
   view.value = 'home';
@@ -99,7 +102,7 @@ function returnHome() {
 }
 function openLogin(page = 'magament', recordId = null) {
   requestedPage = page;
-  requestedRecordId = recordId;
+  requestedDetailId = recordId;
   loginOrigin = document.activeElement;
   loginError.value = '';
   mobileMenu.value = false;
@@ -108,7 +111,7 @@ function openLogin(page = 'magament', recordId = null) {
 function syncView() {
   const next = currentView();
   if (next !== 'home' && !user.value && !authLoading.value) {
-    const recordId = currentBattleRecordId();
+    const recordId = currentDetailId();
     returnHome();
     openLogin(next, recordId);
     return;
@@ -128,7 +131,7 @@ function syncView() {
     returnHome();
     return;
   }
-  battleRecordId.value = currentBattleRecordId();
+  detailId.value = currentDetailId();
   mobileMenu.value = false;
   window.scrollTo({ top: 0, behavior: 'instant' });
   nextTick(() => document.getElementById('main')?.focus({ preventScroll: true }));
@@ -162,7 +165,7 @@ function expireSession() {
   if (!user.value) return;
   sessionVersion++;
   requestedPage = view.value === 'home' ? 'magament' : view.value;
-  const recordId = battleRecordId.value;
+  const recordId = detailId.value;
   user.value = null;
   setCsrfToken('');
   clearTimeout(expiryTimer);
@@ -202,7 +205,7 @@ async function restoreSession() {
       if (view.value !== 'home' && !user.value) {
         const target = view.value;
         returnHome();
-        openLogin(target, battleRecordId.value);
+        openLogin(target, detailId.value);
       }
       if (view.value !== 'home' && user.value?.role === 'member') {
         authNotice.value = 'member 帳號只能使用行事曆報名功能';
@@ -225,8 +228,8 @@ async function login(input) {
     authError.value = '';
     authNotice.value = '';
     loginOpen.value = false;
-    if (requestedPage === 'battle-records' && requestedRecordId) {
-      window.location.hash = `/battle-records/${encodeURIComponent(requestedRecordId)}`;
+    if (['battle-records', 'member-records'].includes(requestedPage) && requestedDetailId) {
+      window.location.hash = `/${requestedPage}/${encodeURIComponent(requestedDetailId)}`;
     } else navigate(requestedPage || 'magament');
   } catch (error) {
     loginError.value = error.message;
@@ -314,7 +317,9 @@ function skipToMain() {
               @click="navigate('admin')"
               >{{ user.username }}</v-btn
             >
-            <span v-else-if="user.role !== 'member'" class="login-account" :title="user.username">{{ user.username }}</span>
+            <span v-else-if="user.role !== 'member'" class="login-account" :title="user.username">{{
+              user.username
+            }}</span>
             <v-btn variant="text" :prepend-icon="mdiLogout" :loading="authBusy" @click="logout"
               >登出</v-btn
             >
@@ -385,7 +390,12 @@ function skipToMain() {
           v-else-if="view === 'battle-upload'"
           :initial-event-id="battleUploadEventId"
         />
-        <BattleRecordsPage v-else-if="view === 'battle-records'" :record-id="battleRecordId" />
+        <BattleRecordsPage v-else-if="view === 'battle-records'" :record-id="detailId" />
+        <MemberBattleRecordsPage
+          v-else-if="view === 'member-records' && detailId"
+          :key="detailId"
+          :member-uid="detailId"
+        />
         <AdminPage v-else-if="view === 'admin' && user.role === 'admin'" />
       </template>
       <footer v-show="!lineupFocus" class="page-footer">
