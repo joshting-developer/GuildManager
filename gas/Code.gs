@@ -14,6 +14,24 @@ function login(input) {
 function logout() {
   throw new Error('Google 登入尚未設定');
 }
+function getAccountSettings() {
+  throw new Error('雲端帳號管理尚未串接');
+}
+function changeAdminPassword(input) {
+  throw new Error('雲端帳號管理尚未串接');
+}
+function createManager(input) {
+  throw new Error('雲端帳號管理尚未串接');
+}
+function updateManager(input) {
+  throw new Error('雲端帳號管理尚未串接');
+}
+function createMemberAccount(input) {
+  throw new Error('雲端帳號管理尚未串接');
+}
+function updateMemberAccount(input) {
+  throw new Error('雲端帳號管理尚未串接');
+}
 function getParticipationMembers() {
   throw new Error('雲端報名成員選單尚未串接');
 }

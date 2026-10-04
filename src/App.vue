@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick, provide } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick, provide } from 'vue';
 import {
   mdiSwordCross,
   mdiViewDashboardOutline,
@@ -11,6 +11,7 @@ import {
   mdiLogout,
   mdiFileUploadOutline,
   mdiChartBoxOutline,
+  mdiAccountCogOutline,
 } from '@mdi/js';
 import { createAuthClient } from './api/auth.js';
 import { setCsrfToken } from './api/session.js';
@@ -22,6 +23,7 @@ import EventsPage from './pages/EventsPage.vue';
 import LineupsPage from './pages/LineupsPage.vue';
 import BattleUploadPage from './pages/BattleUploadPage.vue';
 import BattleRecordsPage from './pages/BattleRecordsPage.vue';
+import AdminPage from './pages/AdminPage.vue';
 
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 const authClient = createAuthClient({ source });
@@ -33,6 +35,7 @@ const navigation = [
   { page: 'lineups', label: '戰場排表', icon: mdiSwordCross },
   { page: 'battle-upload', label: '戰績上傳', icon: mdiFileUploadOutline },
   { page: 'battle-records', label: '戰績閱覽', icon: mdiChartBoxOutline },
+  { page: 'admin', label: '帳號管理', icon: mdiAccountCogOutline, adminOnly: true },
 ];
 const mobileMenu = ref(false);
 const lineupFocus = ref(false);
@@ -43,6 +46,14 @@ provide('openBattleUpload', (eventId) => {
   navigate('battle-upload');
 });
 const user = ref(null);
+const canManage = computed(() => ['admin', 'manager'].includes(user.value?.role));
+const visibleNavigation = computed(() =>
+  navigation.filter(
+    (item) =>
+      (item.page === 'home' || canManage.value) &&
+      (!item.adminOnly || user.value?.role === 'admin'),
+  ),
+);
 const authLoading = ref(true);
 const authBusy = ref(false);
 const authError = ref('');
@@ -105,7 +116,17 @@ function syncView() {
     window.location.hash = view.value === 'home' ? '/' : `/${view.value}`;
     return;
   }
+  if (next !== 'home' && user.value?.role === 'member') {
+    authNotice.value = 'member 帳號只能使用行事曆報名功能';
+    returnHome();
+    return;
+  }
   view.value = next;
+  if (next === 'admin' && user.value?.role !== 'admin' && !authLoading.value) {
+    authNotice.value = '只有 admin 可以管理帳號';
+    returnHome();
+    return;
+  }
   battleRecordId.value = currentBattleRecordId();
   mobileMenu.value = false;
   window.scrollTo({ top: 0, behavior: 'instant' });
@@ -114,6 +135,16 @@ function syncView() {
 function navigate(page) {
   const target = navigation.some((item) => item.page === page) ? page : 'home';
   if (target !== 'home' && !user.value) return openLogin(target);
+  if (target !== 'home' && user.value?.role === 'member') {
+    authNotice.value = 'member 帳號只能使用行事曆報名功能';
+    returnHome();
+    return;
+  }
+  if (target === 'admin' && user.value?.role !== 'admin') {
+    authNotice.value = '只有 admin 可以管理帳號';
+    returnHome();
+    return;
+  }
   window.location.hash = target === 'home' ? '/' : `/${target}`;
   mobileMenu.value = false;
 }
@@ -157,6 +188,14 @@ async function restoreSession() {
         const target = view.value;
         returnHome();
         openLogin(target, battleRecordId.value);
+      }
+      if (view.value !== 'home' && user.value?.role === 'member') {
+        authNotice.value = 'member 帳號只能使用行事曆報名功能';
+        returnHome();
+      }
+      if (view.value === 'admin' && user.value && user.value.role !== 'admin') {
+        authNotice.value = '只有 admin 可以管理帳號';
+        returnHome();
       }
     }
   }
@@ -233,9 +272,9 @@ function skipToMain() {
           <span class="brand-text"><strong>逆水寒</strong><span>幫會管理平台</span></span>
         </button>
         <nav class="desktop-nav" aria-label="主要導覽">
-          <template v-for="item in navigation" :key="item.page">
+          <template v-for="item in visibleNavigation" :key="item.page">
             <button
-              v-if="item.page === 'home' || user"
+              v-if="(item.page === 'home' || canManage) && !item.adminOnly"
               type="button"
               :class="{ 'nav-current': view === item.page }"
               :aria-current="view === item.page ? 'page' : undefined"
@@ -250,7 +289,17 @@ function skipToMain() {
             ><span class="status-dot"></span>{{ source === 'gas' ? '雲端環境' : '本機開發' }}</span
           >
           <template v-if="user">
-            <span class="login-account" :title="user.username">{{ user.username }}</span>
+            <v-btn
+              v-if="user.role === 'admin'"
+              class="admin-account-button"
+              variant="text"
+              :prepend-icon="mdiAccountCogOutline"
+              aria-label="帳號管理"
+              :title="`帳號管理：${user.username}`"
+              @click="navigate('admin')"
+              >{{ user.username }}</v-btn
+            >
+            <span v-else class="login-account" :title="user.username">{{ user.username }}</span>
             <v-btn variant="text" :prepend-icon="mdiLogout" :loading="authBusy" @click="logout"
               >登出</v-btn
             >
@@ -283,7 +332,7 @@ function skipToMain() {
         aria-label="手機導覽"
       >
         <v-btn
-          v-for="item in navigation"
+          v-for="item in visibleNavigation"
           :key="item.page"
           variant="text"
           :prepend-icon="item.icon"
@@ -312,7 +361,7 @@ function skipToMain() {
         type="heading, paragraph, article"
         aria-label="確認登入狀態中"
       />
-      <template v-else-if="user">
+      <template v-else-if="canManage">
         <HomePage v-if="view === 'magament'" @open-page="navigate" />
         <MembersPage v-else-if="view === 'members'" />
         <EventsPage v-else-if="view === 'events'" />
@@ -322,6 +371,7 @@ function skipToMain() {
           :initial-event-id="battleUploadEventId"
         />
         <BattleRecordsPage v-else-if="view === 'battle-records'" :record-id="battleRecordId" />
+        <AdminPage v-else-if="view === 'admin' && user.role === 'admin'" />
       </template>
       <footer v-show="!lineupFocus" class="page-footer">
         <span>逆水寒 <span class="footer-divider">/</span> 幫會管理平台</span

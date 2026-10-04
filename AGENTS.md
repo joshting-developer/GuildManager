@@ -202,7 +202,8 @@ Apps Script 的 `.gs` 檔案共用全域環境, 避免重複命名與載入時�
 
 ## 身分與權限
 
-- 本機帳號密碼登入已實作, 所有以本機工具建立的帳號可管理；不建立公開註冊, Google 登入與角色分級未定案, 不把「幫主／幹部／成員」寫死成正式角色
+- 本機角色分 admin／manager／member, 皆可使用既有管理功能, `#/admin` 及 `/api/admin/*` 僅 admin；不建立公開註冊。首個 CLI 帳號預設 admin, 後續 manager；舊無角色資料優先名稱 admin, 否則最早帳號為 admin, 其餘 manager, 不重設密碼。Google 登入未定案。
+- admin 可驗證目前密碼後修改自己的密碼, 保留目前 session 並撤銷其他登入；可建立／修改 manager 與 member 帳號／密碼（留空保留）, manager／member 修改撤銷全部 session。帳號名稱不分大小寫唯一, revision 拒絕過期修改, 不提供角色提升／刪除。網頁改密碼不更新私有 local-admin.json。
 - 公開頁為行事曆及既有報名／請假；管理總覽 (magament／management)、成員、活動安排、排表及相關管理 API 須登入, 不只隱藏導覽
 - 密碼使用 scrypt 雜湊, session 用 HttpOnly cookie 且伺服器只保存 token 雜湊, 管理修改檢查 CSRF；私有帳號檔 data/local-admin.json 不得提交
 - 部署時需明確決定執行身分與可存取對象, 依 [Web Apps 官方文件](https://developers.google.com/apps-script/guides/web) 確認實際權限行為

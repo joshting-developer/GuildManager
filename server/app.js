@@ -32,6 +32,46 @@ export function createApp(repository, { authNow } = {}) {
   app.use('/api/battle-records', express.json({ limit: '10mb' }));
   app.use(express.json({ limit: '16kb' }));
   installAuth(app, repository, { now: authNow });
+  app.get('/api/admin/accounts', (request, response) => {
+    response.json(repository.getAccountSettings(request.auth.user.id));
+  });
+  app.post('/api/admin/password', async (request, response) => {
+    response.json({
+      admin: await repository.changeAdminPassword(
+        request.auth.user.id,
+        request.body,
+        request.sessionToken,
+      ),
+    });
+  });
+  app.post('/api/admin/managers', async (request, response) => {
+    response
+      .status(201)
+      .json({ manager: await repository.createManager(request.auth.user.id, request.body) });
+  });
+  app.patch('/api/admin/managers/:id', async (request, response) => {
+    response.json({
+      manager: await repository.updateManager(
+        request.auth.user.id,
+        request.params.id,
+        request.body,
+      ),
+    });
+  });
+  app.post('/api/admin/members', async (request, response) => {
+    response
+      .status(201)
+      .json({ member: await repository.createMemberAccount(request.auth.user.id, request.body) });
+  });
+  app.patch('/api/admin/members/:id', async (request, response) => {
+    response.json({
+      member: await repository.updateMemberAccount(
+        request.auth.user.id,
+        request.params.id,
+        request.body,
+      ),
+    });
+  });
   app.get('/api/calendar/members', (_request, response) => {
     response.json(repository.listParticipationMembers());
   });

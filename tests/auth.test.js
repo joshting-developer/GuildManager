@@ -97,7 +97,7 @@ test('login issues an HttpOnly session, reload restores it, logout revokes it se
     assert.match(cookie, /Path=\/api/);
     assert.match(cookie, /Max-Age=28800/);
     assert.deepEqual(Object.keys(auth.session).sort(), ['csrfToken', 'expiresAt', 'user']);
-    assert.deepEqual(Object.keys(auth.session.user).sort(), ['id', 'username']);
+    assert.deepEqual(Object.keys(auth.session.user).sort(), ['id', 'role', 'username']);
     assert.equal((await f.request('/members', 'GET', undefined, auth.headers)).status, 200);
     assert.deepEqual(
       await (await f.request('/auth/session', 'GET', undefined, auth.headers)).json(),

@@ -753,6 +753,7 @@ h3 {
 }
 @media (max-width: 767px) {
   .header-actions .environment-tag,
+  .header-actions .admin-account-button,
   .login-account {
     display: none;
   }

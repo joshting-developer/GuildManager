@@ -38,8 +38,8 @@ function submit() {
     <v-card class="login-card">
       <div class="login-heading">
         <div>
-          <h2 id="login-title">登入管理平台</h2>
-          <p>登入後即可使用幫會管理功能</p>
+          <h2 id="login-title">登入幫會平台</h2>
+          <p>使用帳號登入管理或報名功能</p>
         </div>
         <v-btn
           variant="text"

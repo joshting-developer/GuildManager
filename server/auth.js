@@ -39,6 +39,10 @@ export function installAuth(app, repository, { now = Date.now } = {}) {
     request.auth = repository.getSession(request.sessionToken);
     if (publicRequest(request)) return next();
     if (!request.auth) return next(new AuthError(401, 'AUTH_REQUIRED', '請先登入後再使用管理功能'));
+    if (request.auth.user.role === 'member' && request.path !== '/auth/logout')
+      return next(new AuthError(403, 'MANAGEMENT_REQUIRED', 'member 帳號只能使用行事曆報名功能'));
+    if (request.path.startsWith('/admin') && request.auth.user.role !== 'admin')
+      return next(new AuthError(403, 'ADMIN_REQUIRED', '只有 admin 可以管理帳號'));
     if (
       ['POST', 'PATCH', 'DELETE'].includes(request.method) &&
       request.get('X-CSRF-Token') !== csrfToken(request.sessionToken)

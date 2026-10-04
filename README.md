@@ -48,13 +48,13 @@ node --input-type=module -e 'import {mkdirSync,writeFileSync} from "node:fs"; im
 docker compose exec -T api node server/create-account.js < data/local-admin.json
 ```
 
-工具從 stdin 讀取帳號 JSON, 帳號為 3–32 個英數字／底線／點／減號, 密碼 12–128 字元。既有帳號拒絕覆寫；使用不同私有檔案及帳號可新增其他登入者。直接使用 Node API 的環境改用 `npm run account:create < data/local-admin.json`, 需使用與 API 相同的 `DATABASE_PATH`。
+工具從 stdin 讀取帳號 JSON, 帳號為 3–32 個英數字／底線／點／減號, 密碼 12–128 字元。既有帳號拒絕覆寫；其他 manager 可由帳號管理頁建立, CLI 仍可新增帳號。直接使用 Node API 的環境改用 `npm run account:create < data/local-admin.json`, 需使用與 API 相同的 `DATABASE_PATH`。
 
 - `auth_accounts` 保存 scrypt 密碼雜湊與獨立 salt, 不保存明文密碼
 - `auth_sessions` 保存 session token 的 SHA-256 雜湊及到期時間；瀏覽器使用 HttpOnly／SameSite=Lax cookie, 不使用 localStorage 保存登入憑證
 - 管理資料讀取須有 session, 管理修改另須 `X-CSRF-Token`；前端 adapter 自動附加, API 的 Origin／JSON 檢查仍保留
 - 登入失敗訊息不區分帳號不存在或密碼錯誤, 同一來源 5 分鐘最多 10 次嘗試
-- 所有已由本機工具建立的帳號都能管理, 本次沒有公開註冊或幫主／幹部等角色分級
+- admin 與 manager 均可使用既有管理功能；只有 admin 可開啟 `#/admin` 管理帳號。第一個 CLI 帳號預設 admin, 後續預設 manager, 沒有公開註冊。舊帳號升級時優先將名稱 admin（不分大小寫）設為 admin, 否則選最早建立者, 其他設為 manager, 不重設密碼。
 - 公開行事曆、報名／請假沿用原操作方式, `/api/calendar/members` 僅提供 UID／名稱選單；登入帳號尚未與遊戲 UID 綁定
 - Google 登入之後透過 auth adapter 接入, GAS 的登入函式目前明確回報未設定, 不以本機密碼或前端旗標假裝雲端登入成功
 
@@ -398,3 +398,9 @@ SQLite 追加 `battle_uploads`／`battle_records`, `round_number` 記錄場序�
 - 下半切換紅／藍方, 使用職業選單篩選, 可切換「總計／一命」；一命＝原數值 ÷ 重傷次數, 0 次以 1 計算, 重傷欄保留次數, 缺少原數值或重傷時顯示「—」。資源欄在最右。點擊名稱、職業或數值表頭切換升降排序, 使用當前模式的未四捨五入值先篩選／排序整個陣營再每頁 20 筆；換條件回第一頁, 表格不影響上半合計。
 - 內推、未填敵我／結果與舊未指定場序保留原狀, 不推算勝敗；以當時上傳快照呈現, 活動改名或刪除不影響閱讀。
 - 返回清單保留頁碼, 支援直接連結、重新整理、載入失敗重試及手機表格橫向捲動。閱覽不修改名冊／排表／戰績, GAS 資料仍未串接。
+
+## Admin 帳號管理
+
+登入 admin 後從導覽「帳號管理」開啟 `#/admin`。可輸入目前密碼並確認新密碼修改 admin 密碼, 以及建立／修改 manager 與 member 帳號。member 僅可使用公開行事曆與報名, 不可使用管理功能。manager 修改密碼留空時保留原密碼, 帳號不可重複（不分大小寫）, 不提供角色提升或刪除。修改 manager／member 撤銷其全部登入；admin 改密碼保留目前登入並撤銷其他登入。
+
+所有帳號管理 API 僅 admin 可用且寫入須 CSRF, 不只隱藏入口。帳號保存 revision 並拒絕過期修改, 密碼不回傳前端, 失敗保留輸入。私有 `data/local-admin.json` 不會隨網頁改密碼同步更新, 需自行保管新密碼。GAS 帳號管理仍未串接。

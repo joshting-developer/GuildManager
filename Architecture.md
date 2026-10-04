@@ -72,7 +72,7 @@ GAS 需新增對應工作表、本人操作驗證、鎖定／防重複／部分�
 
 `src/api/auth.js` 提供 getSession／login／logout, `src/api/session.js` 在記憶體保存 CSRF token, 共用 HTTP 呼叫附加 cookie／CSRF 並通知 session 失效。App 啟動先向後端確認身分, 不以 localStorage 或網址判定登入；伺服器採公開端點白名單, 其他 API 全部須登入。
 
-`server/auth-repository.js` 使用獨立 auth_accounts／auth_sessions 表, 密碼 scrypt 雜湊及 salt, session token 隨機且只存 SHA-256 雜湊, 到期 8 小時；重啟保留 session, 登出或重新登入撤銷舊 token。`server/create-account.js` 只接受本機 stdin 建立帳號, 無公開註冊。
+`server/auth-repository.js` 使用獨立 auth_accounts／auth_sessions 表, 密碼 scrypt 雜湊及 salt, session token 隨機且只存 SHA-256 雜湊, 到期 8 小時；重啟保留 session, 登出或重新登入撤銷舊 token。`server/create-account.js` 接受本機 stdin 建立帳號, 另提供 admin-only manager／member 建立／更新介面, 無公開註冊。
 
 首頁行事曆與統一報名／請假保持公開, 表單只填名稱, 不載入成員選單；`/api/calendar/members` 保留舊介面相容, 完整名冊／歷史僅管理端可讀。登入帳號尚未綁定遊戲 UID。
 
@@ -115,3 +115,9 @@ GAS 後續需以試算表保存戰績／逐人資料, Drive 保存原檔及圖�
 `BattleRecordsPage.vue` 沿用 getRecords 每頁 20 筆, `BattleRecordDetail.vue` 點開後才透過 getRecord 讀取單筆保存的玩家快照, 不讀可變名冊或活動來重建歷史。App 的 hash 導覽支援 `#/battle-records/:id`, 保留登入後直接連結, 同頁切換詳情以記錄 ID 重建元件並丟棄卸載後的回應；返回清單保留該頁頁碼。
 
 `src/domain/battle-statistics.js` 只依快照計算雙方職業分布、十項合計與差距, null 不當零, 部分缺值有明確標示。battlePlayerValue 只在顯示時計算一命數值（原值 ÷ max(重傷, 1), 重傷欄仍為原次數, 缺少分母或原值保留 null）, 排序使用當前模式未四捨五入的數字與文字, 職業及陣營條件交集, 缺值固定最後, 不修改原 players, 先篩選／排序完整陣營再分頁。BATTLE_TABLE_COLUMNS 僅調整閱覽欄序將資源置於最右, 不改 CSV 契約或上傳預覽欄序。職業 API 只提供顯示色彩, 失敗使用中性色點並可重試, 不阻止戰績閱讀。沒有新增資料表／後端寫入／依賴；GAS 沿用既有未串接介面, 部署與資料串接尚待驗證。
+
+## Admin 帳號權限
+
+`auth_accounts` 升級新增 admin／manager／member 角色與 revision, 舊資料優先名稱 admin, 否則最早帳號, 僅一位取得 admin；其餘為 manager。session 每次 JOIN 當前角色, `/api/admin/*` 在後端檢查 admin 並沿用 CSRF。`src/api/admin.js` 統一帳號管理資料介面, `AdminPage.vue` 提供密碼與 manager／member 管理, `#/admin` 路由及導覽同時檢查角色。
+
+改密碼先驗證目前密碼, scrypt 完成後交易重新檢查 revision, 防止並行覆寫；admin 保留目前 session, manager／member 修改撤銷全部 session。登入完成 scrypt 後重新檢查 revision, 避免密碼更新期間建立舊密碼 session。GAS 對應介面明確回報未串接。
