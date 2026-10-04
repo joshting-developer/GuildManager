@@ -10,3 +10,5 @@ data/
 .env.*.local
 .DS_Store
 artifacts/
+.clasprc.json
+.clasp.json

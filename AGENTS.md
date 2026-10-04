@@ -279,6 +279,10 @@ member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admi
 
 ## GAS 後端與部署狀態
 
+已配置 clasp 3.4.1 自動上傳，目標為 gas/upload-target.json；使用者已提供指令碼 ID 並授權覆蓋目前空白專案。npm run gas:login 由使用者本人完成 OAuth；npm run gas:push 先編譯四檔、備份遠端，再覆蓋並讀回比對。data/clasp-auth.json 與 .clasp.json 均忽略，勿讀出憑證或納入提交。上傳程式與初始化正式試算表／發布 Web App 是不同範圍，後兩者仍需後續指示。
+
+2026/10/05 已實際上傳四檔並讀回比對一致；第一次上傳檢出依賴 class 欄位的 Google ParseError，後端改以 gas/build-options.js 的 ES2019 目標降階並補缺少 Object.hasOwn 的相容實作，沙盒同步該目標且移除新式 helper。遠端僅完成程式語法檢查／同步，尚未初始化或發布 Web App。
+
 已完成全部既有 RPC 的 GAS 來源及單檔打包，初始化／部署見 [GASDeployment.md](GASDeployment.md)。`gas/src/` 使用共享純資料驗證、私有 Properties 登入、追加式 Sheets store、私人 Drive 附件；`gas/Code.gs` 只公開白名單入口，`setupGas_` 僅供編輯器執行。`npm run build:gas` 產生 Index.html／Code.gs／Backend.gs／appsscript.json 四檔，全部需同步；勿手改產物。
 
 業務表使用 GM_ 前綴，保留原 gid=0，不自動遷移 SQLite／本機帳號／示範資料。每類資料分表，以固定 ID、Base64 JSON 分段及提交標記讀取最新有效值；script lock 下先 flush 資料後發布 marker，失敗未提交列不讀取。戰績清單讀摘要、詳情才讀玩家快照。跨 Drive／Sheets 失敗可能保留未引用附件，不自動刪除。初始化只補專用表及九職業／三職責，不覆寫既有帳號或資料。

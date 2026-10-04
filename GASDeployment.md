@@ -2,7 +2,28 @@
 
 目前已生成 Vue 單檔頁面與完整 GAS 後端，涵蓋登入／帳號管理、行事曆、成員／匯入／名稱歷史、活動、職責、報名／請假、排表／範本、戰績上傳／下載／閱覽及個人分析。本機 SQLite 環境保留。
 
-尚未部署到 Google，也未寫入你提供的正式試算表。本機 mock 與瀏覽器驗證不能代替 Google 授權、配額、執行速度與 iframe 下載測試。
+2026/10/05 已將四檔程式上傳至指定 Apps Script 專案，Google 語法檢查通過且讀回比對一致。尚未初始化正式試算表或發布 Web App；上傳驗證不能代替實際 Sheets／Drive 授權、執行速度、服務配額與 iframe 下載測試。
+
+## 本機自動上傳
+
+已鎖定 clasp 3.4.1。上傳目標記錄於 `gas/upload-target.json`，目前為使用者提供的空白專案 `1rkY7EI6rHYNoH8TZmIOKQ-MWSCexXUdFTOqInqyfxBR1qMoI8DAf9hG5`，已獲准覆蓋程式內容。Apps Script API 已由使用者開啟。
+
+```sh
+npm run gas:login   # 首次由本人完成 Google 瀏覽器登入與授權
+npm run gas:auth    # 確認目前登入身分
+npm run gas:status  # 檢查上傳清單，需先有 build/gas 套件
+npm run gas:push    # 編譯、備份遠端、上傳四檔、讀回比對
+```
+
+登入須使用有目標專案編輯權限的 Google 帳號。工具產生的 `.clasp.json` 僅指向 `build/gas`；OAuth 憑證保存於 `data/clasp-auth.json`，兩者均被 Git 忽略，憑證不輸出、不放前端。不要貼出此憑證檔。更換上傳目標時先確認現有 `.clasp.json`，工具遇到不同 ID 會停止。
+
+`gas:push` 每次在 `data/gas-backups/<時間>/before` 備份遠端，再覆蓋同一專案的全部程式檔，最後於 `after` 讀回比對四檔。未登入、編譯失敗、清單不符或備份失敗時不會上傳；若上傳後的比對失敗，訊息明確指出程式可能已上傳，需檢查遠端。備份不包含 Script Properties、試算表、Drive 資料或部署設定。
+
+此命令只同步程式碼，不執行 `setupGas_()`、不寫入正式試算表、不建立或更新對外 Web App 版本。首次設定與初始化仍依下方步驟進行。[clasp 官方原始碼與使用說明](https://github.com/google/clasp)
+
+目前 npm audit 的高風險提示來自開發工具共用的 micromatch／braces 模式解析依賴，尚無相容的修補版本；本專案僅以固定本機檔案模式使用，不將此 CLI 打包進 GAS 或前端。未為消除提示而降級編譯或上傳工具。
+
+後端打包目標集中於 `gas/build-options.js`，採 ES2019 降階，避免依賴的 class 欄位及邏輯賦值語法被 Google 解析器拒絕；僅在缺少 `Object.hasOwn` 時提供標準相容實作。此差異曾於首次實際上傳被檢出，已修正並成功上傳。沙盒測試同步使用相同編譯目標，移除新式 helper 驗證相容性。[GAS V8 限制](https://developers.google.com/apps-script/guides/v8-runtime)
 
 ## 1. 編譯與建立 Apps Script 專案
 
@@ -22,6 +43,8 @@ npm run build:gas
 | `appsscript.json` | 專案 manifest | V8、Asia/Taipei、Sheets／Drive 授權範圍 |
 
 在 Apps Script 建立獨立專案，建立以上 HTML／指令碼檔並貼入內容。在專案設定開啟「在編輯器中顯示 appsscript.json 資訊清單檔案」，以生成檔取代 manifest。日常修改仍在本機原始碼，重新編譯後同步四個檔案，不直接修改生成的 `Backend.gs`。
+
+已使用自動上傳的指定專案可略過手動貼檔，直接進行第 2 節的私有屬性設定。
 
 前端沒有外部 JS／CSS／字體依賴，後端沒有 Node.js、Express 或 SQLite 依賴；`Backend.gs` 不能省略。
 

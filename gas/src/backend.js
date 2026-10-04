@@ -1,3 +1,4 @@
+import './runtime-compat.js';
 import { visibleCalendarEvents } from '../../src/domain/calendar-access.js';
 import {
   DEFAULT_PLATFORM_NAME,
@@ -146,7 +147,8 @@ export function rpc(operation, args = [], context = {}) {
             ...createLineups(store, catalog, participation, options),
             ...createBattles(store, catalog, { ...options, files }),
           };
-          if (!Object.hasOwn(methods, operation)) fail('OPERATION_INVALID', '不支援此操作');
+          if (!Object.prototype.hasOwnProperty.call(methods, operation))
+            fail('OPERATION_INVALID', '不支援此操作');
           if (operation === 'updatePlatformSettings') auth.requireRole(context, ['admin']);
           else if (PARTICIPATION.includes(operation)) {
             const event = catalog.event(args[0], { battle: true });

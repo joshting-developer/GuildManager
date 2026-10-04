@@ -1,5 +1,6 @@
 import { build } from 'vite';
 import { copyFileSync, readFileSync, readdirSync, renameSync } from 'node:fs';
+import { GAS_BACKEND_TARGET } from '../gas/build-options.js';
 
 const directory = 'build/gas';
 const html = readFileSync(`${directory}/index.html`, 'utf8');
@@ -16,7 +17,7 @@ for (const filename of ['Code.gs', 'appsscript.json']) {
 await build({
   configFile: false,
   build: {
-    target: 'es2022',
+    target: GAS_BACKEND_TARGET,
     minify: false,
     outDir: directory,
     emptyOutDir: false,

@@ -62,7 +62,7 @@ export function createParticipation(store, catalog, { uuid, now }) {
       fail('REGISTRATION_MEMBER', '這位成員已在名冊中，請使用報名表單');
     const matches = guests(eventId).filter((item) => lower(item.name) === lower(name));
     if (matches.some((item) => item.active)) fail('REGISTRATION_EXISTS', '這位人員已報名');
-    const old = matches.at(-1),
+    const old = matches[matches.length - 1],
       id = old?.id || uuid();
     const value = {
       id,
@@ -126,7 +126,7 @@ export function createParticipation(store, catalog, { uuid, now }) {
               (a, b) =>
                 Number(a.active) - Number(b.active) || a.updatedAt.localeCompare(b.updatedAt),
             );
-      const guest = matchingGuests.at(-1);
+      const guest = matchingGuests[matchingGuests.length - 1];
       if (members.length > 1 || (members.length && guest))
         fail('PARTICIPATION_AMBIGUOUS', '有同名資料，無法確認人員，請聯絡管理者');
       if (members.length) {

@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { build } from 'vite';
 import { gasEnvironment } from './gas-environment.js';
+import { GAS_BACKEND_TARGET } from '../../gas/build-options.js';
 
 let bundle;
 export async function gasRuntime() {
@@ -9,7 +10,7 @@ export async function gasRuntime() {
     configFile: false,
     logLevel: 'silent',
     build: {
-      target: 'es2022',
+      target: GAS_BACKEND_TARGET,
       minify: false,
       write: false,
       lib: { entry: 'gas/src/backend.js', formats: ['iife'], name: 'GuildGas' },
@@ -32,6 +33,10 @@ export async function gasRuntime() {
     TextDecoder: undefined,
     console: undefined,
   });
+  vm.runInContext(
+    'Object.hasOwn = undefined; Array.prototype.at = undefined; String.prototype.replaceAll = undefined;',
+    sandbox,
+  );
   vm.runInContext(await bundle, sandbox);
   vm.runInContext(readFileSync('gas/Code.gs', 'utf8'), sandbox);
   const normalize = (value) => JSON.parse(JSON.stringify(value));

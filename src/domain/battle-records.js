@@ -119,7 +119,7 @@ export function parseBattleCsv(text) {
         }
         if (!/^(?:\d+|\d{1,3}(?:,\d{3})+)$/.test(value))
           throw new BattleRecordError(`CSV 第 ${index + 1} 列的${title}須為非負整數`);
-        const number = Number(value.replaceAll(',', ''));
+        const number = Number(value.replace(/,/g, ''));
         if (!Number.isSafeInteger(number))
           throw new BattleRecordError(`CSV 第 ${index + 1} 列的${title}超出範圍`);
         player[key] = number;

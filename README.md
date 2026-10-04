@@ -1,6 +1,6 @@
 # 逆水寒 · 幫會管理平台
 
-Vue 3／Vuetify 管理介面, 本機透過 Node.js／Express API 讀寫 SQLite, 已生成 GAS／Google 試算表版本，尚未部署
+Vue 3／Vuetify 管理介面, 本機透過 Node.js／Express API 讀寫 SQLite, GAS／Google 試算表版本已上傳至指定專案，尚未初始化或發布 Web App
 
 首頁直接顯示活動行事曆與場次報名／請假, 右上預設成員通行密碼登入，另一分頁供管理帳號登入。manager／admin 可使用管理總覽、成員清單、活動安排、戰場排表與戰績上傳；member 可閱覽戰績與個人分析，管理頁與管理 API 都檢查角色。雲端版沿用應用程式帳密／通行密碼，Google OAuth 尚未實作；正式試算表未執行初始化
 
@@ -113,6 +113,8 @@ npm run build:gas
 - 編譯產物不納入 Git, 原始碼與 lockfile 納入 Git
 
 ## GAS 匯入方式
+
+已配置指定指令碼的自動上傳。首次執行 `npm run gas:login` 完成 Google 授權；之後 `npm run gas:push` 自動編譯、備份遠端、上傳四檔並讀回比對。憑證及備份保存在被忽略的 `data/`，不需 Git 遠端。上傳不初始化試算表或發布 Web App，詳細設定見 [自動上傳](GASDeployment.md#本機自動上傳)。
 
 完整步驟見 [GAS 初始化與部署](GASDeployment.md)。執行 `npm run build:gas`，將 `build/gas/Index.html`、`Code.gs`、`Backend.gs` 及 `appsscript.json` 放入同一 Apps Script 專案。設定私有 Script Properties，先使用測試試算表並於編輯器執行 `setupGas_()`，再建立測試 Web App。
 

@@ -13,6 +13,10 @@
     "server": "node --watch server/index.js",
     "build": "vite build",
     "build:gas": "vite build --mode gas && node tools/package-gas.js",
+    "gas:login": "node tools/gas-sync.js login",
+    "gas:auth": "node tools/gas-sync.js auth-status",
+    "gas:status": "node tools/gas-sync.js status",
+    "gas:push": "node tools/gas-sync.js push",
     "preview": "vite preview --host 127.0.0.1",
     "test": "node --test tests/*.test.js"
   },
@@ -25,6 +29,7 @@
     "vuetify": "4.2.3"
   },
   "devDependencies": {
+    "@google/clasp": "3.4.1",
     "@vitejs/plugin-vue": "6.0.9",
     "vite": "7.3.6",
     "vite-plugin-singlefile": "2.3.3"
