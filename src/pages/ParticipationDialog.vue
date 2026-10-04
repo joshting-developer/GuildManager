@@ -3,8 +3,9 @@ import { computed, ref, watch, inject, onUnmounted } from 'vue';
 import { createParticipationClient } from '../api/participation.js';
 import { createMemberClient } from '../api/members.js';
 import { eventDisplayTitle, eventTypeLabel } from '../domain/event-types.js';
+import VideoUploadForm from './VideoUploadForm.vue';
 const props = defineProps({ modelValue: Boolean, event: { type: Object, required: true } });
-const emit = defineEmits(['update:modelValue', 'closed']);
+const emit = defineEmits(['update:modelValue', 'closed', 'event-refreshed']);
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 const client = createParticipationClient({ source });
 const memberClient = createMemberClient({ source });
@@ -39,6 +40,15 @@ const loading = ref(true),
   error = ref(''),
   notice = ref('');
 const tab = ref('form');
+const videoForm = ref(null),
+  videoBusy = ref(false),
+  videoDirty = ref(false),
+  videoSession = ref(0);
+const anyBusy = computed(() => busy.value || videoBusy.value);
+function reload() {
+  load();
+  videoForm.value?.reloadEvent();
+}
 const name = ref(''),
   professionId = ref(null),
   status = ref('registered'),
@@ -160,6 +170,9 @@ watch(
       nameSource.value = 'manual';
       loading.value = false;
       resetForm();
+      videoSession.value++;
+      videoDirty.value = false;
+      videoBusy.value = false;
       load();
     } else {
       token++;
@@ -173,8 +186,8 @@ onUnmounted(() => {
 });
 function close() {
   if (
-    !busy.value &&
-    (!unsaved.value || window.confirm('有尚未送出的報名／請假資料, 確定要關閉嗎？'))
+    !anyBusy.value &&
+    (!(unsaved.value || videoDirty.value) || window.confirm('有尚未送出的資料, 確定要關閉嗎？'))
   ) {
     resetForm();
     emit('update:modelValue', false);
@@ -235,7 +248,7 @@ async function submit() {
   <v-dialog
     :model-value="modelValue"
     max-width="640"
-    :persistent="busy"
+    :persistent="anyBusy"
     aria-labelledby="participation-title"
     @after-leave="emit('closed')"
     @update:model-value="!$event && close()"
@@ -244,13 +257,15 @@ async function submit() {
       <div class="section-header">
         <div>
           <p class="eyebrow">{{ event.dates[0] }} · {{ eventTypeLabel(event.type) }}</p>
-          <h2 id="participation-title">{{ eventDisplayTitle(event) }} · 報名／請假</h2>
+          <h2 id="participation-title">
+            {{ eventDisplayTitle(event) }} · {{ tab === 'videos' ? '影片上傳' : '報名／請假' }}
+          </h2>
         </div>
         <v-btn
           v-if="!locked && !authLoading"
           variant="text"
-          :disabled="busy || loading"
-          @click="load"
+          :disabled="anyBusy || loading"
+          @click="reload"
           >重新載入</v-btn
         >
       </div>
@@ -260,22 +275,30 @@ async function submit() {
       <v-alert v-else-if="loadError" type="error" variant="tonal" role="alert">{{
         loadError
       }}</v-alert>
-      <template v-else>
+      <div v-show="!authLoading && !locked && !loading && !loadError">
         <p class="participation-count">報名 {{ registeredCount }} 人</p>
         <v-tabs v-model="tab" color="primary" aria-label="場次報名資訊">
           <v-tab
             id="participation-form-tab"
             value="form"
             aria-controls="participation-form-panel"
-            :disabled="busy"
+            :disabled="anyBusy"
             >報名／請假</v-tab
           >
           <v-tab
             id="participation-professions-tab"
             value="professions"
             aria-controls="participation-professions-panel"
-            :disabled="busy"
+            :disabled="anyBusy"
             >職業統計</v-tab
+          >
+          <v-tab
+            v-if="source === 'local'"
+            id="participation-video-tab"
+            value="videos"
+            aria-controls="participation-video-panel"
+            :disabled="anyBusy"
+            >影片上傳</v-tab
           >
         </v-tabs>
         <section
@@ -402,11 +425,32 @@ async function submit() {
             </li>
           </ul>
         </section>
-        <v-alert v-if="error" type="error" variant="tonal" role="alert">{{ error }}</v-alert>
-        <v-alert v-if="notice" type="success" variant="tonal" role="status">{{ notice }}</v-alert>
-      </template>
+        <section
+          v-if="source === 'local'"
+          v-show="tab === 'videos'"
+          id="participation-video-panel"
+          role="tabpanel"
+          aria-labelledby="participation-video-tab"
+        >
+          <VideoUploadForm
+            ref="videoForm"
+            :key="videoSession"
+            :event="event"
+            :disabled="locked || authLoading || loading || !!loadError || busy"
+            @busy="videoBusy = $event"
+            @dirty="videoDirty = $event"
+            @event-refreshed="emit('event-refreshed', $event)"
+          />
+        </section>
+        <v-alert v-if="error && tab === 'form'" type="error" variant="tonal" role="alert">{{
+          error
+        }}</v-alert>
+        <v-alert v-if="notice && tab === 'form'" type="success" variant="tonal" role="status">{{
+          notice
+        }}</v-alert>
+      </div>
       <div class="event-dialog-actions">
-        <v-btn variant="outlined" :disabled="busy" @click="close">關閉</v-btn>
+        <v-btn variant="outlined" :disabled="anyBusy" @click="close">關閉</v-btn>
       </div>
     </v-card>
   </v-dialog>

@@ -12,6 +12,7 @@ import {
   mdiFileUploadOutline,
   mdiChartBoxOutline,
   mdiAccountCogOutline,
+  mdiVideoOutline,
 } from '@mdi/js';
 import { createAuthClient } from './api/auth.js';
 import { createPlatformSettingsClient } from './api/platform-settings.js';
@@ -28,6 +29,7 @@ import BattleUploadPage from './pages/BattleUploadPage.vue';
 import BattleRecordsPage from './pages/BattleRecordsPage.vue';
 import AdminPage from './pages/AdminPage.vue';
 import MemberBattleRecordsPage from './pages/MemberBattleRecordsPage.vue';
+import VideosPage from './pages/VideosPage.vue';
 
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 const authClient = createAuthClient({ source });
@@ -70,6 +72,7 @@ const navigation = [
     icon: mdiAccountCogOutline,
     adminOnly: true,
   },
+  ...(source === 'local' ? [{ page: 'videos', label: '影片閱覽', icon: mdiVideoOutline }] : []),
 ];
 const mobileMenu = ref(false);
 const lineupFocus = ref(false);
@@ -437,6 +440,7 @@ function skipToMain() {
           v-else-if="view === 'battle-upload'"
           :initial-event-id="battleUploadEventId"
         />
+        <VideosPage v-else-if="view === 'videos'" />
         <AdminPage
           v-else-if="view === 'admin' && user.role === 'admin'"
           @platform-updated="applyPlatform"
