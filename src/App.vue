@@ -18,6 +18,7 @@ import { createPlatformSettingsClient } from './api/platform-settings.js';
 import { DEFAULT_PLATFORM_NAME } from './domain/platform-settings.js';
 import { setCsrfToken } from './api/session.js';
 import LoginDialog from './components/LoginDialog.vue';
+import PlatformBrand from './components/PlatformBrand.vue';
 import HomePage from './pages/HomePage.vue';
 import CalendarHomePage from './pages/CalendarHomePage.vue';
 import MembersPage from './pages/MembersPage.vue';
@@ -50,7 +51,6 @@ async function loadPlatform() {
   }
 }
 const navigation = [
-  { page: 'home', label: '行事曆', icon: mdiCalendarMonthOutline },
   { page: 'magament', label: '管理總覽', icon: mdiViewDashboardOutline },
   { page: 'members', label: '成員清單', icon: mdiAccountGroupOutline },
   { page: 'events', label: '活動安排', icon: mdiCalendarMonthOutline },
@@ -84,7 +84,7 @@ const memberCanVisit = (page) => ['home', 'battle-records', 'member-records'].in
 const visibleNavigation = computed(() =>
   navigation.filter(
     (item) =>
-      (item.page === 'home' || canManage.value || (item.signedIn && canReadBattles.value)) &&
+      (canManage.value || (item.signedIn && canReadBattles.value)) &&
       (!item.adminOnly || user.value?.role === 'admin'),
   ),
 );
@@ -320,13 +320,7 @@ function skipToMain() {
     <a class="skip-link" href="#main" @click.prevent="skipToMain">跳至主要內容</a>
     <header v-show="!lineupFocus" class="site-header">
       <div class="header-inner">
-        <button class="brand" type="button" aria-label="回到行事曆首頁" @click="navigate('home')">
-          <span class="brand-mark"><v-icon :icon="mdiSwordCross" size="26" /></span>
-          <span class="brand-text"
-            ><strong :title="platformName">{{ platformName }}</strong
-            ><span>幫會管理平台</span></span
-          >
-        </button>
+        <PlatformBrand :name="platformName" @home="navigate('home')" />
         <nav class="desktop-nav" aria-label="主要導覽">
           <template v-for="item in visibleNavigation" :key="item.page">
             <button
