@@ -126,7 +126,7 @@ GAS 後續需以試算表保存戰績／逐人資料, Drive 保存原檔及圖�
 
 App 提供 calendarAuth 供 ParticipationDialog 於原視窗登入, 沿用 auth adapter 與 HttpOnly session, 使用共用 member 通行密碼。幫戰／龍虎戰才要求登入且有三個名稱來源, 約戰維持直接填名；有效登入可跨場次沿用。過期或修改帳號撤銷後, 視窗回到驗證, 保留待送出欄位；錯誤登入不清除已有 session／CSRF。
 
-後端依目前場次類型檢查, GET／POST／PATCH participation 與 POST／DELETE registrations 均保護幫戰／龍虎戰, 不因使用舊介面繞過。member 僅允許報名端點、必要選單與登出, 非公開管理端點拒絕。所有已登入寫入檢查 CSRF。`GET /api/events/:id/participation-members` 驗證場次, 回傳 uid／name／primaryProfessionId／secondaryProfessionId／isInGuild／isInClub, 不含歷史與備註。
+後端依目前場次類型檢查, GET／POST／PATCH participation 與 POST／DELETE registrations 均保護幫戰／龍虎戰, 不因使用舊介面繞過。member 允許報名端點、必要選單、登出，以及 GET 戰績清單／詳情／附件及個人分析；其他管理端點拒絕。所有已登入寫入檢查 CSRF。`GET /api/events/:id/participation-members` 驗證場次, 回傳 uid／name／primaryProfessionId／secondaryProfessionId／isInGuild／isInClub, 不含歷史與備註。
 
 名單選人傳送可選 memberUid；同一交易檢查 UID、姓名與目前幫派／俱樂部狀態, 同名仍可指定人員, 過期名單拒絕。不傳 memberUid 時維持原姓名比對, 舊 requestId 的 input_json 不變；新引用包含於重試比對, 不修改名冊或排表快照。GAS 只有尚未串接的選人介面。
 
@@ -140,10 +140,16 @@ member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admi
 
 ## 個人戰績
 
-成員清單（含編外人員）提供「查看數據」；戰績閱覽中已關聯的人名可開啟 `#/member-records/:uid`，僅 admin／manager 可使用。UID 只作路由及內部引用，頁面、名稱、標籤與 title 不顯示。未關聯人名保持純文字。
+成員清單（含編外人員）提供「查看數據」；戰績閱覽中已關聯的人名可開啟 `#/member-records/:uid`，已登入 member／manager／admin 均可使用。UID 只作路由及內部引用，頁面、名稱、標籤與 title 不顯示。未關聯人名保持純文字。
 
 戰績上傳的同一交易以當時名冊現在名稱精確比對，包含編外；唯一符合才保存 UID，不以職業、敵我、過去名稱或模糊搜尋推測。同名／未知名稱不關聯。`battle_player_links(record_id, player_index, member_uid)` 使用外鍵、逐列唯一索引及 member_uid 查詢索引，保留不可變的 players_json、原始 CSV、requestId／content_hash；詳情回應在讀取時加入 memberUid。改名、移至編外及重啟不改關聯。既有未關聯戰績不回填，重試返回原關聯，不因名冊變動重新比對。
 
 `GET /api/members/:uid/battle-records?page=1` 回傳現在名稱／職業、全部已關聯參戰的統計，以及每頁 20 筆最新優先明細。包含保存的場次類型、日期、場序、當時姓名／職業、陣營、對手與十二欄數據，點日期可回對戰詳情。無資料、找不到成員、載入／失敗／重試均有提示，直接連結登入後保留目標。
 
 個人統計提供參戰場數、勝／敗／內推或未判定場數、十項合計、每筆平均及一命貢獻。平均僅使用各欄已知數值；一命貢獻使用有該欄數值及重傷的紀錄合計，除以這些紀錄各筆 max(重傷, 1) 的總和；重傷欄仍保留合計。缺值顯示 — 並標示缺少筆數，不當作 0。不依隊名或其他數據推測勝敗，內推及結果未填不計勝敗。同場重複玩家列均保留且場數只計一次；兩邊結果衝突時歸未判定。明細可切總計／一命，資源維持最右。統計涵蓋全部紀錄，不受明細分頁影響。GAS `getMemberBattleRecords` 尚未串接，未部署或寫入試算表。
+
+## 成員戰績閱覽權限
+
+已登入 member／manager／admin 可使用戰績清單、對戰詳情、原始 CSV／既有附件下載及個人數據分析。member 的導覽顯示行事曆與戰績閱覽，從對戰表格點已關聯人名可開啟個人頁；完整名冊及其他管理功能仍只供 admin／manager。共用 member 通行密碼不綁遊戲 UID，因此可查看所有已關聯成員的數據，不限制為本人。匿名不可讀，member 不可上傳／修改戰績、名冊、活動、排表或帳號。後端只放行明確的 GET 路徑，不以 URL 前綴放寬寫入。
+
+右上登入視窗包含「成員登入」「管理者登入」兩個 tab；前者只填 admin 發行的通行密碼（英數 6–128 字），後者沿用 Manager／Admin 帳號密碼。直接開啟戰績／個人分析連結時預選成員登入，成功後保留原目標；切換 tab 清除密碼及登入錯誤。

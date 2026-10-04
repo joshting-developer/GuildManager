@@ -35,7 +35,7 @@ const navigation = [
   { page: 'events', label: '活動安排', icon: mdiCalendarMonthOutline },
   { page: 'lineups', label: '戰場排表', icon: mdiSwordCross },
   { page: 'battle-upload', label: '戰績上傳', icon: mdiFileUploadOutline },
-  { page: 'battle-records', label: '戰績閱覽', icon: mdiChartBoxOutline },
+  { page: 'battle-records', signedIn: true, label: '戰績閱覽', icon: mdiChartBoxOutline },
   { page: 'admin', label: '帳號管理', icon: mdiAccountCogOutline, adminOnly: true },
 ];
 const mobileMenu = ref(false);
@@ -48,10 +48,12 @@ provide('openBattleUpload', (eventId) => {
 });
 const user = ref(null);
 const canManage = computed(() => ['admin', 'manager'].includes(user.value?.role));
+const canReadBattles = computed(() => ['admin', 'manager', 'member'].includes(user.value?.role));
+const memberCanVisit = (page) => ['home', 'battle-records', 'member-records'].includes(page);
 const visibleNavigation = computed(() =>
   navigation.filter(
     (item) =>
-      (item.page === 'home' || canManage.value) &&
+      (item.page === 'home' || canManage.value || (item.signedIn && canReadBattles.value)) &&
       (!item.adminOnly || user.value?.role === 'admin'),
   ),
 );
@@ -65,7 +67,7 @@ provide('calendarAuth', { user, loading: authLoading, login: calendarLogin });
 let expiryTimer;
 let disposed = false;
 let loginOrigin;
-let requestedPage = '';
+const requestedPage = ref('');
 let requestedDetailId = null;
 let sessionVersion = 0;
 provide('registerNavigationGuard', (guard) => {
@@ -101,7 +103,7 @@ function returnHome() {
   window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#/`);
 }
 function openLogin(page = 'magament', recordId = null) {
-  requestedPage = page;
+  requestedPage.value = page;
   requestedDetailId = recordId;
   loginOrigin = document.activeElement;
   loginError.value = '';
@@ -120,8 +122,8 @@ function syncView() {
     window.location.hash = view.value === 'home' ? '/' : `/${view.value}`;
     return;
   }
-  if (next !== 'home' && user.value?.role === 'member') {
-    authNotice.value = 'member 帳號只能使用行事曆報名功能';
+  if (!memberCanVisit(next) && user.value?.role === 'member') {
+    authNotice.value = 'member 登入可使用行事曆與戰績閱覽，管理操作需要管理者帳號';
     returnHome();
     return;
   }
@@ -139,8 +141,8 @@ function syncView() {
 function navigate(page) {
   const target = navigation.some((item) => item.page === page) ? page : 'home';
   if (target !== 'home' && !user.value) return openLogin(target);
-  if (target !== 'home' && user.value?.role === 'member') {
-    authNotice.value = 'member 帳號只能使用行事曆報名功能';
+  if (!memberCanVisit(target) && user.value?.role === 'member') {
+    authNotice.value = 'member 登入可使用行事曆與戰績閱覽，管理操作需要管理者帳號';
     returnHome();
     return;
   }
@@ -164,7 +166,7 @@ function applySession(session) {
 function expireSession() {
   if (!user.value) return;
   sessionVersion++;
-  requestedPage = view.value === 'home' ? 'magament' : view.value;
+  requestedPage.value = view.value === 'home' ? 'magament' : view.value;
   const recordId = detailId.value;
   user.value = null;
   setCsrfToken('');
@@ -173,9 +175,9 @@ function expireSession() {
     authNotice.value = '登入已到期, 請重新登入後繼續報名';
     return;
   }
-  authNotice.value = '登入已到期, 請重新登入後繼續管理';
+  authNotice.value = '登入已到期, 請重新登入後繼續操作';
   returnHome();
-  openLogin(requestedPage, recordId);
+  openLogin(requestedPage.value, recordId);
 }
 async function calendarLogin(input) {
   sessionVersion++;
@@ -207,8 +209,8 @@ async function restoreSession() {
         returnHome();
         openLogin(target, detailId.value);
       }
-      if (view.value !== 'home' && user.value?.role === 'member') {
-        authNotice.value = 'member 帳號只能使用行事曆報名功能';
+      if (!memberCanVisit(view.value) && user.value?.role === 'member') {
+        authNotice.value = 'member 登入可使用行事曆與戰績閱覽，管理操作需要管理者帳號';
         returnHome();
       }
       if (view.value === 'admin' && user.value && user.value.role !== 'admin') {
@@ -223,14 +225,22 @@ async function login(input) {
   authBusy.value = true;
   loginError.value = '';
   try {
-    const session = await authClient.login(input);
+    const session =
+      input.mode === 'member'
+        ? await authClient.loginMember({ password: input.password })
+        : await authClient.login({ username: input.username, password: input.password });
     applySession(session);
     authError.value = '';
     authNotice.value = '';
     loginOpen.value = false;
-    if (['battle-records', 'member-records'].includes(requestedPage) && requestedDetailId) {
-      window.location.hash = `/${requestedPage}/${encodeURIComponent(requestedDetailId)}`;
-    } else navigate(requestedPage || 'magament');
+    if (['battle-records', 'member-records'].includes(requestedPage.value) && requestedDetailId) {
+      window.location.hash = `/${requestedPage.value}/${encodeURIComponent(requestedDetailId)}`;
+    } else
+      navigate(
+        input.mode === 'member' && requestedPage.value === 'magament'
+          ? 'battle-records'
+          : requestedPage.value || 'magament',
+      );
   } catch (error) {
     loginError.value = error.message;
   } finally {
@@ -292,7 +302,7 @@ function skipToMain() {
         <nav class="desktop-nav" aria-label="主要導覽">
           <template v-for="item in visibleNavigation" :key="item.page">
             <button
-              v-if="(item.page === 'home' || canManage) && !item.adminOnly"
+              v-if="!item.adminOnly"
               type="button"
               :class="{ 'nav-current': view === item.page }"
               :aria-current="view === item.page ? 'page' : undefined"
@@ -381,6 +391,15 @@ function skipToMain() {
         type="heading, paragraph, article"
         aria-label="確認登入狀態中"
       />
+      <BattleRecordsPage
+        v-else-if="canReadBattles && view === 'battle-records'"
+        :record-id="detailId"
+      />
+      <MemberBattleRecordsPage
+        v-else-if="canReadBattles && view === 'member-records' && detailId"
+        :key="detailId"
+        :member-uid="detailId"
+      />
       <template v-else-if="canManage">
         <HomePage v-if="view === 'magament'" @open-page="navigate" />
         <MembersPage v-else-if="view === 'members'" />
@@ -389,12 +408,6 @@ function skipToMain() {
         <BattleUploadPage
           v-else-if="view === 'battle-upload'"
           :initial-event-id="battleUploadEventId"
-        />
-        <BattleRecordsPage v-else-if="view === 'battle-records'" :record-id="detailId" />
-        <MemberBattleRecordsPage
-          v-else-if="view === 'member-records' && detailId"
-          :key="detailId"
-          :member-uid="detailId"
         />
         <AdminPage v-else-if="view === 'admin' && user.role === 'admin'" />
       </template>
@@ -406,9 +419,13 @@ function skipToMain() {
     <LoginDialog
       v-model="loginOpen"
       :source="source"
+      :initial-mode="
+        ['battle-records', 'member-records'].includes(requestedPage) ? 'member' : 'manager'
+      "
       :busy="authBusy"
       :error="loginError"
       @login="login"
+      @mode-change="loginError = ''"
       @closed="restoreLoginFocus"
     />
   </v-app>

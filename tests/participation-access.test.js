@@ -151,7 +151,7 @@ test('member can use both roster categories, register and leave with CSRF, never
         code('PARTICIPATION_NOT_FOUND'),
       );
     }
-    for (const path of ['/members', '/lineups', '/admin/accounts', '/battle-records'])
+    for (const path of ['/members', '/lineups', '/admin/accounts'])
       assert.equal((await f.request(path, 'GET', undefined, headers)).status, 403);
     await f.repo.setMemberToken(f.admin.id, {
       password: '654321',

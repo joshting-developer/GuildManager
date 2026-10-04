@@ -187,7 +187,7 @@ test('personal analysis preserves missing values and unknown results; same battl
   assert.equal(summarizePersonalBattles([]).battleCount, 0);
 });
 
-test('personal API and adapter reject anonymous/member access, support manager and surface GAS failure', async () => {
+test('personal API and adapter reject anonymous access, support member and manager and surface GAS failure', async () => {
   const repo = createRepository({ filename: ':memory:' });
   const member = add(repo, '001', '空城');
   upload(repo);
@@ -216,7 +216,7 @@ test('personal API and adapter reject anonymous/member access, support manager a
           headers: { Cookie: response.headers.get('set-cookie').split(';')[0] },
         })
       ).status,
-      403,
+      200,
     );
     const manager = await repo.createManager(admin.id, {
       username: 'manager',

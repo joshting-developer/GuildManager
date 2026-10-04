@@ -14,6 +14,13 @@ function cookieOptions() {
     path: '/api',
   };
 }
+function battleReadRequest(request) {
+  return (
+    request.method === 'GET' &&
+    (/^\/battle-records(?:\/[^/]+(?:\/attachments\/(?:csv|image))?)?$/.test(request.path) ||
+      /^\/members\/[^/]+\/battle-records$/.test(request.path))
+  );
+}
 function publicRequest(request, repository) {
   const path = request.path;
   if (
@@ -21,7 +28,8 @@ function publicRequest(request, repository) {
     ['/health', '/auth/session', '/events', '/professions'].includes(path)
   )
     return true;
-  if (request.method === 'POST' && ['/auth/login', '/auth/member-login'].includes(path)) return true;
+  if (request.method === 'POST' && ['/auth/login', '/auth/member-login'].includes(path))
+    return true;
   const participation = path.match(
     /^\/events\/([^/]+)\/(participation|participation-members|registrations(?:\/[^/]+)?)$/,
   );
@@ -63,16 +71,23 @@ export function installAuth(app, repository, { now = Date.now } = {}) {
           'AUTH_REQUIRED',
           request.participationLoginRequired
             ? '請先登入帳號後再報名或請假'
-            : '請先登入後再使用管理功能',
+            : '請先登入後再使用此功能',
         ),
       );
     if (
       request.auth.user.role === 'member' &&
       request.path !== '/auth/logout' &&
       !request.participationAccess &&
-      request.path !== '/calendar/members'
+      request.path !== '/calendar/members' &&
+      !battleReadRequest(request)
     )
-      return next(new AuthError(403, 'MANAGEMENT_REQUIRED', 'member 帳號只能使用行事曆報名功能'));
+      return next(
+        new AuthError(
+          403,
+          'MANAGEMENT_REQUIRED',
+          'member 登入可使用行事曆與戰績閱覽，管理操作需要管理者帳號',
+        ),
+      );
     if (request.path.startsWith('/admin') && request.auth.user.role !== 'admin')
       return next(new AuthError(403, 'ADMIN_REQUIRED', '只有 admin 可以管理帳號'));
     if (
@@ -105,7 +120,9 @@ export function installAuth(app, repository, { now = Date.now } = {}) {
     const attempt = previous || { count: 0, until: now() + 5 * 60 * 1000 };
     attempt.count += 1;
     failures.set(key, attempt);
-    const session = await (memberLogin ? repository.authenticateMember(request.body) : repository.authenticate(request.body));
+    const session = await (memberLogin
+      ? repository.authenticateMember(request.body)
+      : repository.authenticate(request.body));
     failures.delete(key);
     repository.revokeSession(request.sessionToken);
     response.cookie(COOKIE_NAME, session.token, {

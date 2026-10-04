@@ -74,7 +74,7 @@ export function createGasAuth(
     if (!roles.includes(current.user.role))
       fail(
         roles.length === 1 ? 'ADMIN_REQUIRED' : 'MANAGEMENT_REQUIRED',
-        roles.length === 1 ? '只有 admin 可以管理帳號' : '此登入只能使用行事曆報名功能',
+        roles.length === 1 ? '只有 admin 可以管理帳號' : 'member 登入可使用行事曆與戰績閱覽，管理操作需要管理者帳號',
       );
     return current.user;
   }

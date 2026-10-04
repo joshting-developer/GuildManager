@@ -1,8 +1,16 @@
 <script setup>
 import { ref, watch, nextTick } from 'vue';
 import { mdiClose, mdiLogin } from '@mdi/js';
-const props = defineProps({ modelValue: Boolean, busy: Boolean, error: String, source: String });
-const emit = defineEmits(['update:modelValue', 'login', 'closed']);
+const props = defineProps({
+  modelValue: Boolean,
+  busy: Boolean,
+  error: String,
+  source: String,
+  initialMode: { type: String, default: 'manager' },
+});
+const emit = defineEmits(['update:modelValue', 'login', 'closed', 'mode-change']);
+const mode = ref('manager');
+const passwordField = ref(null);
 const username = ref('');
 const password = ref('');
 const usernameField = ref(null);
@@ -11,17 +19,29 @@ watch(
   async (open) => {
     password.value = '';
     if (open) {
+      mode.value = props.initialMode;
       await nextTick();
-      usernameField.value?.focus();
+      (mode.value === 'member' ? passwordField.value : usernameField.value)?.focus();
     }
   },
 );
+watch(mode, async () => {
+  password.value = '';
+  emit('mode-change');
+  await nextTick();
+  (mode.value === 'member' ? passwordField.value : usernameField.value)?.focus();
+});
 function close() {
   if (!props.busy) emit('update:modelValue', false);
 }
 function submit() {
-  if (!props.busy && username.value.trim() && password.value) {
-    emit('login', { username: username.value.trim(), password: password.value });
+  if (!props.busy && (mode.value === 'member' || username.value.trim()) && password.value) {
+    emit(
+      'login',
+      mode.value === 'member'
+        ? { mode: 'member', password: password.value }
+        : { mode: 'manager', username: username.value.trim(), password: password.value },
+    );
   }
 }
 </script>
@@ -39,7 +59,7 @@ function submit() {
       <div class="login-heading">
         <div>
           <h2 id="login-title">登入幫會平台</h2>
-          <p>使用帳號登入管理或報名功能</p>
+          <p>{{ mode === 'member' ? '輸入通行密碼，使用報名與戰績閱覽' : '使用管理者帳號登入' }}</p>
         </div>
         <v-btn
           variant="text"
@@ -49,11 +69,13 @@ function submit() {
           @click="close"
         />
       </div>
-      <v-alert v-if="source === 'gas'" type="info" variant="tonal" class="mb-4"
-        >Google 登入尚未設定, 請先使用本機開發環境</v-alert
-      >
-      <form v-else @submit.prevent="submit">
+      <v-tabs v-model="mode" color="primary" class="mb-4" :disabled="busy" aria-label="登入方式">
+        <v-tab value="member" :disabled="busy">成員登入</v-tab>
+        <v-tab value="manager" :disabled="busy">管理者登入</v-tab>
+      </v-tabs>
+      <form @submit.prevent="submit">
         <v-text-field
+          v-if="mode === 'manager'"
           ref="usernameField"
           v-model="username"
           label="帳號"
@@ -64,8 +86,9 @@ function submit() {
           required
         />
         <v-text-field
+          ref="passwordField"
           v-model="password"
-          label="密碼"
+          :label="mode === 'member' ? '通行密碼' : '密碼'"
           name="password"
           type="password"
           autocomplete="current-password"
@@ -82,7 +105,7 @@ function submit() {
           :prepend-icon="mdiLogin"
           :loading="busy"
           block
-          :disabled="!username.trim() || !password"
+          :disabled="(mode === 'manager' && !username.trim()) || !password"
           >登入</v-btn
         >
       </form>
