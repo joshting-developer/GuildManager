@@ -1,20 +1,54 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { mdiRefresh, mdiOpenInNew } from '@mdi/js';
+import { mdiRefresh, mdiDownload } from '@mdi/js';
 import { createEventClient } from '../api/events.js';
 import { createEventVideoClient } from '../api/event-videos.js';
 import { eventDisplayTitle, eventTypeLabel } from '../domain/event-types.js';
 import { VIDEO_GROUPS } from '../domain/event-videos.js';
+import { VIDEO_TABLE_HEADERS, videoTableRow, videoTableCsv } from '../domain/video-table-csv.js';
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 const eventClient = createEventClient({ source });
 const videoClient = createEventVideoClient({ source });
 const events = ref([]),
   eventId = ref(null),
   videos = ref([]);
-const round = ref(1),
-  group = ref(null);
+const group = ref(null),
+  search = ref('');
 const loading = ref(false),
-  error = ref('');
+  error = ref(''),
+  exportError = ref('');
+const downloads = new Map();
+function exportCsv() {
+  if (loading.value || error.value || !visibleVideos.value.length) return;
+  exportError.value = '';
+  let url, link;
+  try {
+    const event = events.value.find((item) => item.id === eventId.value);
+    const title = eventDisplayTitle(event)
+      .replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_')
+      .slice(0, 64);
+    url = URL.createObjectURL(
+      new Blob([videoTableCsv(visibleVideos.value)], { type: 'text/csv;charset=utf-8' }),
+    );
+    link = document.createElement('a');
+    link.href = url;
+    link.download = `${event.dates[0]}_${title}_影片.csv`;
+    document.body.append(link);
+    link.click();
+    downloads.set(
+      url,
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+        downloads.delete(url);
+      }, 1000),
+    );
+  } catch {
+    if (url) URL.revokeObjectURL(url);
+    exportError.value = '無法匯出 CSV，請重試';
+  } finally {
+    link?.remove();
+  }
+}
 let disposed = false,
   token = 0;
 const options = computed(() =>
@@ -26,13 +60,15 @@ const options = computed(() =>
 const visibleVideos = computed(() =>
   videos.value.filter(
     (video) =>
-      video.roundNumber === round.value && (!group.value || video.groupName === group.value),
+      (!group.value || video.groupName === group.value) &&
+      video.name.toLocaleLowerCase().includes((search.value || '').trim().toLocaleLowerCase()),
   ),
 );
 async function loadVideos() {
   const current = ++token;
   videos.value = [];
   error.value = '';
+  exportError.value = '';
   if (!eventId.value) {
     loading.value = false;
     return;
@@ -72,14 +108,19 @@ async function load() {
   }
 }
 watch(eventId, () => {
-  round.value = 1;
   group.value = null;
+  search.value = '';
   loadVideos();
 });
 onMounted(load);
 onUnmounted(() => {
   disposed = true;
   token++;
+  for (const [url, timer] of downloads) {
+    clearTimeout(timer);
+    URL.revokeObjectURL(url);
+  }
+  downloads.clear();
 });
 </script>
 
@@ -108,23 +149,27 @@ onUnmounted(() => {
   <v-card class="videos-card" :aria-busy="loading">
     <div class="section-header">
       <h2>場次影片</h2>
-      <span v-if="!loading && !error" class="videos-muted">{{ visibleVideos.length }} 部</span>
+      <div class="video-table-actions">
+        <span v-if="!loading && !error" class="videos-muted">{{ visibleVideos.length }} 筆</span>
+        <v-btn
+          variant="outlined"
+          :prepend-icon="mdiDownload"
+          :disabled="loading || !!error || !visibleVideos.length"
+          @click="exportCsv"
+          >匯出 CSV</v-btn
+        >
+      </div>
     </div>
-    <v-tabs v-model="round" color="primary" aria-label="影片閱覽場序">
-      <v-tab
-        v-for="number in [1, 2]"
-        :key="number"
-        :value="number"
-        :id="`videos-round-${number}-tab`"
-        :aria-controls="`videos-round-${number}-panel`"
-        >{{ number === 1 ? '第一場' : '第二場' }}</v-tab
-      >
-    </v-tabs>
-    <div
-      :id="`videos-round-${round}-panel`"
-      role="tabpanel"
-      :aria-labelledby="`videos-round-${round}-tab`"
-    >
+    <div class="video-filters">
+      <v-text-field
+        v-model="search"
+        label="搜尋角色名稱"
+        variant="outlined"
+        density="compact"
+        hide-details
+        clearable
+        @click:clear="search = ''"
+      />
       <v-select
         v-model="group"
         :items="[
@@ -135,37 +180,46 @@ onUnmounted(() => {
         variant="outlined"
         density="compact"
         hide-details
-        class="video-group-filter"
       />
-      <p v-if="loading" role="status" class="videos-state">正在載入影片…</p>
-      <v-alert v-else-if="error" type="error" variant="tonal" role="alert"
-        >{{ error }} <v-btn variant="text" @click="load">重試</v-btn></v-alert
-      >
-      <p v-else-if="!eventId" class="videos-state">尚無戰鬥場次，請先建立活動安排</p>
-      <p v-else-if="!visibleVideos.length" class="videos-state">
-        {{ group ? '這個團別尚無影片' : '本場尚無影片' }}
-      </p>
-      <ul v-else class="videos-list" aria-label="已上傳的影片連結">
-        <li v-for="video in visibleVideos" :key="video.id">
-          <div class="video-info">
-            <strong>{{ video.name }}</strong
-            ><v-chip size="small" variant="tonal" color="primary">{{ video.groupName }}</v-chip>
-            <a :href="video.url" target="_blank" rel="noopener noreferrer" class="video-url">{{
-              video.url
-            }}</a>
-          </div>
-          <v-btn
-            :href="video.url"
-            target="_blank"
-            rel="noopener noreferrer"
-            variant="outlined"
-            color="primary"
-            :append-icon="mdiOpenInNew"
-            :aria-label="`開啟 ${video.name} 的影片`"
-            >開啟影片</v-btn
-          >
-        </li>
-      </ul>
+    </div>
+    <v-alert v-if="exportError" type="error" variant="tonal" role="alert" class="mb-4">{{
+      exportError
+    }}</v-alert>
+    <p v-if="loading" role="status" class="videos-state">正在載入影片…</p>
+    <v-alert v-else-if="error" type="error" variant="tonal" role="alert"
+      >{{ error }} <v-btn variant="text" @click="load">重試</v-btn></v-alert
+    >
+    <p v-else-if="!eventId" class="videos-state">尚無戰鬥場次，請先建立活動安排</p>
+    <p v-else-if="!videos.length" class="videos-state">本場尚無影片</p>
+    <p v-else-if="!visibleVideos.length" class="videos-state">沒有符合篩選條件的影片</p>
+    <div
+      v-else
+      class="videos-table-scroll"
+      tabindex="0"
+      role="region"
+      aria-label="場次影片表格，可左右捲動"
+    >
+      <table class="videos-table">
+        <caption class="sr-only">
+          本場影片提交紀錄，網址以文字呈現，可選取複製
+        </caption>
+        <thead>
+          <tr>
+            <th v-for="header in VIDEO_TABLE_HEADERS" :key="header" scope="col">{{ header }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="video in visibleVideos" :key="video.id">
+            <td
+              v-for="(value, index) in videoTableRow(video)"
+              :key="index"
+              :class="{ 'video-url': index === 1 || index === 2, 'video-note': index === 4 }"
+            >
+              {{ value }}
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </v-card>
 </template>
@@ -182,52 +236,68 @@ onUnmounted(() => {
 .videos-state {
   padding: 24px 0;
 }
-.video-group-filter {
-  max-width: 240px;
+.video-table-actions {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.video-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: 16px;
   margin: 20px 0;
 }
-.videos-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  gap: 12px;
-}
-.videos-list li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 16px;
+.videos-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
   border: 1px solid var(--color-border);
   border-radius: 16px;
 }
-.video-info {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+.videos-table {
+  width: 100%;
+  min-width: 760px;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 14px;
 }
-.video-info strong {
+.videos-table th,
+.videos-table td {
+  padding: 14px 16px;
+  text-align: left;
+  vertical-align: top;
   overflow-wrap: anywhere;
+}
+.videos-table th {
+  background: #f8fafc;
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+.videos-table td {
+  border-top: 1px solid var(--color-border);
+}
+.videos-table th:first-child {
+  width: 16%;
+}
+.videos-table th:nth-child(2),
+.videos-table th:nth-child(3) {
+  width: 24%;
+}
+.videos-table th:nth-child(4) {
+  width: 12%;
+}
+.video-note {
+  white-space: pre-wrap;
 }
 .video-url {
-  flex-basis: 100%;
-  color: var(--color-text-muted);
-  overflow-wrap: anywhere;
-  font-size: 13px;
+  user-select: text;
 }
 @media (max-width: 600px) {
   .videos-card {
     padding: 16px;
   }
-  .videos-list li {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-  .video-info {
-    width: 100%;
+  .video-filters {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 </style>

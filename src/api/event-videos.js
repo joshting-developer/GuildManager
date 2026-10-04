@@ -41,12 +41,12 @@ export function createEventVideoClient({ source = 'local', fetchImpl = sessionFe
         typeof video.id !== 'string' ||
         !video.id ||
         (input &&
-          ['name', 'url', 'roundNumber', 'groupName'].some(
+          ['name', 'firstUrl', 'secondUrl', 'groupName', 'note'].some(
             (field) => video[field] !== input[field],
           ))
       )
         throw new Error('影片資料回應格式不正確，請重試');
-      validateVideoDetails(video);
+      validateVideoDetails(video, { allowMissingGroup: !input });
     }
     return data;
   }

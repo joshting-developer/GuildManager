@@ -7,22 +7,23 @@ export class EventVideoError extends Error {
     this.fields = fields;
   }
 }
-function text(value, label, max, field) {
+function text(value, label, max, field, required = true, multiline = false) {
   if (
     typeof value !== 'string' ||
-    !value.trim() ||
+    (required && !value.trim()) ||
     value.length > max ||
-    /[\u0000-\u001f\u007f]/.test(value)
+    (multiline ? /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/ : /[\u0000-\u001f\u007f]/).test(
+      value,
+    )
   )
-    throw new EventVideoError(`請填寫${label}，最多 ${max} 字`, 422, 'VIDEO_INVALID', {
-      [field]: `請填寫${label}，最多 ${max} 字`,
+    throw new EventVideoError(`${label}格式不正確，最多 ${max} 字`, 422, 'VIDEO_INVALID', {
+      [field]: `${label}格式不正確，最多 ${max} 字`,
     });
   return value.trim();
 }
-export function validateVideoDetails(input) {
-  if (!input || typeof input !== 'object') throw new EventVideoError('影片資料格式不正確');
-  const name = text(input.name, '名稱', 64, 'name');
-  const url = text(input.url, '影片網址', 2048, 'url');
+function videoUrl(value, field, label) {
+  const url = text(value ?? '', label, 2048, field, false);
+  if (!url) return '';
   try {
     const parsed = new URL(url);
     if (
@@ -33,14 +34,26 @@ export function validateVideoDetails(input) {
     )
       throw new Error();
   } catch {
-    throw new EventVideoError('請填寫完整的 http／https 影片網址', 422, 'VIDEO_INVALID', {
-      url: '請填寫完整的 http／https 影片網址',
+    throw new EventVideoError(`請填寫完整的 http／https ${label}`, 422, 'VIDEO_INVALID', {
+      [field]: '請填寫完整的 http／https 網址',
     });
   }
-  if (![1, 2].includes(input.roundNumber)) throw new EventVideoError('請選擇第一場或第二場');
-  if (!VIDEO_GROUPS.includes(input.groupName))
+  return url;
+}
+export function validateVideoDetails(input, { allowMissingGroup = false } = {}) {
+  if (!input || typeof input !== 'object') throw new EventVideoError('影片資料格式不正確');
+  const name = text(input.name, '角色名稱', 64, 'name');
+  const firstUrl = videoUrl(input.firstUrl, 'firstUrl', '第一場網址');
+  const secondUrl = videoUrl(input.secondUrl, 'secondUrl', '第二場網址');
+  const note = text(input.note ?? '', '備註', 500, 'note', false, true);
+  if (!firstUrl && !secondUrl)
+    throw new EventVideoError('請至少填寫一個場次的影片網址', 422, 'VIDEO_INVALID', {
+      firstUrl: '兩場網址至少填寫一個',
+      secondUrl: '兩場網址至少填寫一個',
+    });
+  if (!VIDEO_GROUPS.includes(input.groupName) && !(allowMissingGroup && input.groupName == null))
     throw new EventVideoError('請選擇團別', 422, 'VIDEO_INVALID', { groupName: '請選擇團別' });
-  return { name, url, roundNumber: input.roundNumber, groupName: input.groupName };
+  return { name, firstUrl, secondUrl, groupName: input.groupName ?? null, note };
 }
 export function validateVideoSubmission(input) {
   const details = validateVideoDetails(input);

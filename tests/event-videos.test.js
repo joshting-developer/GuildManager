@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import Database from 'better-sqlite3';
 import { createRepository } from '../server/repository.js';
 import { createApp } from '../server/app.js';
 import { createEventVideoClient } from '../src/api/event-videos.js';
@@ -10,9 +11,10 @@ import { createEventVideoClient } from '../src/api/event-videos.js';
 const code = (value) => (error) => error.code === value;
 const video = (event, extra = {}) => ({
   name: '空城',
-  url: 'https://www.youtube.com/watch?v=example',
+  firstUrl: 'https://www.youtube.com/watch?v=example',
+  secondUrl: '',
+  note: '',
   groupName: '進攻一',
-  roundNumber: 1,
   eventRevision: event.revision,
   requestId: crypto.randomUUID(),
   ...extra,
@@ -25,7 +27,7 @@ function setup(filename = ':memory:') {
   return { repo, events };
 }
 
-test('videos persist per event/round; duplicate content and request retries do not add rows', () => {
+test('submissions persist paired URLs/notes; repeated names create records but request retries do not', () => {
   const dir = mkdtempSync(join(tmpdir(), 'guild-videos-'));
   const filename = join(dir, 'test.sqlite');
   let { repo, events } = setup(filename);
@@ -33,20 +35,31 @@ test('videos persist per event/round; duplicate content and request retries do n
     const input = video(events[0]);
     const saved = repo.submitEventVideo(events[0].id, input);
     assert.deepEqual(repo.submitEventVideo(events[0].id, input), saved);
-    assert.deepEqual(
-      repo.submitEventVideo(events[0].id, { ...input, requestId: 'new-click' }),
-      saved,
-    );
+    const repeated = repo.submitEventVideo(events[0].id, { ...input, requestId: 'new-click' });
+    assert.notEqual(repeated.video.id, saved.video.id);
     assert.throws(
       () => repo.submitEventVideo(events[0].id, { ...input, name: '另一位' }),
       code('REQUEST_CONFLICT'),
     );
     assert.throws(() => repo.submitEventVideo(events[1].id, input), code('REQUEST_CONFLICT'));
     for (const event of events.slice(0, 3))
-      repo.submitEventVideo(event.id, video(event, { roundNumber: 2, groupName: '防守團' }));
-    assert.equal(repo.listEventVideos(events[0].id).videos.length, 2);
+      repo.submitEventVideo(
+        event.id,
+        video(event, {
+          firstUrl: '',
+          secondUrl: 'https://example.com/second',
+          groupName: '防守團',
+          note: '第二場\n備註',
+        }),
+      );
+    assert.equal(repo.listEventVideos(events[0].id).videos.length, 3);
     assert.equal(repo.listEventVideos(events[1].id).videos.length, 1);
-    assert.equal(repo.listEventVideos(events[2].id).videos[0].roundNumber, 2);
+    assert.equal(repo.listEventVideos(events[2].id).videos[0].firstUrl, '');
+    assert.equal(
+      repo.listEventVideos(events[2].id).videos[0].secondUrl,
+      'https://example.com/second',
+    );
+    assert.equal(repo.listEventVideos(events[2].id).videos[0].note, '第二場\n備註');
     assert.equal(repo.listMembers().members.length, 0);
     repo.close();
     repo = createRepository({ filename });
@@ -66,18 +79,23 @@ test('reject malformed links, fields, unavailable events and stale versions with
   const event = events[0];
   try {
     for (const extra of [
-      { url: 'javascript:alert(1)' },
-      { url: 'data:text/html,test' },
-      { url: 'ftp://example.com/video' },
-      { url: 'youtube.com/test' },
-      { url: 'https://user:secret@example.com/video' },
-      { url: 'https://example.com/\nvideo' },
-      { url: 'https://example.com/' + 'x'.repeat(2048) },
+      { firstUrl: 'javascript:alert(1)' },
+      { firstUrl: 'data:text/html,test' },
+      { firstUrl: 'ftp://example.com/video' },
+      { firstUrl: 'youtube.com/test' },
+      { firstUrl: 'https://user:secret@example.com/video' },
+      { firstUrl: 'https://example.com/\nvideo' },
+      { firstUrl: 'https://example.com/' + 'x'.repeat(2048) },
       { name: '' },
       { name: 'x'.repeat(65) },
       { name: '\u0000' },
-      { roundNumber: 3 },
-      { roundNumber: '1' },
+      { firstUrl: '', secondUrl: '' },
+      { firstUrl: '   ', secondUrl: '   ' },
+      { secondUrl: 'javascript:alert(1)' },
+      { firstUrl: 123 },
+      { note: 'x'.repeat(501) },
+      { note: '\u0000' },
+      { groupName: null },
       { groupName: '進攻團' },
       { eventRevision: '1' },
       { requestId: '' },
@@ -188,7 +206,7 @@ test('adapter rejects unsafe saved URLs, malformed replies and GAS calls without
         eventId: 'event',
         eventRevision: 1,
         videos: [
-          { id: '1', eventId: 'event', ...video({ revision: 1 }), url: 'javascript:alert(1)' },
+          { id: '1', eventId: 'event', ...video({ revision: 1 }), firstUrl: 'javascript:alert(1)' },
         ],
       }),
     }),
@@ -204,4 +222,109 @@ test('adapter rejects unsafe saved URLs, malformed replies and GAS calls without
     fetchImpl: async () => ({ ok: true, json: async () => ({ videos: [] }) }),
   });
   await assert.rejects(broken.getVideos('event'), /格式不正確/);
+});
+
+test('one or both round URLs are saved together and validation never partially saves a submission', () => {
+  const { repo, events } = setup();
+  try {
+    const saved = repo.submitEventVideo(
+      events[0].id,
+      video(events[0], {
+        secondUrl: 'https://example.com/second',
+        note: ' 第一行\n第二行 ',
+      }),
+    );
+    assert.equal(saved.video.firstUrl, 'https://www.youtube.com/watch?v=example');
+    assert.equal(saved.video.secondUrl, 'https://example.com/second');
+    assert.equal(saved.video.note, '第一行\n第二行');
+    assert.throws(
+      () =>
+        repo.submitEventVideo(
+          events[0].id,
+          video(events[0], {
+            secondUrl: 'invalid',
+          }),
+        ),
+      code('VIDEO_INVALID'),
+    );
+    assert.equal(repo.listEventVideos(events[0].id).videos.length, 1);
+    for (const event of events.slice(0, 3)) {
+      const second = repo.submitEventVideo(
+        event.id,
+        video(event, {
+          firstUrl: '',
+          secondUrl: 'https://example.com/second-only',
+        }),
+      );
+      assert.equal(second.video.firstUrl, '');
+      assert.equal(second.video.secondUrl, 'https://example.com/second-only');
+    }
+  } finally {
+    repo.close();
+  }
+});
+
+test('legacy per-round links, groups and retry records survive the additive schema change', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'guild-videos-legacy-'));
+  const filename = join(dir, 'test.sqlite');
+  let { repo, events } = setup(filename);
+  const event = events[0];
+  try {
+    repo.close();
+    const db = new Database(filename);
+    for (const round of [1, 2])
+      db.prepare('INSERT INTO event_videos VALUES (?, ?, ?, ?, ?, ?, ?)').run(
+        'old-' + round,
+        event.id,
+        round,
+        '舊角色',
+        'https://example.com/old-' + round,
+        '防守團',
+        '2026-10-01T00:00:00.000Z',
+      );
+    db.prepare('INSERT INTO event_video_requests VALUES (?, ?, ?, ?)').run(
+      'old-request',
+      event.id,
+      'old-input',
+      'old-result',
+    );
+    // Earlier local previews may have created the paired table before recording groups.
+    db.exec(
+      'DROP TABLE event_video_submissions; CREATE TABLE event_video_submissions (id TEXT PRIMARY KEY, event_id TEXT, name TEXT, first_url TEXT, second_url TEXT, note TEXT, created_at TEXT);',
+    );
+    db.prepare('INSERT INTO event_video_submissions VALUES (?, ?, ?, ?, ?, ?, ?)').run(
+      'preview',
+      event.id,
+      '舊預覽',
+      'https://example.com/preview',
+      '',
+      '保留',
+      '2026-10-01T00:00:00.000Z',
+    );
+    db.close();
+    repo = createRepository({ filename });
+    const old = repo.listEventVideos(event.id).videos;
+    assert.equal(old.length, 3);
+    assert.equal(old.find((v) => v.id === 'old-1').firstUrl, 'https://example.com/old-1');
+    assert.equal(old.find((v) => v.id === 'old-2').secondUrl, 'https://example.com/old-2');
+    assert.equal(old.find((v) => v.id === 'old-1').groupName, '防守團');
+    assert.equal(old.find((v) => v.id === 'preview').groupName, null);
+    repo.submitEventVideo(event.id, video(event));
+    assert.equal(repo.listEventVideos(event.id).videos.length, 4);
+    const verify = new Database(filename);
+    assert.equal(verify.prepare('SELECT COUNT(*) AS count FROM event_videos').get().count, 2);
+    assert.deepEqual(
+      verify
+        .prepare('SELECT input_json, result_json FROM event_video_requests WHERE request_id = ?')
+        .get('old-request'),
+      {
+        input_json: 'old-input',
+        result_json: 'old-result',
+      },
+    );
+    verify.close();
+  } finally {
+    repo.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
