@@ -13,7 +13,7 @@
 }
 .member-filters {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) 180px 180px auto;
+  grid-template-columns: minmax(180px, 1fr) repeat(3, minmax(140px, 180px)) auto;
   align-items: center;
   gap: 16px;
   padding: 16px;
@@ -271,7 +271,7 @@
   line-height: 1.7;
 }
 .member-filters.member-filters-external {
-  grid-template-columns: minmax(180px, 1fr) 180px auto;
+  grid-template-columns: minmax(180px, 1fr) repeat(2, minmax(140px, 180px)) auto;
 }
 .member-tab-panel:focus-visible {
   outline: 3px solid var(--color-primary);

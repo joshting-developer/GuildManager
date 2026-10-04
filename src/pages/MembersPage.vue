@@ -40,6 +40,11 @@ watch(tab, () => {
   page.value = 1;
 });
 const jobFilter = ref(null);
+const secondaryJobFilter = ref(null);
+const secondaryFilterOptions = computed(() => [
+  { job_id: 'none', name: '無副職業' },
+  ...professions.value,
+]);
 const membershipFilter = ref('all');
 const membershipOptions = [
   { title: '俱樂部', value: 'club' },
@@ -57,6 +62,10 @@ const filtered = computed(() => {
           ? member.isInClub === true
           : member.isInGuild === true)) &&
       (!jobFilter.value || member.primaryProfessionId === jobFilter.value) &&
+      (secondaryJobFilter.value === null ||
+        (secondaryJobFilter.value === 'none'
+          ? member.secondaryProfessionId == null
+          : member.secondaryProfessionId === secondaryJobFilter.value)) &&
       (!query ||
         [member.uid, member.name, ...member.previousNames.map((entry) => entry.name)].some(
           (value) => value.toLocaleLowerCase().includes(query),
@@ -67,7 +76,7 @@ const pageCount = computed(() => Math.max(1, Math.ceil(filtered.value.length / p
 const visibleMembers = computed(() =>
   filtered.value.slice((page.value - 1) * pageSize, page.value * pageSize),
 );
-watch([search, jobFilter, membershipFilter], () => {
+watch([search, jobFilter, secondaryJobFilter, membershipFilter], () => {
   page.value = 1;
 });
 watch(pageCount, (count) => {
@@ -95,6 +104,7 @@ onMounted(load);
 function clearFilters() {
   search.value = '';
   jobFilter.value = null;
+  secondaryJobFilter.value = null;
   membershipFilter.value = 'all';
 }
 function jobColor(id) {
@@ -348,6 +358,17 @@ function formatDate(value) {
             clearable
           />
           <v-select
+            v-model="secondaryJobFilter"
+            :items="secondaryFilterOptions"
+            item-title="name"
+            item-value="job_id"
+            label="篩選副職業"
+            variant="outlined"
+            density="compact"
+            hide-details
+            clearable
+          />
+          <v-select
             v-if="tab === 'members'"
             v-model="membershipFilter"
             :items="membershipOptions"
@@ -358,7 +379,9 @@ function formatDate(value) {
           />
           <v-btn
             variant="text"
-            :disabled="!search && !jobFilter && membershipFilter === 'all'"
+            :disabled="
+              !search && !jobFilter && secondaryJobFilter === null && membershipFilter === 'all'
+            "
             @click="clearFilters"
             >清除篩選</v-btn
           >
