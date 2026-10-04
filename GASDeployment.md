@@ -19,7 +19,7 @@ npm run gas:push    # 編譯、備份遠端、上傳四檔、讀回比對
 
 `gas:push` 每次在 `data/gas-backups/<時間>/before` 備份遠端，再覆蓋同一專案的全部程式檔，最後於 `after` 讀回比對四檔。未登入、編譯失敗、清單不符或備份失敗時不會上傳；若上傳後的比對失敗，訊息明確指出程式可能已上傳，需檢查遠端。備份不包含 Script Properties、試算表、Drive 資料或部署設定。
 
-此命令只同步程式碼，不執行 `setupGas_()`、不寫入正式試算表、不建立或更新對外 Web App 版本。首次設定與初始化仍依下方步驟進行。[clasp 官方原始碼與使用說明](https://github.com/google/clasp)
+此命令只同步程式碼，不執行 `setupGas()`、不寫入正式試算表、不建立或更新對外 Web App 版本。首次設定與初始化仍依下方步驟進行。[clasp 官方原始碼與使用說明](https://github.com/google/clasp)
 
 目前 npm audit 的高風險提示來自開發工具共用的 micromatch／braces 模式解析依賴，尚無相容的修補版本；本專案僅以固定本機檔案模式使用，不將此 CLI 打包進 GAS 或前端。未為消除提示而降級編譯或上傳工具。
 
@@ -72,7 +72,9 @@ openssl rand -hex 32
 
 ## 3. 初始化測試資料來源
 
-在 Apps Script 編輯器選擇並執行 `setupGas_()`，授予 Sheets／Drive 權限。尾端底線使此函式無法透過瀏覽器的 `google.script.run` 呼叫。[官方通訊規則](https://developers.google.com/apps-script/guides/html/communication#private_functions)
+在 Apps Script 編輯器點選左側 `Code.gs`，重新整理後，於上方「執行」旁的函式選單選擇 `setupGas`（沒有尾端底線），按「執行」，授予 Sheets／Drive 及 Google 執行身分 email 權限。
+
+原 `setupGas_` 保留為私有實作；使用者的編輯器函式選單會略過它，因此新增可選取的 `setupGas` 入口。公開入口由 Google Session 取得 active／effective email，兩者均非空且相同才可執行；不採用前端 app 帳號、角色或參數。依本專案「以部署者身分執行」設定，一般訪客的 email 為空或不同，會在寫入前拒絕；部署者本人可執行。這是 Google 身分限制，不能視為 GAS 提供了編輯器／網頁呼叫辨識。前端不提供初始化入口，不回傳或記錄 email。[Google Session 身分規則](https://developers.google.com/apps-script/reference/base/session)
 
 初始化會建立專用工作表、九個職業、保鑣／山盟／輔潮及第一個 admin；不建立假成員或假活動，不修改原始 `gid=0` 工作表，也不覆寫已存在的成員、職責或帳號。重跑時只補缺少的表及初始資料；同名前綴工作表的欄位不符時會停止，需先確認資料來源，勿直接刪表重建。
 
@@ -147,6 +149,6 @@ CSV 原始檔及相容圖片保存在專用 Drive 資料夾，不產生公開連
 
 admin 可在「帳號管理 → 平台設定」修改左上角名稱，預設「逆水寒」，長度 1–30 個字。保存後即時更新頂欄、頁尾及網頁標題；不修改 `GUILD_NAME` 或戰績快照。匿名／member／manager 可讀取名稱，但無法修改。
 
-設定保存於新增的 `GM_settings` 工作表，格式沿用提交日誌。更新舊 GAS 專案時，同步四檔並先於編輯器重跑 `setupGas_()` 補上此表，再更新部署版本；重跑保留既有資料與平台名稱。本機設定獨立存於 SQLite `platform_settings`。
+設定保存於新增的 `GM_settings` 工作表，格式沿用提交日誌。更新舊 GAS 專案時，同步四檔並先於編輯器重跑 `setupGas()` 補上此表，再更新部署版本；重跑保留既有資料與平台名稱。本機設定獨立存於 SQLite `platform_settings`。
 
 admin 可於同一頁保存 PNG／JPEG／WebP 平台圖示（最多 256 KB）。GAS 將圖片寫入 `DRIVE_FOLDER_ID` 的私人資料夾，`GM_settings` 僅保存引用；公開設定回傳目前圖示內容的 data URL，不公開 Drive ID 或分享連結。名稱與圖片引用採同一提交，重試相同成功結果不建立新檔。替換／移除時舊檔保留，Drive 成功但 Sheets 失敗可能留下未引用私檔，備份及日後清理需涵蓋這些檔案。真實 Drive 授權、讀取速度與配額仍須測試部署驗證。

@@ -284,7 +284,7 @@ member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admi
 
 2026/10/05 已實際上傳四檔並讀回比對一致；第一次上傳檢出依賴 class 欄位的 Google ParseError，後端改以 gas/build-options.js 的 ES2019 目標降階並補缺少 Object.hasOwn 的相容實作，沙盒同步該目標且移除新式 helper。遠端僅完成程式語法檢查／同步，尚未初始化或發布 Web App。
 
-已完成全部既有 RPC 的 GAS 來源及單檔打包，初始化／部署見 [GASDeployment.md](GASDeployment.md)。`gas/src/` 使用共享純資料驗證、私有 Properties 登入、追加式 Sheets store、私人 Drive 附件；`gas/Code.gs` 只公開白名單入口，`setupGas_` 僅供編輯器執行。`npm run build:gas` 產生 Index.html／Code.gs／Backend.gs／appsscript.json 四檔，全部需同步；勿手改產物。
+已完成全部既有 RPC 的 GAS 來源及單檔打包，初始化／部署見 [GASDeployment.md](GASDeployment.md)。`gas/src/` 使用共享純資料驗證、私有 Properties 登入、追加式 Sheets store、私人 Drive 附件；`gas/Code.gs` 公開白名單 RPC 入口。編輯器選單略過私有 setupGas_，現以 setupGas 作可選取的初始化入口，由 Google Session 檢查非空且相同的 active／effective email；沿用以部署者執行 Web App，一般訪客不可初始化，部署者本人可執行，勿稱為可辨識 editor-only。userinfo.email scope 只用於此檢查，前端沒有初始化功能，不回傳 email；setupGas_ 私有實作保留。`npm run build:gas` 產生 Index.html／Code.gs／Backend.gs／appsscript.json 四檔，全部需同步；勿手改產物。
 
 業務表使用 GM_ 前綴，保留原 gid=0，不自動遷移 SQLite／本機帳號／示範資料。每類資料分表，以固定 ID、Base64 JSON 分段及提交標記讀取最新有效值；script lock 下先 flush 資料後發布 marker，失敗未提交列不讀取。戰績清單讀摘要、詳情才讀玩家快照。跨 Drive／Sheets 失敗可能保留未引用附件，不自動刪除。初始化只補專用表及九職業／三職責，不覆寫既有帳號或資料。
 
@@ -292,7 +292,7 @@ member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admi
 
 ## 平台名稱設定
 
-admin 在帳號管理的「平台設定」分頁修改品牌名稱，預設「逆水寒」，1–30 個 Unicode 字元、trim、拒絕控制字元。僅 admin + CSRF 可修改，公開讀取只包含名稱、revision 與當前已保存圖示的 iconSrc（若有）。修改檢查 revision，可安全重試相同成功結果；SQLite platform_settings／GAS GM_settings 分別保存。頂欄／頁尾／網頁標題同步更新，長名稱縮略且保留完整 title，不改 GUILD_NAME 或活動／戰績快照；舊 GAS 套件更新須重跑 setupGas_ 補表。
+admin 在帳號管理的「平台設定」分頁修改品牌名稱，預設「逆水寒」，1–30 個 Unicode 字元、trim、拒絕控制字元。僅 admin + CSRF 可修改，公開讀取只包含名稱、revision 與當前已保存圖示的 iconSrc（若有）。修改檢查 revision，可安全重試相同成功結果；SQLite platform_settings／GAS GM_settings 分別保存。頂欄／頁尾／網頁標題同步更新，長名稱縮略且保留完整 title，不改 GUILD_NAME 或活動／戰績快照；舊 GAS 套件更新須重跑 setupGas 補表。
 
 平台圖示支援 PNG／JPEG／WebP，最多 256 KB；後端檢查 MIME、Base64、實際大小與檔頭，前端另檢查可解碼及最多 4096×4096。選擇後先預覽，可移除／還原，名稱與圖示一次保存；成功更新頂欄，失敗保留草稿，重新載入或離開前提醒未儲存設定。本機追加可空圖片欄位，舊資料不改；GAS 沿用私人 Drive 資料夾保存檔案並以 GM_settings 引用，公開只回傳當前圖片內容，不接受任意 file ID、外部 URL 或 SVG。替換／移除不自動刪除私人舊檔，跨服務未提交檔保留以便復原。
 

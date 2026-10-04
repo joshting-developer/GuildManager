@@ -11,8 +11,19 @@ function doGet() {
     .addMetaTag('viewport', 'width=device-width, initial-scale=1.0');
 }
 
-// Run once in the editor after setting private Script Properties. The trailing
-// underscore prevents browser calls through google.script.run.
+// The editor hides underscore-suffixed helpers from its function selector.
+// This runnable wrapper uses Google's server-side identity, never the app role.
+// Web Apps must keep the documented "execute as deployer" configuration.
+function setupGas() {
+  const activeEmail = Session.getActiveUser().getEmail();
+  const effectiveEmail = Session.getEffectiveUser().getEmail();
+  if (!activeEmail || !effectiveEmail || activeEmail !== effectiveEmail) {
+    throw new Error('初始化需由 Google 執行帳號操作，請在 Apps Script 編輯器執行 setupGas');
+  }
+  return setupGas_();
+}
+
+// Preserve the private implementation; browsers cannot call this helper.
 function setupGas_() {
   return GuildGas.setup();
 }

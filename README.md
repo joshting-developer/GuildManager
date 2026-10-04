@@ -116,7 +116,7 @@ npm run build:gas
 
 已配置指定指令碼的自動上傳。首次執行 `npm run gas:login` 完成 Google 授權；之後 `npm run gas:push` 自動編譯、備份遠端、上傳四檔並讀回比對。憑證及備份保存在被忽略的 `data/`，不需 Git 遠端。上傳不初始化試算表或發布 Web App，詳細設定見 [自動上傳](GASDeployment.md#本機自動上傳)。
 
-完整步驟見 [GAS 初始化與部署](GASDeployment.md)。執行 `npm run build:gas`，將 `build/gas/Index.html`、`Code.gs`、`Backend.gs` 及 `appsscript.json` 放入同一 Apps Script 專案。設定私有 Script Properties，先使用測試試算表並於編輯器執行 `setupGas_()`，再建立測試 Web App。
+完整步驟見 [GAS 初始化與部署](GASDeployment.md)。執行 `npm run build:gas`，將 `build/gas/Index.html`、`Code.gs`、`Backend.gs` 及 `appsscript.json` 放入同一 Apps Script 專案。設定私有 Script Properties，先使用測試試算表並於編輯器執行 `setupGas()`，再建立測試 Web App。
 
 目前全部既有資料介面已生成，使用 GM_ 專用工作表、私人 Drive 原始檔與 Script Properties 帳號／session；尚未部署或寫入正式試算表。本機 SQLite 資料與帳號不會自動匯入雲端。
 
@@ -439,7 +439,7 @@ member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admi
 
 ## 平台名稱
 
-admin 可在「帳號管理 → 平台設定」修改左上角「逆水寒」，名稱最多 30 個字。保存後更新頂欄、頁尾及頁面標題，重新載入保留；manager／member／訪客僅可讀取。設定獨立於幫會名稱與戰績快照，本機保存在 SQLite、GAS 保存在專用工作表。舊 GAS 專案更新時須重跑 `setupGas_()` 補上 `GM_settings`，再同步部署版本，詳見 [部署文件](GASDeployment.md#平台名稱)。
+admin 可在「帳號管理 → 平台設定」修改左上角「逆水寒」，名稱最多 30 個字。保存後更新頂欄、頁尾及頁面標題，重新載入保留；manager／member／訪客僅可讀取。設定獨立於幫會名稱與戰績快照，本機保存在 SQLite、GAS 保存在專用工作表。舊 GAS 專案更新時須重跑 `setupGas()` 補上 `GM_settings`，再同步部署版本，詳見 [部署文件](GASDeployment.md#平台名稱)。
 
 同一分頁可上傳／預覽／替換／移除平台圖示，支援 PNG、JPEG、WebP，最多 256 KB。選檔後按「儲存設定」才正式保存並顯示於頂欄；移除後亦需儲存，還原可放棄圖示草稿。未設定時只顯示名稱。本機圖片存 SQLite，GAS 圖片存私人 Google Drive，無需 R2 或公開分享圖片。
 
