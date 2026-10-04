@@ -60,6 +60,7 @@ const authError = ref('');
 const loginOpen = ref(false);
 const loginError = ref('');
 const authNotice = ref('');
+provide('calendarAuth', { user, loading: authLoading, login: calendarLogin });
 let expiryTimer;
 let disposed = false;
 let loginOrigin;
@@ -165,9 +166,23 @@ function expireSession() {
   user.value = null;
   setCsrfToken('');
   clearTimeout(expiryTimer);
+  if (view.value === 'home') {
+    authNotice.value = '登入已到期, 請重新登入後繼續報名';
+    return;
+  }
   authNotice.value = '登入已到期, 請重新登入後繼續管理';
   returnHome();
   openLogin(requestedPage, recordId);
+}
+async function calendarLogin(input) {
+  sessionVersion++;
+  const session = await authClient.login(input);
+  if (disposed) return;
+  applySession(session);
+  authLoading.value = false;
+  authNotice.value = '';
+  authError.value = '';
+  return session.user;
 }
 async function restoreSession() {
   const version = ++sessionVersion;

@@ -183,9 +183,14 @@ test('public calendar and participation remain available without exposing full m
     });
     assert.equal((await f.request('/events')).status, 200);
     assert.equal((await f.request('/professions')).status, 200);
-    assert.deepEqual(await (await f.request('/calendar/members')).json(), {
-      members: [{ uid: '001', name: '新名' }],
-    });
+    assert.equal((await f.request('/calendar/members')).status, 401);
+    const auth = await f.login();
+    assert.deepEqual(
+      await (await f.request('/calendar/members', 'GET', undefined, auth.headers)).json(),
+      {
+        members: [{ uid: '001', name: '新名' }],
+      },
+    );
     assert.equal(
       (
         await f.request(`/events/${event.id}/participation`, 'PATCH', {

@@ -105,6 +105,30 @@ export function createParticipationRepository(db) {
       .digest('hex');
   }
   const repository = {
+    participationRequiresLogin(eventId) {
+      checkEvent(eventId);
+      return ['guild_war', 'dragon_tiger'].includes(
+        db.prepare('SELECT type FROM scheduled_events WHERE id = ?').get(eventId).type,
+      );
+    },
+    listEventParticipationMembers(eventId) {
+      checkEvent(eventId);
+      const members = db
+        .prepare(
+          `SELECT uid, name, primary_profession_id AS primaryProfessionId,
+        secondary_profession_id AS secondaryProfessionId, is_in_guild AS isInGuild, is_in_club AS isInClub
+        FROM members WHERE removed_at IS NULL AND (is_in_guild = 1 OR is_in_club = 1) ORDER BY name, uid`,
+        )
+        .all();
+      return {
+        eventId,
+        members: members.map((row) => ({
+          ...row,
+          isInGuild: Boolean(row.isInGuild),
+          isInClub: Boolean(row.isInClub),
+        })),
+      };
+    },
     getEventParticipation(eventId) {
       checkEvent(eventId);
       return {
@@ -143,6 +167,8 @@ export function createParticipationRepository(db) {
       const note = text(input?.note ?? '', '備註', 160);
       const status = input?.status;
       const professionId = status === 'registered' ? input?.professionId : null;
+      const memberUid =
+        input?.memberUid === undefined ? null : text(input.memberUid, '成員資料', 64, true);
       if (!['registered', 'leave'].includes(status))
         throw new ParticipationError('請選擇報名或請假');
       if (status === 'registered' && (!Number.isSafeInteger(professionId) || professionId < 1))
@@ -157,6 +183,7 @@ export function createParticipationRepository(db) {
         status,
         professionId,
         revision: input.revision,
+        ...(memberUid ? { memberUid } : {}),
       });
       return db.transaction(() => {
         const priorRequest = db
@@ -193,21 +220,36 @@ export function createParticipationRepository(db) {
           !db.prepare('SELECT job_id FROM professions WHERE job_id = ?').get(professionId)
         )
           throw new ParticipationError('職業不存在, 請重新載入職業清單');
-        const members = db
-          .prepare(
-            `SELECT m.uid FROM members m LEFT JOIN event_member_responses r
+        const members = memberUid
+          ? db
+              .prepare(
+                `SELECT uid FROM members WHERE uid = ? AND name = ? COLLATE NOCASE
+          AND removed_at IS NULL AND (is_in_guild = 1 OR is_in_club = 1)`,
+              )
+              .all(memberUid, name)
+          : db
+              .prepare(
+                `SELECT m.uid FROM members m LEFT JOIN event_member_responses r
             ON r.member_uid = m.uid AND r.event_id = ?
           WHERE m.name = ? COLLATE NOCASE AND m.removed_at IS NULL
             AND (? = 'registered' OR m.is_in_guild = 1 OR m.is_in_club = 1
               OR r.status IN ('registered', 'leave'))`,
-          )
-          .all(eventId, name, status);
-        const guest = db
-          .prepare(
-            `SELECT id FROM event_registrations WHERE event_id = ? AND name = ? COLLATE NOCASE
+              )
+              .all(eventId, name, status);
+        if (memberUid && !members.length)
+          throw new ParticipationError(
+            '成員資料已更新, 請重新載入名單後再選擇',
+            409,
+            'PARTICIPATION_MEMBER_CHANGED',
+          );
+        const guest = memberUid
+          ? null
+          : db
+              .prepare(
+                `SELECT id FROM event_registrations WHERE event_id = ? AND name = ? COLLATE NOCASE
           ORDER BY active DESC, created_at DESC, id DESC LIMIT 1`,
-          )
-          .get(eventId, name);
+              )
+              .get(eventId, name);
         if (members.length > 1 || (members.length && guest))
           throw new ParticipationError(
             '有同名資料, 無法確認人員, 請聯絡管理者',

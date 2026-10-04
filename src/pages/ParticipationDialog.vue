@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch, onUnmounted } from 'vue';
+import { computed, ref, watch, inject, onUnmounted } from 'vue';
 import { createParticipationClient } from '../api/participation.js';
 import { createMemberClient } from '../api/members.js';
 import { eventDisplayTitle, eventTypeLabel } from '../domain/event-types.js';
@@ -8,6 +8,29 @@ const emit = defineEmits(['update:modelValue', 'closed']);
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 const client = createParticipationClient({ source });
 const memberClient = createMemberClient({ source });
+const calendarAuth = inject('calendarAuth', null);
+const requiresLogin = computed(() => ['guild_war', 'dragon_tiger'].includes(props.event.type));
+const locked = computed(() => requiresLogin.value && !calendarAuth?.user.value);
+const authLoading = computed(() => !!calendarAuth?.loading.value);
+const loginUsername = ref(''),
+  loginPassword = ref(''),
+  loginError = ref('');
+const members = ref([]),
+  nameSource = ref('manual'),
+  selectedMemberUid = ref(null);
+const selectedMember = computed(() =>
+  members.value.find((member) => member.uid === selectedMemberUid.value),
+);
+const memberChoices = computed(() =>
+  members.value.filter((member) =>
+    nameSource.value === 'guild' ? member.isInGuild : member.isInClub,
+  ),
+);
+const nameSources = [
+  { value: 'manual', title: '直接輸入名稱' },
+  { value: 'guild', title: '幫會成員名單' },
+  { value: 'club', title: '龍虎戰成員名單' },
+];
 const professions = ref([]),
   responses = ref([]),
   registrations = ref([]),
@@ -40,7 +63,13 @@ const professionCounts = computed(() =>
   })),
 );
 function formValues() {
-  return JSON.stringify([name.value, professionId.value, status.value, note.value]);
+  return JSON.stringify([
+    name.value,
+    selectedMemberUid.value,
+    professionId.value,
+    status.value,
+    note.value,
+  ]);
 }
 const baseline = ref(formValues());
 const unsaved = computed(() => formValues() !== baseline.value);
@@ -51,18 +80,21 @@ function resetForm() {
   name.value = '';
   professionId.value = null;
   note.value = '';
+  selectedMemberUid.value = null;
   baseline.value = formValues();
   attempt = null;
 }
 async function load() {
+  if (locked.value || authLoading.value) return;
   const currentToken = ++token;
   loading.value = true;
   loadError.value = '';
   error.value = '';
   try {
-    const [participation, jobs] = await Promise.all([
+    const [participation, jobs, roster] = await Promise.all([
       client.getParticipation(props.event.id),
       memberClient.getProfessions(),
+      requiresLogin.value ? client.getMembers(props.event.id) : Promise.resolve({ members: [] }),
     ]);
     if (disposed || currentToken !== token) return;
     if (
@@ -71,7 +103,8 @@ async function load() {
       !Array.isArray(participation.responses) ||
       !Array.isArray(participation.registrations) ||
       !Array.isArray(participation.registrationLeaves) ||
-      !Array.isArray(jobs.professions)
+      !Array.isArray(jobs.professions) ||
+      !Array.isArray(roster.members)
     )
       throw new Error('資料格式不正確, 請重新載入');
     professions.value = jobs.professions;
@@ -79,6 +112,18 @@ async function load() {
     registrations.value = participation.registrations;
     registrationLeaves.value = participation.registrationLeaves;
     revision.value = participation.revision;
+    members.value = roster.members;
+    if (
+      selectedMemberUid.value &&
+      (!selectedMember.value ||
+        (nameSource.value === 'guild'
+          ? !selectedMember.value.isInGuild
+          : !selectedMember.value.isInClub))
+    ) {
+      selectedMemberUid.value = null;
+      name.value = '';
+      error.value = '成員已不在此名單內, 請重新選擇';
+    }
   } catch (cause) {
     if (currentToken === token) loadError.value = cause.message;
   } finally {
@@ -88,6 +133,26 @@ async function load() {
 watch(status, () => {
   error.value = '';
 });
+watch(nameSource, () => {
+  selectedMemberUid.value = null;
+  name.value = '';
+  professionId.value = null;
+  error.value = '';
+  attempt = null;
+});
+watch(selectedMemberUid, () => {
+  if (!selectedMember.value) return;
+  name.value = selectedMember.value.name;
+  professionId.value = selectedMember.value.primaryProfessionId;
+  error.value = '';
+});
+watch([() => calendarAuth?.user.value?.id, authLoading], () => {
+  if (!props.modelValue) return;
+  if (locked.value || authLoading.value) {
+    token++;
+    loading.value = false;
+  } else load();
+});
 watch(
   () => props.modelValue,
   (open) => {
@@ -95,9 +160,15 @@ watch(
       notice.value = '';
       tab.value = 'form';
       status.value = 'registered';
+      nameSource.value = 'manual';
+      loginPassword.value = loginError.value = '';
+      loading.value = false;
       resetForm();
       load();
-    } else token++;
+    } else {
+      token++;
+      loginPassword.value = '';
+    }
   },
   { immediate: true },
 );
@@ -115,11 +186,15 @@ function close() {
   }
 }
 async function submit() {
-  if (busy.value || loading.value) return;
+  if (busy.value || loading.value || locked.value || authLoading.value) return;
   error.value = '';
   notice.value = '';
   if (!name.value.trim()) {
     error.value = '請填寫名稱';
+    return;
+  }
+  if (requiresLogin.value && nameSource.value !== 'manual' && !selectedMember.value) {
+    error.value = '請選擇成員';
     return;
   }
   if (status.value === 'registered' && !professionId.value) {
@@ -133,6 +208,9 @@ async function submit() {
     status: status.value,
     note: note.value.trim(),
     revision: revision.value,
+    ...(requiresLogin.value && nameSource.value !== 'manual'
+      ? { memberUid: selectedMemberUid.value }
+      : {}),
   };
   const encoded = JSON.stringify(input);
   if (attempt?.encoded !== encoded) attempt = { encoded, requestId: crypto.randomUUID() };
@@ -156,6 +234,27 @@ async function submit() {
     busy.value = false;
   }
 }
+async function verifyLogin() {
+  if (busy.value || authLoading.value) return;
+  loginError.value = '';
+  if (!loginUsername.value.trim() || !loginPassword.value) {
+    loginError.value = '請輸入帳號與密碼';
+    return;
+  }
+  busy.value = true;
+  try {
+    if (!calendarAuth) throw new Error('登入介面尚未設定');
+    await calendarAuth.login({
+      username: loginUsername.value.trim(),
+      password: loginPassword.value,
+    });
+    loginPassword.value = '';
+  } catch (cause) {
+    loginError.value = cause.message;
+  } finally {
+    busy.value = false;
+  }
+}
 </script>
 
 <template>
@@ -173,9 +272,44 @@ async function submit() {
           <p class="eyebrow">{{ event.dates[0] }} · {{ eventTypeLabel(event.type) }}</p>
           <h2 id="participation-title">{{ eventDisplayTitle(event) }} · 報名／請假</h2>
         </div>
-        <v-btn variant="text" :disabled="busy || loading" @click="load">重新載入</v-btn>
+        <v-btn
+          v-if="!locked && !authLoading"
+          variant="text"
+          :disabled="busy || loading"
+          @click="load"
+          >重新載入</v-btn
+        >
       </div>
-      <p v-if="loading" role="status">正在載入本場報名資料…</p>
+      <p v-if="authLoading" role="status">正在確認登入狀態…</p>
+      <form v-else-if="locked" class="participation-form" @submit.prevent="verifyLogin">
+        <p>請使用 admin 發行的 member 帳號登入；管理帳號也可使用。</p>
+        <v-text-field
+          v-model="loginUsername"
+          label="帳號"
+          autocomplete="username"
+          maxlength="32"
+          variant="outlined"
+          hide-details
+          :disabled="busy"
+          aria-required="true"
+        />
+        <v-text-field
+          v-model="loginPassword"
+          label="密碼"
+          type="password"
+          autocomplete="current-password"
+          maxlength="128"
+          variant="outlined"
+          hide-details
+          :disabled="busy"
+          aria-required="true"
+        />
+        <v-alert v-if="loginError" type="error" variant="tonal" role="alert">{{
+          loginError
+        }}</v-alert>
+        <v-btn type="submit" color="primary" :loading="busy" :disabled="busy">驗證並繼續</v-btn>
+      </form>
+      <p v-else-if="loading" role="status">正在載入本場報名資料…</p>
       <v-alert v-else-if="loadError" type="error" variant="tonal" role="alert">{{
         loadError
       }}</v-alert>
@@ -205,6 +339,67 @@ async function submit() {
           tabindex="0"
         >
           <form class="participation-form" @submit.prevent="submit">
+            <v-tabs
+              v-if="requiresLogin"
+              v-model="nameSource"
+              aria-label="選擇名稱方式"
+              :disabled="busy"
+              class="participation-name-tabs"
+            >
+              <v-tab
+                v-for="item in nameSources"
+                :key="item.value"
+                :value="item.value"
+                :id="`participation-name-${item.value}-tab`"
+                :aria-controls="`participation-name-${item.value}-panel`"
+                >{{ item.title }}</v-tab
+              >
+            </v-tabs>
+            <div
+              :id="`participation-name-${nameSource}-panel`"
+              :role="requiresLogin ? 'tabpanel' : undefined"
+              :aria-labelledby="requiresLogin ? `participation-name-${nameSource}-tab` : undefined"
+            >
+              <v-text-field
+                v-if="!requiresLogin || nameSource === 'manual'"
+                v-model="name"
+                label="名稱"
+                maxlength="64"
+                variant="outlined"
+                density="compact"
+                :disabled="busy"
+                hide-details
+                aria-required="true"
+              />
+              <template v-else>
+                <v-autocomplete
+                  v-model="selectedMemberUid"
+                  :items="memberChoices"
+                  item-title="name"
+                  item-value="uid"
+                  :label="nameSource === 'guild' ? '幫會成員' : '龍虎戰成員'"
+                  variant="outlined"
+                  density="compact"
+                  :disabled="busy"
+                  hide-details
+                  clearable
+                  aria-required="true"
+                  no-data-text="沒有符合的成員"
+                >
+                  <template #item="{ props: itemProps, item }"
+                    ><v-list-item
+                      v-bind="itemProps"
+                      :subtitle="
+                        professions.find((job) => job.job_id === item.primaryProfessionId)?.name ||
+                        '職業未設定'
+                      "
+                  /></template>
+                </v-autocomplete>
+                <p v-if="!memberChoices.length" class="participation-count">
+                  {{ nameSource === 'guild' ? '尚無幫會成員' : '尚無龍虎戰成員' }}
+                </p>
+              </template>
+            </div>
             <v-select
               v-model="status"
               :items="[
@@ -216,16 +411,6 @@ async function submit() {
               density="compact"
               :disabled="busy"
               hide-details
-            />
-            <v-text-field
-              v-model="name"
-              label="名稱"
-              maxlength="64"
-              variant="outlined"
-              density="compact"
-              :disabled="busy"
-              hide-details
-              aria-required="true"
             />
             <v-select
               v-if="status === 'registered'"

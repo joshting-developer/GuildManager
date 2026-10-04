@@ -129,6 +129,9 @@ export function createApp(repository, { authNow } = {}) {
       .set('Cache-Control', 'no-store')
       .json(repository.getEventParticipation(request.params.id));
   });
+  app.get('/api/events/:id/participation-members', (request, response) => {
+    response.json(repository.listEventParticipationMembers(request.params.id));
+  });
   app.patch('/api/events/:id/participation', (request, response) => {
     response.json({ response: repository.saveMemberResponse(request.params.id, request.body) });
   });

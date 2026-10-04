@@ -111,6 +111,9 @@ function updateDuty(id, input) {
 function getEventParticipation(eventId) {
   throw new Error('雲端報名／請假尚未串接 Google 試算表');
 }
+function getEventParticipationMembers(eventId) {
+  throw new Error('雲端報名成員選單尚未串接');
+}
 function saveMemberResponse(eventId, input) {
   throw new Error('雲端報名／請假尚未串接 Google 試算表');
 }

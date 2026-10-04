@@ -55,7 +55,7 @@ docker compose exec -T api node server/create-account.js < data/local-admin.json
 - 管理資料讀取須有 session, 管理修改另須 `X-CSRF-Token`；前端 adapter 自動附加, API 的 Origin／JSON 檢查仍保留
 - 登入失敗訊息不區分帳號不存在或密碼錯誤, 同一來源 5 分鐘最多 10 次嘗試
 - admin 與 manager 均可使用既有管理功能；只有 admin 可開啟 `#/admin` 管理帳號。第一個 CLI 帳號預設 admin, 後續預設 manager, 沒有公開註冊。舊帳號升級時優先將名稱 admin（不分大小寫）設為 admin, 否則選最早建立者, 其他設為 manager, 不重設密碼。
-- 公開行事曆、報名／請假沿用原操作方式, `/api/calendar/members` 僅提供 UID／名稱選單；登入帳號尚未與遊戲 UID 綁定
+- 行事曆仍公開；幫戰／龍虎戰須登入 member／manager／admin 後才可報名或請假, 約戰仍可直接填名。`/api/calendar/members` 舊選單端點亦須登入；登入帳號尚未與遊戲 UID 綁定
 - Google 登入之後透過 auth adapter 接入, GAS 的登入函式目前明確回報未設定, 不以本機密碼或前端旗標假裝雲端登入成功
 
 | 方法 | 路徑 | 用途 |
@@ -63,7 +63,7 @@ docker compose exec -T api node server/create-account.js < data/local-admin.json
 | GET | `/api/auth/session` | 查詢登入狀態；匿名回傳 user=null |
 | POST | `/api/auth/login` | 帳號密碼登入, 設定 session cookie |
 | POST | `/api/auth/logout` | 驗證 session／CSRF 後登出 |
-| GET | `/api/calendar/members` | 公開報名用 UID／名稱選單 |
+| GET | `/api/calendar/members` | 登入後的舊 UID／名稱選單（不在畫面顯示 UID） |
 
 本機 cookie 使用 HTTP loopback；後續正式 HTTP 後端須使用 HTTPS 並設 `NODE_ENV=production` 以啟用 Secure cookie。GAS 使用不同身分／通訊機制, 不直接搬入 Node session 或 scrypt；部署方式與 Google OAuth client 待後續設定。[Google 身分服務](https://developers.google.com/identity/gsi/web/guides/overview)、[GAS Session 身分限制](https://developers.google.com/apps-script/reference/base/session#getActiveUser())
 
@@ -276,18 +276,19 @@ UID Name 主職業 副職業
 
 首頁點有安排的日期格, 同日多場會先列出各場次；選戰鬥的「報名／請假」後：
 
-- 使用單一表單填名稱、狀態與備註, 狀態只有「報名／請假」；報名必選職業, 請假不需要職業。
+- 約戰直接填名；幫戰／龍虎戰先以 admin 發行的帳號密碼登入, 驗證後名稱可直接填寫或從幫會／龍虎戰名單選擇, 龍虎戰名單對應俱樂部內成員且含兼屬, 選擇會預填主職業。保留狀態與備註, 狀態只有「報名／請假」；報名必選職業, 請假不需要職業。
 - 視窗共用摘要只顯示報名人數, 不顯示請假人數；第一頁為「報名／請假」表單, 第二頁「職業統計」顯示各職業本場報名人數, 包含 0 人；合計已報名成員及有效外援, 不計請假／舊取消回應, 不列個別玩家, 切換保留輸入。送出及重新載入會更新統計。
 - 成員與外援按本場報名選擇的職業統計；舊成員回應未保存職業時使用名冊主職業。名冊與原有排表快照維持原資料。
 - 請假會確認是否為本場已報名者或幫會／俱樂部成員, 找不到顯示「沒有報名或沒有資料」。編外尚未報名者不能直接請假；同名資料無法辨識時請聯絡管理者。
 - 既有名冊成員以名稱連結原 UID, 不建立第二種身分或修改名冊職業；外援以獨立 ID 保存, 不需 UID 或加入正式名冊。
 - 外援取消改選「請假」, 可重新報名恢復同一筆資料。每場獨立保存, 請假者不在可排名單中, 已儲存排表快照保留。
-- 帳號密碼登入保護管理功能, 公開填寫名稱仍不是本人驗證；帳號／UID 綁定、正式本人操作權限與報名截止未定案, GAS 資料函式明確回報尚未串接。
+- 帳號密碼登入保護管理功能, 幫戰／龍虎戰另要求 member／manager／admin 登入, 但帳號未綁定 UID, 填寫／選擇名稱仍不是本人驗證；帳號／UID 綁定、正式本人操作權限與報名截止未定案, GAS 資料函式明確回報尚未串接。
 
 | 方法 | 路徑 | 用途 |
 | --- | --- | --- |
+| GET | `/api/events/:id/participation-members` | 登入後選人名單, 僅 UID（內部引用）／名稱／主副職業 ID／所屬狀態 |
 | GET | `/api/events/:id/participation` | 本場成員回應、有效額外報名、外援請假及 revision |
-| POST | `/api/events/:id/participation` | 統一名稱、status (registered／leave)、professionId (報名必填)、note、requestId、revision；依名稱連結成員或外援 |
+| POST | `/api/events/:id/participation` | 統一名稱、status (registered／leave)、professionId (報名必填)、note、requestId、revision；選名冊人員可附 memberUid, 驗證姓名與在會狀態 |
 | PATCH | `/api/events/:id/participation` | 舊介面相容：儲存 uid、status、note、revision |
 | POST | `/api/events/:id/registrations` | 舊介面相容：建立額外報名 |
 | DELETE | `/api/events/:id/registrations/:registrationId` | 舊介面相容：取消額外報名 |
@@ -401,6 +402,10 @@ SQLite 追加 `battle_uploads`／`battle_records`, `round_number` 記錄場序�
 
 ## Admin 帳號管理
 
-登入 admin 後從導覽「帳號管理」開啟 `#/admin`。可輸入目前密碼並確認新密碼修改 admin 密碼, 以及建立／修改 manager 與 member 帳號。member 僅可使用公開行事曆與報名, 不可使用管理功能。manager 修改密碼留空時保留原密碼, 帳號不可重複（不分大小寫）, 不提供角色提升或刪除。修改 manager／member 撤銷其全部登入；admin 改密碼保留目前登入並撤銷其他登入。
+登入 admin 後點右上帳號（手機於導覽選單選「帳號管理」）開啟 `#/admin`。可輸入目前密碼並確認新密碼修改 admin 密碼, 以及建立／修改 manager 與 member 帳號。member 僅可使用公開行事曆與報名, 不可使用管理功能。manager／member 修改密碼留空時保留原密碼, 帳號不可重複（不分大小寫）, 不提供角色提升或刪除。修改 manager／member 撤銷其全部登入；admin 改密碼保留目前登入並撤銷其他登入。
 
 所有帳號管理 API 僅 admin 可用且寫入須 CSRF, 不只隱藏入口。帳號保存 revision 並拒絕過期修改, 密碼不回傳前端, 失敗保留輸入。私有 `data/local-admin.json` 不會隨網頁改密碼同步更新, 需自行保管新密碼。GAS 帳號管理仍未串接。
+
+幫戰／龍虎戰的報名讀寫、舊成員回應／外援 API 都檢查 session；有登入的報名修改均須 CSRF。登入到期或帳號被修改後, 視窗回到驗證畫面, 未送出欄位保留, 驗證成功可繼續。同名成員從名冊選擇可用內部 UID 區分, 直接填名仍拒絕歧義。一般活動不提供報名, 約戰流程維持原樣。
+
+若本機已安裝僅 admin／manager 的舊角色限制, 啟動時先備份完整 SQLite 至資料庫同目錄的 `*.before-member-role-*.sqlite`, 再於交易中擴充 member 角色；不更動既有密碼、角色、revision 或登入。Docker 的備份保存在 `guild_data` volume, 不提交至 Git。

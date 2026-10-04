@@ -14,21 +14,39 @@ function cookieOptions() {
     path: '/api',
   };
 }
-function publicRequest(request) {
+function publicRequest(request, repository) {
   const path = request.path;
   if (
     request.method === 'GET' &&
-    ['/health', '/auth/session', '/events', '/professions', '/calendar/members'].includes(path)
+    ['/health', '/auth/session', '/events', '/professions'].includes(path)
   )
     return true;
   if (request.method === 'POST' && path === '/auth/login') return true;
-  if (
-    ['GET', 'POST', 'PATCH'].includes(request.method) &&
-    /^\/events\/[^/]+\/participation$/.test(path)
-  )
-    return true;
-  if (request.method === 'POST' && /^\/events\/[^/]+\/registrations$/.test(path)) return true;
-  return request.method === 'DELETE' && /^\/events\/[^/]+\/registrations\/[^/]+$/.test(path);
+  const participation = path.match(
+    /^\/events\/([^/]+)\/(participation|participation-members|registrations(?:\/[^/]+)?)$/,
+  );
+  if (!participation) return false;
+  const allowed =
+    participation[2] === 'participation'
+      ? ['GET', 'POST', 'PATCH']
+      : participation[2] === 'participation-members'
+        ? ['GET']
+        : participation[2] === 'registrations'
+          ? ['POST']
+          : ['DELETE'];
+  if (!allowed.includes(request.method)) return false;
+  request.participationAccess = true;
+  let eventId;
+  try {
+    eventId = decodeURIComponent(participation[1]);
+  } catch {
+    throw new AuthError(422, 'INVALID_EVENT', '場次資料格式不正確');
+  }
+  const requiresLogin =
+    repository.participationRequiresLogin(eventId) || participation[2] === 'participation-members';
+  request.participationLoginRequired = requiresLogin;
+  // Anonymous scrimmages remain public; any authenticated write still requires CSRF.
+  return !requiresLogin && (!request.auth || request.method === 'GET');
 }
 
 export function installAuth(app, repository, { now = Date.now } = {}) {
@@ -37,9 +55,23 @@ export function installAuth(app, repository, { now = Date.now } = {}) {
     response.set('Cache-Control', 'no-store');
     request.sessionToken = readToken(request);
     request.auth = repository.getSession(request.sessionToken);
-    if (publicRequest(request)) return next();
-    if (!request.auth) return next(new AuthError(401, 'AUTH_REQUIRED', '請先登入後再使用管理功能'));
-    if (request.auth.user.role === 'member' && request.path !== '/auth/logout')
+    if (publicRequest(request, repository)) return next();
+    if (!request.auth)
+      return next(
+        new AuthError(
+          401,
+          'AUTH_REQUIRED',
+          request.participationLoginRequired
+            ? '請先登入帳號後再報名或請假'
+            : '請先登入後再使用管理功能',
+        ),
+      );
+    if (
+      request.auth.user.role === 'member' &&
+      request.path !== '/auth/logout' &&
+      !request.participationAccess &&
+      request.path !== '/calendar/members'
+    )
       return next(new AuthError(403, 'MANAGEMENT_REQUIRED', 'member 帳號只能使用行事曆報名功能'));
     if (request.path.startsWith('/admin') && request.auth.user.role !== 'admin')
       return next(new AuthError(403, 'ADMIN_REQUIRED', '只有 admin 可以管理帳號'));

@@ -114,7 +114,7 @@ test('GAS auth propagates unconfigured identity without HTTP fallback', async ()
   assert.equal(calls.length, 2);
 });
 
-test('public member catalog uses a separate endpoint from the protected roster', async () => {
+test('legacy member catalog uses a separate endpoint from the management roster', async () => {
   const paths = [];
   const client = createMemberClient({
     fetchImpl: async (path) => {
@@ -125,4 +125,29 @@ test('public member catalog uses a separate endpoint from the protected roster',
   await client.getParticipationMembers();
   await client.getMembers();
   assert.deepEqual(paths, ['/api/calendar/members', '/api/members']);
+});
+
+test('a failed login does not expire an existing session or clear its CSRF token', async () => {
+  const oldFetch = globalThis.fetch,
+    oldWindow = globalThis.window;
+  const window = new EventTarget();
+  let expired = 0,
+    headers;
+  window.addEventListener('guild-auth-required', () => expired++);
+  globalThis.window = window;
+  globalThis.fetch = async (path, init) => {
+    headers = init.headers;
+    return { status: path === '/api/auth/login' ? 401 : 200 };
+  };
+  try {
+    setCsrfToken('existing-csrf');
+    await sessionFetch('/api/auth/login', { method: 'POST' });
+    assert.equal(expired, 0);
+    await sessionFetch('/api/events/battle/participation', { method: 'POST' });
+    assert.equal(headers.get('X-CSRF-Token'), 'existing-csrf');
+  } finally {
+    globalThis.fetch = oldFetch;
+    globalThis.window = oldWindow;
+    setCsrfToken('');
+  }
 });

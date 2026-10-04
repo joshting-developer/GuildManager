@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import Database from 'better-sqlite3';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, readdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createRepository } from '../server/repository.js';
@@ -321,5 +322,68 @@ test('admin issues member accounts; members cannot access management or elevate 
     assert.equal(settings.managers.length, 1);
   } finally {
     await f.close();
+  }
+});
+
+test('two-role schema is backed up and upgraded without cascading session deletion or changing credentials', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'guild-role-upgrade-'));
+  const filename = join(dir, 'test.sqlite');
+  let repo;
+  try {
+    const secret = await passwordHash(password),
+      token = 'a'.repeat(43);
+    const db = new Database(filename);
+    db.exec(`CREATE TABLE auth_accounts (
+      id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE COLLATE NOCASE, password_salt TEXT NOT NULL,
+      password_hash TEXT NOT NULL, created_at TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'manager' CHECK(role IN ('admin', 'manager')),
+      revision INTEGER NOT NULL DEFAULT 1 CHECK(revision > 0));
+      CREATE TABLE auth_sessions (token_hash TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES auth_accounts(id) ON DELETE CASCADE, expires_at INTEGER NOT NULL);`);
+    db.prepare('INSERT INTO auth_accounts VALUES (?, ?, ?, ?, ?, ?, ?)').run(
+      'admin',
+      'admin',
+      secret.salt,
+      secret.hash,
+      '2026-10-01',
+      'admin',
+      4,
+    );
+    db.prepare('INSERT INTO auth_sessions VALUES (?, ?, ?)').run(
+      createHash('sha256').update(token).digest('hex'),
+      'admin',
+      Date.now() + 60000,
+    );
+    const accounts = db.prepare('SELECT * FROM auth_accounts').all(),
+      sessions = db.prepare('SELECT * FROM auth_sessions').all();
+    db.close();
+    repo = createRepository({ filename });
+    assert.equal(repo.getSession(token).user.role, 'admin');
+    assert.equal(repo.getAccountSettings('admin').admin.revision, 4);
+    const backups = readdirSync(dir).filter((name) => name.includes('.before-member-role-'));
+    assert.equal(backups.length, 1);
+    const backup = new Database(join(dir, backups[0]), { readonly: true });
+    assert.deepEqual(backup.prepare('SELECT * FROM auth_accounts').all(), accounts);
+    assert.deepEqual(backup.prepare('SELECT * FROM auth_sessions').all(), sessions);
+    backup.close();
+    await repo.createMemberAccount('admin', { username: 'member', password });
+    const inspect = new Database(filename, { readonly: true });
+    assert.equal(
+      inspect.prepare('SELECT password_hash FROM auth_accounts WHERE id = ?').get('admin')
+        .password_hash,
+      secret.hash,
+    );
+    assert.equal(inspect.pragma('foreign_key_check').length, 0);
+    inspect.close();
+    repo.close();
+    repo = createRepository({ filename });
+    assert.equal(repo.getAccountSettings('admin').members.length, 1);
+    assert.equal(repo.getSession(token).user.username, 'admin');
+    assert.equal(
+      readdirSync(dir).filter((name) => name.includes('.before-member-role-')).length,
+      1,
+    );
+  } finally {
+    repo?.close();
+    rmSync(dir, { recursive: true, force: true });
   }
 });

@@ -70,6 +70,41 @@ export function createAuthRepository(db, { now = Date.now } = {}) {
         'ALTER TABLE auth_accounts ADD COLUMN revision INTEGER NOT NULL DEFAULT 1 CHECK(revision > 0)',
       );
   })();
+  const accountSchema = db
+    .prepare("SELECT sql FROM sqlite_master WHERE name = 'auth_accounts'")
+    .get().sql;
+  if (!accountSchema.includes("'member'")) {
+    // A running dev server may have installed the two-role schema before member accounts were requested.
+    const upgradedSchema = accountSchema.replace(
+      /CHECK\(role IN \('admin', 'manager'\)\)/,
+      "CHECK(role IN ('admin', 'manager', 'member'))",
+    );
+    if (upgradedSchema === accountSchema) throw new Error('無法升級帳號角色欄位, 請檢查資料庫結構');
+    if (db.name !== ':memory:')
+      db.prepare('VACUUM INTO ?').run(`${db.name}.before-member-role-${randomUUID()}.sqlite`);
+    // Disabling FK enforcement for the table swap prevents ON DELETE CASCADE from revoking sessions.
+    db.pragma('foreign_keys = OFF');
+    try {
+      db.transaction(() => {
+        const columns = db
+          .pragma('table_info(auth_accounts)')
+          .map((column) => `"${column.name}"`)
+          .join(',');
+        db.exec(
+          upgradedSchema.replace(
+            /^CREATE TABLE (?:(?:"auth_accounts")|auth_accounts)/,
+            'CREATE TABLE auth_accounts_member',
+          ),
+        );
+        db.exec(`INSERT INTO auth_accounts_member (${columns}) SELECT ${columns} FROM auth_accounts;
+          DROP TABLE auth_accounts; ALTER TABLE auth_accounts_member RENAME TO auth_accounts;`);
+        if (db.pragma('foreign_key_check').length)
+          throw new Error('帳號升級關聯檢查失敗, 已回復原資料');
+      })();
+    } finally {
+      db.pragma('foreign_keys = ON');
+    }
+  }
   function checkAdmin(id) {
     const account = db.prepare('SELECT * FROM auth_accounts WHERE id = ?').get(id);
     if (account?.role !== 'admin')
