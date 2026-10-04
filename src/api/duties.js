@@ -1,20 +1,17 @@
+import { callGas } from './gas.js';
 import { sessionFetch } from './session.js';
 export function createDutyClient({ source = 'local', fetchImpl = sessionFetch, googleRun } = {}) {
   if (!['local', 'gas'].includes(source)) throw new Error('未知的資料來源設定');
   async function call(method, input, id) {
     if (source === 'gas') {
-      const run = googleRun || globalThis.google?.script?.run;
-      if (!run) throw new Error('雲端職責資料尚未串接');
-      return new Promise((resolve, reject) => {
-        const runner = run
-          .withSuccessHandler(resolve)
-          .withFailureHandler((error) =>
-            reject(new Error(error?.message || '雲端職責操作失敗，請稍後再試')),
-          );
-        if (method === 'GET') runner.getDuties();
-        else if (method === 'POST') runner.addDuty(input);
-        else if (method === 'PATCH') runner.updateDuty(id, input);
-      });
+      const operation = { GET: 'getDuties', POST: 'addDuty', PATCH: 'updateDuty' }[method];
+      const args =
+        method === 'GET'
+          ? []
+          : method === 'POST'
+            ? [input]
+            : [id, method === 'DELETE' ? input.revision : input];
+      return callGas(operation, args, googleRun);
     }
     let response;
     try {

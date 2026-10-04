@@ -249,7 +249,7 @@ test('admin adapter uses protected HTTP paths and GAS errors without fallback', 
     );
     await assert.rejects(
       createAdminClient({ source: 'gas', fetchImpl: () => assert.fail() }).getAccounts(),
-      /尚未串接/,
+      /Apps Script Web App/,
     );
     let failure;
     const gas = createAdminClient({

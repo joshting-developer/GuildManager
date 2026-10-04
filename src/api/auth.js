@@ -1,3 +1,4 @@
+import { callGas, setGasSession } from './gas.js';
 import { setCsrfToken, sessionFetch } from './session.js';
 
 export function createAuthClient({ source = 'local', fetchImpl = sessionFetch, googleRun } = {}) {
@@ -7,14 +8,7 @@ export function createAuthClient({ source = 'local', fetchImpl = sessionFetch, g
     const currentVersion = ++version;
     let data;
     if (source === 'gas') {
-      const run = googleRun || globalThis.google?.script?.run;
-      if (!run) throw new Error('Google 登入尚未設定');
-      data = await new Promise((resolve, reject) => {
-        run
-          .withSuccessHandler(resolve)
-          .withFailureHandler((error) => reject(new Error(error?.message || 'Google 登入尚未設定')))
-          [operation](...(input ? [input] : []));
-      });
+      data = await callGas(operation, input ? [input] : [], googleRun);
     } else {
       let response;
       try {
@@ -52,8 +46,12 @@ export function createAuthClient({ source = 'local', fetchImpl = sessionFetch, g
     ) {
       throw new Error('登入回應格式不正確, 請稍後再試');
     }
-    if (['login', 'loginMember'].includes(operation) && !data.user) throw new Error('登入未完成, 請再試一次');
-    if (currentVersion === version) setCsrfToken(data.csrfToken);
+    if (['login', 'loginMember'].includes(operation) && !data.user)
+      throw new Error('登入未完成, 請再試一次');
+    if (currentVersion === version) {
+      setCsrfToken(data.csrfToken);
+      if (source === 'gas') setGasSession(data);
+    }
     return data;
   }
   return {

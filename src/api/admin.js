@@ -1,19 +1,11 @@
+import { callGas } from './gas.js';
 import { sessionFetch } from './session.js';
 
 export function createAdminClient({ source = 'local', fetchImpl = sessionFetch, googleRun } = {}) {
   if (!['local', 'gas'].includes(source)) throw new Error('未知的資料來源設定');
   async function call(operation, path, method = 'GET', input) {
     if (source === 'gas') {
-      const run = googleRun || globalThis.google?.script?.run;
-      if (!run) throw new Error('雲端帳號與 token 管理尚未串接');
-      return new Promise((resolve, reject) => {
-        run
-          .withSuccessHandler(resolve)
-          .withFailureHandler((error) =>
-            reject(new Error(error?.message || '雲端帳號管理操作失敗')),
-          )
-          [operation](...(input ? [input] : []));
-      });
+      return callGas(operation, input ? [input] : [], googleRun);
     }
     let response;
     try {

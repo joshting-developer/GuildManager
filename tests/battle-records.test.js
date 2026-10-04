@@ -343,7 +343,7 @@ test('upload, list, detail and download APIs require login, mutation requires CS
       ),
       (error) => error.code === 'BATTLE_ROUND_EXISTS',
     );
-    await assert.rejects(createBattleRecordClient({ source: 'gas' }).getRecords(), /尚未串接/);
+    await assert.rejects(createBattleRecordClient({ source: 'gas' }).getRecords(), /Apps Script Web App/);
     const failing = createBattleRecordClient({
       fetchImpl: async () => {
         throw new Error('offline');

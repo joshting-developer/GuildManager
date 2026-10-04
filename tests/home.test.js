@@ -117,7 +117,7 @@ test('GAS failure rejects without falling back to demonstration data', async () 
   };
   await assert.rejects(
     createHomeClient({ source: 'gas', googleRun: run }).getHomeData(),
-    /雲端資料讀取失敗/,
+    /not authorized/,
   );
 });
 

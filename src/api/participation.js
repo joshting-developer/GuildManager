@@ -1,3 +1,4 @@
+import { callGas } from './gas.js';
 import { sessionFetch } from './session.js';
 export function createParticipationClient({
   source = 'local',
@@ -7,21 +8,12 @@ export function createParticipationClient({
   if (!['local', 'gas'].includes(source)) throw new Error('未知的資料來源設定');
   async function call(operation, eventId, method = 'GET', input, registrationId) {
     if (source === 'gas') {
-      const run = googleRun || globalThis.google?.script?.run;
-      if (!run) throw new Error('雲端報名／請假尚未串接');
       const args = registrationId
         ? [eventId, registrationId, input.revision]
         : input
           ? [eventId, input]
           : [eventId];
-      return new Promise((resolve, reject) => {
-        run
-          .withSuccessHandler(resolve)
-          .withFailureHandler((error) =>
-            reject(new Error(error?.message || '雲端報名／請假操作失敗')),
-          )
-          [operation](...args);
-      });
+      return callGas(operation, args, googleRun);
     }
     const path = registrationId
       ? `registrations/${encodeURIComponent(registrationId)}`

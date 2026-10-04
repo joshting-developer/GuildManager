@@ -1,3 +1,4 @@
+import { utf8Bytes } from '../src/domain/utf8.js';
 import { MemberError, validateMember } from './member-validation.js';
 
 export const MAX_IMPORT_BYTES = 256 * 1024;
@@ -71,7 +72,7 @@ function parseCsv(text) {
 export function parseMemberImport(text, professions) {
   if (typeof text !== 'string' || !text.trim())
     throw new MemberError(422, 'IMPORT_EMPTY', '請貼上或選擇要匯入的成員資料');
-  if (Buffer.byteLength(text, 'utf8') > MAX_IMPORT_BYTES)
+  if (utf8Bytes(text).length > MAX_IMPORT_BYTES)
     throw new MemberError(413, 'IMPORT_TOO_LARGE', '每次匯入最多 256 KiB，請分批匯入');
   text = text.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
   const firstLine = text.split('\n').find((line) => line.trim()) || '';
@@ -80,21 +81,19 @@ export function parseMemberImport(text, professions) {
     delimiter === ','
       ? parseCsv(text)
       : {
-          records: text
-            .split('\n')
-            .flatMap((line, index) =>
-              line.trim()
-                ? [
-                    {
-                      line: index + 1,
-                      values:
-                        delimiter === '\t'
-                          ? line.split('\t').map((field) => field.trim())
-                          : line.trim().split(/\s+/),
-                    },
-                  ]
-                : [],
-            ),
+          records: text.split('\n').flatMap((line, index) =>
+            line.trim()
+              ? [
+                  {
+                    line: index + 1,
+                    values:
+                      delimiter === '\t'
+                        ? line.split('\t').map((field) => field.trim())
+                        : line.trim().split(/\s+/),
+                  },
+                ]
+              : [],
+          ),
           issues: [],
         };
   const { records, issues } = parsed;

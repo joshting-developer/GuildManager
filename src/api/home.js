@@ -1,3 +1,4 @@
+import { callGas } from './gas.js';
 import { sessionFetch } from './session.js';
 export function createHomeClient({ source = 'local', fetchImpl = sessionFetch, googleRun } = {}) {
   if (!['local', 'gas'].includes(source)) throw new Error('未知的資料來源設定');
@@ -5,16 +6,7 @@ export function createHomeClient({ source = 'local', fetchImpl = sessionFetch, g
     async getHomeData() {
       let data;
       if (source === 'gas') {
-        const run = googleRun || globalThis.google?.script?.run;
-        if (!run) throw new Error('雲端資料介面尚未串接，請在 Apps Script 環境中使用');
-        data = await new Promise((resolve, reject) => {
-          run
-            .withSuccessHandler(resolve)
-            .withFailureHandler(() =>
-              reject(new Error('雲端資料讀取失敗，請確認資料介面與存取權限')),
-            )
-            .getHomeData();
-        });
+        data = await callGas('getHomeData', [], googleRun);
       } else {
         const response = await fetchImpl('/api/home');
         if (!response.ok) throw new Error('本機資料讀取失敗，請確認 API 已啟動後重試');

@@ -58,7 +58,7 @@ test('GAS event client uses the bridge and propagates unconnected failures witho
   assert.deepEqual(received, { requestId: 'request' });
   await assert.rejects(
     createEventClient({ source: 'gas', googleRun: null }).getEvents(),
-    /尚未串接/,
+    /Apps Script Web App/,
   );
 });
 test('event client reports network and malformed JSON errors, and returns local event data', async () => {

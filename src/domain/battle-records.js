@@ -1,3 +1,4 @@
+import { utf8Bytes } from './utf8.js';
 export const MAX_CSV_BYTES = 1024 * 1024;
 export const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 export const BATTLE_COLUMNS = [
@@ -62,8 +63,7 @@ function csvRows(text) {
 
 export function parseBattleCsv(text) {
   if (typeof text !== 'string' || !text.trim()) throw new BattleRecordError('CSV 內容不能為空');
-  if (new TextEncoder().encode(text).length > MAX_CSV_BYTES)
-    throw new BattleRecordError('每個 CSV 不可超過 1 MB');
+  if (utf8Bytes(text).length > MAX_CSV_BYTES) throw new BattleRecordError('每個 CSV 不可超過 1 MB');
   if (text.includes('\ufffd') || text.includes('\u0000'))
     throw new BattleRecordError('CSV 請使用 UTF-8 編碼');
   const rows = csvRows(text.replace(/^\ufeff/, ''));

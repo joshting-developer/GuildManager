@@ -1,3 +1,4 @@
+import { callGas } from './gas.js';
 import { sessionFetch } from './session.js';
 export function createBattleRecordClient({
   source = 'local',
@@ -7,14 +8,7 @@ export function createBattleRecordClient({
   if (!['local', 'gas'].includes(source)) throw new Error('未知的資料來源設定');
   async function call(operation, path, input, args = []) {
     if (source === 'gas') {
-      const run = googleRun || globalThis.google?.script?.run;
-      if (!run) throw new Error('雲端戰績上傳尚未串接');
-      return new Promise((resolve, reject) =>
-        run
-          .withSuccessHandler(resolve)
-          .withFailureHandler((error) => reject(new Error(error?.message || '雲端戰績操作失敗')))
-          [operation](...args),
-      );
+      return callGas(operation, args, googleRun);
     }
     let response;
     try {

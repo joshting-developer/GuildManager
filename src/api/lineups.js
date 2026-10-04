@@ -1,16 +1,10 @@
+import { callGas } from './gas.js';
 import { sessionFetch } from './session.js';
 export function createLineupClient({ source = 'local', fetchImpl = sessionFetch, googleRun } = {}) {
   if (!['local', 'gas'].includes(source)) throw new Error('未知的資料來源設定');
   async function call(name, path, method = 'GET', input, args = []) {
     if (source === 'gas') {
-      const run = googleRun || globalThis.google?.script?.run;
-      if (!run) throw new Error('雲端戰場排表尚未串接');
-      return new Promise((resolve, reject) => {
-        const runner = run
-          .withSuccessHandler(resolve)
-          .withFailureHandler((error) => reject(new Error(error?.message || '雲端排表操作失敗')));
-        runner[name](...(input ? [input] : args));
-      });
+      return callGas(name, input ? [input] : args, googleRun);
     }
     let response;
     try {
