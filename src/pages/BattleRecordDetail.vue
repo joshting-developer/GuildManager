@@ -1,6 +1,14 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { mdiArrowLeft, mdiSort, mdiChevronUp, mdiChevronDown } from '@mdi/js';
+import {
+  mdiArrowLeft,
+  mdiArrowRight,
+  mdiEqual,
+  mdiMinus,
+  mdiSort,
+  mdiChevronUp,
+  mdiChevronDown,
+} from '@mdi/js';
 import { createBattleRecordClient } from '../api/battle-records.js';
 import { createMemberClient } from '../api/members.js';
 import { BATTLE_COLUMNS } from '../domain/battle-records.js';
@@ -28,6 +36,20 @@ const activeSide = ref('red'),
   sortDirection = ref('desc'),
   page = ref(1);
 const statistics = computed(() => summarizeBattle(record.value?.players || []));
+const metricCards = computed(() =>
+  statistics.value.metrics.map((metric) => {
+    let comparison = { icon: mdiMinus, label: '資料不足, 無法比較', color: '' };
+    if (!metric.partial && metric.gap != null) {
+      comparison =
+        metric.red.value > metric.blue.value
+          ? { icon: mdiArrowLeft, label: '紅方數值較高', color: 'battle-red-text' }
+          : metric.blue.value > metric.red.value
+            ? { icon: mdiArrowRight, label: '藍方數值較高', color: 'battle-blue-text' }
+            : { icon: mdiEqual, label: '雙方數值相同', color: '' };
+    }
+    return { ...metric, comparison };
+  }),
+);
 const sortedPlayers = computed(() =>
   sortBattlePlayers(
     record.value?.players || [],
@@ -162,16 +184,25 @@ onUnmounted(() => {
         </div>
       </div>
       <div class="battle-metrics-grid">
-        <article v-for="metric in statistics.metrics" :key="metric.key" class="battle-metric-card">
+        <article v-for="metric in metricCards" :key="metric.key" class="battle-metric-card">
           <h3>{{ metric.label }}</h3>
           <div class="battle-metric-values">
-            <div>
+            <div class="battle-metric-red">
               <span class="battle-red-text">紅方</span
               ><strong :title="numberLabel(metric.red.value)">{{
                 numberLabel(metric.red.value)
               }}</strong>
             </div>
-            <div>
+            <div
+              class="battle-metric-comparison"
+              :class="metric.comparison.color"
+              role="img"
+              :aria-label="metric.comparison.label"
+              :title="metric.comparison.label"
+            >
+              <v-icon :icon="metric.comparison.icon" size="20" aria-hidden="true" />
+            </div>
+            <div class="battle-metric-blue">
               <span class="battle-blue-text">藍方</span
               ><strong :title="numberLabel(metric.blue.value)">{{
                 numberLabel(metric.blue.value)

@@ -175,10 +175,31 @@
 }
 .battle-metric-values {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr);
+  gap: 6px;
   margin: 12px 0;
   font-variant-numeric: tabular-nums;
+}
+.battle-metric-red {
+  text-align: left;
+}
+.battle-metric-blue {
+  text-align: right;
+}
+.battle-metric-comparison {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  transform: translateY(8px);
+  min-height: 24px;
+  color: var(--color-text-muted);
+}
+.battle-metric-comparison.battle-red-text {
+  color: #b91c1c;
+}
+.battle-metric-comparison.battle-blue-text {
+  color: #1d4ed8;
 }
 .battle-metric-values span {
   display: block;
@@ -186,7 +207,7 @@
   margin-bottom: 4px;
 }
 .battle-metric-values strong {
-  font-size: 16px;
+  font-size: 14px;
   overflow-wrap: anywhere;
 }
 .battle-metric-card > p {
