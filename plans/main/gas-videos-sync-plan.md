@@ -16,3 +16,11 @@
 - 使用實際編譯 Index.html、Chrome 與隔離模擬 Google RPC 驗證匿名約戰、member 幫戰提交、admin／manager 五欄閱覽、篩選 CSV 實際下載及重載保存；無 HTTP fallback／外部資源／瀏覽器錯誤。
 - 桌面 1440px 與手機 390px 驗證無整頁橫向溢出；網址僅文字，member 無閱覽入口。
 - 真實雲端授權、試算表讀寫與 iframe 下載尚未實測；同步程式不宣稱正式 Web App 已更新。
+
+## 已完成遠端同步
+
+- 來源提交：d1bbad6（串接 GAS 場次影片保存與管理閱覽）。
+- 2026/10/05 執行 npm run gas:push，四檔編譯、遠端更新前備份、上傳與讀回比對全部成功。
+- 目標沿用 gas/upload-target.json 的使用者指定專案；不修改 Script Properties、初始化正式資料或發布 Web App。
+- 遠端前後備份：data/gas-backups/2026-10-04T19-15-37-627Z/before 與 after（私有忽略路徑，不提交）。
+- 使用者需於 Apps Script「部署 → 管理部署作業 → 編輯 → 版本：新版本 → 部署」更新既有 Web App；再確認真實雲端提交、重載與 CSV 下載。

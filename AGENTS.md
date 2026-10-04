@@ -282,6 +282,8 @@ member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admi
 
 已配置 clasp 3.4.1 自動上傳，目標為 gas/upload-target.json；使用者已提供指令碼 ID 並授權覆蓋目前空白專案。npm run gas:login 由使用者本人完成 OAuth；npm run gas:push 先編譯四檔、備份遠端，再覆蓋並讀回比對。data/clasp-auth.json 與 .clasp.json 均忽略，勿讀出憑證或納入提交。上傳程式與初始化正式試算表／發布 Web App 是不同範圍，後兩者仍需後續指示。
 
+2026/10/05 已將場次影片 GAS 功能（來源提交 d1bbad6）同步四檔，備份及讀回比對成功；紀錄見 plans/main/gas-videos-sync-plan.md。未更動正式資料、憑證或現有 Web App 部署版本；既有網址需由使用者更新為新版本。影片已完成隔離權限／部分失敗測試及編譯 HTML 模擬 RPC 瀏覽器驗證，真實 Google 服務與 iframe 下載尚待實測。
+
 2026/10/05 已實際上傳四檔並讀回比對一致；第一次上傳檢出依賴 class 欄位的 Google ParseError，後端改以 gas/build-options.js 的 ES2019 目標降階並補缺少 Object.hasOwn 的相容實作，沙盒同步該目標且移除新式 helper。遠端僅完成程式語法檢查／同步，尚未初始化或發布 Web App。
 
 已完成全部既有 RPC 的 GAS 來源及單檔打包，初始化／部署見 [GASDeployment.md](GASDeployment.md)。`gas/src/` 使用共享純資料驗證、私有 Properties 登入、追加式 Sheets store、私人 Drive 附件；`gas/Code.gs` 公開白名單 RPC 入口。編輯器選單略過私有 setupGas_，現以 setupGas 作可選取的初始化入口，由 Google Session 檢查非空且相同的 active／effective email；沿用以部署者執行 Web App，一般訪客不可初始化，部署者本人可執行，勿稱為可辨識 editor-only。userinfo.email scope 只用於此檢查，前端沒有初始化功能，不回傳 email；setupGas_ 私有實作保留。`npm run build:gas` 產生 Index.html／Code.gs／Backend.gs／appsscript.json 四檔，全部需同步；勿手改產物。
