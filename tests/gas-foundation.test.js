@@ -109,3 +109,33 @@ test('GAS adapter appends private context and preserves structured errors', asyn
   });
   setGasSession({ user: null });
 });
+
+test('GAS journal expands sheet rows and flushes before making writes visible', () => {
+  const env = gasEnvironment();
+  let flushes = 0;
+  const storage = createSheetStore({
+    ...env,
+    flush: () => {
+      flushes++;
+    },
+  });
+  storage.initialize();
+  storage.transaction((store) => {
+    for (let index = 0; index < 1100; index++) store.put('members', `uid-${index}`, { name: '城' });
+  });
+  assert.equal(storage.transaction((store) => store.all('members')).length, 1100);
+  assert.equal(flushes, 2);
+  const failed = createSheetStore({
+    ...env,
+    flush: () => {
+      throw new Error('flush failed');
+    },
+  });
+  assert.throws(() =>
+    failed.transaction((store) => store.put('events', 'new', { type: 'scrimmage' })),
+  );
+  assert.equal(
+    storage.transaction((store) => store.get('events', 'new')),
+    undefined,
+  );
+});

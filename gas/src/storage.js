@@ -18,7 +18,13 @@ const HEADER = ['record_id', 'transaction_id', 'part_number', 'part_count', 'pay
 const COMMIT_HEADER = ['transaction_id', 'created_at'];
 const CHUNK_SIZE = 36000;
 
-export function createSheetStore({ spreadsheet, utilities, prefix = 'GM_', clock = Date.now }) {
+export function createSheetStore({
+  spreadsheet,
+  utilities,
+  prefix = 'GM_',
+  clock = Date.now,
+  flush = () => {},
+}) {
   if (!/^[A-Za-z][A-Za-z0-9_]{0,19}$/.test(prefix)) fail('CONFIG_INVALID', '工作表前綴格式不正確');
   function sheet(table, initialize = false) {
     const name = `${prefix}${table}`;
@@ -45,6 +51,14 @@ export function createSheetStore({ spreadsheet, utilities, prefix = 'GM_', clock
     return current.getLastRow() <= 1
       ? []
       : current.getRange(2, 1, current.getLastRow() - 1, width).getValues();
+  }
+  function append(current, values) {
+    const end = current.getLastRow() + values.length;
+    if (end > current.getMaxRows())
+      current.insertRowsAfter(current.getMaxRows(), end - current.getMaxRows());
+    current
+      .getRange(current.getLastRow() + 1, 1, values.length, values[0].length)
+      .setValues(values);
   }
   function transaction(work) {
     const commitRows = rows(sheet('commits'), 2);
@@ -121,13 +135,14 @@ export function createSheetStore({ spreadsheet, utilities, prefix = 'GM_', clock
             payload.slice(index * CHUNK_SIZE, (index + 1) * CHUNK_SIZE),
           ]);
       }
-      current.getRange(current.getLastRow() + 1, 1, values.length, 5).setValues(values);
+      append(current, values);
     }
+    // Flush all entity rows before publishing the marker; Sheets may buffer writes.
+    flush();
     const commits = sheet('commits');
     // This marker is authoritative; abandoned rows from any failed write are invisible.
-    commits
-      .getRange(commits.getLastRow() + 1, 1, 1, 2)
-      .setValues([[tx, new Date(clock()).toISOString()]]);
+    append(commits, [[tx, new Date(clock()).toISOString()]]);
+    flush();
     return result;
   }
   return { initialize, transaction };

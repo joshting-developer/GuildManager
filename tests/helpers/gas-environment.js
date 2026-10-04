@@ -21,11 +21,16 @@ export function gasEnvironment() {
   };
   function makeSheet(name) {
     const data = [];
+    let maxRows = 1000;
     return {
       name,
       data,
       setFrozenRows() {},
       getLastRow: () => data.length,
+      getMaxRows: () => maxRows,
+      insertRowsAfter: (_after, count) => {
+        maxRows += count;
+      },
       getLastColumn: () => Math.max(0, ...data.map((row) => row.length)),
       getRange(row, col, height, width) {
         return {
@@ -34,6 +39,7 @@ export function gasEnvironment() {
               Array.from({ length: width }, (_, x) => data[row - 1 + y]?.[col - 1 + x] ?? ''),
             ),
           setValues(values) {
+            if (row + height - 1 > maxRows) throw new Error('range exceeds sheet grid');
             if (failTable === name) throw new Error('simulated write failure');
             for (let y = 0; y < height; y++) {
               if (!data[row - 1 + y]) data[row - 1 + y] = [];
