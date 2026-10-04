@@ -7,7 +7,7 @@ export async function sessionFetch(path, init = {}) {
   if (token && ['POST', 'PATCH', 'DELETE'].includes(init.method))
     headers.set('X-CSRF-Token', token);
   const response = await globalThis.fetch(path, { ...init, headers, credentials: 'same-origin' });
-  if (response.status === 401 && path !== '/api/auth/login' && typeof window !== 'undefined') {
+  if (response.status === 401 && !['/api/auth/login', '/api/auth/member-login'].includes(path) && typeof window !== 'undefined') {
     setCsrfToken('');
     window.dispatchEvent(new Event('guild-auth-required'));
   }

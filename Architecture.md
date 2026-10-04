@@ -72,7 +72,7 @@ GAS 需新增對應工作表、本人操作驗證、鎖定／防重複／部分�
 
 `src/api/auth.js` 提供 getSession／login／logout, `src/api/session.js` 在記憶體保存 CSRF token, 共用 HTTP 呼叫附加 cookie／CSRF 並通知 session 失效。App 啟動先向後端確認身分, 不以 localStorage 或網址判定登入；伺服器採公開端點白名單, 其他 API 全部須登入。
 
-`server/auth-repository.js` 使用獨立 auth_accounts／auth_sessions 表, 密碼 scrypt 雜湊及 salt, session token 隨機且只存 SHA-256 雜湊, 到期 8 小時；重啟保留 session, 登出或重新登入撤銷舊 token。`server/create-account.js` 接受本機 stdin 建立帳號, 另提供 admin-only manager／member 建立／更新介面, 無公開註冊。
+`server/auth-repository.js` 使用獨立 auth_accounts／auth_sessions 表, 密碼 scrypt 雜湊及 salt, session token 隨機且只存 SHA-256 雜湊, 到期 8 小時；重啟保留 session, 登出或重新登入撤銷舊 token。`server/create-account.js` 接受本機 stdin 建立帳號, 另提供 admin-only manager 建立／更新與共用 member 通行密碼介面, 無公開註冊。
 
 首頁行事曆及約戰報名／請假保持公開；幫戰／龍虎戰要求帳號登入, 可填名或讀取名冊選人。`/api/calendar/members` 保留舊契約但改須登入, 完整名冊／歷史僅 admin／manager 可讀。登入帳號尚未綁定遊戲 UID。
 
@@ -118,16 +118,21 @@ GAS 後續需以試算表保存戰績／逐人資料, Drive 保存原檔及圖�
 
 ## Admin 帳號權限
 
-`auth_accounts` 升級新增 admin／manager／member 角色與 revision, 舊資料優先名稱 admin, 否則最早帳號, 僅一位取得 admin；其餘為 manager。session 每次 JOIN 當前角色, `/api/admin/*` 在後端檢查 admin 並沿用 CSRF。`src/api/admin.js` 統一帳號管理資料介面, `AdminPage.vue` 提供密碼與 manager／member 管理, `#/admin` 路由及導覽同時檢查角色。
+`auth_accounts` 升級新增 admin／manager／member 角色與 revision, 舊資料優先名稱 admin, 否則最早帳號, 僅一位取得 admin；其餘為 manager。session 每次 JOIN 當前角色, `/api/admin/*` 在後端檢查 admin 並沿用 CSRF。`src/api/admin.js` 統一帳號管理資料介面, `AdminPage.vue` 提供 admin 密碼、manager 帳號與共用成員通行密碼管理, `#/admin` 路由及導覽同時檢查角色。
 
 改密碼先驗證目前密碼, scrypt 完成後交易重新檢查 revision, 防止並行覆寫；admin 保留目前 session, manager／member 修改撤銷全部 session。登入完成 scrypt 後重新檢查 revision, 避免密碼更新期間建立舊密碼 session。GAS 對應介面明確回報未串接。
 
 ## 公開報名登入與選人
 
-App 提供 calendarAuth 供 ParticipationDialog 於原視窗登入, 沿用 auth adapter 與 HttpOnly session, 不另設共用 member token。幫戰／龍虎戰才要求登入且有三個名稱來源, 約戰維持直接填名；有效登入可跨場次沿用。過期或修改帳號撤銷後, 視窗回到驗證, 保留待送出欄位；錯誤登入不清除已有 session／CSRF。
+App 提供 calendarAuth 供 ParticipationDialog 於原視窗登入, 沿用 auth adapter 與 HttpOnly session, 使用共用 member 通行密碼。幫戰／龍虎戰才要求登入且有三個名稱來源, 約戰維持直接填名；有效登入可跨場次沿用。過期或修改帳號撤銷後, 視窗回到驗證, 保留待送出欄位；錯誤登入不清除已有 session／CSRF。
 
 後端依目前場次類型檢查, GET／POST／PATCH participation 與 POST／DELETE registrations 均保護幫戰／龍虎戰, 不因使用舊介面繞過。member 僅允許報名端點、必要選單與登出, 非公開管理端點拒絕。所有已登入寫入檢查 CSRF。`GET /api/events/:id/participation-members` 驗證場次, 回傳 uid／name／primaryProfessionId／secondaryProfessionId／isInGuild／isInClub, 不含歷史與備註。
 
 名單選人傳送可選 memberUid；同一交易檢查 UID、姓名與目前幫派／俱樂部狀態, 同名仍可指定人員, 過期名單拒絕。不傳 memberUid 時維持原姓名比對, 舊 requestId 的 input_json 不變；新引用包含於重試比對, 不修改名冊或排表快照。GAS 只有尚未串接的選人介面。
 
 開發中兩角色 schema 升級支援 member 時, 先以 VACUUM INTO 備份完整資料庫（記憶體測試除外）, 再暫停 FK enforcement 並於同一交易換表, 防止 DROP TABLE 的 ON DELETE CASCADE 刪掉 session。交換後檢查 foreign_key_check, 失敗回滾, 最終恢復 FK enforcement。既有帳號 ID／hash／role／revision 與 session 不變, 重啟不重複備份。
+
+
+## 共用成員通行密碼
+
+member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admin 在帳號管理設定／修改 6–128 位數字通行密碼，初次不提供預設值，前導零保留。幫戰／龍虎戰僅填通行密碼；已登入 admin／manager 可直接報名。`POST /api/auth/member-login` 由後端指定帳號，與管理登入共用限流；`PATCH /api/admin/member-token` 須 admin、CSRF 及 revision。修改密碼撤銷共用 member 全部 session。舊個別 member 資料保留但不能再登入或沿用舊 session；舊新增／改名 member API 停用。admin／manager 密碼維持 12–128 字元。GAS 尚未串接。

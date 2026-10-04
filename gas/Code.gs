@@ -26,11 +26,11 @@ function createManager(input) {
 function updateManager(input) {
   throw new Error('雲端帳號管理尚未串接');
 }
-function createMemberAccount(input) {
-  throw new Error('雲端帳號管理尚未串接');
+function setMemberToken(input) {
+  throw new Error('雲端成員通行密碼管理尚未串接');
 }
-function updateMemberAccount(input) {
-  throw new Error('雲端帳號管理尚未串接');
+function loginMember(input) {
+  throw new Error('雲端通行密碼登入尚未串接');
 }
 function getParticipationMembers() {
   throw new Error('雲端報名成員選單尚未串接');

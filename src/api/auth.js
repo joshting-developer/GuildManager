@@ -52,12 +52,13 @@ export function createAuthClient({ source = 'local', fetchImpl = sessionFetch, g
     ) {
       throw new Error('登入回應格式不正確, 請稍後再試');
     }
-    if (operation === 'login' && !data.user) throw new Error('登入未完成, 請再試一次');
+    if (['login', 'loginMember'].includes(operation) && !data.user) throw new Error('登入未完成, 請再試一次');
     if (currentVersion === version) setCsrfToken(data.csrfToken);
     return data;
   }
   return {
     getSession: () => call('getAuthSession', 'session'),
+    loginMember: (input) => call('loginMember', 'member-login', { password: input.password }),
     login: (input) => call('login', 'login', input),
     logout: () => call('logout', 'logout', {}),
   };

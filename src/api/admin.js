@@ -43,9 +43,7 @@ export function createAdminClient({ source = 'local', fetchImpl = sessionFetch, 
     getAccounts: () => call('getAccountSettings', 'accounts'),
     changePassword: (input) => call('changeAdminPassword', 'password', 'POST', input),
     createManager: (input) => call('createManager', 'managers', 'POST', input),
-    createMember: (input) => call('createMemberAccount', 'members', 'POST', input),
-    updateMember: (id, input) =>
-      call('updateMemberAccount', `members/${encodeURIComponent(id)}`, 'PATCH', { ...input, id }),
+    setMemberToken: (input) => call('setMemberToken', 'member-token', 'PATCH', input),
     updateManager: (id, input) =>
       call('updateManager', `managers/${encodeURIComponent(id)}`, 'PATCH', { ...input, id }),
   };

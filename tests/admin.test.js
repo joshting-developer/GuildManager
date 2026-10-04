@@ -274,55 +274,41 @@ test('admin adapter uses protected HTTP paths and GAS errors without fallback', 
   }
 });
 
-test('admin issues member accounts; members cannot access management or elevate roles, reset revokes login', async () => {
+test('shared member token is fixed, private, admin-only and revokes all sessions on reset', async () => {
   const f = await setup();
   try {
     const admin = await f.login();
-    const created = await f.request(
-      '/admin/members',
-      'POST',
-      { username: 'player', password, role: 'admin' },
-      admin.headers,
-    );
-    assert.equal(created.status, 201);
-    const { member } = await created.json();
-    assert.equal(member.role, 'member');
-    const login = await f.login('player');
-    assert.equal(login.user.role, 'member');
-    for (const path of [
-      '/home',
-      '/members',
-      '/lineups',
-      '/events/test',
-      '/battle-records',
-      '/admin/accounts',
-    ]) {
-      assert.equal((await f.request(path, 'GET', undefined, login.headers)).status, 403, path);
-    }
-    assert.equal((await f.request('/events', 'GET', undefined, login.headers)).status, 200);
-    await assert.rejects(
-      f.repo.updateManager(admin.user.id, member.id, { username: 'player', revision: 1 }),
-      code('ACCOUNT_NOT_FOUND'),
-    );
-    const updated = await f.request(
-      `/admin/members/${member.id}`,
-      'PATCH',
-      { username: 'player_new', password: 'new-member-password', revision: 1, role: 'admin' },
-      admin.headers,
-    );
-    assert.equal(updated.status, 200);
-    assert.equal((await updated.json()).member.role, 'member');
-    assert.equal(
-      (await (await f.request('/auth/session', 'GET', undefined, login.headers)).json()).user,
-      null,
-    );
-    await f.login('player_new', 'new-member-password');
     const settings = f.repo.getAccountSettings(admin.user.id);
-    assert.equal(settings.members.length, 1);
-    assert.equal(settings.managers.length, 1);
-  } finally {
-    await f.close();
-  }
+    assert.deepEqual(settings.memberToken, { configured: false, revision: 0 });
+    for (const password of ['12345', 'abcdef', 123456, '123456 ', '1'.repeat(129)]) {
+      assert.equal((await f.request('/admin/member-token', 'PATCH', { password, revision: 0 }, admin.headers)).status, 422);
+    }
+    assert.equal((await f.request('/admin/member-token', 'PATCH', { password: '001234', revision: 0 }, { Cookie: admin.headers.Cookie })).status, 403);
+    const manager = await f.login('manager');
+    assert.equal((await f.request('/admin/member-token', 'PATCH', { password: '001234', revision: 0 }, manager.headers)).status, 403);
+    const created = await f.request('/admin/member-token', 'PATCH', { password: '001234', revision: 0, username: 'admin', role: 'admin' }, admin.headers);
+    assert.deepEqual(await created.json(), { memberToken: { configured: true, revision: 1 } });
+    const loginResponse = await f.request('/auth/member-login', 'POST', { password: '001234', username: 'admin', role: 'admin' });
+    assert.equal(loginResponse.status, 200);
+    const session = await loginResponse.json();
+    assert.equal(session.user.role, 'member');
+    assert.equal(session.user.username, '');
+    const headers = { Cookie: loginResponse.headers.get('set-cookie').split(';')[0], 'X-CSRF-Token': session.csrfToken };
+    for (const path of ['/home', '/members', '/lineups', '/battle-records', '/admin/accounts'])
+      assert.equal((await f.request(path, 'GET', undefined, headers)).status, 403, path);
+    assert.equal((await f.request('/auth/login', 'POST', { username: 'guild_member', password: '001234' })).status, 401);
+    assert.equal((await f.request('/admin/members', 'POST', { username: 'other', password }, admin.headers)).status, 404);
+    await assert.rejects(f.repo.createManager(admin.user.id, { username: 'GUILD_MEMBER', password }), code('RESERVED_ACCOUNT'));
+    const data = await (await f.request('/admin/accounts', 'GET', undefined, admin.headers)).json();
+    assert.ok(!JSON.stringify(data).includes('guild_member'));
+    assert.ok(!JSON.stringify(data).includes('001234'));
+    const adapter = createAdminClient({ fetchImpl: (path, init) => f.request(path.replace('/api', ''), init?.method, init?.body ? JSON.parse(init.body) : undefined, admin.headers) });
+    assert.deepEqual(await adapter.setMemberToken({ password: '654321', revision: 1 }), { memberToken: { configured: true, revision: 2 } });
+    assert.equal((await (await f.request('/auth/session', 'GET', undefined, headers)).json()).user, null);
+    await assert.rejects(f.repo.setMemberToken(admin.user.id, { password: '999999', revision: 1 }), code('ACCOUNT_CHANGED'));
+    assert.equal((await f.request('/auth/member-login', 'POST', { password: '001234' })).status, 401);
+    assert.equal((await f.request('/auth/member-login', 'POST', { password: '654321' })).status, 200);
+  } finally { await f.close(); }
 });
 
 test('two-role schema is backed up and upgraded without cascading session deletion or changing credentials', async () => {
@@ -365,7 +351,7 @@ test('two-role schema is backed up and upgraded without cascading session deleti
     assert.deepEqual(backup.prepare('SELECT * FROM auth_accounts').all(), accounts);
     assert.deepEqual(backup.prepare('SELECT * FROM auth_sessions').all(), sessions);
     backup.close();
-    await repo.createMemberAccount('admin', { username: 'member', password });
+    await repo.setMemberToken('admin', { password: '001234', revision: 0 });
     const inspect = new Database(filename, { readonly: true });
     assert.equal(
       inspect.prepare('SELECT password_hash FROM auth_accounts WHERE id = ?').get('admin')
@@ -376,7 +362,7 @@ test('two-role schema is backed up and upgraded without cascading session deleti
     inspect.close();
     repo.close();
     repo = createRepository({ filename });
-    assert.equal(repo.getAccountSettings('admin').members.length, 1);
+    assert.equal(repo.getAccountSettings('admin').memberToken.configured, true);
     assert.equal(repo.getSession(token).user.username, 'admin');
     assert.equal(
       readdirSync(dir).filter((name) => name.includes('.before-member-role-')).length,
@@ -386,4 +372,19 @@ test('two-role schema is backed up and upgraded without cascading session deleti
     repo?.close();
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('management and member logins share rate limiting; legacy individual members remain stored but cannot authenticate', async () => {
+  const f = await setup();
+  try {
+    const account = await f.repo.createAccount({ username: 'legacy_member', password, role: 'member' });
+    await assert.rejects(f.repo.authenticate({ username: 'legacy_member', password }), code('INVALID_CREDENTIALS'));
+    assert.ok(account.id);
+    for (let i = 0; i < 10; i++) {
+      const path = i % 2 ? '/auth/login' : '/auth/member-login';
+      assert.equal((await f.request(path, 'POST', { username: 'admin', password: 'wrong' })).status, 401);
+    }
+    assert.equal((await f.request('/auth/login', 'POST', { username: 'admin', password })).status, 429);
+    assert.equal((await f.request('/auth/member-login', 'POST', { password: '123456' })).status, 429);
+  } finally { await f.close(); }
 });

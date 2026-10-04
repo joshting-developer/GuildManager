@@ -21,7 +21,7 @@ function publicRequest(request, repository) {
     ['/health', '/auth/session', '/events', '/professions'].includes(path)
   )
     return true;
-  if (request.method === 'POST' && path === '/auth/login') return true;
+  if (request.method === 'POST' && ['/auth/login', '/auth/member-login'].includes(path)) return true;
   const participation = path.match(
     /^\/events\/([^/]+)\/(participation|participation-members|registrations(?:\/[^/]+)?)$/,
   );
@@ -95,7 +95,7 @@ export function installAuth(app, repository, { now = Date.now } = {}) {
         : { user: null },
     );
   });
-  app.post('/api/auth/login', async (request, response) => {
+  const login = (memberLogin) => async (request, response) => {
     const key = request.ip;
     for (const [ip, value] of failures) if (value.until <= now()) failures.delete(ip);
     const previous = failures.get(key);
@@ -105,7 +105,7 @@ export function installAuth(app, repository, { now = Date.now } = {}) {
     const attempt = previous || { count: 0, until: now() + 5 * 60 * 1000 };
     attempt.count += 1;
     failures.set(key, attempt);
-    const session = await repository.authenticate(request.body);
+    const session = await (memberLogin ? repository.authenticateMember(request.body) : repository.authenticate(request.body));
     failures.delete(key);
     repository.revokeSession(request.sessionToken);
     response.cookie(COOKIE_NAME, session.token, {
@@ -117,7 +117,9 @@ export function installAuth(app, repository, { now = Date.now } = {}) {
       expiresAt: new Date(session.expiresAt).toISOString(),
       csrfToken: csrfToken(session.token),
     });
-  });
+  };
+  app.post('/api/auth/login', login(false));
+  app.post('/api/auth/member-login', login(true));
   app.post('/api/auth/logout', (request, response) => {
     repository.revokeSession(request.sessionToken);
     response.clearCookie(COOKIE_NAME, cookieOptions()).json({ user: null });

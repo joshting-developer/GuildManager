@@ -137,11 +137,12 @@ test('a failed login does not expire an existing session or clear its CSRF token
   globalThis.window = window;
   globalThis.fetch = async (path, init) => {
     headers = init.headers;
-    return { status: path === '/api/auth/login' ? 401 : 200 };
+    return { status: ['/api/auth/login', '/api/auth/member-login'].includes(path) ? 401 : 200 };
   };
   try {
     setCsrfToken('existing-csrf');
     await sessionFetch('/api/auth/login', { method: 'POST' });
+    await sessionFetch('/api/auth/member-login', { method: 'POST' });
     assert.equal(expired, 0);
     await sessionFetch('/api/events/battle/participation', { method: 'POST' });
     assert.equal(headers.get('X-CSRF-Token'), 'existing-csrf');
@@ -150,4 +151,18 @@ test('a failed login does not expire an existing session or clear its CSRF token
     globalThis.window = oldWindow;
     setCsrfToken('');
   }
+});
+
+test('member login only transmits the password and accepts an anonymous account label', async () => {
+  let request;
+  const client = createAuthClient({ fetchImpl: async (path, init) => {
+    request = { path, body: JSON.parse(init.body) };
+    return { ok: true, json: async () => ({ ...session, user: { id: 'member', username: '', role: 'member' } }) };
+  } });
+  const result = await client.loginMember({ password: '001234', username: 'ignored', role: 'admin' });
+  assert.deepEqual(request, { path: '/api/auth/member-login', body: { password: '001234' } });
+  assert.equal(result.user.username, '');
+  const run = { withSuccessHandler(fn) { this.done = fn; return this; }, withFailureHandler(fn) { this.fail = fn; return this; }, loginMember(input) { assert.deepEqual(input, { password: '001234' }); this.fail({ message: '尚未串接' }); } };
+  await assert.rejects(createAuthClient({ source: 'gas', googleRun: run, fetchImpl: () => assert.fail('no HTTP') }).loginMember({ password: '001234' }), /尚未串接/);
+  setCsrfToken('');
 });

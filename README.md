@@ -402,10 +402,15 @@ SQLite 追加 `battle_uploads`／`battle_records`, `round_number` 記錄場序�
 
 ## Admin 帳號管理
 
-登入 admin 後點右上帳號（手機於導覽選單選「帳號管理」）開啟 `#/admin`。可輸入目前密碼並確認新密碼修改 admin 密碼, 以及建立／修改 manager 與 member 帳號。member 僅可使用公開行事曆與報名, 不可使用管理功能。manager／member 修改密碼留空時保留原密碼, 帳號不可重複（不分大小寫）, 不提供角色提升或刪除。修改 manager／member 撤銷其全部登入；admin 改密碼保留目前登入並撤銷其他登入。
+登入 admin 後點右上帳號（手機於導覽選單選「帳號管理」）開啟 `#/admin`。可輸入目前密碼並確認新密碼修改 admin 密碼, 以及建立／修改 manager 帳號與共用 member 通行密碼。member 僅可使用公開行事曆與報名, 不可使用管理功能。manager 修改密碼留空時保留原密碼, 帳號不可重複（不分大小寫）, 不提供角色提升或刪除。修改 manager／member 撤銷其全部登入；admin 改密碼保留目前登入並撤銷其他登入。
 
 所有帳號管理 API 僅 admin 可用且寫入須 CSRF, 不只隱藏入口。帳號保存 revision 並拒絕過期修改, 密碼不回傳前端, 失敗保留輸入。私有 `data/local-admin.json` 不會隨網頁改密碼同步更新, 需自行保管新密碼。GAS 帳號管理仍未串接。
 
 幫戰／龍虎戰的報名讀寫、舊成員回應／外援 API 都檢查 session；有登入的報名修改均須 CSRF。登入到期或帳號被修改後, 視窗回到驗證畫面, 未送出欄位保留, 驗證成功可繼續。同名成員從名冊選擇可用內部 UID 區分, 直接填名仍拒絕歧義。一般活動不提供報名, 約戰流程維持原樣。
 
 若本機已安裝僅 admin／manager 的舊角色限制, 啟動時先備份完整 SQLite 至資料庫同目錄的 `*.before-member-role-*.sqlite`, 再於交易中擴充 member 角色；不更動既有密碼、角色、revision 或登入。Docker 的備份保存在 `guild_data` volume, 不提交至 Git。
+
+
+## 共用成員通行密碼
+
+member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admin 在帳號管理設定／修改 6–128 位數字通行密碼，初次不提供預設值，前導零保留。幫戰／龍虎戰僅填通行密碼；已登入 admin／manager 可直接報名。`POST /api/auth/member-login` 由後端指定帳號，與管理登入共用限流；`PATCH /api/admin/member-token` 須 admin、CSRF 及 revision。修改密碼撤銷共用 member 全部 session。舊個別 member 資料保留但不能再登入或沿用舊 session；舊新增／改名 member API 停用。admin／manager 密碼維持 12–128 字元。GAS 尚未串接。

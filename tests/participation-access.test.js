@@ -10,7 +10,7 @@ async function setup() {
   let clock = Date.now();
   const repo = createRepository({ filename: ':memory:', authNow: () => clock });
   const admin = await repo.createAccount({ username: 'admin', password });
-  const member = await repo.createMemberAccount(admin.id, { username: 'member', password });
+  const member = await repo.setMemberToken(admin.id, { password: '001234', revision: 0 });
   await repo.createManager(admin.id, { username: 'manager', password });
   for (const [uid, name, isInGuild, isInClub] of [
     ['guild', '同名成員', true, true],
@@ -38,7 +38,9 @@ async function setup() {
       ...(body ? { body: JSON.stringify(body) } : {}),
     });
   async function login(username = 'member') {
-    const response = await request('/auth/login', 'POST', { username, password });
+    const response = username === 'member'
+      ? await request('/auth/member-login', 'POST', { password: '001234' })
+      : await request('/auth/login', 'POST', { username, password });
     assert.equal(response.status, 200);
     const session = await response.json();
     return {
@@ -151,9 +153,8 @@ test('member can use both roster categories, register and leave with CSRF, never
     }
     for (const path of ['/members', '/lineups', '/admin/accounts', '/battle-records'])
       assert.equal((await f.request(path, 'GET', undefined, headers)).status, 403);
-    await f.repo.updateMemberAccount(f.admin.id, f.member.id, {
-      username: 'member',
-      password: 'replacement-password',
+    await f.repo.setMemberToken(f.admin.id, {
+      password: '654321',
       revision: 1,
     });
     assert.equal(
@@ -161,9 +162,8 @@ test('member can use both roster categories, register and leave with CSRF, never
         .status,
       401,
     );
-    const response = await f.request('/auth/login', 'POST', {
-      username: 'member',
-      password: 'replacement-password',
+    const response = await f.request('/auth/member-login', 'POST', {
+      password: '654321',
     });
     const current = { Cookie: response.headers.get('set-cookie').split(';')[0] };
     f.advance(8 * 60 * 60 * 1000);

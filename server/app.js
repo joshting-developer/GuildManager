@@ -58,19 +58,8 @@ export function createApp(repository, { authNow } = {}) {
       ),
     });
   });
-  app.post('/api/admin/members', async (request, response) => {
-    response
-      .status(201)
-      .json({ member: await repository.createMemberAccount(request.auth.user.id, request.body) });
-  });
-  app.patch('/api/admin/members/:id', async (request, response) => {
-    response.json({
-      member: await repository.updateMemberAccount(
-        request.auth.user.id,
-        request.params.id,
-        request.body,
-      ),
-    });
+  app.patch('/api/admin/member-token', async (request, response) => {
+    response.json({ memberToken: await repository.setMemberToken(request.auth.user.id, request.body) });
   });
   app.get('/api/calendar/members', (_request, response) => {
     response.json(repository.listParticipationMembers());

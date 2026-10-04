@@ -176,7 +176,7 @@ function expireSession() {
 }
 async function calendarLogin(input) {
   sessionVersion++;
-  const session = await authClient.login(input);
+  const session = await authClient.loginMember(input);
   if (disposed) return;
   applySession(session);
   authLoading.value = false;
@@ -314,7 +314,7 @@ function skipToMain() {
               @click="navigate('admin')"
               >{{ user.username }}</v-btn
             >
-            <span v-else class="login-account" :title="user.username">{{ user.username }}</span>
+            <span v-else-if="user.role !== 'member'" class="login-account" :title="user.username">{{ user.username }}</span>
             <v-btn variant="text" :prepend-icon="mdiLogout" :loading="authBusy" @click="logout"
               >登出</v-btn
             >

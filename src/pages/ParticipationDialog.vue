@@ -12,8 +12,7 @@ const calendarAuth = inject('calendarAuth', null);
 const requiresLogin = computed(() => ['guild_war', 'dragon_tiger'].includes(props.event.type));
 const locked = computed(() => requiresLogin.value && !calendarAuth?.user.value);
 const authLoading = computed(() => !!calendarAuth?.loading.value);
-const loginUsername = ref(''),
-  loginPassword = ref(''),
+const loginPassword = ref(''),
   loginError = ref('');
 const members = ref([]),
   nameSource = ref('manual'),
@@ -237,15 +236,14 @@ async function submit() {
 async function verifyLogin() {
   if (busy.value || authLoading.value) return;
   loginError.value = '';
-  if (!loginUsername.value.trim() || !loginPassword.value) {
-    loginError.value = '請輸入帳號與密碼';
+  if (!loginPassword.value) {
+    loginError.value = '請輸入通行密碼';
     return;
   }
   busy.value = true;
   try {
     if (!calendarAuth) throw new Error('登入介面尚未設定');
     await calendarAuth.login({
-      username: loginUsername.value.trim(),
       password: loginPassword.value,
     });
     loginPassword.value = '';
@@ -282,20 +280,11 @@ async function verifyLogin() {
       </div>
       <p v-if="authLoading" role="status">正在確認登入狀態…</p>
       <form v-else-if="locked" class="participation-form" @submit.prevent="verifyLogin">
-        <p>請使用 admin 發行的 member 帳號登入；管理帳號也可使用。</p>
-        <v-text-field
-          v-model="loginUsername"
-          label="帳號"
-          autocomplete="username"
-          maxlength="32"
-          variant="outlined"
-          hide-details
-          :disabled="busy"
-          aria-required="true"
-        />
+        <p>請輸入管理者提供的通行密碼。</p>
         <v-text-field
           v-model="loginPassword"
-          label="密碼"
+          label="通行密碼"
+          inputmode="numeric"
           type="password"
           autocomplete="current-password"
           maxlength="128"

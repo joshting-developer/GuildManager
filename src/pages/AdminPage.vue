@@ -11,8 +11,7 @@ const tab = ref('password');
 const currentPassword = ref(''),
   password = ref(''),
   passwordConfirm = ref('');
-const accountKind = ref('manager');
-const accountGroup = computed(() => `${accountKind.value}s`);
+const tokenPassword = ref(''), tokenConfirm = ref('');
 const managerOpen = ref(false),
   managerId = ref(null),
   managerRevision = ref(0),
@@ -20,7 +19,7 @@ const managerOpen = ref(false),
   managerPassword = ref(''),
   managerConfirm = ref('');
 const dirty = computed(
-  () => !!(currentPassword.value || password.value || passwordConfirm.value || managerOpen.value),
+  () => !!(currentPassword.value || password.value || passwordConfirm.value || tokenPassword.value || tokenConfirm.value || managerOpen.value),
 );
 const registerGuard = inject('registerNavigationGuard', null);
 const unregister = registerGuard?.(
@@ -39,7 +38,7 @@ async function load() {
     if (
       result.admin?.role !== 'admin' ||
       !Array.isArray(result.managers) ||
-      !Array.isArray(result.members)
+      typeof result.memberToken?.configured !== 'boolean'
     )
       throw new Error('帳號資料格式不正確, 請重新載入');
     settings.value = result;
@@ -78,8 +77,7 @@ async function changePassword() {
     busy.value = false;
   }
 }
-function openManager(manager = null, kind = 'manager') {
-  accountKind.value = kind;
+function openManager(manager = null) {
   managerId.value = manager?.id || null;
   managerRevision.value = manager?.revision || 0;
   username.value = manager?.username || '';
@@ -93,9 +91,9 @@ function closeManager() {
     (managerPassword.value ||
       managerConfirm.value ||
       username.value !==
-        (settings.value?.[accountGroup.value].find((m) => m.id === managerId.value)?.username ||
+        (settings.value?.managers.find((m) => m.id === managerId.value)?.username ||
           '')) &&
-    !window.confirm(`有尚未儲存的 ${accountKind.value} 設定, 確定要關閉嗎？`)
+    !window.confirm(`有尚未儲存的 manager 設定, 確定要關閉嗎？`)
   )
     return;
   managerOpen.value = false;
@@ -114,28 +112,39 @@ async function saveManager() {
       password: managerPassword.value,
       revision: managerRevision.value,
     };
-    const result =
-      accountKind.value === 'member'
-        ? managerId.value
-          ? await client.updateMember(managerId.value, input)
-          : await client.createMember(input)
-        : managerId.value
-          ? await client.updateManager(managerId.value, input)
-          : await client.createManager(input);
-    const account = result[accountKind.value];
-    const accounts = settings.value[accountGroup.value];
+    const result = managerId.value
+      ? await client.updateManager(managerId.value, input)
+      : await client.createManager(input);
+    const account = result.manager;
+    const accounts = settings.value.managers;
     const index = accounts.findIndex((m) => m.id === account.id);
     if (index < 0) accounts.push(account);
     else accounts[index] = account;
     accounts.sort((a, b) => a.username.localeCompare(b.username));
     managerOpen.value = false;
     managerPassword.value = managerConfirm.value = '';
-    notice.value = `${accountKind.value} 帳號已${managerId.value ? '更新' : '建立'}`;
+    notice.value = `manager 帳號已${managerId.value ? '更新' : '建立'}`;
   } catch (cause) {
     error.value = cause.message;
   } finally {
     busy.value = false;
   }
+}
+async function saveToken() {
+  if (busy.value || !settings.value) return;
+  error.value = !/^\d{6,128}$/.test(tokenPassword.value)
+    ? '通行密碼須為 6–128 位數字'
+    : tokenPassword.value !== tokenConfirm.value ? '兩次輸入的通行密碼不一致' : '';
+  notice.value = '';
+  if (error.value) return;
+  busy.value = true;
+  try {
+    const result = await client.setMemberToken({ password: tokenPassword.value, revision: settings.value.memberToken.revision });
+    settings.value.memberToken = result.memberToken;
+    tokenPassword.value = tokenConfirm.value = '';
+    notice.value = '成員通行密碼已更新';
+  } catch (cause) { error.value = cause.message; }
+  finally { busy.value = false; }
 }
 onMounted(load);
 onUnmounted(() => {
@@ -150,7 +159,7 @@ onUnmounted(() => {
     <div>
       <p class="eyebrow">ACCOUNT SETTINGS</p>
       <h1 id="admin-title">帳號管理<span class="heading-dot">.</span></h1>
-      <p class="page-subtitle">admin 密碼、manager 與 member 帳號設定。</p>
+      <p class="page-subtitle">admin 密碼、manager 帳號與成員通行密碼。</p>
     </div>
     <v-btn variant="outlined" :disabled="busy || loading" @click="load">重新載入</v-btn>
   </section>
@@ -170,7 +179,7 @@ onUnmounted(() => {
         >manager 帳號</v-tab
       >
       <v-tab value="members" id="admin-members-tab" aria-controls="admin-members-panel"
-        >member 帳號</v-tab
+        >成員通行密碼</v-tab
       >
     </v-tabs>
     <section
@@ -218,32 +227,39 @@ onUnmounted(() => {
       </form>
     </section>
     <section
-      v-for="kind in ['manager', 'member']"
-      :key="kind"
-      v-show="tab === `${kind}s`"
-      :id="`admin-${kind}s-panel`"
+      v-show="tab === 'managers'"
+      id="admin-managers-panel"
       role="tabpanel"
-      :aria-labelledby="`admin-${kind}s-tab`"
+      aria-labelledby="admin-managers-tab"
     >
       <div class="section-header admin-section-title">
-        <h2>{{ kind }} 帳號</h2>
-        <v-btn color="primary" :disabled="busy" @click="openManager(null, kind)"
-          >建立 {{ kind }}</v-btn
+        <h2>manager 帳號</h2>
+        <v-btn color="primary" :disabled="busy" @click="openManager()"
+          >建立 manager</v-btn
         >
       </div>
-      <p v-if="!settings[`${kind}s`].length">尚無 {{ kind }} 帳號</p>
+      <p v-if="!settings.managers.length">尚無 manager 帳號</p>
       <ul v-else class="admin-manager-list">
-        <li v-for="manager in settings[`${kind}s`]" :key="manager.id">
+        <li v-for="manager in settings.managers" :key="manager.id">
           <strong>{{ manager.username }}</strong
           ><v-btn
             variant="outlined"
             :disabled="busy"
             :aria-label="`修改 ${manager.username} 帳號`"
-            @click="openManager(manager, kind)"
+            @click="openManager(manager)"
             >修改</v-btn
           >
         </li>
       </ul>
+    </section>
+    <section v-show="tab === 'members'" id="admin-members-panel" role="tabpanel" aria-labelledby="admin-members-tab">
+      <h2 class="admin-section-title">成員通行密碼</h2>
+      <p>{{ settings.memberToken.configured ? '已設定通行密碼' : '尚未設定通行密碼' }}</p>
+      <form class="admin-form" @submit.prevent="saveToken">
+        <v-text-field v-model="tokenPassword" label="新通行密碼（至少 6 位數字）" type="password" inputmode="numeric" autocomplete="new-password" maxlength="128" variant="outlined" hide-details :disabled="busy" aria-required="true" />
+        <v-text-field v-model="tokenConfirm" label="確認通行密碼" type="password" inputmode="numeric" autocomplete="new-password" maxlength="128" variant="outlined" hide-details :disabled="busy" aria-required="true" />
+        <v-btn type="submit" color="primary" :loading="busy" :disabled="busy">{{ settings.memberToken.configured ? '修改通行密碼' : '設定通行密碼' }}</v-btn>
+      </form>
     </section>
   </v-card>
   <v-dialog
@@ -254,7 +270,7 @@ onUnmounted(() => {
     @update:model-value="!$event && closeManager()"
   >
     <v-card class="admin-card">
-      <h2 id="manager-dialog-title">{{ managerId ? '修改' : '建立' }} {{ accountKind }}</h2>
+      <h2 id="manager-dialog-title">{{ managerId ? '修改' : '建立' }} manager</h2>
       <form class="admin-form" @submit.prevent="saveManager">
         <v-text-field
           v-model="username"
