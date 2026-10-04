@@ -284,3 +284,7 @@ member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admi
 業務表使用 GM_ 前綴，保留原 gid=0，不自動遷移 SQLite／本機帳號／示範資料。每類資料分表，以固定 ID、Base64 JSON 分段及提交標記讀取最新有效值；script lock 下先 flush 資料後發布 marker，失敗未提交列不讀取。戰績清單讀摘要、詳情才讀玩家快照。跨 Drive／Sheets 失敗可能保留未引用附件，不自動刪除。初始化只補專用表及九職業／三職責，不覆寫既有帳號或資料。
 
 本機 scrypt／HttpOnly cookie 與 GAS PBKDF2／sessionStorage token 互相獨立，兩端沿用相同角色及 CSRF／撤銷規則。GAS 需以部署者身分執行，Google OAuth 未實作，帳號不與遊戲 UID 綁定。所有憑證在 Script Properties，測試與正式專案／表／Drive 分開。已進行隔離模擬及編譯沙盒驗證，尚未進行真實授權、配額、登入速度、iframe 下載或正式部署驗證。
+
+## 平台名稱設定
+
+admin 在帳號管理的「平台設定」分頁修改品牌名稱，預設「逆水寒」，1–30 個 Unicode 字元、trim、拒絕控制字元。僅 admin + CSRF 可修改，公開讀取只包含名稱與 revision。修改檢查 revision，可安全重試相同成功結果；SQLite platform_settings／GAS GM_settings 分別保存。頂欄／頁尾／網頁標題同步更新，長名稱縮略且保留完整 title，不改 GUILD_NAME 或活動／戰績快照；舊 GAS 套件更新須重跑 setupGas_ 補表。

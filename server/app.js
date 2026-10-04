@@ -1,4 +1,5 @@
 import express from 'express';
+import { PlatformSettingsError } from '../src/domain/platform-settings.js';
 import { visibleCalendarEvents } from '../src/domain/calendar-access.js';
 import { installAuth } from './auth.js';
 import { AuthError } from './auth-repository.js';
@@ -33,6 +34,12 @@ export function createApp(repository, { authNow } = {}) {
   app.use('/api/battle-records', express.json({ limit: '10mb' }));
   app.use(express.json({ limit: '16kb' }));
   installAuth(app, repository, { now: authNow });
+  app.get('/api/platform-settings', (_request, response) => {
+    response.json(repository.getPlatformSettings());
+  });
+  app.patch('/api/admin/platform-settings', (request, response) => {
+    response.json(repository.updatePlatformSettings(request.body));
+  });
   app.get('/api/admin/accounts', (request, response) => {
     response.json(repository.getAccountSettings(request.auth.user.id));
   });
@@ -201,6 +208,7 @@ export function createApp(repository, { authNow } = {}) {
   });
   app.use((error, _request, response, _next) => {
     if (
+      error instanceof PlatformSettingsError ||
       error instanceof AuthError ||
       error instanceof MemberError ||
       error instanceof EventError ||

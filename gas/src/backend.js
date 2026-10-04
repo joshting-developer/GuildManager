@@ -1,4 +1,8 @@
 import { visibleCalendarEvents } from '../../src/domain/calendar-access.js';
+import {
+  DEFAULT_PLATFORM_NAME,
+  validatePlatformSettings,
+} from '../../src/domain/platform-settings.js';
 import { canonical, fail } from './common.js';
 import { createSheetStore, createPrivateStore } from './storage.js';
 import { createGasAuth } from './auth.js';
@@ -18,7 +22,7 @@ const AUTH = [
   'updateManager',
   'setMemberToken',
 ];
-const PUBLIC = ['getEvents', 'getProfessions'];
+const PUBLIC = ['getEvents', 'getProfessions', 'getPlatformSettings'];
 const PARTICIPATION = [
   'getEventParticipation',
   'getEventParticipationMembers',
@@ -28,6 +32,7 @@ const PARTICIPATION = [
   'cancelGuestRegistration',
 ];
 const WRITES = [
+  'updatePlatformSettings',
   'addMember',
   'updateMember',
   'removeMember',
@@ -120,13 +125,30 @@ export function rpc(operation, args = [], context = {}) {
             read: (id) => Utilities.base64Encode(DriveApp.getFileById(id).getBlob().getBytes()),
           };
           const methods = {
+            getPlatformSettings: () => ({
+              platform: store.get('settings', 'platform') || {
+                name: DEFAULT_PLATFORM_NAME,
+                revision: 1,
+              },
+            }),
+            updatePlatformSettings: ([input]) => {
+              const current = methods.getPlatformSettings().platform;
+              const name = validatePlatformSettings(input, current);
+              if (name !== current.name)
+                store.put('settings', 'platform', {
+                  name,
+                  revision: current.revision + 1,
+                });
+              return methods.getPlatformSettings();
+            },
             ...catalog.methods,
             ...participation.methods,
             ...createLineups(store, catalog, participation, options),
             ...createBattles(store, catalog, { ...options, files }),
           };
           if (!Object.hasOwn(methods, operation)) fail('OPERATION_INVALID', '不支援此操作');
-          if (PARTICIPATION.includes(operation)) {
+          if (operation === 'updatePlatformSettings') auth.requireRole(context, ['admin']);
+          else if (PARTICIPATION.includes(operation)) {
             const event = catalog.event(args[0], { battle: true });
             if (
               ['guild_war', 'dragon_tiger'].includes(event.type) ||
@@ -149,7 +171,9 @@ export function rpc(operation, args = [], context = {}) {
           if (WRITES.includes(operation)) auth.requireWrite(context);
           const result = methods[operation](args);
           if (operation === 'getEvents')
-            return { events: visibleCalendarEvents(result.events, auth.session(context)?.user) };
+            return {
+              events: visibleCalendarEvents(result.events, auth.session(context)?.user),
+            };
           return result;
         });
       } finally {

@@ -1,6 +1,7 @@
 import { canonical, clone, fail } from './common.js';
 
 export const BUSINESS_TABLES = [
+  'settings',
   'professions',
   'members',
   'name_history',

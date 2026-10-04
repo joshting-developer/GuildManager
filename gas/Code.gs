@@ -1,11 +1,13 @@
 // Frontend-callable wrappers expose only the documented RPC allowlist.
 function doGet() {
+  const settings = GuildGas.rpc('getPlatformSettings', []);
+  const name = settings.ok ? settings.data.platform.name : '逆水寒';
   const namespace = JSON.stringify(ScriptApp.getScriptId()).replace(/</g, '\u003c');
   const html = HtmlService.createHtmlOutputFromFile('Index')
     .getContent()
     .replace('</head>', '<script>window.__GUILD_GAS_KEY__=' + namespace + ';</script></head>');
   return HtmlService.createHtmlOutput(html)
-    .setTitle('逆水寒 · 幫會管理')
+    .setTitle(name + ' · 幫會管理平台')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1.0');
 }
 
@@ -53,6 +55,14 @@ function setMemberToken(input, context) {
 
 function getHomeData(context) {
   return GuildGas.rpc('getHomeData', [], context);
+}
+
+function getPlatformSettings(context) {
+  return GuildGas.rpc('getPlatformSettings', [], context);
+}
+
+function updatePlatformSettings(input, context) {
+  return GuildGas.rpc('updatePlatformSettings', [input], context);
 }
 
 function getMembers(context) {

@@ -1,7 +1,17 @@
 <script setup>
 import { ref, computed, inject, onMounted, onUnmounted } from 'vue';
 import { createAdminClient } from '../api/admin.js';
-const client = createAdminClient({ source: import.meta.env.VITE_DATA_SOURCE || 'local' });
+import { createPlatformSettingsClient } from '../api/platform-settings.js';
+import { validatePlatformSettings } from '../domain/platform-settings.js';
+const emit = defineEmits(['platform-updated']);
+const client = createAdminClient({
+  source: import.meta.env.VITE_DATA_SOURCE || 'local',
+});
+const platformClient = createPlatformSettingsClient({
+  source: import.meta.env.VITE_DATA_SOURCE || 'local',
+});
+const platform = ref(null),
+  platformName = ref('');
 const settings = ref(null),
   loading = ref(true),
   busy = ref(false),
@@ -11,7 +21,8 @@ const tab = ref('password');
 const currentPassword = ref(''),
   password = ref(''),
   passwordConfirm = ref('');
-const tokenPassword = ref(''), tokenConfirm = ref('');
+const tokenPassword = ref(''),
+  tokenConfirm = ref('');
 const managerOpen = ref(false),
   managerId = ref(null),
   managerRevision = ref(0),
@@ -19,7 +30,16 @@ const managerOpen = ref(false),
   managerPassword = ref(''),
   managerConfirm = ref('');
 const dirty = computed(
-  () => !!(currentPassword.value || password.value || passwordConfirm.value || tokenPassword.value || tokenConfirm.value || managerOpen.value),
+  () =>
+    !!(
+      currentPassword.value ||
+      password.value ||
+      passwordConfirm.value ||
+      tokenPassword.value ||
+      tokenConfirm.value ||
+      managerOpen.value ||
+      (platform.value && platformName.value !== platform.value.name)
+    ),
 );
 const registerGuard = inject('registerNavigationGuard', null);
 const unregister = registerGuard?.(
@@ -29,11 +49,15 @@ let disposed = false,
   loadVersion = 0;
 async function load() {
   if (busy.value) return;
+  if (dirty.value && !window.confirm('有尚未儲存的設定，確定要重新載入嗎？')) return;
   const version = ++loadVersion;
   loading.value = true;
   error.value = '';
   try {
-    const result = await client.getAccounts();
+    const [result, platformResult] = await Promise.all([
+      client.getAccounts(),
+      platformClient.getSettings(),
+    ]);
     if (disposed || version !== loadVersion) return;
     if (
       result.admin?.role !== 'admin' ||
@@ -42,6 +66,9 @@ async function load() {
     )
       throw new Error('帳號資料格式不正確, 請重新載入');
     settings.value = result;
+    platform.value = platformResult.platform;
+    platformName.value = platform.value.name;
+    emit('platform-updated', platform.value);
   } catch (cause) {
     if (!disposed && version === loadVersion) error.value = cause.message;
   } finally {
@@ -53,6 +80,34 @@ function checkPassword(value, confirmation, optional = false) {
   if (value.length < 12 || value.length > 128) return '密碼長度須為 12–128 個字元';
   if (value !== confirmation) return '兩次輸入的新密碼不一致';
   return '';
+}
+async function savePlatform() {
+  if (busy.value || !platform.value) return;
+  error.value = notice.value = '';
+  try {
+    validatePlatformSettings(
+      { name: platformName.value, revision: platform.value.revision },
+      platform.value,
+    );
+  } catch (cause) {
+    error.value = cause.message;
+    return;
+  }
+  busy.value = true;
+  try {
+    const result = await platformClient.updateSettings({
+      name: platformName.value,
+      revision: platform.value.revision,
+    });
+    platform.value = result.platform;
+    platformName.value = result.platform.name;
+    emit('platform-updated', result.platform);
+    notice.value = '平台名稱已更新';
+  } catch (cause) {
+    error.value = cause.message;
+  } finally {
+    busy.value = false;
+  }
 }
 async function changePassword() {
   if (busy.value || !settings.value) return;
@@ -91,8 +146,7 @@ function closeManager() {
     (managerPassword.value ||
       managerConfirm.value ||
       username.value !==
-        (settings.value?.managers.find((m) => m.id === managerId.value)?.username ||
-          '')) &&
+        (settings.value?.managers.find((m) => m.id === managerId.value)?.username || '')) &&
     !window.confirm(`有尚未儲存的 manager 設定, 確定要關閉嗎？`)
   )
     return;
@@ -134,17 +188,25 @@ async function saveToken() {
   if (busy.value || !settings.value) return;
   error.value = !/^[a-zA-Z0-9]{6,128}$/.test(tokenPassword.value)
     ? '通行密碼須為 6–128 個英文字母或數字'
-    : tokenPassword.value !== tokenConfirm.value ? '兩次輸入的通行密碼不一致' : '';
+    : tokenPassword.value !== tokenConfirm.value
+      ? '兩次輸入的通行密碼不一致'
+      : '';
   notice.value = '';
   if (error.value) return;
   busy.value = true;
   try {
-    const result = await client.setMemberToken({ password: tokenPassword.value, revision: settings.value.memberToken.revision });
+    const result = await client.setMemberToken({
+      password: tokenPassword.value,
+      revision: settings.value.memberToken.revision,
+    });
     settings.value.memberToken = result.memberToken;
     tokenPassword.value = tokenConfirm.value = '';
     notice.value = '成員通行密碼已更新';
-  } catch (cause) { error.value = cause.message; }
-  finally { busy.value = false; }
+  } catch (cause) {
+    error.value = cause.message;
+  } finally {
+    busy.value = false;
+  }
 }
 onMounted(load);
 onUnmounted(() => {
@@ -159,7 +221,7 @@ onUnmounted(() => {
     <div>
       <p class="eyebrow">ACCOUNT SETTINGS</p>
       <h1 id="admin-title">帳號管理<span class="heading-dot">.</span></h1>
-      <p class="page-subtitle">admin 密碼、manager 帳號與成員通行密碼。</p>
+      <p class="page-subtitle">平台名稱、admin 密碼、manager 帳號與成員通行密碼。</p>
     </div>
     <v-btn variant="outlined" :disabled="busy || loading" @click="load">重新載入</v-btn>
   </section>
@@ -172,6 +234,9 @@ onUnmounted(() => {
   <p v-if="loading" role="status">正在載入帳號設定…</p>
   <v-card v-else-if="settings" class="admin-card">
     <v-tabs v-model="tab" aria-label="帳號設定" :disabled="busy">
+      <v-tab value="platform" id="admin-platform-tab" aria-controls="admin-platform-panel"
+        >平台設定</v-tab
+      >
       <v-tab value="password" id="admin-password-tab" aria-controls="admin-password-panel"
         >admin 密碼</v-tab
       >
@@ -182,6 +247,33 @@ onUnmounted(() => {
         >成員通行密碼</v-tab
       >
     </v-tabs>
+    <section
+      v-show="tab === 'platform'"
+      id="admin-platform-panel"
+      role="tabpanel"
+      aria-labelledby="admin-platform-tab"
+    >
+      <h2 class="admin-section-title">平台名稱</h2>
+      <form class="admin-form" @submit.prevent="savePlatform">
+        <v-text-field
+          v-model="platformName"
+          label="平台名稱"
+          hint="顯示於左上角、頁尾與網頁標題，最多 30 個字。"
+          persistent-hint
+          variant="outlined"
+          :disabled="busy"
+          aria-required="true"
+          autocomplete="off"
+        />
+        <v-btn
+          type="submit"
+          color="primary"
+          :loading="busy"
+          :disabled="busy || !platform || platformName === platform.name"
+          >儲存名稱</v-btn
+        >
+      </form>
+    </section>
     <section
       v-show="tab === 'password'"
       id="admin-password-panel"
@@ -234,9 +326,7 @@ onUnmounted(() => {
     >
       <div class="section-header admin-section-title">
         <h2>manager 帳號</h2>
-        <v-btn color="primary" :disabled="busy" @click="openManager()"
-          >建立 manager</v-btn
-        >
+        <v-btn color="primary" :disabled="busy" @click="openManager()">建立 manager</v-btn>
       </div>
       <p v-if="!settings.managers.length">尚無 manager 帳號</p>
       <ul v-else class="admin-manager-list">
@@ -252,13 +342,44 @@ onUnmounted(() => {
         </li>
       </ul>
     </section>
-    <section v-show="tab === 'members'" id="admin-members-panel" role="tabpanel" aria-labelledby="admin-members-tab">
+    <section
+      v-show="tab === 'members'"
+      id="admin-members-panel"
+      role="tabpanel"
+      aria-labelledby="admin-members-tab"
+    >
       <h2 class="admin-section-title">成員通行密碼</h2>
-      <p>{{ settings.memberToken.configured ? '已設定通行密碼' : '尚未設定通行密碼' }}</p>
+      <p>
+        {{ settings.memberToken.configured ? '已設定通行密碼' : '尚未設定通行密碼' }}
+      </p>
       <form class="admin-form" @submit.prevent="saveToken">
-        <v-text-field v-model="tokenPassword" label="新通行密碼（至少 6 個英數字）" type="password" inputmode="text" autocomplete="new-password" maxlength="128" variant="outlined" hide-details :disabled="busy" aria-required="true" />
-        <v-text-field v-model="tokenConfirm" label="確認通行密碼" type="password" inputmode="text" autocomplete="new-password" maxlength="128" variant="outlined" hide-details :disabled="busy" aria-required="true" />
-        <v-btn type="submit" color="primary" :loading="busy" :disabled="busy">{{ settings.memberToken.configured ? '修改通行密碼' : '設定通行密碼' }}</v-btn>
+        <v-text-field
+          v-model="tokenPassword"
+          label="新通行密碼（至少 6 個英數字）"
+          type="password"
+          inputmode="text"
+          autocomplete="new-password"
+          maxlength="128"
+          variant="outlined"
+          hide-details
+          :disabled="busy"
+          aria-required="true"
+        />
+        <v-text-field
+          v-model="tokenConfirm"
+          label="確認通行密碼"
+          type="password"
+          inputmode="text"
+          autocomplete="new-password"
+          maxlength="128"
+          variant="outlined"
+          hide-details
+          :disabled="busy"
+          aria-required="true"
+        />
+        <v-btn type="submit" color="primary" :loading="busy" :disabled="busy">{{
+          settings.memberToken.configured ? '修改通行密碼' : '設定通行密碼'
+        }}</v-btn>
       </form>
     </section>
   </v-card>

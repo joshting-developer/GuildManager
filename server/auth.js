@@ -25,7 +25,7 @@ function publicRequest(request, repository) {
   const path = request.path;
   if (
     request.method === 'GET' &&
-    ['/health', '/auth/session', '/events', '/professions'].includes(path)
+    ['/health', '/auth/session', '/events', '/professions', '/platform-settings'].includes(path)
   )
     return true;
   if (request.method === 'POST' && ['/auth/login', '/auth/member-login'].includes(path))

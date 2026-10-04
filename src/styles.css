@@ -64,6 +64,7 @@ p {
   gap: 24px;
 }
 .brand {
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -73,6 +74,7 @@ p {
   color: var(--color-text);
 }
 .brand-mark {
+  flex-shrink: 0;
   width: 44px;
   height: 44px;
   display: grid;
@@ -82,11 +84,17 @@ p {
   border-radius: 14px;
 }
 .brand-text {
+  min-width: 0;
   display: flex;
   align-items: baseline;
   gap: 12px;
 }
 .brand-text strong {
+  display: block;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 23px;
   font-weight: 800;
   letter-spacing: 1px;
@@ -769,6 +777,7 @@ h3 {
   }
   .brand-text strong {
     font-size: 20px;
+    max-width: 140px;
   }
   .desktop-nav {
     display: none;

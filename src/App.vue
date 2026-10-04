@@ -14,6 +14,8 @@ import {
   mdiAccountCogOutline,
 } from '@mdi/js';
 import { createAuthClient } from './api/auth.js';
+import { createPlatformSettingsClient } from './api/platform-settings.js';
+import { DEFAULT_PLATFORM_NAME } from './domain/platform-settings.js';
 import { setCsrfToken } from './api/session.js';
 import LoginDialog from './components/LoginDialog.vue';
 import HomePage from './pages/HomePage.vue';
@@ -28,6 +30,25 @@ import MemberBattleRecordsPage from './pages/MemberBattleRecordsPage.vue';
 
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 const authClient = createAuthClient({ source });
+const platformClient = createPlatformSettingsClient({ source });
+const platformName = ref(DEFAULT_PLATFORM_NAME),
+  platformError = ref('');
+let platformLoadVersion = 0;
+function applyPlatform(platform) {
+  platformLoadVersion++;
+  platformName.value = platform.name;
+  document.title = `${platform.name} · 幫會管理平台`;
+  platformError.value = '';
+}
+async function loadPlatform() {
+  const version = ++platformLoadVersion;
+  try {
+    const result = await platformClient.getSettings();
+    if (!disposed && version === platformLoadVersion) applyPlatform(result.platform);
+  } catch (cause) {
+    if (!disposed && version === platformLoadVersion) platformError.value = cause.message;
+  }
+}
 const navigation = [
   { page: 'home', label: '行事曆', icon: mdiCalendarMonthOutline },
   { page: 'magament', label: '管理總覽', icon: mdiViewDashboardOutline },
@@ -35,8 +56,18 @@ const navigation = [
   { page: 'events', label: '活動安排', icon: mdiCalendarMonthOutline },
   { page: 'lineups', label: '戰場排表', icon: mdiSwordCross },
   { page: 'battle-upload', label: '戰績上傳', icon: mdiFileUploadOutline },
-  { page: 'battle-records', signedIn: true, label: '戰績閱覽', icon: mdiChartBoxOutline },
-  { page: 'admin', label: '帳號管理', icon: mdiAccountCogOutline, adminOnly: true },
+  {
+    page: 'battle-records',
+    signedIn: true,
+    label: '戰績閱覽',
+    icon: mdiChartBoxOutline,
+  },
+  {
+    page: 'admin',
+    label: '帳號管理',
+    icon: mdiAccountCogOutline,
+    adminOnly: true,
+  },
 ];
 const mobileMenu = ref(false);
 const lineupFocus = ref(false);
@@ -218,7 +249,10 @@ async function login(input) {
     const session =
       input.mode === 'member'
         ? await authClient.loginMember({ password: input.password })
-        : await authClient.login({ username: input.username, password: input.password });
+        : await authClient.login({
+            username: input.username,
+            password: input.password,
+          });
     applySession(session);
     authError.value = '';
     authNotice.value = '';
@@ -267,6 +301,7 @@ onMounted(() => {
   window.addEventListener('guild-auth-required', expireSession);
   document.addEventListener('visibilitychange', checkSession);
   restoreSession();
+  loadPlatform();
 });
 onUnmounted(() => {
   disposed = true;
@@ -287,7 +322,10 @@ function skipToMain() {
       <div class="header-inner">
         <button class="brand" type="button" aria-label="回到行事曆首頁" @click="navigate('home')">
           <span class="brand-mark"><v-icon :icon="mdiSwordCross" size="26" /></span>
-          <span class="brand-text"><strong>逆水寒</strong><span>幫會管理平台</span></span>
+          <span class="brand-text"
+            ><strong :title="platformName">{{ platformName }}</strong
+            ><span>幫會管理平台</span></span
+          >
         </button>
         <nav class="desktop-nav" aria-label="主要導覽">
           <template v-for="item in visibleNavigation" :key="item.page">
@@ -372,6 +410,10 @@ function skipToMain() {
         {{ authError }}
         <v-btn variant="text" size="small" @click="restoreSession">重新確認登入</v-btn>
       </v-alert>
+      <v-alert v-if="platformError" type="error" variant="tonal" role="alert" class="mb-4">
+        {{ platformError }}
+        <v-btn variant="text" size="small" @click="loadPlatform">重新載入平台名稱</v-btn>
+      </v-alert>
       <v-alert v-if="authNotice" type="info" variant="tonal" role="status" class="mb-4">{{
         authNotice
       }}</v-alert>
@@ -399,10 +441,13 @@ function skipToMain() {
           v-else-if="view === 'battle-upload'"
           :initial-event-id="battleUploadEventId"
         />
-        <AdminPage v-else-if="view === 'admin' && user.role === 'admin'" />
+        <AdminPage
+          v-else-if="view === 'admin' && user.role === 'admin'"
+          @platform-updated="applyPlatform"
+        />
       </template>
       <footer v-show="!lineupFocus" class="page-footer">
-        <span>逆水寒 <span class="footer-divider">/</span> 幫會管理平台</span
+        <span>{{ platformName }} <span class="footer-divider">/</span> 幫會管理平台</span
         ><span>每一次集結，都有跡可循。</span>
       </footer>
     </main>

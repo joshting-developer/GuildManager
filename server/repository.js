@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import { createPlatformSettingsRepository } from './platform-settings-repository.js';
 import { createAuthRepository } from './auth-repository.js';
 import { createEventRepository } from './event-repository.js';
 import { createLineupRepository } from './lineup-repository.js';
@@ -203,6 +204,7 @@ export function createRepository({ filename, authNow }) {
     ...createParticipationRepository(db),
     ...createLineupRepository(db),
     ...createBattleRecordRepository(db),
+    ...createPlatformSettingsRepository(db),
     previewMemberImport,
     importMembers(input) {
       return db.transaction(() => {
