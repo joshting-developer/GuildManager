@@ -1,5 +1,7 @@
 # 逆水寒 · 幫會管理平台
 
+圖文操作手冊：[PDF](docs/操作手冊.pdf)／[離線網頁版](docs/操作手冊.html)／[Markdown](docs/操作手冊.md)。涵蓋成員、管理者與 admin 操作，附 26 張最新版示範畫面；圖片來源與更新方式見 [文件說明](docs/README.md)。
+
 Vue 3／Vuetify 管理介面, 本機透過 Node.js／Express API 讀寫 SQLite, GAS／Google 試算表版本已上傳至指定專案，尚未初始化或發布 Web App
 
 首頁直接顯示活動行事曆與場次報名／請假, 右上預設成員通行密碼登入，另一分頁供管理帳號登入。manager／admin 可使用管理總覽、成員清單、活動安排、戰場排表與戰績上傳；member 可閱覽戰績與個人分析，管理頁與管理 API 都檢查角色。雲端版沿用應用程式帳密／通行密碼，Google OAuth 尚未實作；正式試算表未執行初始化
