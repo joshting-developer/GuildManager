@@ -284,7 +284,7 @@ async function verifyLogin() {
         <v-text-field
           v-model="loginPassword"
           label="通行密碼"
-          inputmode="numeric"
+          inputmode="text"
           type="password"
           autocomplete="current-password"
           maxlength="128"

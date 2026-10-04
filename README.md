@@ -413,7 +413,7 @@ SQLite 追加 `battle_uploads`／`battle_records`, `round_number` 記錄場序�
 
 ## 共用成員通行密碼
 
-member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admin 在帳號管理設定／修改 6–128 位數字通行密碼，初次不提供預設值，前導零保留。幫戰／龍虎戰僅填通行密碼；已登入 admin／manager 可直接報名。`POST /api/auth/member-login` 由後端指定帳號，與管理登入共用限流；`PATCH /api/admin/member-token` 須 admin、CSRF 及 revision。修改密碼撤銷共用 member 全部 session。舊個別 member 資料保留但不能再登入或沿用舊 session；舊新增／改名 member API 停用。admin／manager 密碼維持 12–128 字元。GAS 尚未串接。
+member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admin 在帳號管理設定／修改 6–128 個英文字母或數字的通行密碼（區分大小寫，純數字仍可使用），初次不提供預設值，前導零保留。幫戰／龍虎戰僅填通行密碼；已登入 admin／manager 可直接報名。`POST /api/auth/member-login` 由後端指定帳號，與管理登入共用限流；`PATCH /api/admin/member-token` 須 admin、CSRF 及 revision。修改密碼撤銷共用 member 全部 session。舊個別 member 資料保留但不能再登入或沿用舊 session；舊新增／改名 member API 停用。admin／manager 密碼維持 12–128 字元。GAS 尚未串接。
 
 
 ## 個人戰績

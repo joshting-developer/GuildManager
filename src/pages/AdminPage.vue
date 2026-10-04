@@ -132,8 +132,8 @@ async function saveManager() {
 }
 async function saveToken() {
   if (busy.value || !settings.value) return;
-  error.value = !/^\d{6,128}$/.test(tokenPassword.value)
-    ? '通行密碼須為 6–128 位數字'
+  error.value = !/^[a-zA-Z0-9]{6,128}$/.test(tokenPassword.value)
+    ? '通行密碼須為 6–128 個英文字母或數字'
     : tokenPassword.value !== tokenConfirm.value ? '兩次輸入的通行密碼不一致' : '';
   notice.value = '';
   if (error.value) return;
@@ -256,8 +256,8 @@ onUnmounted(() => {
       <h2 class="admin-section-title">成員通行密碼</h2>
       <p>{{ settings.memberToken.configured ? '已設定通行密碼' : '尚未設定通行密碼' }}</p>
       <form class="admin-form" @submit.prevent="saveToken">
-        <v-text-field v-model="tokenPassword" label="新通行密碼（至少 6 位數字）" type="password" inputmode="numeric" autocomplete="new-password" maxlength="128" variant="outlined" hide-details :disabled="busy" aria-required="true" />
-        <v-text-field v-model="tokenConfirm" label="確認通行密碼" type="password" inputmode="numeric" autocomplete="new-password" maxlength="128" variant="outlined" hide-details :disabled="busy" aria-required="true" />
+        <v-text-field v-model="tokenPassword" label="新通行密碼（至少 6 個英數字）" type="password" inputmode="text" autocomplete="new-password" maxlength="128" variant="outlined" hide-details :disabled="busy" aria-required="true" />
+        <v-text-field v-model="tokenConfirm" label="確認通行密碼" type="password" inputmode="text" autocomplete="new-password" maxlength="128" variant="outlined" hide-details :disabled="busy" aria-required="true" />
         <v-btn type="submit" color="primary" :loading="busy" :disabled="busy">{{ settings.memberToken.configured ? '修改通行密碼' : '設定通行密碼' }}</v-btn>
       </form>
     </section>

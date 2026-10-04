@@ -280,7 +280,7 @@ test('shared member token is fixed, private, admin-only and revokes all sessions
     const admin = await f.login();
     const settings = f.repo.getAccountSettings(admin.user.id);
     assert.deepEqual(settings.memberToken, { configured: false, revision: 0 });
-    for (const password of ['12345', 'abcdef', 123456, '123456 ', '1'.repeat(129)]) {
+    for (const password of ['12345', 'abc!23', 123456, '123456 ', '1'.repeat(129)]) {
       assert.equal((await f.request('/admin/member-token', 'PATCH', { password, revision: 0 }, admin.headers)).status, 422);
     }
     assert.equal((await f.request('/admin/member-token', 'PATCH', { password: '001234', revision: 0 }, { Cookie: admin.headers.Cookie })).status, 403);
@@ -303,11 +303,12 @@ test('shared member token is fixed, private, admin-only and revokes all sessions
     assert.ok(!JSON.stringify(data).includes('guild_member'));
     assert.ok(!JSON.stringify(data).includes('001234'));
     const adapter = createAdminClient({ fetchImpl: (path, init) => f.request(path.replace('/api', ''), init?.method, init?.body ? JSON.parse(init.body) : undefined, admin.headers) });
-    assert.deepEqual(await adapter.setMemberToken({ password: '654321', revision: 1 }), { memberToken: { configured: true, revision: 2 } });
+    assert.deepEqual(await adapter.setMemberToken({ password: 'aB1234', revision: 1 }), { memberToken: { configured: true, revision: 2 } });
     assert.equal((await (await f.request('/auth/session', 'GET', undefined, headers)).json()).user, null);
     await assert.rejects(f.repo.setMemberToken(admin.user.id, { password: '999999', revision: 1 }), code('ACCOUNT_CHANGED'));
     assert.equal((await f.request('/auth/member-login', 'POST', { password: '001234' })).status, 401);
-    assert.equal((await f.request('/auth/member-login', 'POST', { password: '654321' })).status, 200);
+    assert.equal((await f.request('/auth/member-login', 'POST', { password: 'Ab1234' })).status, 401);
+    assert.equal((await f.request('/auth/member-login', 'POST', { password: 'aB1234' })).status, 200);
   } finally { await f.close(); }
 });
 

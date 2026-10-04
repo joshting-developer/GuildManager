@@ -231,8 +231,8 @@ export function createAuthRepository(db, { now = Date.now } = {}) {
     },
     async setMemberToken(adminId, input) {
       checkAdmin(adminId);
-      if (typeof input?.password !== 'string' || !/^\d{6,128}$/.test(input.password))
-        throw new AuthError(422, 'INVALID_PASSWORD', '通行密碼須為 6–128 位數字');
+      if (typeof input?.password !== 'string' || !/^[a-zA-Z0-9]{6,128}$/.test(input.password))
+        throw new AuthError(422, 'INVALID_PASSWORD', '通行密碼須為 6–128 個英文字母或數字');
       if (!Number.isSafeInteger(input.revision) || input.revision < 0) throw accountChanged();
       const secret = await passwordHash(input.password, 6);
       return db.transaction(() => {
