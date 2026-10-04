@@ -6,10 +6,10 @@ const props = defineProps({
   busy: Boolean,
   error: String,
   source: String,
-  initialMode: { type: String, default: 'manager' },
+  initialMode: { type: String, default: 'member' },
 });
 const emit = defineEmits(['update:modelValue', 'login', 'closed', 'mode-change']);
-const mode = ref('manager');
+const mode = ref('member');
 const passwordField = ref(null);
 const username = ref('');
 const password = ref('');

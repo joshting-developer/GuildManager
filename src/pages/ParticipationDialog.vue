@@ -12,8 +12,6 @@ const calendarAuth = inject('calendarAuth', null);
 const requiresLogin = computed(() => ['guild_war', 'dragon_tiger'].includes(props.event.type));
 const locked = computed(() => requiresLogin.value && !calendarAuth?.user.value);
 const authLoading = computed(() => !!calendarAuth?.loading.value);
-const loginPassword = ref(''),
-  loginError = ref('');
 const members = ref([]),
   nameSource = ref('manual'),
   selectedMemberUid = ref(null);
@@ -160,13 +158,11 @@ watch(
       tab.value = 'form';
       status.value = 'registered';
       nameSource.value = 'manual';
-      loginPassword.value = loginError.value = '';
       loading.value = false;
       resetForm();
       load();
     } else {
       token++;
-      loginPassword.value = '';
     }
   },
   { immediate: true },
@@ -233,26 +229,6 @@ async function submit() {
     busy.value = false;
   }
 }
-async function verifyLogin() {
-  if (busy.value || authLoading.value) return;
-  loginError.value = '';
-  if (!loginPassword.value) {
-    loginError.value = '請輸入通行密碼';
-    return;
-  }
-  busy.value = true;
-  try {
-    if (!calendarAuth) throw new Error('登入介面尚未設定');
-    await calendarAuth.login({
-      password: loginPassword.value,
-    });
-    loginPassword.value = '';
-  } catch (cause) {
-    loginError.value = cause.message;
-  } finally {
-    busy.value = false;
-  }
-}
 </script>
 
 <template>
@@ -279,25 +255,7 @@ async function verifyLogin() {
         >
       </div>
       <p v-if="authLoading" role="status">正在確認登入狀態…</p>
-      <form v-else-if="locked" class="participation-form" @submit.prevent="verifyLogin">
-        <p>請輸入管理者提供的通行密碼。</p>
-        <v-text-field
-          v-model="loginPassword"
-          label="通行密碼"
-          inputmode="text"
-          type="password"
-          autocomplete="current-password"
-          maxlength="128"
-          variant="outlined"
-          hide-details
-          :disabled="busy"
-          aria-required="true"
-        />
-        <v-alert v-if="loginError" type="error" variant="tonal" role="alert">{{
-          loginError
-        }}</v-alert>
-        <v-btn type="submit" color="primary" :loading="busy" :disabled="busy">驗證並繼續</v-btn>
-      </form>
+      <p v-else-if="locked" role="status">登入已到期，請關閉視窗後使用右上角登入。</p>
       <p v-else-if="loading" role="status">正在載入本場報名資料…</p>
       <v-alert v-else-if="loadError" type="error" variant="tonal" role="alert">{{
         loadError

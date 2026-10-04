@@ -124,7 +124,7 @@ GAS 後續需以試算表保存戰績／逐人資料, Drive 保存原檔及圖�
 
 ## 公開報名登入與選人
 
-App 提供 calendarAuth 供 ParticipationDialog 於原視窗登入, 沿用 auth adapter 與 HttpOnly session, 使用共用 member 通行密碼。幫戰／龍虎戰才要求登入且有三個名稱來源, 約戰維持直接填名；有效登入可跨場次沿用。過期或修改帳號撤銷後, 視窗回到驗證, 保留待送出欄位；錯誤登入不清除已有 session／CSRF。
+App 提供 calendarAuth 的使用者及確認登入狀態，報名視窗沿用右上共用登入，不內嵌登入表單。auth adapter 與 HttpOnly session 保留共用 member 通行密碼。幫戰／龍虎戰才要求登入且有三個名稱來源, 約戰維持直接填名；有效登入可跨場次沿用。過期或修改帳號撤銷後，收起私人場次與報名視窗，需由右上重新登入；錯誤登入不清除已有 session／CSRF。
 
 後端依目前場次類型檢查, GET／POST／PATCH participation 與 POST／DELETE registrations 均保護幫戰／龍虎戰, 不因使用舊介面繞過。member 允許報名端點、必要選單、登出，以及 GET 戰績清單／詳情／附件及個人分析；其他管理端點拒絕。所有已登入寫入檢查 CSRF。`GET /api/events/:id/participation-members` 驗證場次, 回傳 uid／name／primaryProfessionId／secondaryProfessionId／isInGuild／isInClub, 不含歷史與備註。
 
@@ -135,7 +135,7 @@ App 提供 calendarAuth 供 ParticipationDialog 於原視窗登入, 沿用 auth 
 
 ## 共用成員通行密碼
 
-member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admin 在帳號管理設定／修改 6–128 個英文字母或數字的通行密碼（區分大小寫，純數字仍可使用），初次不提供預設值，前導零保留。幫戰／龍虎戰僅填通行密碼；已登入 admin／manager 可直接報名。`POST /api/auth/member-login` 由後端指定帳號，與管理登入共用限流；`PATCH /api/admin/member-token` 須 admin、CSRF 及 revision。修改密碼撤銷共用 member 全部 session。舊個別 member 資料保留但不能再登入或沿用舊 session；舊新增／改名 member API 停用。admin／manager 密碼維持 12–128 字元。GAS 尚未串接。
+member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admin 在帳號管理設定／修改 6–128 個英文字母或數字的通行密碼（區分大小寫，純數字仍可使用），初次不提供預設值，前導零保留。右上登入預設成員通行密碼；幫戰／龍虎戰僅在有效 member／manager／admin 登入後出現在行事曆，報名視窗不再提供登入表單。`POST /api/auth/member-login` 由後端指定帳號，與管理登入共用限流；`PATCH /api/admin/member-token` 須 admin、CSRF 及 revision。修改密碼撤銷共用 member 全部 session。舊個別 member 資料保留但不能再登入或沿用舊 session；舊新增／改名 member API 停用。admin／manager 密碼維持 12–128 字元。GAS 尚未串接。
 
 
 ## 個人戰績
@@ -152,4 +152,11 @@ member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admi
 
 已登入 member／manager／admin 可使用戰績清單、對戰詳情、原始 CSV／既有附件下載及個人數據分析。member 的導覽顯示行事曆與戰績閱覽，從對戰表格點已關聯人名可開啟個人頁；完整名冊及其他管理功能仍只供 admin／manager。共用 member 通行密碼不綁遊戲 UID，因此可查看所有已關聯成員的數據，不限制為本人。匿名不可讀，member 不可上傳／修改戰績、名冊、活動、排表或帳號。後端只放行明確的 GET 路徑，不以 URL 前綴放寬寫入。
 
-右上登入視窗包含「成員登入」「管理者登入」兩個 tab；前者只填 admin 發行的通行密碼（英數 6–128 字），後者沿用 Manager／Admin 帳號密碼。直接開啟戰績／個人分析連結時預選成員登入，成功後保留原目標；切換 tab 清除密碼及登入錯誤。
+右上登入視窗包含「成員登入」「管理者登入」兩個 tab；前者只填 admin 發行的通行密碼（英數 6–128 字），後者沿用 Manager／Admin 帳號密碼。共用視窗一律預選成員登入，首頁登入後留在行事曆，直接開啟戰績／個人分析或管理連結成功後保留原目標及權限；切換 tab 清除密碼及登入錯誤。
+
+
+## 行事曆可見性與登入入口
+
+右上登入預設「成員登入」，只填通行密碼；管理者切換至「管理者登入」填帳號密碼。未登入只顯示一般活動及約戰，幫戰／龍虎戰在 member／manager／admin 有效登入後才顯示。`GET /api/events` 依伺服器 session 過濾，未登入回應不含私人場次及其筆數，原始資料與管理功能不改。前端於登入／登出重新載入，立即收起私人場次及視窗，舊請求回應不能覆蓋新登入狀態。
+
+報名視窗移除通行密碼輸入及驗證按鈕，已登入直接使用既有三種名稱來源及報名／請假表單。登入過期或撤銷後收起私人場次，需使用右上共用入口重新登入；約戰仍可匿名報名。GAS 草稿同步此規則，整體 GAS 工作仍暫停且未部署驗證。

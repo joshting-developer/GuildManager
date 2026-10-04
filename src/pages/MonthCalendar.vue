@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, onUnmounted, ref, watch, inject } from 'vue';
+import { onMounted, onUnmounted, ref, watch, inject, computed } from 'vue';
 import { createEventClient } from '../api/events.js';
 import { createParticipationClient } from '../api/participation.js';
 import CalendarGrid from './CalendarGrid.vue';
@@ -7,8 +7,10 @@ import EventCreateDialog from './EventCreateDialog.vue';
 import ParticipationDialog from './ParticipationDialog.vue';
 import { LINEUP_TYPES } from '../domain/lineups.js';
 import './events.css';
+import { visibleCalendarEvents, calendarRequiresLogin } from '../domain/calendar-access.js';
 import { eventTypeLabel, eventDisplayTitle } from '../domain/event-types.js';
 const props = defineProps({ management: { type: Boolean, default: true } });
+const calendarAuth = inject('calendarAuth', null);
 const openBattleUpload = inject('openBattleUpload', null);
 const selectedEvent = ref(null);
 const participationDialog = ref(false);
@@ -19,6 +21,7 @@ const participationClient = createParticipationClient({
 const participationCounts = ref({});
 let participationToken = 0;
 const events = ref([]);
+const visibleEvents = computed(() => visibleCalendarEvents(events.value, calendarAuth?.user.value));
 const loading = ref(true);
 const error = ref('');
 const dayDialog = ref(false);
@@ -27,21 +30,38 @@ const createDialog = ref(false);
 const initialDate = ref('');
 const notice = ref('');
 let opener;
+let loadToken = 0;
 async function load() {
+  const currentToken = ++loadToken;
   loading.value = true;
   error.value = '';
   try {
     const data = await client.getEvents();
+    if (currentToken !== loadToken) return;
     if (!Array.isArray(data?.events)) throw new Error('資料回應格式不正確，請稍後再試');
     events.value = data.events;
   } catch (failure) {
+    if (currentToken !== loadToken) return;
     error.value = failure.message;
     events.value = [];
   } finally {
-    loading.value = false;
+    if (currentToken === loadToken) loading.value = false;
   }
 }
 onMounted(load);
+watch(
+  [() => calendarAuth?.user.value?.id, () => calendarAuth?.user.value?.role],
+  () => {
+    loadToken++;
+    events.value = [];
+    dayDialog.value = false;
+    selectedDay.value = null;
+    if (selectedEvent.value && calendarRequiresLogin(selectedEvent.value))
+      participationDialog.value = false;
+    load();
+  },
+  { flush: 'sync' },
+);
 function openDay(day) {
   opener = document.activeElement;
   selectedDay.value = day;
@@ -90,6 +110,7 @@ watch(
 );
 onUnmounted(() => {
   participationToken++;
+  loadToken++;
 });
 function openCreate(date) {
   initialDate.value = date;
@@ -122,7 +143,7 @@ function restoreFocus() {
       <span class="subtle-tag">活動行事曆</span>
     </div>
     <CalendarGrid
-      :events="events"
+      :events="visibleEvents"
       :creatable="management && !loading && !error"
       :browsable="!management && !loading && !error"
       @open-day="openDay"
@@ -139,7 +160,7 @@ function restoreFocus() {
         ><p role="alert">{{ error }}</p>
         <v-btn variant="text" @click="load">重新載入</v-btn></template
       >
-      <p v-else-if="!events.length">
+      <p v-else-if="!visibleEvents.length">
         {{ management ? '尚無安排，點選日期格即可建立第一筆安排。' : '目前尚無活動安排。' }}
       </p>
       <p v-else>

@@ -63,7 +63,7 @@ const authError = ref('');
 const loginOpen = ref(false);
 const loginError = ref('');
 const authNotice = ref('');
-provide('calendarAuth', { user, loading: authLoading, login: calendarLogin });
+provide('calendarAuth', { user, loading: authLoading });
 let expiryTimer;
 let disposed = false;
 let loginOrigin;
@@ -102,7 +102,7 @@ function returnHome() {
   mobileMenu.value = false;
   window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#/`);
 }
-function openLogin(page = 'magament', recordId = null) {
+function openLogin(page = 'home', recordId = null) {
   requestedPage.value = page;
   requestedDetailId = recordId;
   loginOrigin = document.activeElement;
@@ -178,16 +178,6 @@ function expireSession() {
   authNotice.value = '登入已到期, 請重新登入後繼續操作';
   returnHome();
   openLogin(requestedPage.value, recordId);
-}
-async function calendarLogin(input) {
-  sessionVersion++;
-  const session = await authClient.loginMember(input);
-  if (disposed) return;
-  applySession(session);
-  authLoading.value = false;
-  authNotice.value = '';
-  authError.value = '';
-  return session.user;
 }
 async function restoreSession() {
   const version = ++sessionVersion;
@@ -419,9 +409,6 @@ function skipToMain() {
     <LoginDialog
       v-model="loginOpen"
       :source="source"
-      :initial-mode="
-        ['battle-records', 'member-records'].includes(requestedPage) ? 'member' : 'manager'
-      "
       :busy="authBusy"
       :error="loginError"
       @login="login"

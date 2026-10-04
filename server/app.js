@@ -1,4 +1,5 @@
 import express from 'express';
+import { visibleCalendarEvents } from '../src/domain/calendar-access.js';
 import { installAuth } from './auth.js';
 import { AuthError } from './auth-repository.js';
 import { EventError } from './event-repository.js';
@@ -73,8 +74,9 @@ export function createApp(repository, { authNow } = {}) {
   app.get('/api/home', (_request, response) => {
     response.set('Cache-Control', 'no-store').json(repository.readHome());
   });
-  app.get('/api/events', (_request, response) => {
-    response.set('Cache-Control', 'no-store').json(repository.listEvents());
+  app.get('/api/events', (request, response) => {
+    const events = visibleCalendarEvents(repository.listEvents().events, request.auth?.user);
+    response.set('Cache-Control', 'no-store').json({ events });
   });
   app.post('/api/events', (request, response) => {
     const result = ['guild_war', 'dragon_tiger'].includes(request.body?.type)
