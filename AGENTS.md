@@ -286,6 +286,8 @@ member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admi
 
 已完成全部既有 RPC 的 GAS 來源及單檔打包，初始化／部署見 [GASDeployment.md](GASDeployment.md)。`gas/src/` 使用共享純資料驗證、私有 Properties 登入、追加式 Sheets store、私人 Drive 附件；`gas/Code.gs` 公開白名單 RPC 入口。編輯器選單略過私有 setupGas_，現以 setupGas 作可選取的初始化入口，由 Google Session 檢查非空且相同的 active／effective email；沿用以部署者執行 Web App，一般訪客不可初始化，部署者本人可執行，勿稱為可辨識 editor-only。userinfo.email scope 只用於此檢查，前端沒有初始化功能，不回傳 email；setupGas_ 私有實作保留。`npm run build:gas` 產生 Index.html／Code.gs／Backend.gs／appsscript.json 四檔，全部需同步；勿手改產物。
 
+GAS 管理者無法登入可由部署者在私有屬性填 RECOVERY_ADMIN_PASSWORD（12–128 字元）並從編輯器執行 resetAdminPassword，沿用 Google 身分檢查。script lock 下只重設唯一 admin 雜湊、增加 revision、撤銷其 sessions 並清除此帳號失敗計數；成功後刪除明文，只記錄登入帳號，不記錄密碼／email。不新增或重建帳號、不改 manager／member／試算表／Drive，全站限流仍保留；此操作不在業務 RPC 白名單。不得代使用者讀取或要求貼出復原密碼；未實際雲端登入時不得把沙盒成功說成正式登入已修復。
+
 業務表使用 GM_ 前綴，保留原 gid=0，不自動遷移 SQLite／本機帳號／示範資料。每類資料分表，以固定 ID、Base64 JSON 分段及提交標記讀取最新有效值；script lock 下先 flush 資料後發布 marker，失敗未提交列不讀取。戰績清單讀摘要、詳情才讀玩家快照。跨 Drive／Sheets 失敗可能保留未引用附件，不自動刪除。初始化只補專用表及九職業／三職責，不覆寫既有帳號或資料。
 
 本機 scrypt／HttpOnly cookie 與 GAS PBKDF2／sessionStorage token 互相獨立，兩端沿用相同角色及 CSRF／撤銷規則。GAS 需以部署者身分執行，Google OAuth 未實作，帳號不與遊戲 UID 綁定。所有憑證在 Script Properties，測試與正式專案／表／Drive 分開。已進行隔離模擬及編譯沙盒驗證，尚未進行真實授權、配額、登入速度、iframe 下載或正式部署驗證。

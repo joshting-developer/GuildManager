@@ -272,3 +272,26 @@ export function setup() {
     };
   });
 }
+
+// Caller is the Google-identity-guarded wrapper in Code.gs; not in the RPC allowlist.
+export function resetAdminPassword() {
+  return locked(() => {
+    const { properties, options, privateStore } = environment();
+    const password = properties.getProperty('RECOVERY_ADMIN_PASSWORD');
+    if (!password)
+      fail(
+        'RECOVERY_PASSWORD_REQUIRED',
+        '請先在指令碼屬性設定 RECOVERY_ADMIN_PASSWORD（12–128 字元）',
+      );
+    const state = privateStore.load();
+    const auth = createGasAuth(state, options);
+    const admin = auth.resetAdminPassword(password);
+    privateStore.save(state);
+    properties.deleteProperty('RECOVERY_ADMIN_PASSWORD');
+    return {
+      reset: true,
+      username: admin.username,
+      message: `admin 密碼已重設，登入帳號：${admin.username}；請重新整理網站後使用新密碼登入`,
+    };
+  });
+}

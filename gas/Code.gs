@@ -15,12 +15,24 @@ function doGet() {
 // This runnable wrapper uses Google's server-side identity, never the app role.
 // Web Apps must keep the documented "execute as deployer" configuration.
 function setupGas() {
+  requireGasExecutor_();
+  return setupGas_();
+}
+
+// Recovery reads the new password only from private Script Properties.
+function resetAdminPassword() {
+  requireGasExecutor_();
+  const result = GuildGas.resetAdminPassword();
+  Logger.log(result.message);
+  return result;
+}
+
+function requireGasExecutor_() {
   const activeEmail = Session.getActiveUser().getEmail();
   const effectiveEmail = Session.getEffectiveUser().getEmail();
   if (!activeEmail || !effectiveEmail || activeEmail !== effectiveEmail) {
-    throw new Error('初始化需由 Google 執行帳號操作，請在 Apps Script 編輯器執行 setupGas');
+    throw new Error('此操作需由 Google 執行帳號操作，請在 Apps Script 編輯器執行');
   }
-  return setupGas_();
 }
 
 // Preserve the private implementation; browsers cannot call this helper.

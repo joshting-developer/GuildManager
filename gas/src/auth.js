@@ -74,7 +74,9 @@ export function createGasAuth(
     if (!roles.includes(current.user.role))
       fail(
         roles.length === 1 ? 'ADMIN_REQUIRED' : 'MANAGEMENT_REQUIRED',
-        roles.length === 1 ? '只有 admin 可以管理帳號' : 'member 登入可使用行事曆與戰績閱覽，管理操作需要管理者帳號',
+        roles.length === 1
+          ? '只有 admin 可以管理帳號'
+          : 'member 登入可使用行事曆與戰績閱覽，管理操作需要管理者帳號',
       );
     return current.user;
   }
@@ -249,5 +251,17 @@ export function createGasAuth(
     });
     return true;
   }
-  return { methods, session, requireRole, requireWrite, bootstrap, clean };
+  // Available only to the executor-guarded editor recovery entry, never RPC.
+  function resetAdminPassword(value) {
+    const admins = state.accounts.filter((account) => account.role === 'admin');
+    if (admins.length !== 1)
+      fail('ADMIN_RECOVERY_INVALID', '找不到唯一的 admin 帳號，請確認初始化結果');
+    const account = admins[0];
+    const encrypted = password(value);
+    Object.assign(account, encrypted, { revision: account.revision + 1 });
+    revoke(account.id);
+    state.limits = state.limits.filter((entry) => entry.id !== `login:${lower(account.username)}`);
+    return accountDto(account);
+  }
+  return { methods, session, requireRole, requireWrite, bootstrap, clean, resetAdminPassword };
 }

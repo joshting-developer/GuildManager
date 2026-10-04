@@ -78,6 +78,14 @@ openssl rand -hex 32
 
 初始化會建立專用工作表、九個職業、保鑣／山盟／輔潮及第一個 admin；不建立假成員或假活動，不修改原始 `gid=0` 工作表，也不覆寫已存在的成員、職責或帳號。重跑時只補缺少的表及初始資料；同名前綴工作表的欄位不符時會停止，需先確認資料來源，勿直接刪表重建。
 
+### 無法登入 admin 時
+
+首頁預設「成員登入」，初始 admin 請切換「管理者登入」，使用初始化時的 `BOOTSTRAP_ADMIN_USERNAME`／`BOOTSTRAP_ADMIN_PASSWORD`；`AUTH_SECRET` 是簽章金鑰，不是登入密碼。初始密碼成功初始化後已轉為雜湊並刪除明文，重填 `BOOTSTRAP_ADMIN_PASSWORD` 再執行 `setupGas` 不會改已有帳號。
+
+如需重設，於「專案設定 → 指令碼屬性」新增 `RECOVERY_ADMIN_PASSWORD`，填寫 12–128 字元的新密碼並儲存；重新整理編輯器，點選 `Code.gs`，函式選單選 `resetAdminPassword` 後執行。沿用與 `setupGas` 相同的 Google 執行身分檢查，成功紀錄只顯示實際登入帳號，不顯示密碼；回網站重新整理後，使用該帳號與新密碼從「管理者登入」登入。若尚無唯一 admin 會拒絕，請先確認初始化結果。
+
+成功會刪除 `RECOVERY_ADMIN_PASSWORD` 明文、增加 admin revision、撤銷 admin sessions 並清除該帳號失敗計數；manager／member 帳號與 sessions、試算表及 Drive 不改。此函式只作部署者復原，不加入網頁或業務 RPC；無法辨識 Google 執行帳號時不做任何變更。若已觸發全站嘗試限制，仍須待該限制到期（5 分鐘）。
+
 登入 admin 後，在「帳號管理」建立 manager，設定共用 member 通行密碼。member 密碼可使用 6–128 個英文字母／數字，區分大小寫，可保留前導零。member 不顯示固定帳號名稱。
 
 測試資料與正式資料須使用不同 Apps Script 專案、試算表及 Drive 資料夾，避免測試 session／帳號或附件沿用到正式來源。確認測試完成後，在正式專案設定提供的正式試算表 ID，再由編輯器執行初始化。
