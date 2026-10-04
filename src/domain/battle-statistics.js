@@ -1,6 +1,10 @@
 import { BATTLE_COLUMNS } from './battle-records.js';
 
 export const BATTLE_METRICS = BATTLE_COLUMNS.slice(2);
+export const BATTLE_TABLE_COLUMNS = [
+  ...BATTLE_COLUMNS.filter(([, key]) => key !== 'resource'),
+  BATTLE_COLUMNS.find(([, key]) => key === 'resource'),
+];
 const sideNames = { red: '紅方', blue: '藍方' };
 
 export function battleRoundLabel(record) {
@@ -79,15 +83,29 @@ export function summarizeBattle(players) {
   return { teams, metrics };
 }
 
-// Compare original numeric values, never formatted text; missing data remains last both ways.
-export function sortBattlePlayers(players, side, key, direction = 'desc') {
+export function battlePlayerValue(player, key, mode = 'total') {
+  const value = player[key] ?? null;
+  if (mode !== 'per_life' || ['player', 'profession', 'seriousInjury'].includes(key)) return value;
+  // An unknown injury count cannot provide a denominator; zero uses one as in NSHM_history.
+  if (value == null || !Number.isFinite(player.seriousInjury)) return null;
+  return value / Math.max(player.seriousInjury, 1);
+}
+
+// Compare unrounded display values, never formatted text; missing data remains last both ways.
+export function sortBattlePlayers(
+  players,
+  side,
+  key,
+  direction = 'desc',
+  { profession = '', mode = 'total' } = {},
+) {
   const factor = direction === 'asc' ? 1 : -1;
   return players
-    .filter((row) => row.side === side)
+    .filter((row) => row.side === side && (!profession || row.profession === profession))
     .slice()
     .sort((a, b) => {
-      const left = a[key],
-        right = b[key];
+      const left = battlePlayerValue(a, key, mode),
+        right = battlePlayerValue(b, key, mode);
       if (left == null && right == null) return 0;
       if (left == null) return 1;
       if (right == null) return -1;

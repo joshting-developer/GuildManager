@@ -7,6 +7,8 @@ import {
   battleRoundLabel,
   battleDateLabel,
   battleSideLabel,
+  battlePlayerValue,
+  BATTLE_TABLE_COLUMNS,
 } from '../src/domain/battle-statistics.js';
 
 test('statistics distinguish zero, missing values and partial totals across independent sides', () => {
@@ -27,6 +29,80 @@ test('statistics distinguish zero, missing values and partial totals across inde
   assert.equal(teams.blue.metrics.burnBone.value, null);
   assert.equal(summarizeBattle([]).teams.red.metrics.kill.value, null);
   assert.deepEqual(players, before);
+});
+
+test('per-life contributions preserve missing values and injury counts without modifying snapshots', () => {
+  const player = {
+    player: '甲',
+    profession: '素問',
+    kill: 100,
+    heal: 0,
+    resource: 60,
+    seriousInjury: 4,
+  };
+  const before = structuredClone(player);
+  assert.equal(battlePlayerValue(player, 'kill', 'per_life'), 25);
+  assert.equal(battlePlayerValue(player, 'heal', 'per_life'), 0);
+  assert.equal(battlePlayerValue(player, 'resource', 'per_life'), 15);
+  assert.equal(battlePlayerValue(player, 'seriousInjury', 'per_life'), 4);
+  assert.equal(battlePlayerValue(player, 'player', 'per_life'), '甲');
+  assert.equal(battlePlayerValue({ ...player, seriousInjury: 0 }, 'kill', 'per_life'), 100);
+  assert.equal(battlePlayerValue({ ...player, seriousInjury: null }, 'kill', 'per_life'), null);
+  assert.equal(
+    battlePlayerValue({ ...player, seriousInjury: undefined }, 'kill', 'per_life'),
+    null,
+  );
+  assert.equal(battlePlayerValue({ ...player, kill: null }, 'kill', 'per_life'), null);
+  assert.equal(battlePlayerValue(player, 'kill'), 100);
+  assert.deepEqual(player, before);
+  assert.equal(BATTLE_TABLE_COLUMNS.at(-1)[1], 'resource');
+  assert.equal(new Set(BATTLE_TABLE_COLUMNS.map(([, key]) => key)).size, 12);
+});
+
+test('profession filters intersect with side and per-life ranking uses unrounded values before pagination', () => {
+  const players = [
+    { side: 'red', player: '總計較高', profession: '素問', kill: 100, seriousInjury: 10 },
+    { side: 'red', player: '一命較高', profession: '素問', kill: 50, seriousInjury: 1 },
+    { side: 'red', player: '其他職業', profession: '龍吟', kill: 1000, seriousInjury: 0 },
+    { side: 'red', player: '無重傷資料', profession: '素問', kill: 1000, seriousInjury: null },
+    { side: 'blue', player: '其他陣營', profession: '素問', kill: 9999, seriousInjury: 1 },
+  ];
+  const before = structuredClone(players);
+  const options = { profession: '素問', mode: 'per_life' };
+  assert.deepEqual(
+    sortBattlePlayers(players, 'red', 'kill', 'desc', options).map((p) => p.player),
+    ['一命較高', '總計較高', '無重傷資料'],
+  );
+  assert.deepEqual(
+    sortBattlePlayers(players, 'red', 'kill', 'asc', options).map((p) => p.player),
+    ['總計較高', '一命較高', '無重傷資料'],
+  );
+  assert.equal(
+    sortBattlePlayers(players, 'blue', 'kill', 'desc', { profession: '龍吟' }).length,
+    0,
+  );
+  assert.deepEqual(players, before);
+  const precise = [
+    { side: 'red', kill: 10, seriousInjury: 10 },
+    { side: 'red', kill: 10000001, seriousInjury: 10000000 },
+  ];
+  assert.equal(
+    sortBattlePlayers(precise, 'red', 'kill', 'desc', { mode: 'per_life' })[0],
+    precise[1],
+  );
+  const many = Array.from({ length: 45 }, (_, index) => ({
+    side: 'red',
+    profession: '新職業',
+    kill: index * 3,
+    seriousInjury: 3,
+  }));
+  assert.equal(
+    sortBattlePlayers(many, 'red', 'kill', 'desc', {
+      profession: '新職業',
+      mode: 'per_life',
+    }).slice(20, 40)[0].kill,
+    72,
+  );
 });
 
 test('numeric sorting occurs before pagination, is stable and leaves missing values last in both directions', () => {

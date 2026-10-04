@@ -11,7 +11,6 @@ import {
 } from '@mdi/js';
 import { createBattleRecordClient } from '../api/battle-records.js';
 import { createMemberClient } from '../api/members.js';
-import { BATTLE_COLUMNS } from '../domain/battle-records.js';
 import { eventTypeLabel } from '../domain/event-types.js';
 import {
   battleDateLabel,
@@ -20,6 +19,8 @@ import {
   battleSideLabel,
   summarizeBattle,
   sortBattlePlayers,
+  battlePlayerValue,
+  BATTLE_TABLE_COLUMNS,
 } from '../domain/battle-statistics.js';
 
 const props = defineProps({ recordId: { type: String, required: true } });
@@ -35,6 +36,21 @@ const activeSide = ref('red'),
   sortKey = ref('kill'),
   sortDirection = ref('desc'),
   page = ref(1);
+const tableMode = ref('total'),
+  professionFilter = ref('');
+const modeOptions = [
+  { value: 'total', label: '總計' },
+  { value: 'per_life', label: '一命' },
+];
+const professionOptions = computed(() => [
+  { title: '所有職業', value: '' },
+  ...[...new Set((record.value?.players || []).map((player) => player.profession).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'zh-Hant'))
+    .map((name) => ({ title: name, value: name })),
+]);
+const teamPlayerCount = computed(
+  () => record.value?.players.filter((player) => player.side === activeSide.value).length || 0,
+);
 const statistics = computed(() => summarizeBattle(record.value?.players || []));
 const metricCards = computed(() =>
   statistics.value.metrics.map((metric) => {
@@ -56,6 +72,7 @@ const sortedPlayers = computed(() =>
     activeSide.value,
     sortKey.value,
     sortDirection.value,
+    { profession: professionFilter.value, mode: tableMode.value },
   ),
 );
 const pagePlayers = computed(() =>
@@ -67,6 +84,19 @@ let disposed = false,
 
 function numberLabel(value) {
   return value == null ? '—' : value.toLocaleString('zh-TW');
+}
+function tableColumnLabel(label, key) {
+  return tableMode.value === 'per_life' && !['player', 'profession', 'seriousInjury'].includes(key)
+    ? `${label}/命`
+    : label;
+}
+function tableValueLabel(player, key) {
+  const value = battlePlayerValue(player, key, tableMode.value);
+  return value == null
+    ? '—'
+    : value.toLocaleString('zh-TW', {
+        maximumFractionDigits: tableMode.value === 'per_life' ? 2 : 0,
+      });
 }
 function professionColor(name) {
   const canonical = name === '神像' ? '神相' : name;
@@ -115,7 +145,7 @@ async function loadProfessions() {
     if (!disposed && token === professionToken) professionError.value = '職業色彩載入失敗';
   }
 }
-watch([activeSide, sortKey, sortDirection], () => {
+watch([activeSide, sortKey, sortDirection, tableMode, professionFilter], () => {
   page.value = 1;
 });
 onMounted(() => {
@@ -222,7 +252,11 @@ onUnmounted(() => {
     <v-card class="battle-view-card battle-detail-table-card" aria-labelledby="battle-player-title">
       <div class="section-header">
         <h2 id="battle-player-title">玩家戰績</h2>
-        <span class="battle-view-muted">{{ sortedPlayers.length }} 人</span>
+        <span class="battle-view-muted" role="status">{{
+          professionFilter
+            ? `符合 ${sortedPlayers.length} 人／本方 ${teamPlayerCount} 人`
+            : `${sortedPlayers.length} 人`
+        }}</span>
       </div>
       <v-tabs v-model="activeSide" aria-label="玩家戰績陣營" class="battle-view-tabs">
         <v-tab v-for="side in ['red', 'blue']" :key="side" :value="side"
@@ -230,6 +264,33 @@ onUnmounted(() => {
           {{ side === 'red' ? record.redTeam : record.blueTeam }}</v-tab
         >
       </v-tabs>
+      <div class="battle-table-controls">
+        <v-select
+          v-model="professionFilter"
+          :items="professionOptions"
+          label="職業篩選"
+          variant="outlined"
+          density="compact"
+          hide-details
+        />
+        <v-btn variant="text" :disabled="!professionFilter" @click="professionFilter = ''"
+          >清除篩選</v-btn
+        >
+        <div class="battle-table-modes" role="group" aria-label="戰績顯示模式">
+          <v-btn
+            v-for="mode in modeOptions"
+            :key="mode.value"
+            :variant="tableMode === mode.value ? 'tonal' : 'text'"
+            :color="tableMode === mode.value ? 'primary' : undefined"
+            :aria-pressed="tableMode === mode.value"
+            @click="tableMode = mode.value"
+            >{{ mode.label }}</v-btn
+          >
+        </div>
+      </div>
+      <p v-if="tableMode === 'per_life'" class="battle-view-muted battle-per-life-note">
+        每命貢獻＝總計 ÷ 重傷次數, 0 次重傷以 1 計算；重傷欄保留原次數。
+      </p>
       <div
         class="battle-view-scroll"
         tabindex="0"
@@ -244,7 +305,7 @@ onUnmounted(() => {
           <thead>
             <tr>
               <th
-                v-for="[label, key] in BATTLE_COLUMNS"
+                v-for="[label, key] in BATTLE_TABLE_COLUMNS"
                 :key="key"
                 scope="col"
                 :aria-sort="ariaSort(key)"
@@ -253,10 +314,10 @@ onUnmounted(() => {
                 <button
                   type="button"
                   class="battle-sort-button"
-                  :aria-label="`${label}, ${sortKey === key ? (sortDirection === 'asc' ? '目前升冪, 點擊降冪' : '目前降冪, 點擊升冪') : '點擊排序'}`"
+                  :aria-label="`${tableColumnLabel(label, key)}, ${sortKey === key ? (sortDirection === 'asc' ? '目前升冪, 點擊降冪' : '目前降冪, 點擊升冪') : '點擊排序'}`"
                   @click="toggleSort(key)"
                 >
-                  {{ label
+                  {{ tableColumnLabel(label, key)
                   }}<v-icon
                     :icon="
                       sortKey === key
@@ -284,16 +345,21 @@ onUnmounted(() => {
                 >
               </td>
               <td
-                v-for="[, key] in BATTLE_COLUMNS.slice(2)"
+                v-for="[, key] in BATTLE_TABLE_COLUMNS.slice(2)"
                 :key="key"
                 class="numeric"
                 :class="{ 'battle-sorted-cell': sortKey === key }"
               >
-                {{ numberLabel(player[key]) }}
+                {{ tableValueLabel(player, key) }}
               </td>
             </tr>
             <tr v-if="!pagePlayers.length">
-              <td :colspan="BATTLE_COLUMNS.length" class="battle-view-state">本方沒有玩家資料</td>
+              <td :colspan="BATTLE_TABLE_COLUMNS.length" class="battle-view-state">
+                {{ professionFilter ? '沒有符合條件的資料' : '本方沒有玩家資料' }}
+                <v-btn v-if="professionFilter" variant="text" @click="professionFilter = ''"
+                  >清除職業篩選</v-btn
+                >
+              </td>
             </tr>
           </tbody>
         </table>

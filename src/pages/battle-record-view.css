@@ -225,6 +225,28 @@
 .battle-detail-table {
   min-width: 1480px;
 }
+.battle-table-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+  border-radius: 16px;
+  background: var(--color-muted-surface);
+}
+.battle-table-controls .v-select {
+  flex: 0 1 240px;
+  min-width: 180px;
+}
+.battle-table-modes {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+.battle-per-life-note {
+  margin-bottom: 16px;
+}
 .battle-detail-table td:first-child {
   min-width: 160px;
   max-width: 240px;
@@ -272,6 +294,10 @@
   }
 }
 @media (max-width: 767px) {
+  .battle-table-controls .v-select {
+    flex-basis: 100%;
+    min-width: 0;
+  }
   .battle-view-card {
     padding: 16px;
   }
