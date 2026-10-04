@@ -10,6 +10,7 @@ import {
   mdiLogin,
   mdiLogout,
   mdiFileUploadOutline,
+  mdiChartBoxOutline,
 } from '@mdi/js';
 import { createAuthClient } from './api/auth.js';
 import { setCsrfToken } from './api/session.js';
@@ -20,6 +21,7 @@ import MembersPage from './pages/MembersPage.vue';
 import EventsPage from './pages/EventsPage.vue';
 import LineupsPage from './pages/LineupsPage.vue';
 import BattleUploadPage from './pages/BattleUploadPage.vue';
+import BattleRecordsPage from './pages/BattleRecordsPage.vue';
 
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 const authClient = createAuthClient({ source });
@@ -30,6 +32,7 @@ const navigation = [
   { page: 'events', label: '活動安排', icon: mdiCalendarMonthOutline },
   { page: 'lineups', label: '戰場排表', icon: mdiSwordCross },
   { page: 'battle-upload', label: '戰績上傳', icon: mdiFileUploadOutline },
+  { page: 'battle-records', label: '戰績閱覽', icon: mdiChartBoxOutline },
 ];
 const mobileMenu = ref(false);
 const lineupFocus = ref(false);
@@ -50,6 +53,7 @@ let expiryTimer;
 let disposed = false;
 let loginOrigin;
 let requestedPage = '';
+let requestedRecordId = null;
 let sessionVersion = 0;
 provide('registerNavigationGuard', (guard) => {
   pageGuard.value = guard;
@@ -60,8 +64,20 @@ provide('registerNavigationGuard', (guard) => {
 function currentView() {
   const route = window.location.hash.slice(2);
   if (route === 'management') return 'magament';
+  if (route.startsWith('battle-records/')) return 'battle-records';
   return navigation.some((item) => item.page === route) ? route : 'home';
 }
+function currentBattleRecordId() {
+  const route = window.location.hash.slice(2);
+  if (!route.startsWith('battle-records/')) return null;
+  const id = route.slice('battle-records/'.length);
+  try {
+    return decodeURIComponent(id) || null;
+  } catch {
+    return id;
+  }
+}
+const battleRecordId = ref(currentBattleRecordId());
 const view = ref(currentView());
 function returnHome() {
   view.value = 'home';
@@ -69,8 +85,9 @@ function returnHome() {
   mobileMenu.value = false;
   window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#/`);
 }
-function openLogin(page = 'magament') {
+function openLogin(page = 'magament', recordId = null) {
   requestedPage = page;
+  requestedRecordId = recordId;
   loginOrigin = document.activeElement;
   loginError.value = '';
   mobileMenu.value = false;
@@ -79,8 +96,9 @@ function openLogin(page = 'magament') {
 function syncView() {
   const next = currentView();
   if (next !== 'home' && !user.value && !authLoading.value) {
+    const recordId = currentBattleRecordId();
     returnHome();
-    openLogin(next);
+    openLogin(next, recordId);
     return;
   }
   if (next !== view.value && pageGuard.value && !pageGuard.value()) {
@@ -88,6 +106,7 @@ function syncView() {
     return;
   }
   view.value = next;
+  battleRecordId.value = currentBattleRecordId();
   mobileMenu.value = false;
   window.scrollTo({ top: 0, behavior: 'instant' });
   nextTick(() => document.getElementById('main')?.focus({ preventScroll: true }));
@@ -111,12 +130,13 @@ function expireSession() {
   if (!user.value) return;
   sessionVersion++;
   requestedPage = view.value === 'home' ? 'magament' : view.value;
+  const recordId = battleRecordId.value;
   user.value = null;
   setCsrfToken('');
   clearTimeout(expiryTimer);
   authNotice.value = '登入已到期, 請重新登入後繼續管理';
   returnHome();
-  openLogin(requestedPage);
+  openLogin(requestedPage, recordId);
 }
 async function restoreSession() {
   const version = ++sessionVersion;
@@ -136,7 +156,7 @@ async function restoreSession() {
       if (view.value !== 'home' && !user.value) {
         const target = view.value;
         returnHome();
-        openLogin(target);
+        openLogin(target, battleRecordId.value);
       }
     }
   }
@@ -151,7 +171,9 @@ async function login(input) {
     authError.value = '';
     authNotice.value = '';
     loginOpen.value = false;
-    navigate(requestedPage || 'magament');
+    if (requestedPage === 'battle-records' && requestedRecordId) {
+      window.location.hash = `/battle-records/${encodeURIComponent(requestedRecordId)}`;
+    } else navigate(requestedPage || 'magament');
   } catch (error) {
     loginError.value = error.message;
   } finally {
@@ -299,6 +321,7 @@ function skipToMain() {
           v-else-if="view === 'battle-upload'"
           :initial-event-id="battleUploadEventId"
         />
+        <BattleRecordsPage v-else-if="view === 'battle-records'" :record-id="battleRecordId" />
       </template>
       <footer v-show="!lineupFocus" class="page-footer">
         <span>逆水寒 <span class="footer-divider">/</span> 幫會管理平台</span

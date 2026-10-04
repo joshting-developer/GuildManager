@@ -5,6 +5,7 @@ import {
   mdiClipboardTextOutline,
   mdiSwordCross,
   mdiFileUploadOutline,
+  mdiChartBoxOutline,
 } from '@mdi/js';
 import MonthCalendar from './MonthCalendar.vue';
 const emit = defineEmits(['open-page']);
@@ -44,6 +45,13 @@ const modules = [
     color: 'orange',
     description: '匯入戰績 CSV, 保存對戰結果。',
   },
+  {
+    id: 'battle-records',
+    title: '戰績閱覽',
+    icon: mdiChartBoxOutline,
+    color: 'blue',
+    description: '查看對戰統計與排序玩家戰績。',
+  },
 ];
 const dateLabel = new Intl.DateTimeFormat('zh-TW', {
   timeZone: 'Asia/Taipei',
@@ -73,18 +81,20 @@ const dateLabel = new Intl.DateTimeFormat('zh-TW', {
     <div class="modules-grid">
       <component
         :is="
-          ['members', 'events', 'lineups', 'battle-upload'].includes(module.id) ? 'button' : 'div'
+          ['members', 'events', 'lineups', 'battle-upload', 'battle-records'].includes(module.id)
+            ? 'button'
+            : 'div'
         "
         v-for="module in modules"
         :key="module.id"
         class="module-card"
         :type="
-          ['members', 'events', 'lineups', 'battle-upload'].includes(module.id)
+          ['members', 'events', 'lineups', 'battle-upload', 'battle-records'].includes(module.id)
             ? 'button'
             : undefined
         "
         @click="
-          ['members', 'events', 'lineups', 'battle-upload'].includes(module.id) &&
+          ['members', 'events', 'lineups', 'battle-upload', 'battle-records'].includes(module.id) &&
           emit('open-page', module.id)
         "
       >
@@ -92,7 +102,7 @@ const dateLabel = new Intl.DateTimeFormat('zh-TW', {
         <h3>{{ module.title }}</h3>
         <p>{{ module.description }}</p>
         <span class="module-status">{{
-          ['members', 'events', 'lineups', 'battle-upload'].includes(module.id)
+          ['members', 'events', 'lineups', 'battle-upload', 'battle-records'].includes(module.id)
             ? `開啟${module.title} →`
             : '待開發'
         }}</span>

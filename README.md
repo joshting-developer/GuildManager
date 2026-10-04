@@ -389,3 +389,12 @@ plans/main/       需求、計畫與驗證紀錄
 | GET | `/api/battle-records/:id/attachments/image` | 舊陣容圖片下載 |
 
 SQLite 追加 `battle_uploads`／`battle_records`, `round_number` 記錄場序、`our_side` 選填敵我、`winner` 可空、`is_internal` 保存內推 boolean；舊場序不回填, 舊勝方保存不變。附件存入原有資料 volume 的 SQLite, 不另依賴容器暫存檔。後端保留獨立戰績匯入相容契約, 新頁面一律選擇活動場次。GAS `getBattleRecords`／`getBattleRecord`／`saveBattleRecords`／`getBattleAttachment` 目前明確回報未串接, 未部署 Google 試算表或 Drive。
+
+## 戰績閱覽
+
+登入後從管理導覽或總覽開啟「戰績閱覽」 (`#/battle-records`), 清單每頁顯示 20 場已上傳戰績, 點對戰名稱或「查看」開啟詳情 (`#/battle-records/:id`), 可直接分享管理頁連結並在登入後查看。
+
+- 上半顯示日期、活動類型、第一／第二場、結果, 雙方人數及職業分布, 比較擊敗、助攻、資源、玩家／建築傷害、治療、承受傷害、重傷、化羽／清泉與焚骨的合計和差距。
+- 下半切換紅／藍方, 點擊名稱、職業或數值表頭切換升降排序；先排序整個陣營再每頁 20 筆, 數字有千分位, 空值顯示「—」且排序在最後。
+- 內推、未填敵我／結果與舊未指定場序保留原狀, 不推算勝敗；以當時上傳快照呈現, 活動改名或刪除不影響閱讀。
+- 返回清單保留頁碼, 支援直接連結、重新整理、載入失敗重試及手機表格橫向捲動。閱覽不修改名冊／排表／戰績, GAS 資料仍未串接。
