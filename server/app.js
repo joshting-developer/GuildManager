@@ -9,6 +9,7 @@ import { DutyError } from './duty-repository.js';
 import { MemberError } from './member-validation.js';
 import { ParticipationError } from './participation-repository.js';
 import { BattleRecordError } from '../src/domain/battle-records.js';
+import { EventVideoError } from '../src/domain/event-videos.js';
 
 export function createApp(repository, { authNow } = {}) {
   const app = express();
@@ -130,6 +131,12 @@ export function createApp(repository, { authNow } = {}) {
       .set('Cache-Control', 'no-store')
       .json(repository.getEventParticipation(request.params.id));
   });
+  app.get('/api/events/:id/videos', (request, response) => {
+    response.json(repository.listEventVideos(request.params.id));
+  });
+  app.post('/api/events/:id/videos', (request, response) => {
+    response.status(201).json(repository.submitEventVideo(request.params.id, request.body));
+  });
   app.get('/api/events/:id/participation-members', (request, response) => {
     response.json(repository.listEventParticipationMembers(request.params.id));
   });
@@ -216,6 +223,7 @@ export function createApp(repository, { authNow } = {}) {
       error instanceof LineupError ||
       error instanceof DutyError ||
       error instanceof ParticipationError ||
+      error instanceof EventVideoError ||
       error instanceof BattleRecordError
     ) {
       return response.status(error.status).json({

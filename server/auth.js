@@ -31,17 +31,20 @@ function publicRequest(request, repository) {
   if (request.method === 'POST' && ['/auth/login', '/auth/member-login'].includes(path))
     return true;
   const participation = path.match(
-    /^\/events\/([^/]+)\/(participation|participation-members|registrations(?:\/[^/]+)?)$/,
+    /^\/events\/([^/]+)\/(participation|participation-members|registrations(?:\/[^/]+)?|videos)$/,
   );
   if (!participation) return false;
+  // Only submitting videos inherits calendar access; viewing the list is management-only.
   const allowed =
-    participation[2] === 'participation'
-      ? ['GET', 'POST', 'PATCH']
-      : participation[2] === 'participation-members'
-        ? ['GET']
-        : participation[2] === 'registrations'
-          ? ['POST']
-          : ['DELETE'];
+    participation[2] === 'videos'
+      ? ['POST']
+      : participation[2] === 'participation'
+        ? ['GET', 'POST', 'PATCH']
+        : participation[2] === 'participation-members'
+          ? ['GET']
+          : participation[2] === 'registrations'
+            ? ['POST']
+            : ['DELETE'];
   if (!allowed.includes(request.method)) return false;
   request.participationAccess = true;
   let eventId;

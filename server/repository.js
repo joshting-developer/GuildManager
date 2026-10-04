@@ -4,6 +4,7 @@ import { createAuthRepository } from './auth-repository.js';
 import { createEventRepository } from './event-repository.js';
 import { createLineupRepository } from './lineup-repository.js';
 import { createParticipationRepository } from './participation-repository.js';
+import { createEventVideoRepository } from './event-video-repository.js';
 import { createDutyRepository } from './duty-repository.js';
 import { createBattleRecordRepository } from './battle-record-repository.js';
 import { mkdirSync } from 'node:fs';
@@ -202,6 +203,7 @@ export function createRepository({ filename, authNow }) {
     ...createEventRepository(db),
     ...createDutyRepository(db),
     ...createParticipationRepository(db),
+    ...createEventVideoRepository(db),
     ...createLineupRepository(db),
     ...createBattleRecordRepository(db),
     ...createPlatformSettingsRepository(db),
