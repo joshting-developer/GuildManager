@@ -276,7 +276,7 @@ onUnmounted(() => {
   }}</v-alert>
   <DataLoading v-if="loading">正在載入帳號設定…</DataLoading>
   <v-card v-else-if="settings" class="admin-card">
-    <DataLoading v-if="busy && !managerOpen" compact>正在儲存帳號或平台設定，請稍候…</DataLoading>
+    <DataLoading v-if="busy && !managerOpen" compact :spinner="false">正在儲存帳號或平台設定，請稍候…</DataLoading>
     <v-tabs v-model="tab" aria-label="帳號設定" :disabled="busy">
       <v-tab value="platform" id="admin-platform-tab" aria-controls="admin-platform-panel"
         >平台設定</v-tab
@@ -521,7 +521,7 @@ onUnmounted(() => {
           :disabled="busy"
         />
         <v-alert v-if="error" type="error" variant="tonal" role="alert">{{ error }}</v-alert>
-        <DataLoading v-if="busy" compact>正在儲存 manager 帳號，請稍候…</DataLoading>
+        <DataLoading v-if="busy" compact :spinner="false">正在儲存 manager 帳號，請稍候…</DataLoading>
         <div class="admin-dialog-actions">
           <v-btn variant="outlined" :disabled="busy" @click="closeManager">取消</v-btn
           ><v-btn type="submit" color="primary" :loading="busy" :disabled="busy">儲存</v-btn>

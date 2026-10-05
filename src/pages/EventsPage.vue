@@ -330,7 +330,7 @@ function formatDate(date) {
           >{{ deleteError }}</v-alert
         >
       </div>
-      <DataLoading v-if="deleting" compact>正在刪除安排，請稍候…</DataLoading>
+      <DataLoading v-if="deleting" compact :spinner="false">正在刪除安排，請稍候…</DataLoading>
       <div class="event-dialog-actions">
         <v-btn variant="outlined" :disabled="deleting" @click="closeDelete()">取消</v-btn>
         <v-btn color="error" :loading="deleting" :disabled="deleting" @click="remove">{{

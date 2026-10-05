@@ -644,7 +644,7 @@ function formatDate(value) {
             </div>
           </fieldset>
         </div>
-        <DataLoading v-if="saving" compact>正在儲存成員資料，請稍候…</DataLoading>
+        <DataLoading v-if="saving" compact :spinner="false">正在儲存成員資料，請稍候…</DataLoading>
         <div class="member-dialog-actions">
           <v-btn variant="outlined" :disabled="saving" @click="closeForm()">取消</v-btn
           ><v-btn type="submit" color="primary" :loading="saving" :disabled="saving">{{
@@ -671,7 +671,7 @@ function formatDate(value) {
         「幫派內」與「俱樂部內」都會改為否，資料與過去名稱保留。日後編輯並勾選任一狀態即可返回成員清單。
       </p>
       <v-alert v-if="moveError" type="error" variant="tonal" role="alert">{{ moveError }}</v-alert>
-      <DataLoading v-if="movingBusy" compact>正在移至編外，請稍候…</DataLoading>
+      <DataLoading v-if="movingBusy" compact :spinner="false">正在移至編外，請稍候…</DataLoading>
       <div class="member-dialog-actions">
         <v-btn variant="outlined" :disabled="movingBusy" @click="moveDialog = false">取消</v-btn
         ><v-btn

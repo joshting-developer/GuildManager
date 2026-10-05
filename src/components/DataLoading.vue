@@ -1,10 +1,13 @@
 <script setup>
-defineProps({ compact: Boolean });
+defineProps({
+  compact: Boolean,
+  spinner: { type: Boolean, default: true },
+});
 </script>
 
 <template>
   <div :class="['data-loading', { 'data-loading-compact': compact }]" role="status" aria-live="polite">
-    <span class="data-loading-spinner" aria-hidden="true"></span>
+    <span v-if="spinner" class="data-loading-spinner" aria-hidden="true"></span>
     <span><slot>正在載入資料…</slot></span>
   </div>
 </template>

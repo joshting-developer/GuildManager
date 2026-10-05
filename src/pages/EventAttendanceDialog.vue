@@ -128,8 +128,8 @@ onUnmounted(() => {
         {{ error }}<v-btn variant="text" @click="load">重試</v-btn>
       </v-alert>
       <template v-else-if="data">
-        <DataLoading v-if="saving" compact>正在取消請假，請稍候…</DataLoading>
-        <v-tabs v-model="tab" color="primary" aria-label="出勤狀態">
+        <DataLoading v-if="saving" compact :spinner="false">正在取消請假，請稍候…</DataLoading>
+        <v-tabs v-model="tab" color="primary" aria-label="出勤狀態" :disabled="!!saving">
           <v-tab :id="`${id}-leave-tab`" value="leave" :aria-controls="`${id}-leave-panel`">
             請假（{{ data.leave.length }}）
           </v-tab>

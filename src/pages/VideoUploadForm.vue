@@ -153,7 +153,7 @@ async function submit() {
         >
       </v-alert>
       <v-alert v-if="notice" type="success" variant="tonal" role="status">{{ notice }}</v-alert>
-      <DataLoading v-if="busy || reloading" compact>{{ busy ? '正在上傳影片連結，請稍候…' : '正在重新載入場次…' }}</DataLoading>
+      <DataLoading v-if="busy || reloading" compact :spinner="!busy">{{ busy ? '正在上傳影片連結，請稍候…' : '正在重新載入場次…' }}</DataLoading>
       <v-btn
         type="submit"
         color="primary"

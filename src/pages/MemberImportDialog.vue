@@ -259,7 +259,7 @@ UID Name 主職業 副職業
           />
         </section>
       </div>
-      <DataLoading v-if="busy" compact>{{ importing ? '正在匯入成員，請稍候…' : previewing ? '正在檢查匯入資料…' : '正在讀取檔案…' }}</DataLoading>
+      <DataLoading v-if="busy" compact :spinner="!previewing && !importing">{{ importing ? '正在匯入成員，請稍候…' : previewing ? '正在檢查匯入資料…' : '正在讀取檔案…' }}</DataLoading>
       <div class="member-dialog-actions import-actions">
         <v-btn variant="outlined" :disabled="busy" @click="close()">取消</v-btn
         ><v-btn

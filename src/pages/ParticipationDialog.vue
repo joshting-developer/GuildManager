@@ -404,7 +404,7 @@ async function submit() {
               :disabled="busy"
               hide-details
             />
-            <DataLoading v-if="busy" compact>{{ status === 'registered' ? '正在送出報名…' : '正在送出請假…' }}</DataLoading>
+            <DataLoading v-if="busy" compact :spinner="false">{{ status === 'registered' ? '正在送出報名…' : '正在送出請假…' }}</DataLoading>
             <v-btn type="submit" color="primary" :loading="busy" :disabled="busy">{{
               status === 'registered' ? '送出報名' : '送出請假'
             }}</v-btn>

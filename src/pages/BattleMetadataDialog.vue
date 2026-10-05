@@ -204,7 +204,7 @@ onUnmounted(() => {
             :disabled="saving"
           />
         </div>
-        <DataLoading v-if="saving" compact>正在儲存對戰資訊，請稍候…</DataLoading>
+        <DataLoading v-if="saving" compact :spinner="false">正在儲存對戰資訊，請稍候…</DataLoading>
         <div class="metadata-actions">
           <v-btn variant="outlined" :disabled="saving" @click="close">取消</v-btn>
           <v-btn

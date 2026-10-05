@@ -137,7 +137,7 @@ function drag(event, duty) {
       </p>
       <v-alert v-if="error && !open" type="error" variant="tonal" role="alert">{{ error }}</v-alert>
       <p v-if="notice" class="lineup-hint" role="status">{{ notice }}</p>
-      <DataLoading v-if="refreshing" compact>正在更新職責清單…</DataLoading>
+      <DataLoading v-if="refreshing" compact :spinner="false">正在更新職責清單…</DataLoading>
       <v-text-field
         v-model="search"
         label="搜尋職責"
@@ -209,7 +209,7 @@ function drag(event, duty) {
             改名不會改變已確認名單。停用後不再供新排表選取，範本套用時會跳過並提醒。
           </p>
         </div>
-        <DataLoading v-if="busy" compact>正在儲存職責，請稍候…</DataLoading>
+        <DataLoading v-if="busy" compact :spinner="false">正在儲存職責，請稍候…</DataLoading>
         <div class="lineup-dialog-actions">
           <v-btn variant="outlined" :disabled="busy" @click="close">取消</v-btn
           ><v-btn color="primary" :loading="busy" :disabled="busy" @click="save">{{

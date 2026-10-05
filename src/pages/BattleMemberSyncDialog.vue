@@ -113,7 +113,7 @@ onUnmounted(() => { token++; window.removeEventListener('beforeunload', leaveWar
             <span>已歸屬 {{ preview.summary.alreadyLinked }} 筆 · 同名衝突 {{ preview.summary.conflictPlayers }} 筆 · 未匹配 {{ preview.summary.unmatchedPlayers }} 筆</span>
           </div>
           <p class="sync-muted my-4">請核對過去名稱的對應。若舊同名者未記錄在名冊或名稱歷史中，僅靠戰績名稱無法辨識。</p>
-          <DataLoading v-if="saving" compact>正在同步歷史戰績，請稍候…</DataLoading>
+          <DataLoading v-if="saving" compact :spinner="false">正在同步歷史戰績，請稍候…</DataLoading>
           <v-tabs v-model="tab" color="primary" aria-label="同步比對結果" :disabled="saving">
             <v-tab :id="`${id}-matches-tab`" value="matches" :aria-controls="`${id}-matches-panel`">{{ result ? '已同步對應' : '待同步對應' }}（{{ preview.matches.length }}）</v-tab>
             <v-tab :id="`${id}-conflicts-tab`" value="conflicts" :aria-controls="`${id}-conflicts-panel`">同名跳過（{{ preview.conflicts.length }}）</v-tab>
