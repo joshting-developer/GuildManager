@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { LINEUP_TYPES } from '../src/domain/lineups.js';
+import { eventAttendance } from '../src/domain/event-attendance.js';
 
 export class ParticipationError extends Error {
   constructor(message, status = 422, code = 'PARTICIPATION_INVALID') {
@@ -105,6 +106,43 @@ export function createParticipationRepository(db) {
       .digest('hex');
   }
   const repository = {
+    getEventAttendance(eventId) {
+      return eventAttendance(repository.getEventParticipation(eventId));
+    },
+    cancelEventLeave(eventId, input) {
+      const id = text(input?.id, '人員資料', 64, true);
+      revision(input?.revision);
+      if (input.revision < 1) throw new ParticipationError('資料版本不正確，請重新載入');
+      if (!['member', 'registration'].includes(input?.source))
+        throw new ParticipationError('人員來源不正確，請重新載入');
+      return db.transaction(() => {
+        checkEvent(eventId);
+        const changed = () => {
+          throw new ParticipationError('請假資料已更新，請重新載入後再操作', 409, 'PARTICIPATION_CHANGED');
+        };
+        if (input.source === 'member') {
+          const current = response(eventId, id);
+          if (current?.status === 'none' && current.revision === input.revision + 1)
+            return { eventId, cancelled: true };
+          if (!current || current.status !== 'leave' || current.revision !== input.revision) changed();
+          repository.saveMemberResponse(eventId, {
+            uid: id, status: 'none', note: current.note, revision: input.revision,
+          });
+        } else {
+          const current = registration(id);
+          if (!current || current.eventId !== eventId) changed();
+          if (current.active && current.revision === input.revision + 1)
+            return { eventId, cancelled: true };
+          if (
+            current.active || current.revision !== input.revision ||
+            !repository.getEventParticipation(eventId).registrationLeaves.some((row) => row.id === id)
+          ) changed();
+          db.prepare('UPDATE event_registrations SET active = 1, revision = revision + 1, updated_at = ? WHERE id = ?')
+            .run(new Date().toISOString(), id);
+        }
+        return { eventId, cancelled: true };
+      })();
+    },
     participationRequiresLogin(eventId) {
       checkEvent(eventId);
       return ['guild_war', 'dragon_tiger'].includes(

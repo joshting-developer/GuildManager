@@ -53,6 +53,7 @@ const WRITES = [
   'addGuestRegistration',
   'cancelGuestRegistration',
   'confirmLineup',
+  'cancelEventLeave',
   'createLineupTemplate',
   'saveBattleRecords',
 ];

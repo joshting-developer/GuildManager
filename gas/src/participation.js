@@ -1,4 +1,5 @@
 import { canonical, fail, hash, lower, revision, retry, text } from './common.js';
+import { eventAttendance } from '../../src/domain/event-attendance.js';
 export function createParticipation(store, catalog, { uuid, now }) {
   const responseKey = (eventId, uid) => canonical([eventId, uid]);
   const rawResponses = (eventId) =>
@@ -153,6 +154,36 @@ export function createParticipation(store, catalog, { uuid, now }) {
     });
   }
   const methods = {
+    getEventAttendance([eventId]) {
+      return eventAttendance(methods.getEventParticipation([eventId]));
+    },
+    cancelEventLeave([eventId, input]) {
+      catalog.event(eventId, { battle: true });
+      const id = text(input?.id, '人員資料', 64);
+      if (!['member', 'registration'].includes(input?.source))
+        fail('VALIDATION_ERROR', '人員來源不正確，請重新載入');
+      if (!Number.isSafeInteger(input.revision) || input.revision < 1)
+        fail('VALIDATION_ERROR', '資料版本不正確，請重新載入');
+      const changed = () => fail('PARTICIPATION_CHANGED', '請假資料已更新，請重新載入後再操作');
+      if (input.source === 'member') {
+        const current = store.get('responses', responseKey(eventId, id));
+        if (current?.status === 'none' && current.revision === input.revision + 1)
+          return { eventId, cancelled: true };
+        if (!current || current.status !== 'leave' || current.revision !== input.revision) changed();
+        saveResponse(eventId, { uid: id, status: 'none', note: current.note, revision: input.revision });
+      } else {
+        const current = store.get('registrations', id);
+        if (!current || current.eventId !== eventId) changed();
+        if (current.active && current.revision === input.revision + 1)
+          return { eventId, cancelled: true };
+        if (
+          current.active || current.revision !== input.revision ||
+          !methods.getEventParticipation([eventId]).registrationLeaves.some((row) => row.id === id)
+        ) changed();
+        store.put('registrations', id, { ...current, active: true, revision: current.revision + 1, updatedAt: now() });
+      }
+      return { eventId, cancelled: true };
+    },
     getEventParticipation([eventId]) {
       catalog.event(eventId, { battle: true });
       const allGuests = guests(eventId);

@@ -462,3 +462,13 @@ SQLite 追加 `event_video_submissions` 保存雙場連結／團別／備註，`
 本機及 GAS 共用影片介面、權限及 CSV 匯出。GAS 使用 getEventVideos／submitEventVideo RPC；GM_videos 保存提交，GM_requests 保存重試結果，在 script lock 內透過既有提交標記同次生效。舊已初始化專案首次有效使用會補建 GM_videos，無須為影片重新執行 setupGas；不覆寫其他表或自動遷移 SQLite 影片。驗證使用隔離 SQLite、模擬 Google 服務與編譯 HTML，真實 Google 授權、試算表寫入及 iframe 下載仍需 Web App 實測。
 
 影片閱覽提供「匯出 CSV」，依目前團別／名稱篩選與表格順序輸出五欄，不讀取其他場次。UTF-8 BOM 保留中文，備註換行及引號正確轉義，公式字首以文字保存；載入、錯誤或無符合資料時停用匯出，失敗可重試。
+
+## 管理出勤閱覽
+
+管理總覽當日安排視窗與活動安排清單的約戰／幫戰／龍虎戰提供「出勤閱覽」。預設請假；約戰保留請假／報名分頁與實際人數，幫戰／龍虎戰只顯示請假分頁。表格顯示名稱、當場職業、備註，不顯示 UID；未回應及舊 none 不計入，有效外援歸報名，已取消外援歸請假。只有 admin／manager 可用，公開行事曆與 member 不提供名單入口。
+
+`GET /api/events/:id/attendance` 與 GAS `getEventAttendance` 共用 DTO，回傳 eventId、leave、registered；列含 name／profession／colorcode／note，source／id／revision 僅供操作識別及版本檢查，不呈現在畫面。每次開啟重讀，包含載入、空名單、失敗／重試、手動重載及過期回應保護，成功後才顯示人數。
+
+請假列提供「取消請假」，透過 `PATCH /api/events/:id/attendance`／GAS `cancelEventLeave`。成員回應改回 none，保留職業、備註與名冊所屬狀態，幫會／俱樂部成員恢復可排表資格；外援恢復原報名 ID 及有效狀態。成員自行再次報名則改為 registered，也會解除請假，不轉成編外或建立外援。修改檢查 revision，資料已更新必須重載；相同成功操作可安全重試。本機使用 SQLite 交易，GAS 在 script lock 內透過現有提交標記生效；API 僅限管理角色，寫入檢查 CSRF，不加入公開 participation 白名單。
+
+沿用現有資料表，不需要新增工作表或重新初始化。本次生成 GAS 套件，未同步或發布新部署。

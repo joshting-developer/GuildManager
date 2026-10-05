@@ -131,6 +131,12 @@ export function createApp(repository, { authNow } = {}) {
       .set('Cache-Control', 'no-store')
       .json(repository.getEventParticipation(request.params.id));
   });
+  app.get('/api/events/:id/attendance', (request, response) => {
+    response.json(repository.getEventAttendance(request.params.id));
+  });
+  app.patch('/api/events/:id/attendance', (request, response) => {
+    response.json(repository.cancelEventLeave(request.params.id, request.body));
+  });
   app.get('/api/events/:id/videos', (request, response) => {
     response.json(repository.listEventVideos(request.params.id));
   });

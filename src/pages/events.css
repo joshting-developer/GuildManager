@@ -199,6 +199,11 @@
   flex: 1;
   min-width: 0;
 }
+.calendar-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
 .calendar-participation-summary {
   margin-top: 6px;
   font-size: 13px;
@@ -211,6 +216,13 @@
   padding: 28px;
 }
 @media (max-width: 767px) {
+  .calendar-details-list li {
+    flex-wrap: wrap;
+  }
+  .calendar-detail-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
   .event-filters {
     gap: 8px;
     padding: 12px;

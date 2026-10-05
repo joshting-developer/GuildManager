@@ -161,6 +161,14 @@ function getEventParticipation(eventId, context) {
   return GuildGas.rpc('getEventParticipation', [eventId], context);
 }
 
+function getEventAttendance(eventId, context) {
+  return GuildGas.rpc('getEventAttendance', [eventId], context);
+}
+
+function cancelEventLeave(eventId, input, context) {
+  return GuildGas.rpc('cancelEventLeave', [eventId, input], context);
+}
+
 function getEventParticipationMembers(eventId, context) {
   return GuildGas.rpc('getEventParticipationMembers', [eventId], context);
 }

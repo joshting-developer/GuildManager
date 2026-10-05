@@ -5,6 +5,7 @@ import { createParticipationClient } from '../api/participation.js';
 import CalendarGrid from './CalendarGrid.vue';
 import EventCreateDialog from './EventCreateDialog.vue';
 import ParticipationDialog from './ParticipationDialog.vue';
+import EventAttendanceDialog from './EventAttendanceDialog.vue';
 import { LINEUP_TYPES } from '../domain/lineups.js';
 import './events.css';
 import { visibleCalendarEvents, calendarRequiresLogin } from '../domain/calendar-access.js';
@@ -19,6 +20,18 @@ function refreshSelectedEvent(event) {
   events.value = events.value.map((item) => (item.id === event.id ? event : item));
 }
 const participationDialog = ref(false);
+const attendanceDialog = ref(false);
+const attendanceEvent = ref(null);
+let attendanceOpener;
+function openAttendance(event) {
+  attendanceOpener = document.activeElement;
+  attendanceEvent.value = event;
+  attendanceDialog.value = true;
+}
+function restoreAttendanceFocus() {
+  if (attendanceOpener?.isConnected) attendanceOpener.focus();
+  if (dayDialog.value) loadParticipationCounts();
+}
 const client = createEventClient({ source: import.meta.env.VITE_DATA_SOURCE || 'local' });
 const participationClient = createParticipationClient({
   source: import.meta.env.VITE_DATA_SOURCE || 'local',
@@ -60,6 +73,7 @@ watch(
     loadToken++;
     events.value = [];
     dayDialog.value = false;
+    attendanceDialog.value = false;
     selectedDay.value = null;
     if (selectedEvent.value && calendarRequiresLogin(selectedEvent.value))
       participationDialog.value = false;
@@ -82,22 +96,17 @@ async function loadParticipationCounts() {
   await Promise.allSettled(
     battles.map(async (event) => {
       try {
-        const data = await participationClient.getParticipation(event.id);
+        const data = await participationClient.getAttendance(event.id);
         if (
           data.eventId !== event.id ||
-          !Array.isArray(data.responses) ||
-          !Array.isArray(data.registrations) ||
-          !Array.isArray(data.registrationLeaves)
+          !Array.isArray(data.registered) ||
+          !Array.isArray(data.leave)
         )
           throw new Error('報名資料格式不正確, 請重試');
         if (currentToken !== participationToken) return;
         participationCounts.value[event.id] = {
-          registered:
-            data.responses.filter((row) => row.status === 'registered').length +
-            data.registrations.length,
-          leave:
-            data.responses.filter((row) => row.status === 'leave').length +
-            data.registrationLeaves.length,
+          registered: data.registered.length,
+          leave: data.leave.length,
         };
       } catch (cause) {
         if (currentToken === participationToken)
@@ -135,7 +144,7 @@ function onCreated(saved) {
       : `「${eventDisplayTitle(event)}」已建立，共 ${event.dates.length} 天。`;
 }
 function restoreFocus() {
-  if (!participationDialog.value && opener?.isConnected) opener.focus();
+  if (!participationDialog.value && !attendanceDialog.value && opener?.isConnected) opener.focus();
 }
 </script>
 <template>
@@ -191,9 +200,15 @@ function restoreFocus() {
     @closed="restoreFocus"
     @event-refreshed="refreshSelectedEvent"
   />
+  <EventAttendanceDialog
+    v-if="management && attendanceEvent"
+    v-model="attendanceDialog"
+    :event="attendanceEvent"
+    @closed="restoreAttendanceFocus"
+  />
   <v-dialog
     v-model="dayDialog"
-    max-width="520"
+    :max-width="management ? 760 : 520"
     aria-labelledby="calendar-day-title"
     @after-leave="restoreFocus"
   >
@@ -226,17 +241,26 @@ function restoreFocus() {
               >
             </div>
           </div>
-          <v-btn
-            v-if="management && openBattleUpload && LINEUP_TYPES.includes(event.type)"
-            variant="tonal"
-            color="primary"
-            :aria-label="`${eventDisplayTitle(event)} ${selectedDay.date} 上傳戰績`"
-            @click="
-              dayDialog = false;
-              openBattleUpload(event.id);
-            "
-            >上傳戰績</v-btn
-          >
+          <div v-if="management && LINEUP_TYPES.includes(event.type)" class="calendar-detail-actions">
+            <v-btn
+              variant="tonal"
+              color="primary"
+              :aria-label="`${eventDisplayTitle(event)} ${selectedDay.date} 出勤閱覽`"
+              @click="openAttendance(event)"
+              >出勤閱覽</v-btn
+            >
+            <v-btn
+              v-if="openBattleUpload"
+              variant="tonal"
+              color="primary"
+              :aria-label="`${eventDisplayTitle(event)} ${selectedDay.date} 上傳戰績`"
+              @click="
+                dayDialog = false;
+                openBattleUpload(event.id);
+              "
+              >上傳戰績</v-btn
+            >
+          </div>
           <v-btn
             v-if="!management && LINEUP_TYPES.includes(event.type)"
             variant="tonal"

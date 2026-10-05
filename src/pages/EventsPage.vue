@@ -6,9 +6,12 @@ import {
   mdiRefresh,
   mdiPencilOutline,
   mdiTrashCanOutline,
+  mdiAccountGroupOutline,
 } from '@mdi/js';
 import { createEventClient } from '../api/events.js';
 import EventCreateDialog from './EventCreateDialog.vue';
+import EventAttendanceDialog from './EventAttendanceDialog.vue';
+import { LINEUP_TYPES } from '../domain/lineups.js';
 import './events.css';
 import { EVENT_TYPE_OPTIONS, eventTypeLabel, eventDisplayTitle } from '../domain/event-types.js';
 const client = createEventClient({ source: import.meta.env.VITE_DATA_SOURCE || 'local' });
@@ -44,6 +47,17 @@ const dialog = ref(false);
 const editingEvent = ref(null);
 const listPanel = ref(null);
 const createButton = ref(null);
+const attendanceDialog = ref(false);
+const attendanceEvent = ref(null);
+let attendanceOpener;
+function openAttendance(event) {
+  attendanceOpener = document.activeElement;
+  attendanceEvent.value = event;
+  attendanceDialog.value = true;
+}
+function restoreAttendanceFocus() {
+  if (attendanceOpener?.isConnected) attendanceOpener.focus();
+}
 let formOpener;
 function openForm(event = null) {
   formOpener = document.activeElement;
@@ -231,6 +245,15 @@ function formatDate(date) {
                 <td>
                   <div class="event-row-actions">
                     <v-btn
+                      v-if="LINEUP_TYPES.includes(event.type)"
+                      variant="text"
+                      color="primary"
+                      :prepend-icon="mdiAccountGroupOutline"
+                      :aria-label="`出勤閱覽：${eventDisplayTitle(event)}（${formatDate(event.dates[0])}）`"
+                      @click="openAttendance(event)"
+                      >出勤閱覽</v-btn
+                    >
+                    <v-btn
                       variant="text"
                       color="primary"
                       :prepend-icon="mdiPencilOutline"
@@ -269,6 +292,12 @@ function formatDate(date) {
     @created="onSaved"
     @updated="onSaved($event, true)"
     @after-leave="restoreEditFocus"
+  />
+  <EventAttendanceDialog
+    v-if="attendanceEvent"
+    v-model="attendanceDialog"
+    :event="attendanceEvent"
+    @closed="restoreAttendanceFocus"
   />
   <v-dialog
     :model-value="deleteDialog"

@@ -17,11 +17,13 @@ export function createParticipationClient({
     }
     const path = registrationId
       ? `registrations/${encodeURIComponent(registrationId)}`
-      : operation === 'getEventParticipationMembers'
-        ? 'participation-members'
-        : operation === 'addGuestRegistration'
-          ? 'registrations'
-          : 'participation';
+      : ['getEventAttendance', 'cancelEventLeave'].includes(operation)
+        ? 'attendance'
+        : operation === 'getEventParticipationMembers'
+          ? 'participation-members'
+          : operation === 'addGuestRegistration'
+            ? 'registrations'
+            : 'participation';
     let response;
     try {
       response = await fetchImpl(`/api/events/${encodeURIComponent(eventId)}/${path}`, {
@@ -47,6 +49,8 @@ export function createParticipationClient({
     return data;
   }
   return {
+    getAttendance: (eventId) => call('getEventAttendance', eventId),
+    cancelLeave: (eventId, input) => call('cancelEventLeave', eventId, 'PATCH', input),
     getParticipation: (eventId) => call('getEventParticipation', eventId),
     getMembers: (eventId) => call('getEventParticipationMembers', eventId),
     submitParticipation: (eventId, input) => call('submitParticipation', eventId, 'POST', input),
