@@ -7,6 +7,7 @@ import {
 } from '../src/domain/battle-records.js';
 import { summarizePersonalBattles } from '../src/domain/personal-battle-statistics.js';
 import { uniqueNewMemberNames } from '../src/domain/battle-member-links.js';
+import { planBattleMemberSync, publicBattleSyncPlan, validateBattleSyncInput } from '../src/domain/battle-member-sync.js';
 import { validateBattleMetadata } from '../src/domain/battle-metadata.js';
 import {
   validatePersonalBattleFilters,
@@ -115,7 +116,21 @@ export function createBattleRecordRepository(db) {
       PRIMARY KEY (record_id, player_index)
     );
     CREATE INDEX IF NOT EXISTS battle_player_links_by_member ON battle_player_links(member_uid, record_id);
+    CREATE TABLE IF NOT EXISTS battle_sync_requests (
+      request_id TEXT PRIMARY KEY, input_hash TEXT NOT NULL, result_json TEXT NOT NULL
+    );
   `);
+  function syncPlan() {
+    return planBattleMemberSync(
+      db.prepare('SELECT uid, name FROM members').all(),
+      db.prepare('SELECT member_uid AS uid, name FROM member_name_history').all(),
+      db.prepare('SELECT id, players_json FROM battle_records').all().map(row => ({
+        id: row.id, players: JSON.parse(row.players_json),
+      })),
+      db.prepare('SELECT record_id AS recordId, player_index AS playerIndex FROM battle_player_links').all(),
+    );
+  }
+  const syncFingerprint = plan => createHash('sha256').update(JSON.stringify(plan)).digest('hex');
   function get(id) {
     const row = db
       .prepare(
@@ -151,6 +166,31 @@ export function createBattleRecordRepository(db) {
     };
   }
   return {
+    previewBattleMemberSync() {
+      return db.transaction(() => {
+        const plan = syncPlan();
+        return { ...publicBattleSyncPlan(plan), fingerprint: syncFingerprint(plan) };
+      })();
+    },
+    syncBattleMembers(input) {
+      const values = validateBattleSyncInput(input);
+      return db.transaction(() => {
+        const previous = db.prepare('SELECT * FROM battle_sync_requests WHERE request_id=?').get(values.requestId);
+        if (previous) {
+          if (previous.input_hash !== values.fingerprint)
+            throw new BattleRecordError('此操作已用於不同資料，請重新預覽', 409, 'REQUEST_CONFLICT');
+          return JSON.parse(previous.result_json);
+        }
+        const plan = syncPlan();
+        if (syncFingerprint(plan) !== values.fingerprint)
+          throw new BattleRecordError('成員或戰績資料已變動，請重新預覽後同步', 409, 'STALE_SYNC_PREVIEW');
+        const insert = db.prepare('INSERT INTO battle_player_links (record_id, player_index, member_uid) VALUES (?, ?, ?)');
+        for (const row of plan.assignments) insert.run(row.recordId, row.playerIndex, row.memberUid);
+        const result = { ...publicBattleSyncPlan(plan), linkedPlayers: plan.assignments.length };
+        db.prepare('INSERT INTO battle_sync_requests VALUES (?, ?, ?)').run(values.requestId, values.fingerprint, JSON.stringify(result));
+        return result;
+      })();
+    },
     listBattleRecords({ page = 1, eventId = null } = {}) {
       if (!Number.isSafeInteger(page) || page < 1) throw new BattleRecordError('頁碼不正確');
       const where = eventId == null ? '' : ' WHERE event_id=? AND round_number IS NOT NULL';

@@ -110,6 +110,12 @@ export function createApp(repository, { authNow } = {}) {
       }),
     );
   });
+  app.get('/api/battle-sync/preview', (_request, response) => {
+    response.set('Cache-Control', 'no-store').json(repository.previewBattleMemberSync());
+  });
+  app.post('/api/battle-sync', (request, response) => {
+    response.json(repository.syncBattleMembers(request.body));
+  });
   app.post('/api/battle-records', (request, response) => {
     response.status(201).json(repository.saveBattleRecords(request.body));
   });

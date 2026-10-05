@@ -1,4 +1,5 @@
 <script setup>
+import { ref } from 'vue';
 import {
   mdiAccountGroupOutline,
   mdiCalendarMonthOutline,
@@ -6,8 +7,11 @@ import {
   mdiSwordCross,
   mdiFileUploadOutline,
   mdiChartBoxOutline,
+  mdiSync,
 } from '@mdi/js';
 import MonthCalendar from './MonthCalendar.vue';
+import BattleMemberSyncDialog from './BattleMemberSyncDialog.vue';
+const syncOpen = ref(false);
 const emit = defineEmits(['open-page']);
 const modules = [
   {
@@ -68,12 +72,15 @@ const dateLabel = new Intl.DateTimeFormat('zh-TW', {
       <h1 id="page-title">幫會總覽<span class="heading-dot">.</span></h1>
       <p class="page-subtitle">管理成員資料，掌握近期活動與出勤。</p>
     </div>
-    <div class="today">
-      <span class="today-icon"><v-icon :icon="mdiCalendarMonthOutline" size="24" /></span>
-      <div>
-        <span class="today-caption">TODAY</span>
-        <p>{{ dateLabel }}</p>
+    <div class="overview-tools">
+      <div class="today">
+        <span class="today-icon"><v-icon :icon="mdiCalendarMonthOutline" size="24" /></span>
+        <div>
+          <span class="today-caption">TODAY</span>
+          <p>{{ dateLabel }}</p>
+        </div>
       </div>
+      <v-btn variant="outlined" :prepend-icon="mdiSync" @click="syncOpen = true">同步歷史戰績</v-btn>
     </div>
   </section>
   <section class="home-management" aria-labelledby="management-title">
@@ -110,4 +117,10 @@ const dateLabel = new Intl.DateTimeFormat('zh-TW', {
     </div>
   </section>
   <MonthCalendar />
+  <BattleMemberSyncDialog v-model="syncOpen" />
 </template>
+
+<style scoped>
+.overview-tools { display: flex; flex-direction: column; align-items: flex-end; gap: 14px; flex-shrink: 0; }
+@media (max-width: 767px) { .overview-tools { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 12px; } }
+</style>

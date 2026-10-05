@@ -14,6 +14,7 @@ import { createLineups } from './lineups.js';
 import { createBattles } from './battles.js';
 import { createParticipation } from './participation.js';
 import { createVideos } from './videos.js';
+import { createBattleMemberSync } from './battle-member-sync.js';
 
 const AUTH = [
   'getAuthSession',
@@ -65,6 +66,7 @@ const WRITES = [
   'createLineupTemplate',
   'saveBattleRecords',
   'updateBattleRecord',
+  'syncBattleMembers',
 ];
 function environment() {
   const properties = PropertiesService.getScriptProperties();
@@ -193,6 +195,7 @@ export function rpc(operation, args = [], context = {}) {
             ...createVideos(store, catalog, options),
             ...createLineups(store, catalog, participation, options),
             ...createBattles(store, catalog, { ...options, files }),
+            ...createBattleMemberSync(store),
           };
           if (!Object.prototype.hasOwnProperty.call(methods, operation))
             fail('OPERATION_INVALID', '不支援此操作');
