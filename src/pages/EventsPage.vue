@@ -1,4 +1,5 @@
 <script setup>
+import DataLoading from '../components/DataLoading.vue';
 import { computed, onMounted, ref } from 'vue';
 import {
   mdiCalendarMonthOutline,
@@ -161,9 +162,9 @@ function formatDate(date) {
         >重新載入</v-btn
       >
     </div>
-    <div v-if="loading" class="empty-state" role="status">
+    <div v-if="loading" class="empty-state" :aria-busy="loading">
       <v-skeleton-loader type="table-row, table-row" />
-      <p>正在載入安排…</p>
+      <DataLoading>正在載入安排…</DataLoading>
     </div>
     <div v-else-if="loadError" class="empty-state" role="alert">
       <h3>無法載入安排</h3>
@@ -329,6 +330,7 @@ function formatDate(date) {
           >{{ deleteError }}</v-alert
         >
       </div>
+      <DataLoading v-if="deleting" compact>正在刪除安排，請稍候…</DataLoading>
       <div class="event-dialog-actions">
         <v-btn variant="outlined" :disabled="deleting" @click="closeDelete()">取消</v-btn>
         <v-btn color="error" :loading="deleting" :disabled="deleting" @click="remove">{{

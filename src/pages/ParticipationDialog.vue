@@ -1,4 +1,5 @@
 <script setup>
+import DataLoading from '../components/DataLoading.vue';
 import { computed, ref, watch, inject, onUnmounted } from 'vue';
 import { createParticipationClient } from '../api/participation.js';
 import { createMemberClient } from '../api/members.js';
@@ -269,9 +270,9 @@ async function submit() {
           >重新載入</v-btn
         >
       </div>
-      <p v-if="authLoading" role="status">正在確認登入狀態…</p>
+      <DataLoading v-if="authLoading">正在確認登入狀態…</DataLoading>
       <p v-else-if="locked" role="status">登入已到期，請關閉視窗後使用右上角登入。</p>
-      <p v-else-if="loading" role="status">正在載入本場報名資料…</p>
+      <DataLoading v-else-if="loading">正在載入本場報名資料…</DataLoading>
       <v-alert v-else-if="loadError" type="error" variant="tonal" role="alert">{{
         loadError
       }}</v-alert>
@@ -403,6 +404,7 @@ async function submit() {
               :disabled="busy"
               hide-details
             />
+            <DataLoading v-if="busy" compact>{{ status === 'registered' ? '正在送出報名…' : '正在送出請假…' }}</DataLoading>
             <v-btn type="submit" color="primary" :loading="busy" :disabled="busy">{{
               status === 'registered' ? '送出報名' : '送出請假'
             }}</v-btn>

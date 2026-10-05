@@ -19,6 +19,7 @@ import { createPlatformSettingsClient } from './api/platform-settings.js';
 import { DEFAULT_PLATFORM_NAME } from './domain/platform-settings.js';
 import { setCsrfToken } from './api/session.js';
 import LoginDialog from './components/LoginDialog.vue';
+import DataLoading from './components/DataLoading.vue';
 import PlatformBrand from './components/PlatformBrand.vue';
 import HomePage from './pages/HomePage.vue';
 import CalendarHomePage from './pages/CalendarHomePage.vue';
@@ -417,11 +418,10 @@ function skipToMain() {
         authNotice
       }}</v-alert>
       <CalendarHomePage v-if="view === 'home'" />
-      <v-skeleton-loader
-        v-else-if="authLoading"
-        type="heading, paragraph, article"
-        aria-label="確認登入狀態中"
-      />
+      <div v-else-if="authLoading" aria-busy="true">
+        <DataLoading>正在確認登入狀態…</DataLoading>
+        <v-skeleton-loader type="heading, paragraph, article" aria-hidden="true" />
+      </div>
       <BattleRecordsPage
         v-else-if="canReadBattles && view === 'battle-records'"
         :record-id="detailId"

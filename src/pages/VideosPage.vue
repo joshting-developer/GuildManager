@@ -1,4 +1,5 @@
 <script setup>
+import DataLoading from '../components/DataLoading.vue';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { mdiRefresh, mdiDownload } from '@mdi/js';
 import { createEventClient } from '../api/events.js';
@@ -14,7 +15,7 @@ const events = ref([]),
   videos = ref([]);
 const group = ref(null),
   search = ref('');
-const loading = ref(false),
+const loading = ref(true),
   error = ref(''),
   exportError = ref('');
 const downloads = new Map();
@@ -142,6 +143,8 @@ onUnmounted(() => {
       variant="outlined"
       density="compact"
       :disabled="loading"
+      :loading="loading"
+      :aria-busy="loading"
       hide-details
       no-data-text="尚無戰鬥場次"
     />
@@ -168,6 +171,7 @@ onUnmounted(() => {
         density="compact"
         hide-details
         clearable
+        :disabled="loading || !!error"
         @click:clear="search = ''"
       />
       <v-select
@@ -177,6 +181,7 @@ onUnmounted(() => {
           ...VIDEO_GROUPS.map((value) => ({ title: value, value })),
         ]"
         label="團別篩選"
+        :disabled="loading || !!error"
         variant="outlined"
         density="compact"
         hide-details
@@ -185,7 +190,7 @@ onUnmounted(() => {
     <v-alert v-if="exportError" type="error" variant="tonal" role="alert" class="mb-4">{{
       exportError
     }}</v-alert>
-    <p v-if="loading" role="status" class="videos-state">正在載入影片…</p>
+    <DataLoading v-if="loading">正在載入影片…</DataLoading>
     <v-alert v-else-if="error" type="error" variant="tonal" role="alert"
       >{{ error }} <v-btn variant="text" @click="load">重試</v-btn></v-alert
     >

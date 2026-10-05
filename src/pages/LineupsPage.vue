@@ -1,4 +1,5 @@
 <script setup>
+import DataLoading from '../components/DataLoading.vue';
 import { computed, ref, onMounted, onUnmounted, inject, nextTick } from 'vue';
 import {
   mdiFullscreen,
@@ -96,6 +97,7 @@ const teams = ref(emptyLineup()),
   baseline = ref(JSON.stringify(teams.value));
 const loading = ref(true),
   lineupLoading = ref(false),
+  membersLoading = ref(false),
   busy = ref(false),
   saving = ref(false),
   exporting = ref(false),
@@ -624,6 +626,7 @@ function changeSeatUid(uid) {
 }
 async function refreshMembers() {
   busy.value = true;
+  membersLoading.value = true;
   error.value = '';
   try {
     const [people, jobs, tasks, responses] = await Promise.all([
@@ -641,6 +644,7 @@ async function refreshMembers() {
     error.value = cause.message;
   } finally {
     busy.value = false;
+    membersLoading.value = false;
   }
 }
 function attempt(previous, payload) {
@@ -878,7 +882,8 @@ onUnmounted(() => {
       role="status"
       >{{ notice }}</v-alert
     >
-    <div v-if="loading" class="lineup-loading" role="status">正在載入戰場與成員資料…</div>
+    <DataLoading v-if="busy && !membersLoading && !dialog" compact>{{ saving ? '正在儲存排表，請稍候…' : '正在處理排表資料…' }}</DataLoading>
+    <DataLoading v-if="loading">正在載入戰場與成員資料…</DataLoading>
     <v-card v-else-if="!events.length && !error" class="lineup-empty"
       ><v-icon :icon="mdiSwordCross" size="32" />
       <h2>尚無戰鬥場次</h2>
@@ -905,6 +910,7 @@ onUnmounted(() => {
             variant="outlined"
             hide-details
             :disabled="busy || catalogBusy || lineupLoading"
+            :loading="lineupLoading"
             @update:model-value="changeEvent"
           />
         </div>
@@ -1004,7 +1010,7 @@ onUnmounted(() => {
           </li>
         </ul></v-alert
       >
-      <div v-if="lineupLoading" class="lineup-loading" role="status">正在載入本場排表…</div>
+      <DataLoading v-if="lineupLoading">正在載入本場排表…</DataLoading>
       <div v-else-if="currentEvent" class="lineup-workspace">
         <aside class="lineup-members-panel">
           <div v-if="notice" class="lineup-focus-notice" role="status">
@@ -1040,6 +1046,7 @@ onUnmounted(() => {
                 :icon="mdiRefresh"
                 aria-label="更新成員清單並保留排表"
                 :disabled="busy"
+                :loading="membersLoading"
                 @click="refreshMembers"
               />
             </div>
@@ -1082,7 +1089,8 @@ onUnmounted(() => {
               hide-details
               :disabled="busy"
             />
-            <p class="lineup-list-count">
+            <DataLoading v-if="membersLoading" compact>正在更新成員與職業…</DataLoading>
+            <p v-else class="lineup-list-count">
               {{ memberTabLabel }} · 符合 {{ visibleMembers.length }} 人 · 尚未安排
               {{ sourceMembers.filter((member) => !assigned.has(participantKey(member))).length }}
               人
@@ -1310,6 +1318,7 @@ onUnmounted(() => {
             </p></template
           >
         </div>
+        <DataLoading v-if="busy" compact>正在處理資料，請稍候…</DataLoading>
         <div class="lineup-dialog-actions">
           <v-btn variant="outlined" :disabled="busy || catalogBusy" @click="closeDialog">取消</v-btn
           ><v-btn

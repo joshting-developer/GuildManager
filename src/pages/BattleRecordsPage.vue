@@ -1,4 +1,5 @@
 <script setup>
+import DataLoading from '../components/DataLoading.vue';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { mdiRefresh, mdiArrowRight } from '@mdi/js';
 import { createBattleRecordClient } from '../api/battle-records.js';
@@ -17,7 +18,7 @@ const records = ref([]),
   total = ref(0),
   page = ref(1),
   pageSize = ref(20);
-const loading = ref(false),
+const loading = ref(true),
   error = ref(''),
   loaded = ref(false);
 const pageCount = computed(() => Math.ceil(total.value / pageSize.value));
@@ -81,9 +82,9 @@ onUnmounted(() => {
     <v-card class="battle-view-card" aria-labelledby="battle-list-title" :aria-busy="loading">
       <div class="section-header">
         <h2 id="battle-list-title">戰績清單</h2>
-        <span v-if="loaded && !error" class="battle-view-muted">共 {{ total }} 場</span>
+        <span v-if="loaded && !loading && !error" class="battle-view-muted">共 {{ total }} 場</span>
       </div>
-      <p v-if="loading" role="status" class="battle-view-state">正在載入戰績…</p>
+      <DataLoading v-if="loading">正在載入戰績…</DataLoading>
       <v-alert v-else-if="error" type="error" variant="tonal" role="alert">
         {{ error }}<v-btn variant="text" @click="loadRecords">重試</v-btn>
       </v-alert>

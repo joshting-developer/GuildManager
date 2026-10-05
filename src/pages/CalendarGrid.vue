@@ -171,9 +171,10 @@ function goToday() {
                 v-if="eventsByDate.has(day.iso)"
                 :is="browsable ? 'div' : 'button'"
                 :type="browsable ? undefined : 'button'"
+                :disabled="browsable ? undefined : disabled"
                 class="calendar-day-events"
                 :aria-label="`${day.label}，${eventsByDate.get(day.iso).length} 筆安排，查看詳情`"
-                @click="emit('open-day', { date: day.iso, events: eventsByDate.get(day.iso) })"
+                @click="!disabled && emit('open-day', { date: day.iso, events: eventsByDate.get(day.iso) })"
               >
                 <span class="calendar-event-count">{{ eventsByDate.get(day.iso).length }} 筆</span>
                 <span

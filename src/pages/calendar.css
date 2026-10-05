@@ -240,3 +240,24 @@
     gap: 0;
   }
 }
+.calendar-data-region {
+  position: relative;
+}
+.calendar-loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: min(18vh, 140px) 16px 16px;
+  background: rgb(247 249 252 / 85%);
+  border-radius: 16px;
+}
+.calendar-loading-overlay .data-loading {
+  min-height: 96px;
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgb(15 23 42 / 6%);
+}

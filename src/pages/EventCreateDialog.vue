@@ -1,4 +1,5 @@
 <script setup>
+import DataLoading from '../components/DataLoading.vue';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { mdiClose } from '@mdi/js';
 import { createEventClient } from '../api/events.js';
@@ -220,6 +221,7 @@ function formatDate(date) {
             >
           </div>
         </div>
+        <DataLoading v-if="saving" compact>正在儲存活動安排，請稍候…</DataLoading>
         <div class="event-dialog-actions">
           <v-btn variant="outlined" :disabled="saving" @click="closeForm()">取消</v-btn
           ><v-btn type="submit" color="primary" :loading="saving" :disabled="saving">{{

@@ -1,4 +1,5 @@
 <script setup>
+import DataLoading from '../components/DataLoading.vue';
 import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue';
 import {
   mdiArrowLeft,
@@ -177,7 +178,7 @@ onUnmounted(() => {
     </div>
     <v-btn variant="outlined" href="#/battle-records" :prepend-icon="mdiArrowLeft">返回清單</v-btn>
   </section>
-  <p v-if="loading" role="status" class="battle-view-state">正在載入對戰詳情…</p>
+  <DataLoading v-if="loading">正在載入對戰詳情…</DataLoading>
   <v-alert v-else-if="error" type="error" variant="tonal" role="alert"
     >{{ error }}<v-btn variant="text" @click="loadRecord">重試</v-btn></v-alert
   >

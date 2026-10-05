@@ -333,3 +333,10 @@ admin 在帳號管理的「平台設定」分頁修改品牌名稱，預設「�
 member／manager／admin 均可進入 `#/members`，成員與編外分類、UID、過去名稱、主副職業／所屬篩選及查看數據皆可使用；新增、修改、移至編外、匯入預覽／確認不另限制角色。UID 仍只在成員管理清單及相關表單／匯入／歷史視窗顯示，其他頁面規則不變。
 
 本機允許有效 member session 呼叫成員清單對應 GET／POST／PATCH／DELETE 路徑；GAS 開放 getMembers／addMember／updateMember／removeMember／previewMemberImport／importMembers。寫入維持 CSRF、格式、revision 及匯入版本檢查；共用 member 帳號角色不變，不綁本人 UID。其他管理總覽、活動、排表、戰績寫入、影片／出勤閱覽及帳號／平台設定沿用原權限。匿名仍不能讀寫完整名冊，通行密碼變更撤銷 session 後不能操作。
+
+
+## API 等待介面
+
+載入使用 src/components/DataLoading.vue 的轉圈與文字；減少動畫設定下保留靜態圖示。行事曆登入確認／讀取安排期間使用區塊遮罩及 aria-busy，完成前停用日期與月份操作，不先顯示空資料。API 選單等待時顯示進度且停用；戰績上傳讀取既有場序完成前不顯示尚未上傳卡片或表格。
+
+送出資料時保留草稿與原表單，使用局部進度、按鈕轉圈及原有停用／persistent／防重複規則，不加入全頁寫入遮罩、延遲或自動重送。失敗保留輸入，進度在成功／失敗後結束，載入失敗提供重試；以延遲的模擬 GAS 回應驗證，不能宣稱已測過真實 Google 服務。

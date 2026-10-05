@@ -1,4 +1,5 @@
 <script setup>
+import DataLoading from '../components/DataLoading.vue';
 import { ref, computed, watch, onUnmounted } from 'vue';
 import { createMemberClient } from '../api/members.js';
 import { validatePersonalBattleFilters } from '../domain/personal-battle-filters.js';
@@ -70,6 +71,7 @@ async function load() {
   }
 }
 function applyFilters() {
+  if (loading.value) return;
   try {
     const filters = validatePersonalBattleFilters(draftFilters.value);
     filterError.value = '';
@@ -118,6 +120,7 @@ onUnmounted(() => {
       <v-text-field
         v-model="draftFilters.startDate"
         label="開始日期"
+        :disabled="loading"
         type="date"
         min="2000-01-01"
         max="2100-12-31"
@@ -128,6 +131,7 @@ onUnmounted(() => {
       <v-text-field
         v-model="draftFilters.endDate"
         label="結束日期"
+        :disabled="loading"
         type="date"
         min="2000-01-01"
         max="2100-12-31"
@@ -139,19 +143,22 @@ onUnmounted(() => {
         v-model="draftFilters.profession"
         :items="professionOptions"
         label="職業篩選"
+        :loading="loading"
+        :disabled="loading || !data"
+        :aria-busy="loading"
         variant="outlined"
         density="compact"
         hide-details
       />
       <div class="personal-actions">
-        <v-btn type="submit" color="primary">套用篩選</v-btn>
-        <v-btn variant="text" @click="clearFilters">清除篩選</v-btn>
+        <v-btn type="submit" color="primary" :disabled="loading">套用篩選</v-btn>
+        <v-btn variant="text" :disabled="loading" @click="clearFilters">清除篩選</v-btn>
       </div>
     </form>
     <p class="battle-view-muted mt-3">日期包含起訖當天，可只填一邊；職業依各場戰績紀錄篩選。上方統計與下方明細共用條件。</p>
     <v-alert v-if="filterError" type="error" variant="tonal" role="alert" class="mt-3">{{ filterError }}</v-alert>
   </v-card>
-  <p v-if="loading" role="status">正在載入個人戰績…</p>
+  <DataLoading v-if="loading">正在載入個人戰績…</DataLoading>
   <v-alert v-else-if="error" type="error" variant="tonal" role="alert">
     {{ error }}<v-btn variant="text" @click="load">重試</v-btn>
   </v-alert>

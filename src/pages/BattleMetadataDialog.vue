@@ -1,4 +1,5 @@
 <script setup>
+import DataLoading from '../components/DataLoading.vue';
 import { computed, onUnmounted, ref, useId, watch } from 'vue';
 import { VSwitch } from 'vuetify/components';
 import { createBattleRecordClient } from '../api/battle-records.js';
@@ -142,7 +143,7 @@ onUnmounted(() => {
         {{ battleDateLabel(record.playedAt) }} · {{ eventTypeLabel(record.type) }} ·
         {{ battleRoundLabel(record) }}
       </p>
-      <p v-if="loading" role="status" class="metadata-summary">正在載入對戰資訊…</p>
+      <DataLoading v-if="loading">正在載入對戰資訊…</DataLoading>
       <v-alert v-if="error" type="error" variant="tonal" role="alert" class="my-4"
         >{{ error
         }}<v-btn v-if="conflict || !form" variant="text" :disabled="saving || loading" @click="load"
@@ -203,6 +204,7 @@ onUnmounted(() => {
             :disabled="saving"
           />
         </div>
+        <DataLoading v-if="saving" compact>正在儲存對戰資訊，請稍候…</DataLoading>
         <div class="metadata-actions">
           <v-btn variant="outlined" :disabled="saving" @click="close">取消</v-btn>
           <v-btn

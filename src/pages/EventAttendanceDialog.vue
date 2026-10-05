@@ -1,4 +1,5 @@
 <script setup>
+import DataLoading from '../components/DataLoading.vue';
 import { computed, onUnmounted, ref, useId, watch } from 'vue';
 import { createParticipationClient } from '../api/participation.js';
 import { eventDisplayTitle, eventTypeLabel } from '../domain/event-types.js';
@@ -122,11 +123,12 @@ onUnmounted(() => {
       <v-alert v-if="notice" type="success" variant="tonal" role="status" class="my-4">{{
         notice
       }}</v-alert>
-      <p v-if="loading" class="attendance-state" role="status">正在載入出勤名單…</p>
+      <DataLoading v-if="loading">正在載入出勤名單…</DataLoading>
       <v-alert v-else-if="error" type="error" variant="tonal" role="alert" class="my-5">
         {{ error }}<v-btn variant="text" @click="load">重試</v-btn>
       </v-alert>
       <template v-else-if="data">
+        <DataLoading v-if="saving" compact>正在取消請假，請稍候…</DataLoading>
         <v-tabs v-model="tab" color="primary" aria-label="出勤狀態">
           <v-tab :id="`${id}-leave-tab`" value="leave" :aria-controls="`${id}-leave-panel`">
             請假（{{ data.leave.length }}）

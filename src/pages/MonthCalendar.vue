@@ -1,5 +1,6 @@
 <script setup>
 import { onMounted, onUnmounted, ref, watch, inject, computed } from 'vue';
+import DataLoading from '../components/DataLoading.vue';
 import { createEventClient } from '../api/events.js';
 import { createParticipationClient } from '../api/participation.js';
 import CalendarGrid from './CalendarGrid.vue';
@@ -41,6 +42,7 @@ let participationToken = 0;
 const events = ref([]);
 const visibleEvents = computed(() => visibleCalendarEvents(events.value, calendarAuth?.user.value));
 const loading = ref(true);
+const calendarLoading = computed(() => loading.value || !!calendarAuth?.loading.value);
 const error = ref('');
 const dayDialog = ref(false);
 const selectedDay = ref(null);
@@ -50,6 +52,7 @@ const notice = ref('');
 let opener;
 let loadToken = 0;
 async function load() {
+  if (calendarAuth?.loading.value) return;
   const currentToken = ++loadToken;
   loading.value = true;
   error.value = '';
@@ -68,9 +71,10 @@ async function load() {
 }
 onMounted(load);
 watch(
-  [() => calendarAuth?.user.value?.id, () => calendarAuth?.user.value?.role],
+  [() => calendarAuth?.user.value?.id, () => calendarAuth?.user.value?.role, () => calendarAuth?.loading.value],
   () => {
     loadToken++;
+    loading.value = true;
     events.value = [];
     dayDialog.value = false;
     attendanceDialog.value = false;
@@ -82,6 +86,7 @@ watch(
   { flush: 'sync' },
 );
 function openDay(day) {
+  if (calendarLoading.value || error.value) return;
   opener = document.activeElement;
   selectedDay.value = day;
   dayDialog.value = true;
@@ -127,6 +132,7 @@ onUnmounted(() => {
   loadToken++;
 });
 function openCreate(date) {
+  if (calendarLoading.value || error.value) return;
   initialDate.value = date;
   notice.value = '';
   createDialog.value = true;
@@ -156,28 +162,32 @@ function restoreFocus() {
       </div>
       <span class="subtle-tag">活動行事曆</span>
     </div>
-    <CalendarGrid
-      :events="visibleEvents"
-      :creatable="management && !loading && !error"
-      :browsable="!management && !loading && !error"
-      @open-day="openDay"
-      @create-date="openCreate"
-    />
+    <v-alert v-if="!calendarLoading && error" type="error" variant="tonal" role="alert" class="mb-4">
+      {{ error }}<v-btn variant="text" @click="load">重新載入</v-btn>
+    </v-alert>
+    <div class="calendar-data-region" :aria-busy="calendarLoading">
+      <CalendarGrid
+        :events="visibleEvents"
+        :disabled="calendarLoading || !!error"
+        :creatable="management && !calendarLoading && !error"
+        :browsable="!management && !calendarLoading && !error"
+        @open-day="openDay"
+        @create-date="openCreate"
+      />
+      <div v-if="calendarLoading" class="calendar-loading-overlay">
+        <DataLoading>{{ calendarAuth?.loading.value ? '正在確認登入狀態…' : '正在載入行事曆…' }}</DataLoading>
+      </div>
+    </div>
     <div class="event-notices" aria-live="polite">
       <v-alert v-if="notice" type="success" variant="tonal" closable @click:close="notice = ''">{{
         notice
       }}</v-alert>
     </div>
     <div class="calendar-status" aria-live="polite">
-      <p v-if="loading" role="status">正在載入安排…</p>
-      <template v-else-if="error"
-        ><p role="alert">{{ error }}</p>
-        <v-btn variant="text" @click="load">重新載入</v-btn></template
-      >
-      <p v-else-if="!visibleEvents.length">
+      <p v-if="!calendarLoading && !error && !visibleEvents.length">
         {{ management ? '尚無安排，點選日期格即可建立第一筆安排。' : '目前尚無活動安排。' }}
       </p>
-      <p v-else>
+      <p v-else-if="!calendarLoading && !error">
         {{
           management
             ? '點選日期格建立安排；點選安排名稱或筆數查看當天詳情。'
@@ -224,7 +234,7 @@ function restoreFocus() {
               class="calendar-participation-summary"
               aria-live="polite"
             >
-              <span v-if="participationCounts[event.id]?.loading">正在載入報名／請假人數…</span>
+              <DataLoading v-if="participationCounts[event.id]?.loading" compact>正在載入報名／請假人數…</DataLoading>
               <template v-else-if="participationCounts[event.id]?.error">
                 <p role="alert">{{ participationCounts[event.id].error }}</p>
                 <v-btn

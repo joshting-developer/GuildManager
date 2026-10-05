@@ -1,4 +1,5 @@
 <script setup>
+import DataLoading from '../components/DataLoading.vue';
 import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue';
 import { VSwitch } from 'vuetify/components';
 import {
@@ -33,6 +34,8 @@ const reading = ref(false),
   fileError = ref(''),
   eventError = ref('');
 const events = ref([]);
+const eventsLoading = ref(true);
+let eventsToken = 0;
 const previewRound = ref(1),
   previewPage = ref(1);
 const draggingRound = ref(null),
@@ -155,7 +158,7 @@ function removeFile(id) {
   error.value = '';
 }
 function changeEvent(value) {
-  if (value === selectedEventId.value || busy.value) return;
+  if (value === selectedEventId.value || busy.value || eventsLoading.value || eventError.value) return;
   if (
     dirty.value &&
     !window.confirm('有尚未上傳的戰績, 切換活動會清除檔案與對戰資料, 確定切換嗎？')
@@ -201,6 +204,8 @@ watch(selectedEventId, loadRounds);
 async function addFiles(incoming, roundNumber) {
   if (
     busy.value ||
+    eventsLoading.value ||
+    eventError.value ||
     roundsLoading.value ||
     roundsError.value ||
     !selectedEvent.value ||
@@ -272,11 +277,13 @@ function dropCsv(event, roundNumber) {
   addFiles([...event.dataTransfer.files], roundNumber);
 }
 async function loadEvents() {
+  const token = ++eventsToken;
+  eventsLoading.value = true;
   eventError.value = '';
   try {
     const result = await eventClient.getEvents();
     if (!Array.isArray(result.events)) throw new Error('場次資料格式不正確, 請重新載入');
-    if (!disposed) {
+    if (!disposed && token === eventsToken) {
       events.value = result.events;
       if (
         !selectedEventId.value &&
@@ -287,11 +294,13 @@ async function loadEvents() {
         selectedEventId.value = props.initialEventId;
     }
   } catch (cause) {
-    if (!disposed) eventError.value = `場次清單讀取失敗: ${cause.message}`;
+    if (!disposed && token === eventsToken) eventError.value = `場次清單讀取失敗: ${cause.message}`;
+  } finally {
+    if (!disposed && token === eventsToken) eventsLoading.value = false;
   }
 }
 async function submit(roundNumber = null) {
-  if (busy.value || roundsLoading.value || roundsError.value) return;
+  if (busy.value || eventsLoading.value || eventError.value || roundsLoading.value || roundsError.value) return;
   error.value = '';
   notice.value = '';
   const pendingFiles =
@@ -459,7 +468,10 @@ onUnmounted(() => {
       variant="outlined"
       density="compact"
       hide-details
-      :disabled="busy"
+      :disabled="busy || eventsLoading || !!eventError"
+      :loading="eventsLoading"
+      :aria-busy="eventsLoading"
+      no-data-text="尚無戰鬥場次"
       aria-required="true"
       @update:model-value="changeEvent"
     />
@@ -467,12 +479,12 @@ onUnmounted(() => {
       {{
         selectedEvent
           ? `${selectedEvent.dates[0].replaceAll('-', '/')} · ${eventTypeLabel(selectedEvent.type)}`
-          : '選擇行事曆已建立的場次, 日期與類型會自動帶入'
+          : eventsLoading ? '正在載入場次…' : '選擇行事曆已建立的場次, 日期與類型會自動帶入'
       }}
     </p>
   </v-card>
   <v-alert v-if="eventError" type="warning" variant="tonal" role="alert" class="mb-4">
-    {{ eventError }}<v-btn variant="text" :disabled="busy" @click="loadEvents">重新載入場次</v-btn>
+    {{ eventError }}<v-btn variant="text" :disabled="busy || eventsLoading" @click="loadEvents">重新載入場次</v-btn>
   </v-alert>
   <v-alert v-if="fileError" type="error" variant="tonal" role="alert" class="mb-4">{{
     fileError
@@ -480,13 +492,14 @@ onUnmounted(() => {
   <v-alert v-if="roundsError" type="error" variant="tonal" role="alert" class="mb-4">
     {{ roundsError }}<v-btn variant="text" :disabled="busy" @click="loadRounds">重新載入戰績</v-btn>
   </v-alert>
-  <p v-if="roundsLoading" role="status" class="battle-muted mb-4">正在載入本場已上傳戰績…</p>
-  <v-card v-if="!selectedEvent" class="battle-upload-card battle-empty">
+  <DataLoading v-if="roundsLoading">正在載入本場已上傳戰績…</DataLoading>
+  <DataLoading v-if="eventsLoading">正在載入戰鬥場次…</DataLoading>
+  <v-card v-else-if="!selectedEvent && !eventError" class="battle-upload-card battle-empty">
     <v-icon :icon="mdiFileDelimitedOutline" size="40" />
-    <p>請先選擇戰鬥場次</p>
+    <p>{{ eventOptions.length ? '請先選擇戰鬥場次' : '尚無戰鬥場次，請先建立活動安排' }}</p>
   </v-card>
   <div
-    v-else
+    v-else-if="selectedEvent && !eventError && !roundsLoading"
     class="battle-upload-grid"
     :class="{ 'battle-single-round': uploadSlots.length === 1 }"
   >
@@ -636,7 +649,7 @@ onUnmounted(() => {
     :record-id="editingRecordId"
     @updated="onMetadataUpdated"
   />
-  <v-card class="battle-upload-card battle-preview-card" aria-labelledby="battle-preview-title">
+  <v-card v-if="selectedEvent && !eventsLoading && !eventError && !roundsLoading" class="battle-upload-card battle-preview-card" aria-labelledby="battle-preview-title">
     <div class="section-header">
       <h2 id="battle-preview-title">戰績資料</h2>
       <v-chip v-if="previewSlot" :color="previewSlot.saved ? 'success' : undefined">{{
@@ -654,13 +667,9 @@ onUnmounted(() => {
       }}</v-tab>
     </v-tabs>
     <div role="region" :aria-label="`${previewSlot?.label || '戰績'}資料`" aria-live="polite">
-      <p
+      <DataLoading
         v-if="previewSlot?.saved && savedLoading[previewSlot.saved.id]"
-        role="status"
-        class="battle-muted"
-      >
-        正在載入{{ previewSlot.label }}戰績…
-      </p>
+      >正在載入{{ previewSlot.label }}戰績…</DataLoading>
       <v-alert
         v-else-if="previewSlot?.saved && savedErrors[previewSlot.saved.id]"
         type="error"
@@ -747,6 +756,7 @@ onUnmounted(() => {
   <div class="battle-upload-footer">
     <v-alert v-if="error" type="error" variant="tonal" role="alert">{{ error }}</v-alert>
     <v-alert v-if="notice" type="success" variant="tonal" role="status">{{ notice }}</v-alert>
+    <DataLoading v-if="saving || reading || downloadBusy" compact>{{ saving ? '正在上傳戰績，請稍候…' : reading ? '正在讀取戰績檔案…' : '正在準備下載…' }}</DataLoading>
     <div class="battle-upload-actions">
       <template v-if="hasTwoRounds">
         <v-btn
@@ -754,7 +764,7 @@ onUnmounted(() => {
           :key="slot.roundNumber"
           variant="outlined"
           :disabled="
-            busy || roundsLoading || Boolean(roundsError) || !slot.file || Boolean(slot.saved)
+            busy || eventsLoading || !!eventError || roundsLoading || Boolean(roundsError) || !slot.file || Boolean(slot.saved)
           "
           @click="submit(slot.roundNumber)"
           >上傳{{ slot.label }}</v-btn
@@ -764,7 +774,7 @@ onUnmounted(() => {
         color="primary"
         :prepend-icon="mdiFileUploadOutline"
         :loading="saving"
-        :disabled="busy || roundsLoading || Boolean(roundsError) || !files.length"
+        :disabled="busy || eventsLoading || !!eventError || roundsLoading || Boolean(roundsError) || !files.length"
         @click="submit()"
         >{{ saving ? '上傳中…' : '上傳戰績' }}</v-btn
       >

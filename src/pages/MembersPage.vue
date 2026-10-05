@@ -1,4 +1,5 @@
 <script setup>
+import DataLoading from '../components/DataLoading.vue';
 import { computed, onMounted, ref, watch } from 'vue';
 import {
   mdiAccountGroupOutline,
@@ -303,9 +304,9 @@ function formatDate(value) {
         >重新載入</v-btn
       >
     </div>
-    <div v-if="loading" class="empty-state" role="status">
+    <div v-if="loading" class="empty-state" :aria-busy="loading">
       <v-skeleton-loader type="table-row, table-row, table-row" />
-      <p>正在載入成員與職業…</p>
+      <DataLoading>正在載入成員與職業…</DataLoading>
     </div>
     <div v-else-if="loadError" class="empty-state" role="alert">
       <h3>無法載入成員</h3>
@@ -643,6 +644,7 @@ function formatDate(value) {
             </div>
           </fieldset>
         </div>
+        <DataLoading v-if="saving" compact>正在儲存成員資料，請稍候…</DataLoading>
         <div class="member-dialog-actions">
           <v-btn variant="outlined" :disabled="saving" @click="closeForm()">取消</v-btn
           ><v-btn type="submit" color="primary" :loading="saving" :disabled="saving">{{
@@ -669,6 +671,7 @@ function formatDate(value) {
         「幫派內」與「俱樂部內」都會改為否，資料與過去名稱保留。日後編輯並勾選任一狀態即可返回成員清單。
       </p>
       <v-alert v-if="moveError" type="error" variant="tonal" role="alert">{{ moveError }}</v-alert>
+      <DataLoading v-if="movingBusy" compact>正在移至編外，請稍候…</DataLoading>
       <div class="member-dialog-actions">
         <v-btn variant="outlined" :disabled="movingBusy" @click="moveDialog = false">取消</v-btn
         ><v-btn

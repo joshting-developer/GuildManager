@@ -1,4 +1,5 @@
 <script setup>
+import DataLoading from '../components/DataLoading.vue';
 import { computed, ref, watch } from 'vue';
 import { mdiClose, mdiFileUploadOutline } from '@mdi/js';
 import { createMemberClient } from '../api/members.js';
@@ -258,6 +259,7 @@ UID Name 主職業 副職業
           />
         </section>
       </div>
+      <DataLoading v-if="busy" compact>{{ importing ? '正在匯入成員，請稍候…' : previewing ? '正在檢查匯入資料…' : '正在讀取檔案…' }}</DataLoading>
       <div class="member-dialog-actions import-actions">
         <v-btn variant="outlined" :disabled="busy" @click="close()">取消</v-btn
         ><v-btn
