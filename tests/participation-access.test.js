@@ -111,7 +111,7 @@ test('guild/dragon reads and all current/legacy mutations require login; anonymo
   }
 });
 
-test('member can use both roster categories, register and leave with CSRF, never read management; revoked/expired sessions fail', async () => {
+test('member can use both roster categories, register and leave with CSRF, can read the full roster while other management remains restricted; revoked/expired sessions fail', async () => {
   const f = await setup();
   try {
     const headers = await f.login();
@@ -151,7 +151,8 @@ test('member can use both roster categories, register and leave with CSRF, never
         code('PARTICIPATION_NOT_FOUND'),
       );
     }
-    for (const path of ['/members', '/lineups', '/admin/accounts'])
+    assert.equal((await f.request('/members', 'GET', undefined, headers)).status, 200);
+    for (const path of ['/lineups', '/admin/accounts'])
       assert.equal((await f.request(path, 'GET', undefined, headers)).status, 403);
     await f.repo.setMemberToken(f.admin.id, {
       password: '654321',

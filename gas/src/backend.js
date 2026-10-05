@@ -27,6 +27,14 @@ const AUTH = [
   'setMemberToken',
 ];
 const PUBLIC = ['getEvents', 'getProfessions', 'getPlatformSettings'];
+const MEMBER_MANAGEMENT = [
+  'getMembers',
+  'addMember',
+  'updateMember',
+  'removeMember',
+  'previewMemberImport',
+  'importMembers',
+];
 const PARTICIPATION = [
   'getEventParticipation',
   'getEventParticipationMembers',
@@ -197,7 +205,7 @@ export function rpc(operation, args = [], context = {}) {
             )
               auth.requireRole(context, ['admin', 'manager', 'member']);
             if (args[1]?.memberUid) auth.requireRole(context, ['admin', 'manager', 'member']);
-          } else if (operation === 'getParticipationMembers')
+          } else if (operation === 'getParticipationMembers' || MEMBER_MANAGEMENT.includes(operation))
             auth.requireRole(context, ['admin', 'manager', 'member']);
           else if (
             [

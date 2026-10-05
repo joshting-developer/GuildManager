@@ -96,12 +96,9 @@ test('GAS wrappers enforce every role, calendar visibility, CSRF, member access 
   assert.equal(env.call('getEvents', [], ctx).events.length, 3);
   assert.equal(env.call('getEventParticipationMembers', [war.id], ctx).members[0].name, '城');
   for (const [op, args] of [
-    ['getMembers', []],
     ['getLineupIndex', []],
     ['getHomeData', []],
     ['getDuties', []],
-    ['previewMemberImport', [{ text: '' }]],
-    ['addMember', [member('0002', '其他')]],
     ['saveBattleRecords', [{}]],
     ['confirmLineup', [{}]],
     ['getAccountSettings', []],

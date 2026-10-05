@@ -181,7 +181,7 @@ test('API allows calendar submissions; only admin/manager can read videos, with 
         else assert.equal((await client.getVideos(event.id)).videos.length > 0, true);
       }
       if (role === 'member')
-        assert.equal((await request('/members', 'GET', undefined, headers)).status, 403);
+        assert.equal((await request('/members', 'GET', undefined, headers)).status, 200);
       assert.equal(
         (await request(`/events/${events[3].id}/videos`, 'POST', video(events[3]), headers)).status,
         409,

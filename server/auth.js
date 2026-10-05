@@ -21,6 +21,12 @@ function battleReadRequest(request) {
       /^\/members\/[^/]+\/battle-records$/.test(request.path))
   );
 }
+function memberManagementRequest(request) {
+  if (request.path === '/members') return ['GET', 'POST'].includes(request.method);
+  if (['/members/import', '/members/import/preview'].includes(request.path))
+    return request.method === 'POST';
+  return /^\/members\/[^/]+$/.test(request.path) && ['PATCH', 'DELETE'].includes(request.method);
+}
 function publicRequest(request, repository) {
   const path = request.path;
   if (
@@ -82,13 +88,14 @@ export function installAuth(app, repository, { now = Date.now } = {}) {
       request.path !== '/auth/logout' &&
       !request.participationAccess &&
       request.path !== '/calendar/members' &&
-      !battleReadRequest(request)
+      !battleReadRequest(request) &&
+      !memberManagementRequest(request)
     )
       return next(
         new AuthError(
           403,
           'MANAGEMENT_REQUIRED',
-          'member 登入可使用行事曆與戰績閱覽，管理操作需要管理者帳號',
+          'member 登入可使用行事曆、成員清單與戰績閱覽，其他管理操作需要管理者帳號',
         ),
       );
     if (request.path.startsWith('/admin') && request.auth.user.role !== 'admin')

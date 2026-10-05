@@ -86,7 +86,7 @@ Apps Script 的 `.gs` 檔案共用全域環境, 避免重複命名與載入時�
 ## 已確認成員規則
 
 - UID 是不可修改的文字主鍵, 名稱及主職業必填, 副職業可空
-- UID 僅在管理端成員清單及相關表單／匯入／歷史視窗顯示；報名、排表、排表歷史、範本提示與 title 不顯示玩家 UID, 內部關聯與快照仍保留 UID
+- UID 僅在成員管理清單及相關表單／匯入／歷史視窗顯示；報名、排表、排表歷史、範本提示與 title 不顯示玩家 UID, 內部關聯與快照仍保留 UID
 - isInGuild／isInClub 為獨立 boolean, SQLite is_in_guild／is_in_club 保存 0／1 並有 CHECK 約束。
 - 名冊分成成員／編外人員 tab：成員至少一個所屬狀態 true, 編外兩者 false；成員頁提供俱樂部／幫派／不篩選, 與名稱／職業條件交集。
 - 成員及編外均可獨立篩選主職業與副職業，副職業含「無副職業」，未選表示不篩選；和搜尋／所屬條件取交集，變更條件回第一頁，清除同時重設兩種職業且保留目前分頁。
@@ -134,7 +134,7 @@ Apps Script 的 `.gs` 檔案共用全域環境, 避免重複命名與載入時�
 - 成員本場報名職業保存於可空 profession_id, 外援沿用報名 profession_id；職業統計依本場選擇計算, 舊成員回應未記錄職業時採名冊主職業, 不回填舊資料或更動名冊與排表快照。
 - `event_registrations` 獨立保存額外報名 ID、event_id、名稱、profession_id、備註、有效狀態及 revision, 無 UID 且不加入名冊；請假改為 active=false, 再報名沿用 ID, 保留已確認排表快照。
 - 統一送出檢查有效職業、場次 revision 及 requestId, 同一交易保存變更與重試回應；舊 API 保留相容, 不刪除既有資料。送出失敗保留輸入, 過期版本須重新載入後再送出。
-- 本機帳號密碼保護管理頁與 API；幫戰／龍虎戰所有報名讀寫及舊 API 均要求有效登入, member 不可使用管理功能。登入寫入含約戰須 CSRF, 未登入約戰維持公開。選人端點與舊 calendar/members 均須登入, 僅回傳必要名冊資料。登入帳號未綁定 UID, 選人／填名不作為本人驗證。帳號／UID 綁定、正式 Google 登入與本人操作權限、報名截止尚待定案, GAS 已生成對應資料功能，尚未部署驗證。
+- 本機帳號密碼保護管理頁與 API；幫戰／龍虎戰所有報名讀寫及舊 API 均要求有效登入, member 可使用完整成員清單操作，其他管理功能維持 admin／manager。登入寫入含約戰須 CSRF, 未登入約戰維持公開。選人端點與舊 calendar/members 均須登入, 僅回傳必要名冊資料。登入帳號未綁定 UID, 選人／填名不作為本人驗證。帳號／UID 綁定、正式 Google 登入與本人操作權限、報名截止尚待定案, GAS 已生成對應資料功能，尚未部署驗證。
 
 ## 已確認戰場排表規則
 
@@ -212,9 +212,9 @@ Apps Script 的 `.gs` 檔案共用全域環境, 避免重複命名與載入時�
 
 ## 身分與權限
 
-- 本機角色分 admin／manager／member, admin／manager 可使用既有管理功能, member 可使用行事曆報名與戰績閱覽／個人分析，其他管理功能不開放, `#/admin` 及 `/api/admin/*` 僅 admin；不建立公開註冊。首個 CLI 帳號預設 admin, 後續 manager；舊無角色資料優先名稱 admin, 否則最早帳號為 admin, 其餘 manager, 不重設密碼。Google 登入未定案。兩角色舊 schema 擴充 member 時先備份完整 SQLite 至同目錄 before-member-role 檔案, 同一交易換表並保留 session、密碼與角色, 檢查 FK 且重啟不重複備份。
+- 本機角色分 admin／manager／member, admin／manager 可使用既有管理功能, member 可使用行事曆報名、完整成員清單與戰績閱覽／個人分析，其他管理功能不開放, `#/admin` 及 `/api/admin/*` 僅 admin；不建立公開註冊。首個 CLI 帳號預設 admin, 後續 manager；舊無角色資料優先名稱 admin, 否則最早帳號為 admin, 其餘 manager, 不重設密碼。Google 登入未定案。兩角色舊 schema 擴充 member 時先備份完整 SQLite 至同目錄 before-member-role 檔案, 同一交易換表並保留 session、密碼與角色, 檢查 FK 且重啟不重複備份。
 - admin 可驗證目前密碼後修改自己的密碼, 保留目前 session 並撤銷其他登入；可建立／修改 manager 帳號／密碼（留空保留）與共用 member 通行密碼, manager／member 修改撤銷全部 session。帳號名稱不分大小寫唯一, revision 拒絕過期修改, 不提供角色提升／刪除。網頁改密碼不更新私有 local-admin.json。
-- 公開頁為行事曆及既有報名／請假；管理總覽 (magament／management)、成員、活動安排、排表及相關管理 API 須 admin／manager 登入, 不只隱藏導覽
+- 公開頁為行事曆及既有報名／請假；完整成員清單及相關 API 開放 member／manager／admin；管理總覽 (magament／management)、活動安排、排表及相關管理 API 須 admin／manager 登入, 不只隱藏導覽
 - 本機密碼使用 scrypt 雜湊, session 用 HttpOnly cookie 且伺服器只保存 token 雜湊, 管理及登入後報名修改檢查 CSRF；私有帳號檔 data/local-admin.json 不得提交。GAS 登入另見下方部署規則。
 - 部署時需明確決定執行身分與可存取對象, 依 [Web Apps 官方文件](https://developers.google.com/apps-script/guides/web) 確認實際權限行為
 - 不假設每種部署方式都能取得使用者 Email, 需在目標環境驗證
@@ -275,7 +275,7 @@ member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admi
 
 ## 成員戰績閱覽權限
 
-已登入 member／manager／admin 可使用戰績清單、對戰詳情、原始 CSV／既有附件下載及個人數據分析。member 的導覽顯示戰績閱覽，點左上平台名稱返回行事曆，從對戰表格點已關聯人名可開啟個人頁；完整名冊及其他管理功能仍只供 admin／manager。共用 member 通行密碼不綁遊戲 UID，因此可查看所有已關聯成員的數據，不限制為本人。匿名不可讀，member 不可上傳／修改戰績、名冊、活動、排表或帳號。後端只放行明確的 GET 路徑，不以 URL 前綴放寬寫入。
+已登入 member／manager／admin 可使用戰績清單、對戰詳情、原始 CSV／既有附件下載及個人數據分析。member 的導覽顯示成員清單與戰績閱覽，點左上平台名稱返回行事曆，從對戰表格點已關聯人名可開啟個人頁；成員清單含所有既有操作開放 member／manager／admin，其他管理功能仍只供 admin／manager。共用 member 通行密碼不綁遊戲 UID，因此可查看所有已關聯成員的數據，不限制為本人。匿名不可讀，member 不可上傳／修改戰績、活動、排表或帳號。後端分別放行明確戰績 GET 路徑及成員清單的讀寫路徑／方法，不以 URL 前綴放寬其他管理操作。
 
 右上登入視窗包含「成員登入」「管理者登入」兩個 tab；前者只填 admin 發行的通行密碼（英數 6–128 字），後者沿用 Manager／Admin 帳號密碼。共用視窗一律預選成員登入，首頁登入後留在行事曆，直接開啟戰績／個人分析或管理連結成功後保留原目標及權限；切換 tab 清除密碼及登入錯誤。
 
@@ -327,3 +327,9 @@ admin 在帳號管理的「平台設定」分頁修改品牌名稱，預設「�
 - 本機及 GAS 共用影片表單、閱覽與 CSV 匯出。GAS adapter 使用 getEventVideos／submitEventVideo RPC，不執行 HTTP fallback；GM_videos 保存提交，GM_requests 保存重試結果，script lock 與提交標記確保兩者同次生效。已初始化的舊專案於首次有效使用時補建 GM_videos，不覆寫原表或遷移本機資料。
 
 影片閱覽提供「匯出 CSV」，依目前團別／名稱篩選與表格順序輸出五欄，不讀取其他場次。UTF-8 BOM 保留中文，備註換行及引號正確轉義，公式字首以文字保存；載入、錯誤或無符合資料時停用匯出，失敗可重試。
+
+## member 成員清單權限
+
+member／manager／admin 均可進入 `#/members`，成員與編外分類、UID、過去名稱、主副職業／所屬篩選及查看數據皆可使用；新增、修改、移至編外、匯入預覽／確認不另限制角色。UID 仍只在成員管理清單及相關表單／匯入／歷史視窗顯示，其他頁面規則不變。
+
+本機允許有效 member session 呼叫成員清單對應 GET／POST／PATCH／DELETE 路徑；GAS 開放 getMembers／addMember／updateMember／removeMember／previewMemberImport／importMembers。寫入維持 CSRF、格式、revision 及匯入版本檢查；共用 member 帳號角色不變，不綁本人 UID。其他管理總覽、活動、排表、戰績寫入、影片／出勤閱覽及帳號／平台設定沿用原權限。匿名仍不能讀寫完整名冊，通行密碼變更撤銷 session 後不能操作。

@@ -402,7 +402,7 @@ SQLite 追加 `battle_uploads`／`battle_records`, `round_number` 記錄場序�
 
 ## Admin 帳號管理
 
-登入 admin 後點右上帳號（手機於導覽選單選「帳號管理」）開啟 `#/admin`。可輸入目前密碼並確認新密碼修改 admin 密碼, 以及建立／修改 manager 帳號與共用 member 通行密碼。member 可使用公開行事曆、報名及戰績閱覽／個人分析，不可上傳或使用其他管理功能。manager 修改密碼留空時保留原密碼, 帳號不可重複（不分大小寫）, 不提供角色提升或刪除。修改 manager／member 撤銷其全部登入；admin 改密碼保留目前登入並撤銷其他登入。
+登入 admin 後點右上帳號（手機於導覽選單選「帳號管理」）開啟 `#/admin`。可輸入目前密碼並確認新密碼修改 admin 密碼, 以及建立／修改 manager 帳號與共用 member 通行密碼。member 可使用行事曆、報名、完整成員清單操作及戰績閱覽／個人分析，不可上傳戰績或使用其他管理功能。manager 修改密碼留空時保留原密碼, 帳號不可重複（不分大小寫）, 不提供角色提升或刪除。修改 manager／member 撤銷其全部登入；admin 改密碼保留目前登入並撤銷其他登入。
 
 所有帳號管理 API 僅 admin 可用且寫入須 CSRF, 不只隱藏入口。帳號保存 revision 並拒絕過期修改, 密碼不回傳前端, 失敗保留輸入。私有 `data/local-admin.json` 不會隨網頁改密碼同步更新, 需自行保管新密碼。GAS 帳號管理已生成，使用私有 Script Properties，尚未部署驗證。
 
@@ -428,7 +428,7 @@ member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admi
 
 ## 成員戰績閱覽權限
 
-已登入 member／manager／admin 可使用戰績清單、對戰詳情、原始 CSV／既有附件下載及個人數據分析。member 的導覽顯示戰績閱覽，點左上平台名稱返回行事曆，從對戰表格點已關聯人名可開啟個人頁；完整名冊及其他管理功能仍只供 admin／manager。共用 member 通行密碼不綁遊戲 UID，因此可查看所有已關聯成員的數據，不限制為本人。匿名不可讀，member 不可上傳／修改戰績、名冊、活動、排表或帳號。後端只放行明確的 GET 路徑，不以 URL 前綴放寬寫入。
+已登入 member／manager／admin 可使用戰績清單、對戰詳情、原始 CSV／既有附件下載及個人數據分析。member 的導覽顯示成員清單與戰績閱覽，點左上平台名稱返回行事曆，從對戰表格點已關聯人名可開啟個人頁；成員清單含所有既有操作開放 member／manager／admin，其他管理功能仍只供 admin／manager。共用 member 通行密碼不綁遊戲 UID，因此可查看所有已關聯成員的數據，不限制為本人。匿名不可讀，member 不可上傳／修改戰績、活動、排表或帳號。後端分別放行明確戰績 GET 路徑及成員清單的讀寫路徑／方法，不以 URL 前綴放寬其他管理操作。
 
 右上登入視窗包含「成員登入」「管理者登入」兩個 tab；前者只填 admin 發行的通行密碼（英數 6–128 字），後者沿用 Manager／Admin 帳號密碼。共用視窗一律預選成員登入，首頁登入後留在行事曆，直接開啟戰績／個人分析或管理連結成功後保留原目標及權限；切換 tab 清除密碼及登入錯誤。
 
@@ -480,3 +480,9 @@ admin／manager 可由戰績上傳已保存卡片，或戰績閱覽詳情的「�
 本機 `PATCH /api/battle-records/:id` 與 GAS `updateBattleRecord` 共用欄位驗證，檢查管理角色、CSRF、revision 及 requestId；SQLite 追加 revision（舊資料初值 0）與 battle_metadata_requests，交易保存修改和重試結果。GAS 舊戰績 revision 缺值視為 0，GM_battles 及 GM_requests 沿用既有鎖定與提交標記，不需新增工作表。原 CSV、Drive 檔案、玩家快照及成員連結、日期／類型／場序與原上傳重試資料保留；不重算或覆寫原 content hash。
 
 編輯視窗每次開啟讀最新資料，儲存成功更新卡片／詳情及快取；失敗保留草稿，衝突須重新載入，相同請求重試不重複修改。兩場各自修改，不清除另一場待上傳 CSV。GAS 套件已生成，本次未同步或發布新部署。
+
+## member 成員清單權限
+
+member／manager／admin 均可進入 `#/members`，成員與編外分類、UID、過去名稱、主副職業／所屬篩選及查看數據皆可使用；新增、修改、移至編外、匯入預覽／確認不另限制角色。UID 仍只在成員管理清單及相關表單／匯入／歷史視窗顯示，其他頁面規則不變。
+
+本機允許有效 member session 呼叫成員清單對應 GET／POST／PATCH／DELETE 路徑；GAS 開放 getMembers／addMember／updateMember／removeMember／previewMemberImport／importMembers。寫入維持 CSRF、格式、revision 及匯入版本檢查；共用 member 帳號角色不變，不綁本人 UID。其他管理總覽、活動、排表、戰績寫入、影片／出勤閱覽及帳號／平台設定沿用原權限。匿名仍不能讀寫完整名冊，通行密碼變更撤銷 session 後不能操作。

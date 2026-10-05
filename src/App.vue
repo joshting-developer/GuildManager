@@ -56,7 +56,7 @@ async function loadPlatform() {
 }
 const navigation = [
   { page: 'magament', label: '管理總覽', icon: mdiViewDashboardOutline },
-  { page: 'members', label: '成員清單', icon: mdiAccountGroupOutline },
+  { page: 'members', signedIn: true, label: '成員清單', icon: mdiAccountGroupOutline },
   { page: 'events', label: '活動安排', icon: mdiCalendarMonthOutline },
   { page: 'lineups', label: '戰場排表', icon: mdiSwordCross },
   { page: 'battle-upload', label: '戰績上傳', icon: mdiFileUploadOutline },
@@ -85,7 +85,7 @@ provide('openBattleUpload', (eventId) => {
 const user = ref(null);
 const canManage = computed(() => ['admin', 'manager'].includes(user.value?.role));
 const canReadBattles = computed(() => ['admin', 'manager', 'member'].includes(user.value?.role));
-const memberCanVisit = (page) => ['home', 'battle-records', 'member-records'].includes(page);
+const memberCanVisit = (page) => ['home', 'members', 'battle-records', 'member-records'].includes(page);
 const visibleNavigation = computed(() =>
   navigation.filter(
     (item) =>
@@ -159,7 +159,7 @@ function syncView() {
     return;
   }
   if (!memberCanVisit(next) && user.value?.role === 'member') {
-    authNotice.value = 'member 登入可使用行事曆與戰績閱覽，管理操作需要管理者帳號';
+    authNotice.value = 'member 登入可使用行事曆、成員清單與戰績閱覽，其他管理操作需要管理者帳號';
     returnHome();
     return;
   }
@@ -178,7 +178,7 @@ function navigate(page) {
   const target = navigation.some((item) => item.page === page) ? page : 'home';
   if (target !== 'home' && !user.value) return openLogin(target);
   if (!memberCanVisit(target) && user.value?.role === 'member') {
-    authNotice.value = 'member 登入可使用行事曆與戰績閱覽，管理操作需要管理者帳號';
+    authNotice.value = 'member 登入可使用行事曆、成員清單與戰績閱覽，其他管理操作需要管理者帳號';
     returnHome();
     return;
   }
@@ -236,7 +236,7 @@ async function restoreSession() {
         openLogin(target, detailId.value);
       }
       if (!memberCanVisit(view.value) && user.value?.role === 'member') {
-        authNotice.value = 'member 登入可使用行事曆與戰績閱覽，管理操作需要管理者帳號';
+        authNotice.value = 'member 登入可使用行事曆、成員清單與戰績閱覽，其他管理操作需要管理者帳號';
         returnHome();
       }
       if (view.value === 'admin' && user.value && user.value.role !== 'admin') {
@@ -431,9 +431,9 @@ function skipToMain() {
         :key="detailId"
         :member-uid="detailId"
       />
+      <MembersPage v-else-if="canReadBattles && view === 'members'" />
       <template v-else-if="canManage">
         <HomePage v-if="view === 'magament'" @open-page="navigate" />
-        <MembersPage v-else-if="view === 'members'" />
         <EventsPage v-else-if="view === 'events'" />
         <LineupsPage v-else-if="view === 'lineups'" @focus-changed="lineupFocus = $event" />
         <BattleUploadPage

@@ -74,7 +74,7 @@ GAS 已提供對應工作表、應用程式角色驗證、script lock、重試�
 
 `server/auth-repository.js` 使用獨立 auth_accounts／auth_sessions 表, 密碼 scrypt 雜湊及 salt, session token 隨機且只存 SHA-256 雜湊, 到期 8 小時；重啟保留 session, 登出或重新登入撤銷舊 token。`server/create-account.js` 接受本機 stdin 建立帳號, 另提供 admin-only manager 建立／更新與共用 member 通行密碼介面, 無公開註冊。
 
-首頁行事曆及約戰報名／請假保持公開；幫戰／龍虎戰要求帳號登入, 可填名或讀取名冊選人。`/api/calendar/members` 保留舊契約但改須登入, 完整名冊／歷史僅 admin／manager 可讀。登入帳號尚未綁定遊戲 UID。
+首頁行事曆及約戰報名／請假保持公開；幫戰／龍虎戰要求帳號登入, 可填名或讀取名冊選人。`/api/calendar/members` 保留舊契約但改須登入, 完整名冊／歷史及所有既有成員管理操作允許 member／manager／admin。登入帳號尚未綁定遊戲 UID。
 
 GAS 已實作獨立帳密及通行密碼，PBKDF2-SHA256 600,000 次與私有 Script Properties 保存帳號／session；不使用 Node cookie、scrypt 或 Google Email 判定訪客。瀏覽器每分頁保存 token，後端檢查雜湊、到期、帳號版本與角色。部署需由部署者執行以讀寫其 Sheets／Drive；Google OAuth 尚未實作。[GAS Web App 執行身分](https://developers.google.com/apps-script/guides/web#permissions)
 
@@ -150,7 +150,7 @@ member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admi
 
 ## 成員戰績閱覽權限
 
-已登入 member／manager／admin 可使用戰績清單、對戰詳情、原始 CSV／既有附件下載及個人數據分析。member 的導覽顯示行事曆與戰績閱覽，從對戰表格點已關聯人名可開啟個人頁；完整名冊及其他管理功能仍只供 admin／manager。共用 member 通行密碼不綁遊戲 UID，因此可查看所有已關聯成員的數據，不限制為本人。匿名不可讀，member 不可上傳／修改戰績、名冊、活動、排表或帳號。後端只放行明確的 GET 路徑，不以 URL 前綴放寬寫入。
+已登入 member／manager／admin 可使用戰績清單、對戰詳情、原始 CSV／既有附件下載及個人數據分析。member 的導覽顯示成員清單與戰績閱覽，點左上平台名稱返回行事曆，從對戰表格點已關聯人名可開啟個人頁；成員清單含所有既有操作開放 member／manager／admin，其他管理功能仍只供 admin／manager。共用 member 通行密碼不綁遊戲 UID，因此可查看所有已關聯成員的數據，不限制為本人。匿名不可讀，member 不可上傳／修改戰績、活動、排表或帳號。後端分別放行明確戰績 GET 路徑及成員清單的讀寫路徑／方法，不以 URL 前綴放寬其他管理操作。
 
 右上登入視窗包含「成員登入」「管理者登入」兩個 tab；前者只填 admin 發行的通行密碼（英數 6–128 字），後者沿用 Manager／Admin 帳號密碼。共用視窗一律預選成員登入，首頁登入後留在行事曆，直接開啟戰績／個人分析或管理連結成功後保留原目標及權限；切換 tab 清除密碼及登入錯誤。
 
@@ -185,3 +185,9 @@ admin／manager 可由戰績上傳已保存卡片，或戰績閱覽詳情的「�
 本機 `PATCH /api/battle-records/:id` 與 GAS `updateBattleRecord` 共用欄位驗證，檢查管理角色、CSRF、revision 及 requestId；SQLite 追加 revision（舊資料初值 0）與 battle_metadata_requests，交易保存修改和重試結果。GAS 舊戰績 revision 缺值視為 0，GM_battles 及 GM_requests 沿用既有鎖定與提交標記，不需新增工作表。原 CSV、Drive 檔案、玩家快照及成員連結、日期／類型／場序與原上傳重試資料保留；不重算或覆寫原 content hash。
 
 編輯視窗每次開啟讀最新資料，儲存成功更新卡片／詳情及快取；失敗保留草稿，衝突須重新載入，相同請求重試不重複修改。兩場各自修改，不清除另一場待上傳 CSV。GAS 套件已生成，本次未同步或發布新部署。
+
+## member 開放成員管理
+
+App 對 member 開放 members 路由及導覽，直接連結登入後保留目標；成員頁與 admin／manager 共用同一元件及資料介面。SQLite 及 GAS 資料結構不變，不修改帳號角色或本人 UID 綁定。
+
+本機白名單為 GET／POST `/api/members`、POST `/api/members/import/preview` 及 `/api/members/import`、PATCH／DELETE `/api/members/:uid`；GAS 業務白名單為 getMembers／addMember／updateMember／removeMember／previewMemberImport／importMembers。有效 session 才可使用，寫入保留 CSRF 及原有驗證／並行保護，其他管理功能仍依角色檢查。新增及匯入仍沿用歷史戰績關聯流程。

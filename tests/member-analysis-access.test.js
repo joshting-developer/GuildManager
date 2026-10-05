@@ -7,7 +7,7 @@ import { BATTLE_COLUMNS } from '../src/domain/battle-records.js';
 const password = 'test-password-2026';
 const header = BATTLE_COLUMNS.map(([label]) => label).join(',');
 const csv = `${header}\n城,碎夢,2,4,3,100,10,0,200,2,1,\n${header}\n敵人,鐵衣,1,2,3,30,0,0,100,1,0,0`;
-test('signed-in member can read battles, attachments and personal analysis; only managers can write or read other management data', async () => {
+test('signed-in member can read battles, attachments and personal analysis; members can manage the roster while other management data stays restricted', async () => {
   let clock = Date.now();
   const repo = createRepository({ filename: ':memory:', authNow: () => clock });
   const admin = await repo.createAccount({ username: 'admin', password });
@@ -41,6 +41,7 @@ test('signed-in member can read battles, attachments and personal analysis; only
       ...(body ? { body: JSON.stringify(body) } : {}),
     });
   const reads = [
+    '/members',
     '/battle-records',
     `/battle-records/${record.id}`,
     `/battle-records/${record.id}/attachments/csv`,
@@ -86,7 +87,6 @@ test('signed-in member can read battles, attachments and personal analysis; only
       ).json();
       assert.deepEqual(personal.member, { name: '城', profession: '碎夢' });
       for (const path of [
-        '/members',
         '/home',
         '/lineups',
         '/duties',
@@ -98,8 +98,6 @@ test('signed-in member can read battles, attachments and personal analysis; only
         assert.equal((await request(path, 'GET', undefined, headers)).status, 403, path);
       for (const [path, method, body] of [
         ['/battle-records', 'POST', { ...upload, requestId: 'blocked' }],
-        ['/members', 'POST', { uid: '002', name: '新', primaryProfessionId: 3 }],
-        ['/members/001', 'PATCH', { name: '改名', primaryProfessionId: 3, revision: 1 }],
         [
           '/events',
           'POST',
