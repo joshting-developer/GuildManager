@@ -15,7 +15,7 @@ import {
 } from '@mdi/js';
 import { createAuthClient } from './api/auth.js';
 import { createPlatformSettingsClient } from './api/platform-settings.js';
-import { DEFAULT_PLATFORM_NAME } from './domain/platform-settings.js';
+import { createPlatformCache, normalizeCachedPlatform } from './api/platform-cache.js';
 import { setCsrfToken } from './api/session.js';
 import LoginDialog from './components/LoginDialog.vue';
 import DataLoading from './components/DataLoading.vue';
@@ -35,14 +35,22 @@ import VideosPage from './pages/VideosPage.vue';
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 const authClient = createAuthClient({ source });
 const platformClient = createPlatformSettingsClient({ source });
-const platformName = ref(DEFAULT_PLATFORM_NAME),
-  platformIcon = ref(null),
+const platformCache = createPlatformCache({ source, namespace: globalThis.__GUILD_GAS_KEY__ });
+const initialPlatform = source === 'gas'
+  ? normalizeCachedPlatform(globalThis.__GUILD_PLATFORM__)
+  : null;
+const cachedPlatform = initialPlatform || platformCache.read();
+const platformName = ref(cachedPlatform?.name || ''),
+  platformIcon = ref(cachedPlatform?.iconSrc || null),
   platformError = ref('');
+if (initialPlatform) platformCache.write(initialPlatform);
+if (cachedPlatform) document.title = `${cachedPlatform.name} · 幫會管理平台`;
 let platformLoadVersion = 0;
 function applyPlatform(platform) {
   platformLoadVersion++;
   platformName.value = platform.name;
   platformIcon.value = platform.iconSrc || null;
+  platformCache.write(platform);
   document.title = `${platform.name} · 幫會管理平台`;
   platformError.value = '';
 }
@@ -327,7 +335,7 @@ onMounted(() => {
   window.addEventListener('guild-auth-required', expireSession);
   document.addEventListener('visibilitychange', checkSession);
   restoreSession();
-  loadPlatform();
+  if (!initialPlatform) loadPlatform();
 });
 onUnmounted(() => {
   mobileViewport?.removeEventListener('change', closeDesktopMenu);
@@ -347,7 +355,12 @@ function skipToMain() {
     <a class="skip-link" href="#main" @click.prevent="skipToMain">跳至主要內容</a>
     <header v-show="!lineupFocus" class="site-header">
       <div class="header-inner">
-        <PlatformBrand :name="platformName" :icon-src="platformIcon" @home="navigate('home')" />
+        <PlatformBrand
+          :name="platformName"
+          :icon-src="platformIcon"
+          :loading="!platformName && !platformError"
+          @home="navigate('home')"
+        />
         <nav class="desktop-nav" aria-label="主要導覽">
           <template v-for="item in visibleNavigation" :key="item.page">
             <button
@@ -470,7 +483,7 @@ function skipToMain() {
         />
       </template>
       <footer v-show="!lineupFocus" class="page-footer">
-        <span>{{ platformName }} <span class="footer-divider">/</span> 幫會管理平台</span
+        <span>{{ platformName || '幫會平台' }} <span class="footer-divider">/</span> 幫會管理平台</span
         ><span>每一次集結，都有跡可循。</span>
       </footer>
     </main>

@@ -74,6 +74,13 @@ p {
   text-align: left;
   color: var(--color-text);
 }
+.brand-placeholder {
+  display: block;
+  width: 88px;
+  height: 24px;
+  border-radius: 6px;
+  background: var(--color-border);
+}
 .brand-mark {
   flex-shrink: 0;
   width: 44px;
