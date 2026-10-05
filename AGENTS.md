@@ -345,3 +345,13 @@ member／manager／admin 均可進入 `#/members`，成員與編外分類、UID�
 載入使用 src/components/DataLoading.vue 的轉圈與文字；減少動畫設定下保留靜態圖示。行事曆登入確認／讀取安排期間使用區塊遮罩及 aria-busy，完成前停用日期與月份操作，不先顯示空資料。API 選單等待時顯示進度且停用；戰績上傳讀取既有場序完成前不顯示尚未上傳卡片或表格。
 
 送出資料時保留草稿與原表單，使用局部進度、按鈕轉圈及原有停用／persistent／防重複規則，不加入全頁寫入遮罩、延遲或自動重送。失敗保留輸入，進度在成功／失敗後結束，載入失敗提供重試；以延遲的模擬 GAS 回應驗證，不能宣稱已測過真實 Google 服務。
+
+## 管理總覽歷史戰績同步
+
+- 管理總覽日期下方提供次要「同步歷史戰績」，僅 admin／manager。預覽比對全名冊（含編外）的現在名稱及 member_name_history／GAS name_history；只有唯一 UID 的精確同名才補上尚未歸屬的玩家列。
+- 同一 UID 的重複現名／舊名去重；名稱跨 UID 重複（包含現名／舊名及舊名／舊名）均列為同名衝突並跳過，不優先猜測目前名稱。已綁定或快照已有 memberUid 的資料不轉移，原始 CSV／玩家數據／上傳雜湊不改。
+- 預覽列出戰績名稱、現在成員名稱、現名／過去名稱及筆數，另有同名跳過分頁；20 筆分頁，不顯示 UID。CSV 未保存 UID，名冊或歷史未記錄的舊同名者仍無法辨識，須由管理者核對預覽。
+- 確認時重新計算 fingerprint，名冊名稱／歷史／待關聯戰績有變動即要求重新預覽。requestId 重試返回原成功結果；SQLite battle_sync_requests 與關聯採同一交易，GAS 沿用 GM_requests／GM_battle_links、script lock 及提交標記。
+- `GET /api/battle-sync/preview`／GAS `previewBattleMemberSync` 只讀；`POST /api/battle-sync`／GAS `syncBattleMembers` 檢查管理角色及 CSRF，不接受前端指定歸屬。失敗保留預覽及重試識別，送出時停用重複操作、重讀與關閉，關閉返回入口焦點。
+- 新增／匯入及上傳的既有自動關聯仍依現在名稱；改名、匯入既有 UID 與啟動不自動補關聯。本次手動同步處理舊版本成員與舊名戰績。
+- 本機及 GAS 來源已實作、通過隔離測試與編譯；此功能尚未同步至正式指令碼，未執行正式戰績同步或更新 Web App 部署。
