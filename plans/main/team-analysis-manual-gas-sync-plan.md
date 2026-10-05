@@ -19,4 +19,8 @@
 - 手冊已更新至第 11 版，補上獨立合計表的全場占比、個人表升降排序、缺值／部分資料及分頁規則。
 - 重新拍攝圖 28（36-team-analysis.png），使用最新 GAS 單檔及隔離 mock，均為虛構姓名與數據；延遲／錯誤重試、四團、陣營、第二場／內推、過期回應及手機操作驗證通過。
 - Markdown、離線 HTML 與 PDF 均已更新。驗證 18 章＋目錄、36 張圖片、所有錨點、離線無網路請求、圖片放大／Escape 及 390px 手機無頁面溢出；PDF 有標籤、書籤、頁碼，約 4.82 MB。
-- GAS 同步待執行。
+- 手冊步驟提交 `9817861`；以該工作目錄來源執行 `npm run gas:push`，重新編譯成功（Index.html 約 1016.7 KB、Backend.gs 約 147.23 kB），四檔清單及無外部 JS／CSS 驗證通過。
+- 2026/10/05 約 18:03（Asia/Taipei）Google 接受四檔上傳，隨後 pull 讀回 Backend.gs／Code.gs／Index.html／appsscript.json，全部與本機套件比對一致。
+- 遠端前後程式備份：`data/gas-backups/2026-10-05T10-02-44-053Z/before` 及 `after`，私有並被 Git 忽略，不包含 Script Properties／Sheets／Drive 或部署設定。
+- 指定專案為 `1rkY7EI6rHYNoH8TZmIOKQ-MWSCexXUdFTOqInqyfxBR1qMoI8DAf9hG5`，未執行 setupGas、正式資料讀寫、部署發布或重新查詢部署版本；本機測試資料未上傳。既有 Web App 須選新版本發布後才顯示更新。
+- 已更新 GASDeployment.md 與 AGENTS.md 的同步來源、功能及部署檢查步驟。真實 Google 授權、服務配額、效能及 iframe 行為仍須測試部署確認。

@@ -1,26 +1,26 @@
 # GAS 初始化與部署
 
-目前已生成 Vue 單檔頁面與完整 GAS 後端，涵蓋登入／帳號管理、行事曆、成員／匯入／名稱歷史、活動、職責、報名／請假、排表／範本、戰績上傳／下載／閱覽及個人分析。本機 SQLite 環境保留。
+目前已生成 Vue 單檔頁面與完整 GAS 後端，涵蓋登入／帳號管理、行事曆、成員／匯入／名稱歷史、活動、職責、報名／請假、排表／範本、戰績上傳／下載／閱覽、個人分析及團隊分析。本機 SQLite 環境保留。
 
-2026/10/05 已將來源 `b62c9fd` 的四檔程式上傳至指定 Apps Script 專案，包含安排日期的行事曆／日期選單模式與登入單一進度，以及先前的 admin 資料維護。Google 接受程式語法且讀回比對一致；遠端前後備份位於 `data/gas-backups/2026-10-05T07-42-40-924Z/`（私有、不提交）。此次未執行初始化、正式業務操作或發布，亦未重新查詢部署版本；前次部署 API 記錄為第 3 版（說明 `v1.0.2`）。上傳驗證不能代替實際 Sheets／Drive 授權、執行速度、服務配額與 iframe 下載測試。
+2026/10/05 已將來源 `9817861`（團隊分表／排序功能為 `9974bcf`）的四檔程式上傳至指定 Apps Script 專案，包含團隊分析與唯讀 API、本團合計／全場占比、個人明細排序、共用儲存／送出單一進度，以及先前日期雙模式與 admin 資料維護。Google 接受程式語法且四檔讀回比對一致；遠端前後備份位於 `data/gas-backups/2026-10-05T10-02-44-053Z/`（私有、不提交）。此次未執行初始化、正式業務操作或發布，亦未重新查詢部署版本；前次部署 API 記錄為第 3 版（說明 `v1.0.2`）。上傳驗證不能代替實際 Sheets／Drive 授權、執行速度、服務配額與 iframe 下載測試。
 
-本機後續整理了共用儲存／送出進度，同一次操作僅保留一個轉圈；另新增對戰詳情的團隊分析彈窗與唯讀 API。這兩部分尚未同步，上方同步來源仍為 `b62c9fd`。團隊分析沿用既有資料，不需新增工作表或重新初始化；本機完整 225 項測試、兩種編譯及隔離瀏覽器驗證通過，不代表真實 Google 服務已驗證。
+團隊分析沿用既有資料，不需新增工作表或重新初始化；本機完整 226 項測試、兩種編譯及隔離瀏覽器驗證通過。附圖操作手冊已更新至第 11 版，Markdown／離線 HTML／PDF 及團隊分析圖片同步更新。本機示範成員改名與排表僅在日常 SQLite 測試資料，未上傳正式試算表。
 
 ## 這次更新的部署步驟
 
-最新程式已同步，包含成員資料與個人分析篩選、出勤閱覽／取消請假、對戰資訊編輯、member 成員管理、API 載入提示、手機右側選單、名稱／圖示快取、admin 歷史戰績同步、安排日期雙模式與登入單一進度。發布前本機 219 項測試、兩種編譯與隔離瀏覽器驗證已通過。
+最新程式已同步，包含成員資料與個人分析篩選、出勤閱覽／取消請假、對戰資訊編輯、member 成員管理、API 載入提示、手機右側選單、名稱／圖示快取、admin 歷史戰績同步、安排日期雙模式、單一登入／儲存進度及團隊分析分表與排序。發布前本機 226 項測試、兩種編譯與隔離瀏覽器驗證已通過。
 
-前次查詢的部署說明為 `v1.0.2`，第 3 版，設定為「以部署者身分執行（USER_DEPLOYING）」及「任何人（ANYONE_ANONYMOUS）」；發布時請核對管理部署畫面的目前設定。若先前已完成初始化，可沿用既有專用資料表發布新版本，本次日期模式及登入介面不需另建表。
+前次查詢的部署說明為 `v1.0.2`，第 3 版，設定為「以部署者身分執行（USER_DEPLOYING）」及「任何人（ANYONE_ANONYMOUS）」；發布時請核對管理部署畫面的目前設定。若先前已完成初始化，可沿用既有專用資料表發布新版本，本次團隊分析及進度整理不需另建表。
 
 1. 開啟 [Apps Script 專案](https://script.google.com/home/projects/1rkY7EI6rHYNoH8TZmIOKQ-MWSCexXUdFTOqInqyfxBR1qMoI8DAf9hG5/edit)。
 2. 右上「部署 → 管理部署作業」，選擇目前使用的既有 Web App。
-3. 點鉛筆「編輯」，版本選「新版本」；說明可填 `日期區間選擇與登入進度`。
+3. 點鉛筆「編輯」，版本選「新版本」；說明可填 `團隊分析分表與明細排序`。
 4. 點「部署」，若 Google 要求新增授權，由部署者本人完成。
-5. 使用[原 Web App 網址](https://script.google.com/macros/s/AKfycbwk1B2IdFlpLbeFF2Ti4hgkYTdLsWlcZVGyiSlb2OXDS1TNpoFTUUtlCAf52QTNTP0i/exec)重新開啟，確認登入只顯示一個轉圈，建立安排可切換行事曆／日期選單，整月選取與單日限制正常；也可檢查載入提示、手機選單、品牌重載與 member 成員清單；以 admin 開啟「帳號管理 → 資料維護」，確認可預覽歷史戰績，以及 manager／member 無此權限。核對名稱對應後才確認實際同步。
+5. 使用[原 Web App 網址](https://script.google.com/macros/s/AKfycbwk1B2IdFlpLbeFF2Ti4hgkYTdLsWlcZVGyiSlb2OXDS1TNpoFTUUtlCAf52QTNTP0i/exec)重新開啟，以 member／manager／admin 查看對戰詳情的「團隊分析」：有保存排表時可切四團，查看本團合計／全場占比及排序個人明細；無排表時應顯示原因與未歸類。核對第二場換人、兩陣營及手機捲動；登入／儲存只顯示一個轉圈。既有日期雙模式、載入提示、手機選單、品牌快取、member 成員清單及 admin 資料維護可依操作手冊確認。
 
 更新既有部署可保留網址；直接同步程式不會更新已發布版本。[Google 版本部署說明](https://developers.google.com/apps-script/concepts/deployments)
 
-最新同步與備份紀錄見 [本次同步計畫](plans/main/gas-date-mode-sync-plan.md)；[前次 admin 同步](plans/main/gas-admin-sync-plan.md)；[先前部署準備紀錄](plans/main/gas-release-preparation-plan.md)保留前次查詢資訊。本節是已存在部署的更新流程；以下首次建立、私有屬性與初始化章節供尚未設定的環境參考。
+最新同步與備份紀錄見 [本次手冊與團隊分析同步計畫](plans/main/team-analysis-manual-gas-sync-plan.md)；[前次日期模式同步](plans/main/gas-date-mode-sync-plan.md)；[前次 admin 同步](plans/main/gas-admin-sync-plan.md)；[先前部署準備紀錄](plans/main/gas-release-preparation-plan.md)保留前次查詢資訊。本節是已存在部署的更新流程；以下首次建立、私有屬性與初始化章節供尚未設定的環境參考。
 
 ## 本機自動上傳
 
