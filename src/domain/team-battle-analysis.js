@@ -108,7 +108,11 @@ export function analyzeBattleTeams(record, lineup) {
         const rows = entries.filter((row) => row.assignment?.groupId === group.id);
         const groupTotals = totals(rows.map((row) => row.player));
         return { id: group.id, name: group.name, attack: group.attack,
-          totals: groupTotals, rows: rows.map((row) => publicRow(row, groupTotals)),
+          totals: Object.fromEntries(keys.map((key) => [key, {
+            ...groupTotals[key],
+            wholePercent: groupTotals[key].missing ? null : percentage(groupTotals[key].value, whole[key]),
+          }])),
+          rows: rows.map((row) => publicRow(row, groupTotals)),
         };
       }),
       unclassified: entries.filter((row) => !row.assignment).map((row) => publicRow(row, null)),

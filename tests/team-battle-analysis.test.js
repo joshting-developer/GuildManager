@@ -33,6 +33,7 @@ test('four groups use saved team IDs; denominator includes unclassified same-sid
   assert.equal(group(result, 'attack1').rows.length, 2);
   assert.deepEqual(group(result, 'attack1').rows[0].metrics.kill, { value: 10, groupPercent: 25, wholePercent: 10 });
   assert.equal(group(result, 'attack1').rows[0].teamName, '改過隊名');
+  assert.deepEqual(group(result, 'attack1').totals.kill, { value: 40, missing: 0, wholePercent: 40 });
   assert.equal(group(result, 'attack2').rows[0].name, '進攻乙');
   assert.equal(group(result, 'defense12').rows[0].name, '防守甲');
   assert.equal(group(result, 'defense34').rows[0].name, '防守乙');
@@ -93,9 +94,27 @@ test('null, partial and zero denominators are not represented as actual zero or 
   assert.equal(attack.rows[0].metrics.heal.wholePercent, null);
   assert.equal(attack.rows[1].metrics.heal.groupPercent, 0);
   assert.equal(attack.rows[0].metrics.revive.groupPercent, null);
-  assert.deepEqual(attack.totals.buildingDamage, { value: null, missing: 2 });
+  assert.deepEqual(attack.totals.buildingDamage, { value: null, missing: 2, wholePercent: null });
+  assert.equal(attack.totals.heal.wholePercent, null);
+  assert.equal(attack.totals.revive.wholePercent, null);
   assert.equal(attack.rows[0].metrics.buildingDamage.value, null);
   assert.equal(attack.rows[0].metrics.kill.wholePercent, null);
+});
+
+test('group summary uses its own side and suppresses partial numerator percentages; known zero remains zero', () => {
+  const layout = lineup();
+  Object.assign(layout.teams[0].slots[0], saved('甲'));
+  Object.assign(layout.teams[0].slots[1], saved('乙'));
+  Object.assign(layout.teams[3].slots[0], saved('丙'));
+  const result = analyzeBattleTeams(record([
+    player('甲', { kill: null, heal: 0 }), player('乙', { kill: 10, heal: 0 }),
+    player('未排', { kill: 30, heal: 100 }),
+    player('丙', { side: 'blue', kill: 20 }), player('對方未排', { side: 'blue', kill: 80 }),
+  ]), layout);
+  assert.deepEqual(group(result, 'attack1').totals.kill, { value: 10, missing: 1, wholePercent: null });
+  assert.equal(group(result, 'attack1').totals.heal.wholePercent, 0);
+  assert.deepEqual(group(result, 'attack2', 'blue').totals.kill, { value: 20, missing: 0, wholePercent: 20 });
+  assert.equal(group(result, 'defense12').totals.kill.wholePercent, null);
 });
 
 const upload = (eventId, roundNumber) => ({ requestId: `upload-${roundNumber}`, records: [{
