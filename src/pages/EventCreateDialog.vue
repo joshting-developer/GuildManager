@@ -5,6 +5,7 @@ import { mdiClose } from '@mdi/js';
 import { createEventClient } from '../api/events.js';
 import CalendarGrid from './CalendarGrid.vue';
 import { EVENT_TYPE_OPTIONS, eventTypeLabel, isBattleType } from '../domain/event-types.js';
+import { eventDateRange } from '../domain/event-date-range.js';
 import './events.css';
 const props = defineProps({
   modelValue: Boolean,
@@ -16,7 +17,7 @@ const client = createEventClient({ source: import.meta.env.VITE_DATA_SOURCE || '
 const calendarKey = ref(0);
 const editing = computed(() => Boolean(props.event));
 const dialogTitle = computed(() => (editing.value ? '修改安排' : '建立安排'));
-const calendarDate = computed(() => props.event?.dates[0] || props.initialDate);
+const calendarDate = computed(() => form.value.dates[0] || props.initialDate);
 const typeOptions = EVENT_TYPE_OPTIONS;
 const saving = ref(false);
 const form = ref({ title: '', type: 'activity', dates: [] });
@@ -26,19 +27,51 @@ function allowsMultipleDates(type) {
   return type === 'activity' || (!editing.value && isBattleType(type));
 }
 const multipleDates = computed(() => allowsMultipleDates(form.value.type));
+const dateMode = ref('calendar');
+const range = ref({ start: '', end: '' });
+const rangeEdited = ref(false);
+const rangeError = computed(() => {
+  if (dateMode.value !== 'range' || !rangeEdited.value) return '';
+  try {
+    eventDateRange(range.value.start, range.value.end, { multiple: multipleDates.value });
+    return '';
+  } catch (error) {
+    return error.message;
+  }
+});
 const errors = ref({});
 const saveError = ref('');
 const typeNotice = ref('');
 let baseline = '';
 let requestId;
 let opener;
-const dirty = computed(() => JSON.stringify(form.value) !== baseline);
+const dirty = computed(() => JSON.stringify(form.value) !== baseline || Boolean(rangeError.value));
+function resetRange() {
+  const dates = [...form.value.dates].sort();
+  range.value = { start: dates[0] || '', end: dates.at(-1) || '' };
+  rangeEdited.value = false;
+}
+function changeDateMode() {
+  resetRange();
+}
+function changeRange(field, value) {
+  range.value[field] = value;
+  rangeEdited.value = true;
+  errors.value.dates = '';
+  if (rangeError.value) return;
+  form.value.dates = eventDateRange(range.value.start, range.value.end, {
+    multiple: multipleDates.value,
+  });
+  calendarKey.value += 1;
+}
 function openForm() {
   opener = document.activeElement;
   form.value = props.event
     ? { title: props.event.title, type: props.event.type, dates: [...props.event.dates] }
     : { title: '', type: 'activity', dates: props.initialDate ? [props.initialDate] : [] };
   calendarKey.value += 1;
+  dateMode.value = 'calendar';
+  resetRange();
   baseline = JSON.stringify(form.value);
   requestId = crypto.randomUUID();
   errors.value = {};
@@ -63,6 +96,7 @@ function changeType(type) {
     typeNotice.value = `已切換為${eventTypeLabel(type)}，請重新選擇一天。`;
     errors.value.dates = '';
   }
+  resetRange();
 }
 function changeDates(dates) {
   if (dates.length > 366) {
@@ -71,6 +105,7 @@ function changeDates(dates) {
   }
   form.value.dates = dates;
   errors.value.dates = '';
+  resetRange();
 }
 async function save() {
   if (saving.value) return;
@@ -79,6 +114,7 @@ async function save() {
   if (!form.value.dates.length) errors.value.dates = '請選擇日期';
   if (!multipleDates.value && form.value.dates.length !== 1)
     errors.value.dates = `${eventTypeLabel(form.value.type)}每筆安排只能選擇一天`;
+  if (rangeError.value) errors.value.dates = rangeError.value;
   if (Object.keys(errors.value).length) return;
   saving.value = true;
   saveError.value = '';
@@ -187,7 +223,9 @@ function formatDate(date) {
             <h3>安排日期 *</h3>
             <span aria-live="polite"
               >已選 {{ form.dates.length }} 天{{
-                multipleDates ? '／可選不連續日期' : '／每筆只能選一天'
+                multipleDates
+                  ? dateMode === 'calendar' ? '／可選不連續日期' : '／每次最多 366 天'
+                  : '／每筆只能選一天'
               }}</span
             >
           </div>
@@ -199,16 +237,66 @@ function formatDate(date) {
           <p v-else-if="editing && isBattleType(form.type)" class="event-type-notice">
             只修改這一場{{ eventTypeLabel(form.type) }}，其他日期的場次不受影響。
           </p>
-          <p v-if="errors.dates" class="event-field-error" role="alert">{{ errors.dates }}</p>
-          <CalendarGrid
-            :key="`calendar-${calendarKey}`"
-            :initial-date="calendarDate"
-            :model-value="form.dates"
-            selectable
-            :multiple="multipleDates"
-            :disabled="saving"
-            @update:model-value="changeDates"
-          />
+          <v-tabs
+            v-model="dateMode"
+            color="primary"
+            class="event-date-tabs"
+            aria-label="安排日期選擇模式"
+            @update:model-value="changeDateMode"
+          >
+            <v-tab id="event-calendar-tab" value="calendar" aria-controls="event-calendar-panel" :disabled="saving">
+              行事曆模式
+            </v-tab>
+            <v-tab id="event-range-tab" value="range" aria-controls="event-range-panel" :disabled="saving">
+              日期選單模式
+            </v-tab>
+          </v-tabs>
+          <p v-if="rangeError || errors.dates" class="event-field-error" role="alert">
+            {{ rangeError || errors.dates }}
+          </p>
+          <div v-show="dateMode === 'calendar'" id="event-calendar-panel" role="tabpanel" aria-labelledby="event-calendar-tab">
+            <CalendarGrid
+              :key="`calendar-${calendarKey}`"
+              :initial-date="calendarDate"
+              :model-value="form.dates"
+              selectable
+              :multiple="multipleDates"
+              :disabled="saving"
+              @update:model-value="changeDates"
+            />
+          </div>
+          <div v-show="dateMode === 'range'" id="event-range-panel" role="tabpanel" aria-labelledby="event-range-tab">
+            <p class="event-description">{{
+              multipleDates
+                ? '更改起訖日期後，將選取期間內的每一天（含起訖日），最多 366 天。'
+                : '選擇這一筆安排的日期。'
+            }}</p>
+            <div class="event-range-fields">
+              <v-text-field
+                :model-value="range.start"
+                :label="multipleDates ? '開始日期 *' : '安排日期 *'"
+                type="date"
+                min="1000-01-01"
+                max="9999-12-31"
+                variant="outlined"
+                :disabled="saving"
+                hide-details
+                @update:model-value="changeRange('start', $event)"
+              />
+              <v-text-field
+                v-if="multipleDates"
+                :model-value="range.end"
+                label="結束日期 *"
+                type="date"
+                min="1000-01-01"
+                max="9999-12-31"
+                variant="outlined"
+                :disabled="saving"
+                hide-details
+                @update:model-value="changeRange('end', $event)"
+              />
+            </div>
+          </div>
           <div v-if="form.dates.length" class="event-selected-dates" aria-label="已選日期">
             <v-chip
               v-for="date in form.dates"

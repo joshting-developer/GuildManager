@@ -169,6 +169,16 @@
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 16px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.event-date-tabs {
+  margin-bottom: 20px;
+}
+.event-range-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: 16px;
 }
 .event-selected-dates .v-chip {
   min-height: 44px;
