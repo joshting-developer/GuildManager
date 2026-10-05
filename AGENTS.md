@@ -354,4 +354,4 @@ member／manager／admin 均可進入 `#/members`，成員與編外分類、UID�
 - 確認時重新計算 fingerprint，名冊名稱／歷史／待關聯戰績有變動即要求重新預覽。requestId 重試返回原成功結果；SQLite battle_sync_requests 與關聯採同一交易，GAS 沿用 GM_requests／GM_battle_links、script lock 及提交標記。
 - `GET /api/admin/battle-sync/preview`／GAS `previewBattleMemberSync` 只讀；`POST /api/admin/battle-sync`／GAS `syncBattleMembers` 檢查 admin 角色及 CSRF，不接受前端指定歸屬。失敗保留預覽及重試識別，送出時停用重複操作、重讀與關閉，關閉返回入口焦點。
 - 新增／匯入及上傳的既有自動關聯仍依現在名稱；改名、匯入既有 UID 與啟動不自動補關聯。本次手動同步處理舊版本成員與舊名戰績。
-- 本機及 GAS 來源已實作、通過隔離測試與編譯；此功能尚未同步至正式指令碼，未執行正式戰績同步或更新 Web App 部署。
+- 2026/10/05 已將來源 a9afe73 的四檔程式同步至指定 GAS 指令碼，遠端備份與讀回比對成功；見 plans/main/gas-admin-sync-plan.md。未執行正式戰績同步、初始化或更新 Web App 部署，實際雲端功能仍待新版本發布後驗證。
