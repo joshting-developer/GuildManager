@@ -2,7 +2,23 @@
 
 目前已生成 Vue 單檔頁面與完整 GAS 後端，涵蓋登入／帳號管理、行事曆、成員／匯入／名稱歷史、活動、職責、報名／請假、排表／範本、戰績上傳／下載／閱覽及個人分析。本機 SQLite 環境保留。
 
-2026/10/05 已將四檔程式上傳至指定 Apps Script 專案，Google 語法檢查通過且讀回比對一致。尚未初始化正式試算表或發布 Web App；上傳驗證不能代替實際 Sheets／Drive 授權、執行速度、服務配額與 iframe 下載測試。
+2026/10/05 已將最新來源 `8bee302` 的四檔程式上傳至指定 Apps Script 專案，Google 接受程式語法且讀回比對一致。此次沒有執行初始化或發布；部署 API 確認既有 Web App 仍使用第 3 版（說明 `v1.0.2`）。上傳驗證不能代替實際 Sheets／Drive 授權、執行速度、服務配額與 iframe 下載測試。
+
+## 這次更新的部署步驟
+
+最新程式已同步，包含成員資料與個人分析篩選、出勤閱覽／取消請假、對戰資訊編輯、member 成員管理、API 載入提示、手機右側選單及名稱／圖示快取。發布前本機 212 項測試、兩種編譯與隔離瀏覽器驗證已通過。
+
+現有部署說明為 `v1.0.2`，第 3 版；API 確認「以部署者身分執行（USER_DEPLOYING）」及「任何人（ANYONE_ANONYMOUS）」已設定，可沿用。若先前已完成初始化，這次快取與手機導覽更新可直接發布新版本。
+
+1. 開啟 [Apps Script 專案](https://script.google.com/home/projects/1rkY7EI6rHYNoH8TZmIOKQ-MWSCexXUdFTOqInqyfxBR1qMoI8DAf9hG5/edit)。
+2. 右上「部署 → 管理部署作業」，選擇說明為 `v1.0.2` 的既有 Web App。
+3. 點鉛筆「編輯」，版本選「新版本」；說明可填 `v1.0.3 · 成員管理、出勤閱覽、手機導覽與品牌快取`。
+4. 點「部署」，若 Google 要求新增授權，由部署者本人完成。
+5. 使用[原 Web App 網址](https://script.google.com/macros/s/AKfycbwk1B2IdFlpLbeFF2Ti4hgkYTdLsWlcZVGyiSlb2OXDS1TNpoFTUUtlCAf52QTNTP0i/exec)重新開啟，確認載入提示、手機選單、品牌重載與 member 成員清單；再測試本次新增的出勤與對戰資訊操作。
+
+更新既有部署可保留網址；直接同步程式不會更新第 3 版部署。[Google 版本部署說明](https://developers.google.com/apps-script/concepts/deployments)
+
+最新同步與備份紀錄見 [本次同步計畫](plans/main/gas-release-preparation-plan.md)。本節是已存在部署的更新流程；以下首次建立、私有屬性與初始化章節供尚未設定的環境參考。
 
 ## 本機自動上傳
 
@@ -101,7 +117,7 @@ openssl rand -hex 32
 | 身分 | 可使用範圍 |
 | --- | --- |
 | 未登入 | 活動、約戰行事曆及約戰報名／請假 |
-| member | 額外可見幫戰／龍虎戰及其報名／請假、戰績清單／詳情／原始檔、個人分析 |
+| member | 額外可見幫戰／龍虎戰及其報名／請假、完整成員清單與操作、戰績清單／詳情／原始檔、個人分析 |
 | manager | 所有既有管理功能；無帳號管理權限 |
 | admin | 管理功能及帳號／通行密碼管理 |
 

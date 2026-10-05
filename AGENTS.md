@@ -6,7 +6,7 @@
 
 - 介面、文件與操作訊息使用繁體中文
 - 視覺參考相鄰專案 `../NSHM_history`, 本專案的具體規則以 [Style.md](Style.md) 為準
-- 已建立 Vuetify 首頁／成員管理／活動安排／戰場排表／戰績上傳／戰績閱覽、Docker 本機環境、SQLite 讀寫 API 與 GAS 單檔編譯流程, 尚未部署至 GAS
+- 已建立 Vuetify 首頁／成員管理／活動安排／戰場排表／戰績上傳／戰績閱覽、Docker 本機環境、SQLite 讀寫 API 與 GAS 單檔編譯流程；最新程式已同步，既有 Web App 使用第 3 版，最新來源仍待更新部署，見 GASDeployment.md
 - 使用者已確認本機使用 SQLite, 後期資料來源為 Google 試算表
 - 試算表 ID 已取得, 本機使用帳號密碼登入；正式工作表名稱與 Google 登入待確認, 本機角色為 admin／manager／member, 成員、職業、過去名稱及活動安排欄位已依需求實作於本機
 
@@ -289,6 +289,8 @@ member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admi
 
 
 ## GAS 後端與部署狀態
+
+2026/10/05 已將最新來源 `8bee302` 同步四檔，遠端備份與讀回比對成功，見 plans/main/gas-release-preparation-plan.md。唯讀部署 API 確認既有第 3 版 Web App（v1.0.2），設定為 USER_DEPLOYING／ANYONE_ANONYMOUS。此次僅同步程式與準備部署步驟，未更新已發布版本、執行初始化或修改正式資料／私有設定；GASDeployment.md 提供沿用網址的新版本發布流程。
 
 已配置 clasp 3.4.1 自動上傳，目標為 gas/upload-target.json；使用者已提供指令碼 ID 並授權覆蓋目前空白專案。npm run gas:login 由使用者本人完成 OAuth；npm run gas:push 先編譯四檔、備份遠端，再覆蓋並讀回比對。data/clasp-auth.json 與 .clasp.json 均忽略，勿讀出憑證或納入提交。上傳程式與初始化正式試算表／發布 Web App 是不同範圍，後兩者仍需後續指示。
 
