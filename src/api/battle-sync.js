@@ -7,7 +7,7 @@ export function createBattleSyncClient({ source = 'local', fetchImpl = sessionFe
     if (source === 'gas') return callGas(input ? 'syncBattleMembers' : 'previewBattleMemberSync', input ? [input] : [], googleRun);
     let response;
     try {
-      response = await fetchImpl(input ? '/api/battle-sync' : '/api/battle-sync/preview', input ? {
+      response = await fetchImpl(input ? '/api/admin/battle-sync' : '/api/admin/battle-sync/preview', input ? {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
       } : {});
     } catch { throw new Error('無法連線，請確認服務後重試'); }

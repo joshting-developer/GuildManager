@@ -199,7 +199,8 @@ export function rpc(operation, args = [], context = {}) {
           };
           if (!Object.prototype.hasOwnProperty.call(methods, operation))
             fail('OPERATION_INVALID', '不支援此操作');
-          if (operation === 'updatePlatformSettings') auth.requireRole(context, ['admin']);
+          if (['updatePlatformSettings', 'previewBattleMemberSync', 'syncBattleMembers'].includes(operation))
+            auth.requireRole(context, ['admin']);
           else if (PARTICIPATION.includes(operation)) {
             const event = catalog.event(args[0], { battle: true });
             if (

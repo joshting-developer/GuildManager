@@ -117,7 +117,7 @@ test('SQLite sync repairs legacy members/aliases atomically, persists links, pre
   } finally { db.close(); repo.close(); rmSync(dir, { recursive: true, force: true }); }
 });
 
-test('GAS sync uses committed aliases and immutable snapshots; partial writes stay invisible and adapters support manager role', async () => {
+test('GAS sync is admin-only and preserves committed aliases, immutable snapshots and atomic retries', async () => {
   const env = await gasRuntime(); env.setup();
   const session = cloudResult(env.raw('login', [{ username: 'admin', password: 'initial-password-123' }]));
   const context = cloudSession(session);
@@ -146,12 +146,14 @@ test('GAS sync uses committed aliases and immutable snapshots; partial writes st
   const member = cloudSession(cloudResult(env.raw('loginMember', [{ password: 'Member123' }])));
   for (const op of ['previewBattleMemberSync', 'syncBattleMembers']) {
     assert.equal(env.raw(op, op === 'syncBattleMembers' ? [input] : []).error.code, 'AUTH_REQUIRED');
-    assert.equal(env.raw(op, op === 'syncBattleMembers' ? [input] : [], member).error.code, 'MANAGEMENT_REQUIRED');
+    assert.equal(env.raw(op, op === 'syncBattleMembers' ? [input] : [], member).error.code, 'ADMIN_REQUIRED');
   }
   assert.equal(env.raw('syncBattleMembers', [input], { sessionToken: session.sessionToken }).error.code, 'CSRF_INVALID');
   call('createManager', [{ username: 'manager', password: 'manager-password-123' }]);
   const manager = cloudResult(env.raw('login', [{ username: 'manager', password: 'manager-password-123' }]));
-  setGasSession(manager);
+  for (const op of ['previewBattleMemberSync', 'syncBattleMembers'])
+    assert.equal(env.raw(op, op === 'syncBattleMembers' ? [input] : [], cloudSession(manager)).error.code, 'ADMIN_REQUIRED');
+  setGasSession(session);
   const run = {
     withSuccessHandler(fn) { this.done = fn; return this; },
     withFailureHandler() { return this; },
@@ -161,11 +163,11 @@ test('GAS sync uses committed aliases and immutable snapshots; partial writes st
   try {
     const client = createBattleSyncClient({ source: 'gas', googleRun: run });
     const p = await client.preview();
-    assert.equal((await client.sync({ fingerprint: p.fingerprint, requestId: 'manager-sync' })).linkedPlayers, 0);
+    assert.equal((await client.sync({ fingerprint: p.fingerprint, requestId: 'admin-sync' })).linkedPlayers, 0);
   } finally { setGasSession({ user: null }); }
 });
 
-test('HTTP sync enforces management + CSRF and returns stale/retry errors through adapter', async () => {
+test('HTTP sync enforces admin + CSRF, denies manager/member, and returns stale/retry errors through adapter', async () => {
   const repo = createRepository({ filename: ':memory:' });
   fixture(localApi(repo));
   const server = createApp(repo).listen(0, '127.0.0.1');
@@ -176,19 +178,25 @@ test('HTTP sync enforces management + CSRF and returns stale/retry errors throug
     const admin = await repo.authenticate({ username: 'test_admin', password: 'test-password-2026' });
     await repo.setMemberToken(admin.user.id, { password: 'Member123', revision: 0 });
     const member = await repo.authenticateMember({ password: 'Member123' });
+    await repo.createAccount({ username: 'test_manager', password: 'manager-password-123' });
+    const manager = await repo.authenticate({ username: 'test_manager', password: 'manager-password-123' });
     const client = createBattleSyncClient({ fetchImpl: (path, init) => authFetch(base + path, init) });
     const preview = await client.preview();
     const input = { fingerprint: preview.fingerprint, requestId: 'http-sync' };
-    for (const path of ['/api/battle-sync/preview', '/api/battle-sync']) {
+    for (const path of ['/api/admin/battle-sync/preview', '/api/admin/battle-sync']) {
       const init = path.endsWith('preview') ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) };
       assert.equal((await fetch(base + path, init)).status, 401);
       assert.equal((await fetch(base + path, { ...init, headers: { ...init.headers, Cookie: `guild_session=${member.token}`, 'X-CSRF-Token': member.csrfToken } })).status, 403);
+      const denied = await fetch(base + path, { ...init, headers: { ...init.headers, Cookie: `guild_session=${manager.token}`, 'X-CSRF-Token': manager.csrfToken } });
+      assert.equal(denied.status, 403);
+      assert.equal((await denied.json()).error.code, 'ADMIN_REQUIRED');
     }
-    assert.equal((await fetch(base + '/api/battle-sync', { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: `guild_session=${admin.token}` }, body: JSON.stringify(input) })).status, 403);
+    assert.equal((await fetch(base + '/api/admin/battle-sync', { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: `guild_session=${admin.token}` }, body: JSON.stringify(input) })).status, 403);
     assert.equal((await client.sync(input)).linkedPlayers, 2);
     assert.equal((await client.sync(input)).linkedPlayers, 2);
     await assert.rejects(client.sync({ ...input, requestId: 'stale-http' }), code('STALE_SYNC_PREVIEW'));
-    const response = await authFetch(base + '/api/battle-sync/preview');
+    const response = await authFetch(base + '/api/admin/battle-sync/preview');
     assert.equal(response.headers.get('cache-control'), 'no-store');
+    assert.equal((await authFetch(base + '/api/battle-sync/preview')).status, 404);
   } finally { await new Promise(resolve => server.close(resolve)); repo.close(); }
 });
