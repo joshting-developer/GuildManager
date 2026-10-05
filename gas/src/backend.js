@@ -215,6 +215,7 @@ export function rpc(operation, args = [], context = {}) {
             [
               'getBattleRecords',
               'getBattleRecord',
+              'getBattleTeamAnalysis',
               'getBattleAttachment',
               'getMemberBattleRecords',
             ].includes(operation)

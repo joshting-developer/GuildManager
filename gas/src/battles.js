@@ -4,6 +4,7 @@ import {
   MAX_IMAGE_BYTES,
 } from '../../src/domain/battle-records.js';
 import { summarizePersonalBattles } from '../../src/domain/personal-battle-statistics.js';
+import { analyzeBattleTeams } from '../../src/domain/team-battle-analysis.js';
 import { validateBattleMetadata } from '../../src/domain/battle-metadata.js';
 import {
   validatePersonalBattleFilters,
@@ -84,6 +85,13 @@ export function createBattles(store, catalog, { uuid, now, files }) {
       };
     },
     getBattleRecord: ([id]) => ({ record: detail(get(id)) }),
+    getBattleTeamAnalysis([id]) {
+      const record = detail(get(id));
+      const lineup = record.eventId ? store.all('lineup_versions')
+        .filter((value) => value.eventId === record.eventId)
+        .sort((a, b) => b.version - a.version)[0] : null;
+      return analyzeBattleTeams(record, lineup || null);
+    },
     updateBattleRecord([id, input]) {
       const current = get(id);
       const values = validateBattleMetadata(input, current.type);

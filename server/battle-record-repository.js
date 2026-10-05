@@ -6,6 +6,7 @@ import {
   MAX_IMAGE_BYTES,
 } from '../src/domain/battle-records.js';
 import { summarizePersonalBattles } from '../src/domain/personal-battle-statistics.js';
+import { analyzeBattleTeams } from '../src/domain/team-battle-analysis.js';
 import { uniqueNewMemberNames } from '../src/domain/battle-member-links.js';
 import { planBattleMemberSync, publicBattleSyncPlan, validateBattleSyncInput } from '../src/domain/battle-member-sync.js';
 import { validateBattleMetadata } from '../src/domain/battle-metadata.js';
@@ -210,6 +211,15 @@ export function createBattleRecordRepository(db) {
       return { records, total, page, pageSize: 20 };
     },
     getBattleRecord: get,
+    getBattleTeamAnalysis(id) {
+      const record = get(id);
+      const row = record.eventId ? db.prepare(
+        'SELECT snapshot_json, created_at FROM lineup_versions WHERE event_id=? ORDER BY version DESC LIMIT 1',
+      ).get(record.eventId) : null;
+      return analyzeBattleTeams(record, row ? {
+        ...JSON.parse(row.snapshot_json), createdAt: row.created_at,
+      } : null);
+    },
     updateBattleRecord(id, input) {
       return db.transaction(() => {
         const current = get(id);
