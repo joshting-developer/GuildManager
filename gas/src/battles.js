@@ -4,6 +4,11 @@ import {
   MAX_IMAGE_BYTES,
 } from '../../src/domain/battle-records.js';
 import { summarizePersonalBattles } from '../../src/domain/personal-battle-statistics.js';
+import {
+  validatePersonalBattleFilters,
+  filterPersonalBattles,
+  personalBattleProfessions,
+} from '../../src/domain/personal-battle-filters.js';
 import { canonical, fail, hash, pageNumber, retry, text } from './common.js';
 export function createBattles(store, catalog, { uuid, now, files }) {
   const all = () =>
@@ -24,7 +29,17 @@ export function createBattles(store, catalog, { uuid, now, files }) {
   const detail = ({ csvFileId, imageFileId, contentHash, ...record }) => {
     const players = store.get('battle_players', record.id)?.players || record.players;
     if (!Array.isArray(players)) fail('STORAGE_CORRUPT', '戰績玩家資料不完整，請聯絡管理者');
-    return { ...record, players };
+    const links = new Map(
+      store.all('battle_links')
+        .filter((link) => link.recordId === record.id)
+        .map((link) => [link.playerIndex, link.memberUid]),
+    );
+    return {
+      ...record,
+      players: players.map((player, index) =>
+        links.has(index) ? { ...player, memberUid: links.get(index) } : player,
+      ),
+    };
   };
   function image(input) {
     if (input == null) return null;
@@ -63,19 +78,21 @@ export function createBattles(store, catalog, { uuid, now, files }) {
       };
     },
     getBattleRecord: ([id]) => ({ record: detail(get(id)) }),
-    getMemberBattleRecords([uid, page = 1]) {
+    getMemberBattleRecords([uid, page = 1, input = {}]) {
       pageNumber(page);
+      const filters = validatePersonalBattleFilters(input);
       const member = catalog.member(uid);
       const links = store.all('battle_links').filter((link) => link.memberUid === uid);
       const snapshots = store.getMany('battle_players', [
         ...new Set(links.map((link) => link.recordId)),
       ]);
-      const entries = all().flatMap((record) =>
+      const allEntries = all().flatMap((record) =>
         links
           .filter((link) => link.recordId === record.id)
           .sort((a, b) => a.playerIndex - b.playerIndex)
           .map(({ playerIndex }) => {
-            const value = snapshots.get(record.id)?.players[playerIndex];
+            const value =
+              snapshots.get(record.id)?.players[playerIndex] || record.players?.[playerIndex];
             if (!value) fail('STORAGE_CORRUPT', '個人戰績資料不完整，請聯絡管理者');
             const { memberUid, ...player } = value;
             return {
@@ -92,7 +109,10 @@ export function createBattles(store, catalog, { uuid, now, files }) {
             };
           }),
       );
+      const entries = filterPersonalBattles(allEntries, filters);
       return {
+        filters,
+        professions: personalBattleProfessions(allEntries),
         member: {
           name: member.name,
           profession: catalog.profession(member.primaryProfessionId).name,

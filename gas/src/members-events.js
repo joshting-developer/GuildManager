@@ -2,6 +2,7 @@ import { validateMember } from '../../server/member-validation.js';
 import { parseMemberImport } from '../../server/member-import.js';
 import { validateEvent } from '../../src/domain/event-validation.js';
 import { canonical, fail, hash, revision, retry, text } from './common.js';
+import { linkNewMemberBattles } from './member-battle-links.js';
 
 export const PROFESSIONS = [
   [1, '#ffb6c1', '素問'],
@@ -57,7 +58,7 @@ export function createCatalog(store, { uuid, now, guildName }) {
       .filter((item) => !item.deletedAt)
       .map(({ deletedAt, ...item }) => item)
       .sort((a, b) => a.dates[0].localeCompare(b.dates[0]) || a.id.localeCompare(b.id));
-  function addMember(input) {
+  function addMember(input, { linkBattles = true } = {}) {
     const value = validateMember(input);
     profession(value.primaryProfessionId);
     if (value.secondaryProfessionId) profession(value.secondaryProfessionId);
@@ -65,6 +66,7 @@ export function createCatalog(store, { uuid, now, guildName }) {
       fail('DUPLICATE_UID', '這個 UID 已在成員清單中', { uid: '這個 UID 已存在' });
     const result = { ...value, revision: 1, joinedAt: now(), updatedAt: now() };
     store.put('members', value.uid, result);
+    if (linkBattles) linkNewMemberBattles(store, [result]);
     return memberDto(result);
   }
   function preview(input) {
@@ -154,8 +156,12 @@ export function createCatalog(store, { uuid, now, guildName }) {
       const members = result.rows
         .filter((row) => row.action === 'add')
         .map(({ uid, name, primaryProfessionId, secondaryProfessionId }) =>
-          addMember({ uid, name, primaryProfessionId, secondaryProfessionId }),
+          addMember(
+            { uid, name, primaryProfessionId, secondaryProfessionId },
+            { linkBattles: false },
+          ),
         );
+      linkNewMemberBattles(store, members);
       return { members, summary: result.summary };
     },
     getEvents: () => ({ events: liveEvents() }),

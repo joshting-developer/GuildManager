@@ -193,6 +193,9 @@ export function createApp(repository, { authNow } = {}) {
     response.json(
       repository.getMemberBattleRecords(request.params.uid, {
         page: request.query.page === undefined ? 1 : Number(request.query.page),
+        startDate: request.query.startDate,
+        endDate: request.query.endDate,
+        profession: request.query.profession,
       }),
     );
   });

@@ -1,6 +1,7 @@
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onUnmounted } from 'vue';
 import { createMemberClient } from '../api/members.js';
+import { validatePersonalBattleFilters } from '../domain/personal-battle-filters.js';
 import { eventTypeLabel } from '../domain/event-types.js';
 import {
   battleDateLabel,
@@ -18,6 +19,14 @@ const data = ref(null),
   page = ref(1);
 const summaryMode = ref('total'),
   tableMode = ref('total');
+const draftFilters = ref({ startDate: '', endDate: '', profession: '' });
+const appliedFilters = ref({});
+const filterError = ref('');
+const professionOptions = computed(() => [
+  { title: '所有職業', value: '' },
+  ...(data.value?.professions || []).map((name) => ({ title: name, value: name })),
+]);
+const hasFilters = computed(() => Object.values(appliedFilters.value).some(Boolean));
 const summaryModes = [
   { value: 'total', label: '合計' },
   { value: 'average', label: '每筆平均' },
@@ -43,11 +52,12 @@ async function load() {
   loading.value = true;
   error.value = '';
   try {
-    const result = await client.getBattleRecords(props.memberUid, page.value);
+    const result = await client.getBattleRecords(props.memberUid, page.value, appliedFilters.value);
     if (disposed || current !== version) return;
     if (
       !result.member?.name ||
       !Array.isArray(result.entries) ||
+      !Array.isArray(result.professions) ||
       !Array.isArray(result.summary?.metrics) ||
       !Number.isSafeInteger(result.total)
     )
@@ -59,8 +69,29 @@ async function load() {
     if (!disposed && current === version) loading.value = false;
   }
 }
-watch(page, load);
-onMounted(load);
+function applyFilters() {
+  try {
+    const filters = validatePersonalBattleFilters(draftFilters.value);
+    filterError.value = '';
+    draftFilters.value = { ...filters };
+    page.value = 1;
+    appliedFilters.value = filters;
+  } catch (cause) {
+    filterError.value = cause.message;
+  }
+}
+function clearFilters() {
+  draftFilters.value = { startDate: '', endDate: '', profession: '' };
+  applyFilters();
+}
+watch(() => props.memberUid, () => {
+  data.value = null;
+  page.value = 1;
+  draftFilters.value = { startDate: '', endDate: '', profession: '' };
+  appliedFilters.value = {};
+  filterError.value = '';
+}, { flush: 'sync' });
+watch(() => [props.memberUid, page.value, appliedFilters.value], load, { immediate: true });
 onUnmounted(() => {
   disposed = true;
   version++;
@@ -82,6 +113,44 @@ onUnmounted(() => {
       <v-btn variant="outlined" :disabled="loading" @click="load">重新載入</v-btn>
     </div>
   </section>
+  <v-card class="battle-view-card personal-filter-card mb-6">
+    <form class="personal-filter-form" aria-label="個人戰績篩選" @submit.prevent="applyFilters">
+      <v-text-field
+        v-model="draftFilters.startDate"
+        label="開始日期"
+        type="date"
+        min="2000-01-01"
+        max="2100-12-31"
+        variant="outlined"
+        density="compact"
+        hide-details
+      />
+      <v-text-field
+        v-model="draftFilters.endDate"
+        label="結束日期"
+        type="date"
+        min="2000-01-01"
+        max="2100-12-31"
+        variant="outlined"
+        density="compact"
+        hide-details
+      />
+      <v-select
+        v-model="draftFilters.profession"
+        :items="professionOptions"
+        label="職業篩選"
+        variant="outlined"
+        density="compact"
+        hide-details
+      />
+      <div class="personal-actions">
+        <v-btn type="submit" color="primary">套用篩選</v-btn>
+        <v-btn variant="text" @click="clearFilters">清除篩選</v-btn>
+      </div>
+    </form>
+    <p class="battle-view-muted mt-3">日期包含起訖當天，可只填一邊；職業依各場戰績紀錄篩選。上方統計與下方明細共用條件。</p>
+    <v-alert v-if="filterError" type="error" variant="tonal" role="alert" class="mt-3">{{ filterError }}</v-alert>
+  </v-card>
   <p v-if="loading" role="status">正在載入個人戰績…</p>
   <v-alert v-else-if="error" type="error" variant="tonal" role="alert">
     {{ error }}<v-btn variant="text" @click="load">重試</v-btn>
@@ -96,7 +165,7 @@ onUnmounted(() => {
         勝 {{ data.summary.wins }} 場 · 敗 {{ data.summary.losses }} 場 · 內推／未判定
         {{ data.summary.unknown }} 場
       </p>
-      <p v-if="!data.total" class="battle-view-state">尚無已關聯的個人戰績</p>
+      <p v-if="!data.total" class="battle-view-state">{{ hasFilters ? '沒有符合篩選條件的戰績' : '尚無已關聯的個人戰績' }}</p>
       <template v-else>
         <div class="personal-actions mb-4" role="group" aria-label="個人統計模式">
           <v-btn
@@ -124,7 +193,7 @@ onUnmounted(() => {
         </div>
       </template>
       <p class="battle-view-muted mt-4">
-        僅統計上傳時名稱能唯一對應的戰績。舊未關聯紀錄不計入；同場有兩筆數據時均保留，但場數只計一次。
+        統計已關聯的戰績；上傳或新增成員時依唯一同名關聯。未關聯紀錄不計入，同場有兩筆數據時均保留，但場數只計一次。
       </p>
     </v-card>
     <v-card v-if="data.total" class="battle-view-card">
@@ -206,6 +275,12 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.personal-filter-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr auto;
+  gap: 12px;
+  align-items: center;
+}
 .personal-actions {
   display: flex;
   flex-wrap: wrap;
@@ -237,11 +312,17 @@ onUnmounted(() => {
   font-variant-numeric: tabular-nums;
 }
 @media (max-width: 1023px) {
+  .personal-filter-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .personal-metrics {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 @media (max-width: 767px) {
+  .personal-filter-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .personal-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

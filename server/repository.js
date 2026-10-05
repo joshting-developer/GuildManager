@@ -222,13 +222,17 @@ export function createRepository({ filename, authNow }) {
         const members = preview.rows
           .filter((row) => row.action !== 'skip')
           .map((row) =>
-            repository.addMember({
-              uid: row.uid,
-              name: row.name,
-              primaryProfessionId: row.primaryProfessionId,
-              secondaryProfessionId: row.secondaryProfessionId,
-            }),
+            repository.addMember(
+              {
+                uid: row.uid,
+                name: row.name,
+                primaryProfessionId: row.primaryProfessionId,
+                secondaryProfessionId: row.secondaryProfessionId,
+              },
+              { linkBattles: false },
+            ),
           );
+        repository.backfillMemberBattleRecords(members);
         return { members, summary: preview.summary };
       })();
     },
@@ -273,7 +277,7 @@ export function createRepository({ filename, authNow }) {
         })),
       };
     },
-    addMember(input) {
+    addMember(input, { linkBattles = true } = {}) {
       const member = validateMember(input);
       return db.transaction(() => {
         const [primaryName, secondaryName] = professionNames(member);
@@ -321,7 +325,9 @@ export function createRepository({ filename, authNow }) {
             now,
           );
         }
-        return getMember(member.uid);
+        const saved = getMember(member.uid);
+        if (linkBattles) repository.backfillMemberBattleRecords([saved]);
+        return saved;
       })();
     },
     updateMember(uid, input) {

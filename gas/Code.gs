@@ -100,8 +100,13 @@ function getParticipationMembers(context) {
   return GuildGas.rpc('getParticipationMembers', [], context);
 }
 
-function getMemberBattleRecords(uid, page, context) {
-  return GuildGas.rpc('getMemberBattleRecords', [uid, page], context);
+function getMemberBattleRecords(uid, page, filters, context) {
+  // Preserve older clients that pass their session context as the third argument.
+  if (context === undefined) {
+    context = filters;
+    filters = {};
+  }
+  return GuildGas.rpc('getMemberBattleRecords', [uid, page, filters], context);
 }
 
 function addMember(input, context) {

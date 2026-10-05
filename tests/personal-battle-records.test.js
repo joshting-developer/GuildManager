@@ -70,12 +70,15 @@ test('upload matches unique exact current names in its transaction; retries, dup
       revision: original.revision,
     });
     add(repo, '004', '敵人');
-    assert.deepEqual(repo.saveBattleRecords(input), result);
+    const replay = repo.saveBattleRecords(input);
+    assert.equal(replay.records[0].id, record.id);
+    assert.equal(replay.records[0].players[0].memberUid, '001');
+    assert.equal(replay.records[0].players[2].memberUid, '004');
     assert.throws(
       () => upload(repo),
       (e) => e.code === 'BATTLE_DUPLICATE',
     );
-    assert.equal(repo.getMemberBattleRecords('004').total, 0);
+    assert.equal(repo.getMemberBattleRecords('004').total, 1);
     assert.equal(repo.getMemberBattleRecords('002').total, 0);
     const data = repo.getMemberBattleRecords('001');
     assert.equal(data.member.name, '新名字');
@@ -94,22 +97,22 @@ test('upload matches unique exact current names in its transaction; retries, dup
   }
 });
 
-test('old unlinked records are never backfilled; pages share full summary and failures roll back links', () => {
+test('new members link older records; pages share full summary and failures roll back links', () => {
   const repo = createRepository({ filename: ':memory:' });
   try {
     upload(repo);
     add(repo, '001', '空城');
-    assert.equal(repo.getMemberBattleRecords('001').total, 0);
+    assert.equal(repo.getMemberBattleRecords('001').total, 1);
     for (let i = 0; i < 21; i++)
       upload(repo, { datetime: `2026-10-${String(i + 1).padStart(2, '0')}` });
     const first = repo.getMemberBattleRecords('001');
     const second = repo.getMemberBattleRecords('001', { page: 2 });
     assert.equal(first.entries.length, 20);
-    assert.equal(second.entries.length, 1);
-    assert.equal(first.total, 21);
+    assert.equal(second.entries.length, 2);
+    assert.equal(first.total, 22);
     assert.deepEqual(first.summary, second.summary);
-    assert.equal(first.summary.metrics.find((m) => m.key === 'kill').total, 42);
-    assert.equal(first.entries[0].playedAt, '2026-10-21');
+    assert.equal(first.summary.metrics.find((m) => m.key === 'kill').total, 44);
+    assert.equal(first.entries[0].playedAt, '2026-10-24');
     assert.throws(() =>
       repo.saveBattleRecords({
         requestId: 'invalid-pair',
@@ -134,7 +137,7 @@ test('old unlinked records are never backfilled; pages share full summary and fa
         ],
       }),
     );
-    assert.equal(repo.getMemberBattleRecords('001').total, 21);
+    assert.equal(repo.getMemberBattleRecords('001').total, 22);
     assert.throws(() => repo.getMemberBattleRecords('001', { page: 0 }));
     assert.throws(
       () => repo.getMemberBattleRecords('missing'),
@@ -263,7 +266,7 @@ test('personal API and adapter reject anonymous access, support member and manag
   }
 });
 
-test('adding the link table to an existing database preserves old snapshots and retry responses without backfill', () => {
+test('initialization preserves unlinked snapshots; adding a member links existing history', () => {
   const dir = mkdtempSync(join(tmpdir(), 'guild-old-personal-'));
   const filename = join(dir, 'old.sqlite');
   let repo = createRepository({ filename });
@@ -275,9 +278,10 @@ test('adding the link table to an existing database preserves old snapshots and 
     const before = db.prepare('SELECT * FROM battle_records').all();
     db.close();
     repo = createRepository({ filename });
-    add(repo, '001', '空城');
     assert.deepEqual(repo.saveBattleRecords(input), result);
-    assert.equal(repo.getMemberBattleRecords('001').total, 0);
+    add(repo, '001', '空城');
+    assert.equal(repo.getMemberBattleRecords('001').total, 1);
+    assert.equal(repo.saveBattleRecords(input).records[0].id, result.records[0].id);
     const inspect = new Database(filename, { readonly: true });
     assert.deepEqual(inspect.prepare('SELECT * FROM battle_records').all(), before);
     assert.equal(inspect.pragma('foreign_key_check').length, 0);

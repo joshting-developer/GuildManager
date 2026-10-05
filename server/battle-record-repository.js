@@ -6,6 +6,12 @@ import {
   MAX_IMAGE_BYTES,
 } from '../src/domain/battle-records.js';
 import { summarizePersonalBattles } from '../src/domain/personal-battle-statistics.js';
+import { uniqueNewMemberNames } from '../src/domain/battle-member-links.js';
+import {
+  validatePersonalBattleFilters,
+  filterPersonalBattles,
+  personalBattleProfessions,
+} from '../src/domain/personal-battle-filters.js';
 
 function text(value, label, limit = 120) {
   if (
@@ -155,8 +161,21 @@ export function createBattleRecordRepository(db) {
       return { records, total, page, pageSize: 20 };
     },
     getBattleRecord: get,
-    getMemberBattleRecords(uid, { page = 1 } = {}) {
+    backfillMemberBattleRecords(newMembers) {
+      const names = uniqueNewMemberNames(
+        db.prepare('SELECT uid, name FROM members').all(),
+        newMembers,
+      );
+      const insert = db.prepare(`INSERT INTO battle_player_links (record_id, player_index, member_uid)
+        SELECT r.id, CAST(p.key AS INTEGER), ? FROM battle_records r, json_each(r.players_json) p
+        LEFT JOIN battle_player_links l ON l.record_id = r.id AND l.player_index = CAST(p.key AS INTEGER)
+        WHERE json_extract(p.value, '$.player') = ? AND l.record_id IS NULL
+        AND json_extract(p.value, '$.memberUid') IS NULL`);
+      for (const [name, uid] of names) insert.run(uid, name);
+    },
+    getMemberBattleRecords(uid, { page = 1, ...input } = {}) {
       if (!Number.isSafeInteger(page) || page < 1) throw new BattleRecordError('頁碼不正確');
+      const filters = validatePersonalBattleFilters(input);
       const memberUid = text(uid, '成員', 64);
       const member = db
         .prepare('SELECT name, primary_profession AS profession FROM members WHERE uid = ?')
@@ -171,7 +190,7 @@ export function createBattleRecordRepository(db) {
         WHERE l.member_uid = ? ORDER BY r.played_at DESC, r.created_at DESC, r.id, l.player_index`,
         )
         .all(memberUid);
-      const entries = links.map((row) => ({
+      const allEntries = links.map((row) => ({
         recordId: row.id,
         playerIndex: row.player_index,
         type: row.battle_type,
@@ -183,8 +202,11 @@ export function createBattleRecordRepository(db) {
         isInternal: Boolean(row.is_internal),
         player: JSON.parse(row.player_json),
       }));
+      const entries = filterPersonalBattles(allEntries, filters);
       return {
         member,
+        filters,
+        professions: personalBattleProfessions(allEntries),
         summary: summarizePersonalBattles(entries),
         entries: entries.slice((page - 1) * 20, page * 20),
         total: entries.length,
