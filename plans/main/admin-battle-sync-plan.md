@@ -17,5 +17,6 @@
 - npm test：216 項通過，含 HTTP／GAS 的 manager／member 拒絕、admin 成功與 CSRF。
 - npm run build／build:gas 通過，GAS 產物無外部 JS／CSS 依賴。
 - Playwright 操作 Chrome 已確認管理總覽無同步入口、admin 資料維護可開預覽、manager 無帳號管理入口且不能直接開頁、member 不提供此入口。沿用隔離測試確認載入、錯誤重試、舊名／衝突、過期預覽、安全重試、手機分頁及焦點返回。
-- 手冊第 8 版與 admin 預覽截圖已更新，離線 HTML／PDF 驗證進行中。
+- 手冊第 8 版與 admin 預覽截圖已更新；34 張圖片、章節連結、離線 HTML、手機版與放大／Escape 驗證通過，附圖 PDF 已生成。README 補上 Node 測試與臨時 Playwright 瀏覽器腳本的區別。
+- 功能提交：21eef2d；規範與手冊另行提交。
 - 未上傳 GAS、更新部署或執行正式戰績同步。

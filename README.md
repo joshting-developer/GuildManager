@@ -108,11 +108,13 @@ npm run build
 npm run build:gas
 ```
 
-- `npm test`：SQLite 保存、成員 CRUD、歷史交易回滾、職業擴充、舊欄位遷移、活動日期規則、排表資格／唯一 UID／不可變快照／範本、版本與重複提交、API 與 adapter 錯誤處理
+- `npm test`：使用 Node.js 內建 `node:test`，驗證 SQLite 保存、成員 CRUD、歷史交易回滾、職業擴充、舊欄位遷移、活動日期規則、排表資格／唯一 UID／不可變快照／範本、版本與重複提交、API 與 adapter 錯誤處理
 - `npm run build`：一般本機前端 build, 輸出到 `dist/`
 - `npm run build:gas`：GAS 模式, 輸出單一前端 `build/gas/Index.html`, 以及 `Code.gs`、打包後端 `Backend.gs` 和 `appsscript.json`
 - GAS 打包指令會檢查是否仍有外部 JS／CSS 檔案或多餘輸出
 - 編譯產物不納入 Git, 原始碼與 lockfile 納入 Git
+
+目前桌面／手機的瀏覽器驗證與手冊截圖使用 Playwright 操作 Chrome，開啟編譯後前端並使用隔離示範資料／模擬 GAS RPC；圖片保存於 `docs/manual-images/`。這些驗證與截圖腳本目前放在臨時目錄，未納入專案的可重跑套件，`npm test` 不包含瀏覽器測試或自動截圖，也沒有正式的 Playwright 設定或圖片比對測試。
 
 ## GAS 匯入方式
 
