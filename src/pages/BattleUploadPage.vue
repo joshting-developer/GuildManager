@@ -17,6 +17,7 @@ import {
 } from '../domain/battle-records.js';
 import { eventTypeLabel } from '../domain/event-types.js';
 import './battle-upload.css';
+import BattleMetadataDialog from './BattleMetadataDialog.vue';
 const props = defineProps({ initialEventId: { type: String, default: null } });
 
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
@@ -45,6 +46,24 @@ const savedDetails = ref({}),
   downloadError = ref('');
 const busy = computed(() => reading.value || saving.value || downloadBusy.value);
 const dirty = computed(() => files.value.length > 0);
+const editingRecordId = ref(null);
+const editDialog = ref(false);
+const savedTokens = {};
+function openMetadata(record) {
+  editingRecordId.value = record.id;
+  editDialog.value = true;
+}
+function onMetadataUpdated(record) {
+  roundRecords.value = roundRecords.value.map((item) => (item.id === record.id ? record : item));
+  savedTokens[record.id] = (savedTokens[record.id] || 0) + 1;
+  savedLoading.value[record.id] = false;
+  savedErrors.value[record.id] = '';
+  if (savedDetails.value[record.id])
+    savedDetails.value[record.id] = { ...savedDetails.value[record.id], ...record };
+  else if (previewSlot.value?.saved?.id === record.id) loadSavedRecord(record);
+  internalRounds.value[record.roundNumber] = record.isInternal;
+  notice.value = '對戰資訊已更新';
+}
 const selectedEventId = ref(null);
 const selectedEvent = computed(() =>
   events.value.find((event) => event.id === selectedEventId.value),
@@ -355,6 +374,8 @@ async function submit(roundNumber = null) {
 async function loadSavedRecord(record) {
   if (!record || savedDetails.value[record.id] || savedLoading.value[record.id]) return;
   const token = roundsToken;
+  const detailToken = (savedTokens[record.id] || 0) + 1;
+  savedTokens[record.id] = detailToken;
   const eventId = selectedEventId.value;
   savedLoading.value[record.id] = true;
   savedErrors.value[record.id] = '';
@@ -362,13 +383,28 @@ async function loadSavedRecord(record) {
     const result = await client.getRecord(record.id);
     if (result.record?.id !== record.id || !Array.isArray(result.record.players))
       throw new Error('戰績資料格式不正確, 請重試');
-    if (!disposed && token === roundsToken && eventId === selectedEventId.value)
+    if (
+      !disposed &&
+      token === roundsToken &&
+      detailToken === savedTokens[record.id] &&
+      eventId === selectedEventId.value
+    )
       savedDetails.value[record.id] = result.record;
   } catch (cause) {
-    if (!disposed && token === roundsToken && eventId === selectedEventId.value)
+    if (
+      !disposed &&
+      token === roundsToken &&
+      detailToken === savedTokens[record.id] &&
+      eventId === selectedEventId.value
+    )
       savedErrors.value[record.id] = `戰績資料讀取失敗: ${cause.message}`;
   } finally {
-    if (!disposed && token === roundsToken && eventId === selectedEventId.value)
+    if (
+      !disposed &&
+      token === roundsToken &&
+      detailToken === savedTokens[record.id] &&
+      eventId === selectedEventId.value
+    )
       savedLoading.value[record.id] = false;
   }
 }
@@ -483,6 +519,13 @@ onUnmounted(() => {
         <p class="battle-muted">
           {{ winnerLabel(slot.saved) }} · {{ slot.saved.redCount }}／{{ slot.saved.blueCount }} 人
         </p>
+        <v-btn
+          variant="outlined"
+          :disabled="busy || roundsLoading"
+          :aria-label="`編輯${slot.label}對戰資訊`"
+          @click="openMetadata(slot.saved)"
+          >編輯對戰資訊</v-btn
+        >
       </template>
       <template v-else>
         <input
@@ -587,6 +630,12 @@ onUnmounted(() => {
       </template>
     </v-card>
   </div>
+  <BattleMetadataDialog
+    v-if="editingRecordId"
+    v-model="editDialog"
+    :record-id="editingRecordId"
+    @updated="onMetadataUpdated"
+  />
   <v-card class="battle-upload-card battle-preview-card" aria-labelledby="battle-preview-title">
     <div class="section-header">
       <h2 id="battle-preview-title">戰績資料</h2>

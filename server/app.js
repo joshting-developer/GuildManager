@@ -116,6 +116,9 @@ export function createApp(repository, { authNow } = {}) {
   app.get('/api/battle-records/:id', (request, response) => {
     response.json({ record: repository.getBattleRecord(request.params.id) });
   });
+  app.patch('/api/battle-records/:id', (request, response) => {
+    response.json(repository.updateBattleRecord(request.params.id, request.body));
+  });
   app.get('/api/battle-records/:id/attachments/:kind', (request, response) => {
     const attachment = repository.getBattleAttachment(request.params.id, request.params.kind);
     response.set('X-Content-Type-Options', 'nosniff');

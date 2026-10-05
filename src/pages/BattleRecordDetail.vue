@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue';
 import {
   mdiArrowLeft,
   mdiArrowRight,
@@ -12,6 +12,7 @@ import {
 import { createBattleRecordClient } from '../api/battle-records.js';
 import { createMemberClient } from '../api/members.js';
 import { eventTypeLabel } from '../domain/event-types.js';
+import BattleMetadataDialog from './BattleMetadataDialog.vue';
 import {
   battleDateLabel,
   battleResultLabel,
@@ -24,6 +25,15 @@ import {
 } from '../domain/battle-statistics.js';
 
 const props = defineProps({ recordId: { type: String, required: true } });
+const auth = inject('calendarAuth', null);
+const canManage = computed(() => ['admin', 'manager'].includes(auth?.user.value?.role));
+const editDialog = ref(false);
+const notice = ref('');
+function onMetadataUpdated(updated) {
+  if (updated.id !== record.value?.id) return;
+  record.value = { ...record.value, ...updated };
+  notice.value = '對戰資訊已更新';
+}
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 const client = createBattleRecordClient({ source }),
   memberClient = createMemberClient({ source });
@@ -172,6 +182,18 @@ onUnmounted(() => {
     >{{ error }}<v-btn variant="text" @click="loadRecord">重試</v-btn></v-alert
   >
   <template v-else-if="record">
+    <v-alert v-if="notice" type="success" variant="tonal" role="status" class="mb-4">{{
+      notice
+    }}</v-alert>
+    <v-btn v-if="canManage" variant="outlined" class="mb-4" @click="editDialog = true"
+      >編輯對戰資訊</v-btn
+    >
+    <BattleMetadataDialog
+      v-if="canManage"
+      v-model="editDialog"
+      :record-id="record.id"
+      @updated="onMetadataUpdated"
+    />
     <v-card class="battle-view-card" aria-labelledby="battle-comparison-title">
       <h2 id="battle-comparison-title" class="sr-only">雙方戰績統計</h2>
       <div class="battle-team-overview">

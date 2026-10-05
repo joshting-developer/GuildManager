@@ -56,6 +56,7 @@ const WRITES = [
   'cancelEventLeave',
   'createLineupTemplate',
   'saveBattleRecords',
+  'updateBattleRecord',
 ];
 function environment() {
   const properties = PropertiesService.getScriptProperties();

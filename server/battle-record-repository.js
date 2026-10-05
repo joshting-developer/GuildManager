@@ -7,6 +7,7 @@ import {
 } from '../src/domain/battle-records.js';
 import { summarizePersonalBattles } from '../src/domain/personal-battle-statistics.js';
 import { uniqueNewMemberNames } from '../src/domain/battle-member-links.js';
+import { validateBattleMetadata } from '../src/domain/battle-metadata.js';
 import {
   validatePersonalBattleFilters,
   filterPersonalBattles,
@@ -73,6 +74,10 @@ export function createBattleRecordRepository(db) {
     db.exec(
       'ALTER TABLE battle_records ADD COLUMN is_internal INTEGER NOT NULL DEFAULT 0 CHECK(is_internal IN (0,1))',
     );
+  if (!db.pragma('table_info(battle_records)').some((column) => column.name === 'revision'))
+    db.exec(
+      'ALTER TABLE battle_records ADD COLUMN revision INTEGER NOT NULL DEFAULT 0 CHECK(revision >= 0)',
+    );
   if (db.pragma('table_info(battle_records)').find((column) => column.name === 'winner').notnull) {
     // SQLite cannot remove NOT NULL with ALTER COLUMN; copy every column in one transaction.
     db.transaction(() => {
@@ -100,6 +105,9 @@ export function createBattleRecordRepository(db) {
     ON battle_records(event_id,round_number) WHERE round_number IS NOT NULL`);
   // Keep the immutable CSV/player snapshots and existing retry hashes unchanged.
   db.exec(`
+    CREATE TABLE IF NOT EXISTS battle_metadata_requests (
+      request_id TEXT PRIMARY KEY, input_hash TEXT NOT NULL, result_json TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS battle_player_links (
       record_id TEXT NOT NULL REFERENCES battle_records(id),
       player_index INTEGER NOT NULL CHECK(player_index >= 0),
@@ -133,6 +141,7 @@ export function createBattleRecordRepository(db) {
       winner: row.winner,
       ourSide: row.our_side,
       isInternal: Boolean(row.is_internal),
+      revision: row.revision,
       filename: row.filename,
       createdAt: row.created_at,
       redCount: players.filter((p) => p.side === 'red').length,
@@ -161,12 +170,56 @@ export function createBattleRecordRepository(db) {
       return { records, total, page, pageSize: 20 };
     },
     getBattleRecord: get,
+    updateBattleRecord(id, input) {
+      return db.transaction(() => {
+        const current = get(id);
+        const values = validateBattleMetadata(input, current.type);
+        const fingerprint = createHash('sha256')
+          .update(JSON.stringify([id, input.revision, values]))
+          .digest('hex');
+        const previous = db
+          .prepare('SELECT * FROM battle_metadata_requests WHERE request_id = ?')
+          .get(input.requestId);
+        if (previous) {
+          if (previous.input_hash !== fingerprint)
+            throw new BattleRecordError(
+              '此操作已用於不同資料，請重新送出',
+              409,
+              'REQUEST_CONFLICT',
+            );
+          return JSON.parse(previous.result_json);
+        }
+        if (current.revision !== input.revision)
+          throw new BattleRecordError(
+            '對戰資訊已更新，請重新載入後再儲存',
+            409,
+            'REVISION_CONFLICT',
+          );
+        db.prepare(
+          'UPDATE battle_records SET red_team = ?, blue_team = ?, winner = ?, our_side = ?, is_internal = ?, revision = revision + 1 WHERE id = ?',
+        ).run(
+          values.redTeam,
+          values.blueTeam,
+          values.winner,
+          values.ourSide,
+          values.isInternal ? 1 : 0,
+          id,
+        );
+        const { players, ...record } = get(id);
+        const result = { record };
+        db.prepare(
+          'INSERT INTO battle_metadata_requests (request_id, input_hash, result_json) VALUES (?, ?, ?)',
+        ).run(input.requestId, fingerprint, JSON.stringify(result));
+        return result;
+      })();
+    },
     backfillMemberBattleRecords(newMembers) {
       const names = uniqueNewMemberNames(
         db.prepare('SELECT uid, name FROM members').all(),
         newMembers,
       );
-      const insert = db.prepare(`INSERT INTO battle_player_links (record_id, player_index, member_uid)
+      const insert =
+        db.prepare(`INSERT INTO battle_player_links (record_id, player_index, member_uid)
         SELECT r.id, CAST(p.key AS INTEGER), ? FROM battle_records r, json_each(r.players_json) p
         LEFT JOIN battle_player_links l ON l.record_id = r.id AND l.player_index = CAST(p.key AS INTEGER)
         WHERE json_extract(p.value, '$.player') = ? AND l.record_id IS NULL

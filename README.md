@@ -472,3 +472,11 @@ SQLite 追加 `event_video_submissions` 保存雙場連結／團別／備註，`
 請假列提供「取消請假」，透過 `PATCH /api/events/:id/attendance`／GAS `cancelEventLeave`。成員回應改回 none，保留職業、備註與名冊所屬狀態，幫會／俱樂部成員恢復可排表資格；外援恢復原報名 ID 及有效狀態。成員自行再次報名則改為 registered，也會解除請假，不轉成編外或建立外援。修改檢查 revision，資料已更新必須重載；相同成功操作可安全重試。本機使用 SQLite 交易，GAS 在 script lock 內透過現有提交標記生效；API 僅限管理角色，寫入檢查 CSRF，不加入公開 participation 白名單。
 
 沿用現有資料表，不需要新增工作表或重新初始化。本次生成 GAS 套件，未同步或發布新部署。
+
+## 已上傳對戰資訊編輯
+
+admin／manager 可由戰績上傳已保存卡片，或戰績閱覽詳情的「編輯對戰資訊」後補雙方名稱、我方及獲勝方。約戰可逐場開啟內推，保存時清除敵我／勝方；幫戰與龍虎戰不可設內推。member 只可閱讀，結果修改後重新讀取個人分析及清單會使用最新值。
+
+本機 `PATCH /api/battle-records/:id` 與 GAS `updateBattleRecord` 共用欄位驗證，檢查管理角色、CSRF、revision 及 requestId；SQLite 追加 revision（舊資料初值 0）與 battle_metadata_requests，交易保存修改和重試結果。GAS 舊戰績 revision 缺值視為 0，GM_battles 及 GM_requests 沿用既有鎖定與提交標記，不需新增工作表。原 CSV、Drive 檔案、玩家快照及成員連結、日期／類型／場序與原上傳重試資料保留；不重算或覆寫原 content hash。
+
+編輯視窗每次開啟讀最新資料，儲存成功更新卡片／詳情及快取；失敗保留草稿，衝突須重新載入，相同請求重試不重複修改。兩場各自修改，不清除另一場待上傳 CSV。GAS 套件已生成，本次未同步或發布新部署。

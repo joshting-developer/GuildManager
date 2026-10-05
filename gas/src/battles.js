@@ -4,6 +4,7 @@ import {
   MAX_IMAGE_BYTES,
 } from '../../src/domain/battle-records.js';
 import { summarizePersonalBattles } from '../../src/domain/personal-battle-statistics.js';
+import { validateBattleMetadata } from '../../src/domain/battle-metadata.js';
 import {
   validatePersonalBattleFilters,
   filterPersonalBattles,
@@ -25,17 +26,22 @@ export function createBattles(store, catalog, { uuid, now, files }) {
     if (!record) fail('BATTLE_NOT_FOUND', '找不到這筆戰績');
     return record;
   }
-  const metadata = ({ csvFileId, imageFileId, contentHash, players, ...record }) => record;
+  const metadata = ({ csvFileId, imageFileId, contentHash, players, ...record }) => ({
+    ...record,
+    revision: record.revision ?? 0,
+  });
   const detail = ({ csvFileId, imageFileId, contentHash, ...record }) => {
     const players = store.get('battle_players', record.id)?.players || record.players;
     if (!Array.isArray(players)) fail('STORAGE_CORRUPT', '戰績玩家資料不完整，請聯絡管理者');
     const links = new Map(
-      store.all('battle_links')
+      store
+        .all('battle_links')
         .filter((link) => link.recordId === record.id)
         .map((link) => [link.playerIndex, link.memberUid]),
     );
     return {
       ...record,
+      revision: record.revision ?? 0,
       players: players.map((player, index) =>
         links.has(index) ? { ...player, memberUid: links.get(index) } : player,
       ),
@@ -78,6 +84,23 @@ export function createBattles(store, catalog, { uuid, now, files }) {
       };
     },
     getBattleRecord: ([id]) => ({ record: detail(get(id)) }),
+    updateBattleRecord([id, input]) {
+      const current = get(id);
+      const values = validateBattleMetadata(input, current.type);
+      return retry(
+        store,
+        'updateBattleRecord',
+        input.requestId,
+        { id, revision: input.revision, values },
+        () => {
+          if ((current.revision ?? 0) !== input.revision)
+            fail('REVISION_CONFLICT', '對戰資訊已更新，請重新載入後再儲存');
+          const record = { ...current, ...values, revision: (current.revision ?? 0) + 1 };
+          store.put('battles', id, record);
+          return { record: metadata(record) };
+        },
+      );
+    },
     getMemberBattleRecords([uid, page = 1, input = {}]) {
       pageNumber(page);
       const filters = validatePersonalBattleFilters(input);

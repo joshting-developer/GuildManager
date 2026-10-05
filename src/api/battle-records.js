@@ -6,7 +6,7 @@ export function createBattleRecordClient({
   googleRun,
 } = {}) {
   if (!['local', 'gas'].includes(source)) throw new Error('未知的資料來源設定');
-  async function call(operation, path, input, args = []) {
+  async function call(operation, path, input, args = [], method = 'POST') {
     if (source === 'gas') {
       return callGas(operation, args, googleRun);
     }
@@ -16,7 +16,7 @@ export function createBattleRecordClient({
         `/api/battle-records${path}`,
         input
           ? {
-              method: 'POST',
+              method,
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(input),
             }
@@ -48,6 +48,8 @@ export function createBattleRecordClient({
       ),
     getRecord: (id) => call('getBattleRecord', `/${encodeURIComponent(id)}`, undefined, [id]),
     saveRecords: (input) => call('saveBattleRecords', '', input, [input]),
+    updateRecord: (id, input) =>
+      call('updateBattleRecord', `/${encodeURIComponent(id)}`, input, [id, input], 'PATCH'),
     async getAttachment(id, kind) {
       if (!['csv', 'image'].includes(kind)) throw new Error('未知附件類型');
       if (source === 'gas') {
