@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onUnmounted, ref, useId, watch } from 'vue';
+import { VCardText, VCardActions, VSpacer } from 'vuetify/components';
 import DataLoading from '../components/DataLoading.vue';
 import { createBattleRecordClient } from '../api/battle-records.js';
 import { battleDateLabel, battleRoundLabel } from '../domain/battle-statistics.js';
