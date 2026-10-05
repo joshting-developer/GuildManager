@@ -1,10 +1,9 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick, provide } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick, provide, watch } from 'vue';
 import {
   mdiSwordCross,
   mdiViewDashboardOutline,
   mdiMenu,
-  mdiClose,
   mdiAccountGroupOutline,
   mdiCalendarMonthOutline,
   mdiLogin,
@@ -21,6 +20,7 @@ import { setCsrfToken } from './api/session.js';
 import LoginDialog from './components/LoginDialog.vue';
 import DataLoading from './components/DataLoading.vue';
 import PlatformBrand from './components/PlatformBrand.vue';
+import MobileNavigation from './components/MobileNavigation.vue';
 import HomePage from './pages/HomePage.vue';
 import CalendarHomePage from './pages/CalendarHomePage.vue';
 import MembersPage from './pages/MembersPage.vue';
@@ -76,6 +76,21 @@ const navigation = [
   { page: 'videos', label: '影片閱覽', icon: mdiVideoOutline },
 ];
 const mobileMenu = ref(false);
+const mobileMenuButton = ref(null);
+let menuOriginRoute;
+let mobileViewport;
+watch(mobileMenu, (open) => {
+  if (open) menuOriginRoute = window.location.hash;
+});
+function closeDesktopMenu(event) {
+  if (!event.matches) mobileMenu.value = false;
+}
+function restoreMenuFocus() {
+  const button = mobileMenuButton.value?.$el;
+  if (menuOriginRoute === window.location.hash && button?.getClientRects().length) {
+    button.focus({ preventScroll: true });
+  } else document.getElementById('main')?.focus({ preventScroll: true });
+}
 const lineupFocus = ref(false);
 const pageGuard = ref(null);
 const battleUploadEventId = ref(null);
@@ -84,6 +99,9 @@ provide('openBattleUpload', (eventId) => {
   navigate('battle-upload');
 });
 const user = ref(null);
+watch(user, (value) => {
+  if (!value) mobileMenu.value = false;
+});
 const canManage = computed(() => ['admin', 'manager'].includes(user.value?.role));
 const canReadBattles = computed(() => ['admin', 'manager', 'member'].includes(user.value?.role));
 const memberCanVisit = (page) => ['home', 'members', 'battle-records', 'member-records'].includes(page);
@@ -303,6 +321,8 @@ function checkSession() {
   if (document.visibilityState === 'visible' && user.value && !authBusy.value) restoreSession();
 }
 onMounted(() => {
+  mobileViewport = window.matchMedia('(max-width: 1100px)');
+  mobileViewport.addEventListener('change', closeDesktopMenu);
   window.addEventListener('hashchange', syncView);
   window.addEventListener('guild-auth-required', expireSession);
   document.addEventListener('visibilitychange', checkSession);
@@ -310,6 +330,7 @@ onMounted(() => {
   loadPlatform();
 });
 onUnmounted(() => {
+  mobileViewport?.removeEventListener('change', closeDesktopMenu);
   disposed = true;
   clearTimeout(expiryTimer);
   window.removeEventListener('hashchange', syncView);
@@ -358,7 +379,12 @@ function skipToMain() {
             <span v-else-if="user.role !== 'member'" class="login-account" :title="user.username">{{
               user.username
             }}</span>
-            <v-btn variant="text" :prepend-icon="mdiLogout" :loading="authBusy" @click="logout"
+            <v-btn
+              class="desktop-logout"
+              variant="text"
+              :prepend-icon="mdiLogout"
+              :loading="authBusy"
+              @click="logout"
               >登出</v-btn
             >
           </template>
@@ -373,33 +399,30 @@ function skipToMain() {
           >
           <v-btn
             v-if="user"
+            ref="mobileMenuButton"
             class="mobile-menu-button"
             variant="text"
-            :icon="mobileMenu ? mdiClose : mdiMenu"
+            :icon="mdiMenu"
             aria-label="主要導覽選單"
+            aria-haspopup="dialog"
             :aria-expanded="mobileMenu"
             aria-controls="mobile-navigation"
             @click="mobileMenu = !mobileMenu"
           />
         </div>
       </div>
-      <nav
-        v-if="mobileMenu && user"
-        id="mobile-navigation"
-        class="mobile-nav"
-        aria-label="手機導覽"
-      >
-        <v-btn
-          v-for="item in visibleNavigation"
-          :key="item.page"
-          variant="text"
-          :prepend-icon="item.icon"
-          :aria-current="view === item.page ? 'page' : undefined"
-          @click="navigate(item.page)"
-          >{{ item.label }}</v-btn
-        >
-      </nav>
     </header>
+    <MobileNavigation
+      v-model="mobileMenu"
+      :items="visibleNavigation"
+      :current-page="view"
+      :account="user?.role !== 'member' ? user?.username : undefined"
+      :busy="authBusy"
+      :error="authError"
+      @navigate="navigate"
+      @logout="logout"
+      @closed="restoreMenuFocus"
+    />
     <main
       id="main"
       class="page"

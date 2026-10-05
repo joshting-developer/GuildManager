@@ -190,10 +190,76 @@ p {
 .mobile-menu-button.v-btn {
   display: none;
 }
-.mobile-nav {
-  padding: 0 16px 12px;
-  display: grid;
+.mobile-navigation-dialog > .v-overlay__content {
+  position: fixed;
+  inset: 0 0 0 auto;
+  margin: 0;
+  width: min(320px, 80vw);
+  max-width: none;
+  height: 100%;
+  max-height: 100%;
+}
+.mobile-navigation-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: #fff;
+  border-radius: 16px 0 0 16px;
+  overflow: hidden;
+}
+.mobile-navigation-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: max(8px, env(safe-area-inset-top)) 12px 8px 20px;
+  border-bottom: 1px solid var(--color-border);
+}
+.mobile-navigation-heading h2 {
+  font-size: 18px;
+}
+.mobile-navigation-links {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.mobile-navigation-links .v-btn {
+  flex-shrink: 0;
+  min-height: 48px;
+  justify-content: flex-start;
+}
+.mobile-navigation-links .nav-current {
+  color: var(--color-primary);
+  background: #eff6ff;
+}
+.mobile-navigation-footer {
+  padding: 16px 16px max(16px, env(safe-area-inset-bottom));
   border-top: 1px solid var(--color-border);
+}
+.mobile-navigation-account {
+  color: var(--color-text-muted);
+  margin-bottom: 12px;
+  overflow-wrap: anywhere;
+}
+.mobile-drawer-enter-active,
+.mobile-drawer-leave-active {
+  transition: transform 200ms ease;
+}
+.mobile-drawer-enter-from,
+.mobile-drawer-leave-to {
+  transform: translateX(100%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .mobile-drawer-enter-active,
+  .mobile-drawer-leave-active {
+    transition: none;
+  }
 }
 .page {
   max-width: 1440px;
@@ -740,6 +806,15 @@ h3 {
   }
 }
 @media (max-width: 1100px) {
+  .header-inner {
+    min-height: 56px;
+  }
+  .header-actions .environment-tag,
+  .header-actions .admin-account-button,
+  .header-actions .login-account,
+  .header-actions .desktop-logout {
+    display: none;
+  }
   .desktop-nav {
     display: none;
   }
@@ -765,7 +840,7 @@ h3 {
     display: none;
   }
   .header-inner {
-    min-height: 72px;
+    min-height: 56px;
     padding: 0 16px;
     gap: 12px;
   }
