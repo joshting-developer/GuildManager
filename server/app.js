@@ -10,6 +10,7 @@ import { MemberError } from './member-validation.js';
 import { ParticipationError } from './participation-repository.js';
 import { BattleRecordError } from '../src/domain/battle-records.js';
 import { EventVideoError } from '../src/domain/event-videos.js';
+import { LotteryError } from '../src/domain/lottery.js';
 
 export function createApp(repository, { authNow } = {}) {
   const app = express();
@@ -34,6 +35,7 @@ export function createApp(repository, { authNow } = {}) {
   app.use('/api/lineups', express.json({ limit: '64kb' }));
   app.use('/api/battle-records', express.json({ limit: '10mb' }));
   app.use('/api/admin/platform-settings', express.json({ limit: '360kb' }));
+  app.use('/api/lottery', express.json({ limit: '128kb' }));
   app.use(express.json({ limit: '16kb' }));
   installAuth(app, repository, { now: authNow });
   app.get('/api/platform-settings', (_request, response) => {
@@ -223,6 +225,18 @@ export function createApp(repository, { authNow } = {}) {
   app.delete('/api/members/:uid', (request, response) => {
     response.json(repository.removeMember(request.params.uid, request.body?.revision));
   });
+  app.get('/api/lottery', (_request, response) => {
+    response.json(repository.getLottery());
+  });
+  app.patch('/api/lottery', (request, response) => {
+    response.json(repository.saveLottery(request.body));
+  });
+  app.post('/api/lottery/draws', (request, response) => {
+    response.json(repository.drawLotteryPrize(request.body));
+  });
+  app.delete('/api/lottery/draws', (request, response) => {
+    response.json(repository.resetLottery(request.body));
+  });
   app.use('/api', (_request, response) => {
     response.status(404).json({ error: { code: 'NOT_FOUND', message: '找不到這個資料介面' } });
   });
@@ -236,6 +250,7 @@ export function createApp(repository, { authNow } = {}) {
       error instanceof DutyError ||
       error instanceof ParticipationError ||
       error instanceof EventVideoError ||
+      error instanceof LotteryError ||
       error instanceof BattleRecordError
     ) {
       return response.status(error.status).json({

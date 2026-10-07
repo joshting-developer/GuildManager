@@ -14,6 +14,7 @@ import { createLineups } from './lineups.js';
 import { createBattles } from './battles.js';
 import { createParticipation } from './participation.js';
 import { createVideos } from './videos.js';
+import { createLottery } from './lottery.js';
 
 const AUTH = [
   'getAuthSession',
@@ -65,6 +66,9 @@ const WRITES = [
   'createLineupTemplate',
   'saveBattleRecords',
   'updateBattleRecord',
+  'saveLottery',
+  'drawLotteryPrize',
+  'resetLottery',
 ];
 function environment() {
   const properties = PropertiesService.getScriptProperties();
@@ -193,6 +197,7 @@ export function rpc(operation, args = [], context = {}) {
             ...createVideos(store, catalog, options),
             ...createLineups(store, catalog, participation, options),
             ...createBattles(store, catalog, { ...options, files }),
+            ...createLottery(store, options),
           };
           if (!Object.prototype.hasOwnProperty.call(methods, operation))
             fail('OPERATION_INVALID', '不支援此操作');
@@ -205,7 +210,10 @@ export function rpc(operation, args = [], context = {}) {
             )
               auth.requireRole(context, ['admin', 'manager', 'member']);
             if (args[1]?.memberUid) auth.requireRole(context, ['admin', 'manager', 'member']);
-          } else if (operation === 'getParticipationMembers' || MEMBER_MANAGEMENT.includes(operation))
+          } else if (
+            operation === 'getParticipationMembers' ||
+            MEMBER_MANAGEMENT.includes(operation)
+          )
             auth.requireRole(context, ['admin', 'manager', 'member']);
           else if (
             [

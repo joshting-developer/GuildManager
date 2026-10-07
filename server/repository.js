@@ -7,6 +7,7 @@ import { createParticipationRepository } from './participation-repository.js';
 import { createEventVideoRepository } from './event-video-repository.js';
 import { createDutyRepository } from './duty-repository.js';
 import { createBattleRecordRepository } from './battle-record-repository.js';
+import { createLotteryRepository } from './lottery-repository.js';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
@@ -207,6 +208,7 @@ export function createRepository({ filename, authNow }) {
     ...createLineupRepository(db),
     ...createBattleRecordRepository(db),
     ...createPlatformSettingsRepository(db),
+    ...createLotteryRepository(db),
     previewMemberImport,
     importMembers(input) {
       return db.transaction(() => {
