@@ -139,14 +139,26 @@ async function load() {
   }
 }
 
-function laneHeight(count) {
+// Large rosters (50–60 people) split into side-by-side columns on wide screens so
+// each lane stays readable; phones keep one column and scroll.
+function trackColumns(count) {
+  const width = track.value?.clientWidth ?? window.innerWidth;
+  if (count > 40 && width >= 1500) return 3;
+  if (count > 20 && width >= 900) return 2;
+  return 1;
+}
+function laneHeight(rows) {
   const top = track.value?.getBoundingClientRect().top ?? 0;
   const room = live.value ? window.innerHeight - top - 14 : Math.max(360, window.innerHeight - 260);
-  return Math.max(14, Math.min(44, Math.floor(room / Math.max(count, 1))));
+  return Math.max(14, Math.min(44, Math.floor(room / Math.max(rows, 1))));
 }
 function sizeTrack() {
   if (!track.value) return;
-  const height = laneHeight(lanes.value.length);
+  const columns = trackColumns(lanes.value.length);
+  const rows = Math.max(1, Math.ceil(lanes.value.length / columns));
+  const height = laneHeight(rows);
+  track.value.style.setProperty('--columns', columns);
+  track.value.style.setProperty('--rows', rows);
   track.value.style.setProperty('--lane-h', `${height}px`);
   track.value.style.setProperty('--name-fs', `${Math.min(20, Math.max(13, height))}px`);
 }
@@ -517,44 +529,46 @@ onUnmounted(() => {
     </v-card>
 
     <v-card class="lottery-card lottery-stage" :class="{ 'lottery-live': live }">
-      <div class="stage-head">
-        <p class="now-prize">
-          <template v-if="selectedPrize || live">
-            本場獎品：<strong>{{ selectedPrize?.name }}</strong>
-            <span class="lottery-muted"> · {{ lanes.length }} 位參賽</span>
-          </template>
-          <template v-else-if="prizes.length">獎品全部抽完了 🎉</template>
-          <template v-else>尚未設定獎品</template>
+      <div class="stage-top">
+        <div class="stage-head">
+          <p class="now-prize">
+            <template v-if="selectedPrize || live">
+              本場獎品：<strong>{{ selectedPrize?.name }}</strong>
+              <span class="lottery-muted"> · {{ lanes.length }} 位參賽</span>
+            </template>
+            <template v-else-if="prizes.length">獎品全部抽完了 🎉</template>
+            <template v-else>尚未設定獎品</template>
+          </p>
+          <v-select
+            v-if="!live"
+            class="icon-select"
+            :model-value="iconKey"
+            :items="RACE_ICONS.map((icon) => ({ title: icon.label, value: icon.key }))"
+            label="賽跑角色"
+            variant="outlined"
+            density="compact"
+            hide-details
+            :disabled="racing"
+            @update:model-value="pickIcon"
+          />
+          <v-btn
+            v-if="!live"
+            color="primary"
+            size="large"
+            :prepend-icon="mdiFlagCheckered"
+            :loading="drawing"
+            :disabled="!canStart"
+            @click="startRace"
+            >開跑</v-btn
+          >
+        </div>
+        <p class="commentary" aria-live="off">{{ commentary }}</p>
+        <p class="leaders" aria-live="off">
+          <span v-for="(name, index) in leaders" :key="index"
+            >{{ ['🥇', '🥈', '🥉'][index] }} {{ name }}</span
+          >
         </p>
-        <v-select
-          v-if="!live"
-          class="icon-select"
-          :model-value="iconKey"
-          :items="RACE_ICONS.map((icon) => ({ title: icon.label, value: icon.key }))"
-          label="賽跑角色"
-          variant="outlined"
-          density="compact"
-          hide-details
-          :disabled="racing"
-          @update:model-value="pickIcon"
-        />
-        <v-btn
-          v-if="!live"
-          color="primary"
-          size="large"
-          :prepend-icon="mdiFlagCheckered"
-          :loading="drawing"
-          :disabled="!canStart"
-          @click="startRace"
-          >開跑</v-btn
-        >
       </div>
-      <p class="commentary" aria-live="off">{{ commentary }}</p>
-      <p class="leaders" aria-live="off">
-        <span v-for="(name, index) in leaders" :key="index"
-          >{{ ['🥇', '🥈', '🥉'][index] }} {{ name }}</span
-        >
-      </p>
       <p v-if="selectedPrize && !runners.length && !racing" class="lottery-state">
         所有參加人員都已經中獎了
       </p>
@@ -843,28 +857,66 @@ onUnmounted(() => {
   padding: 12px 16px;
   background: var(--color-page, #f7f9fc);
 }
+.lottery-live .stage-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+  grid-template-areas:
+    'head commentary'
+    'leaders commentary';
+  align-items: center;
+  gap: 4px 24px;
+  margin-bottom: 10px;
+}
 .lottery-live .stage-head {
-  justify-content: center;
-  margin-bottom: 4px;
+  grid-area: head;
+  margin-bottom: 0;
 }
 .lottery-live .now-prize {
   flex: none;
-  text-align: center;
   font-size: 26px;
   font-weight: 700;
 }
-.lottery-live .commentary,
 .lottery-live .leaders {
-  text-align: center;
+  grid-area: leaders;
+  margin: 0;
+}
+/* Live play-by-play sits top-right in large type; a fixed two-line box keeps the track still. */
+.lottery-live .commentary {
+  grid-area: commentary;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 2.6em;
+  margin: 0;
+  padding: 6px 20px;
+  border: 1px solid #bfdbfe;
+  border-radius: 16px;
+  background: #eff6ff;
+  color: #0f172a;
+  font-size: 38px;
+  line-height: 1.25;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.lottery-live .commentary:empty {
+  visibility: hidden;
 }
 .track {
   position: relative;
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-columns: repeat(var(--columns, 1), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--rows, 1), var(--lane-h, 40px));
+  column-gap: 10px;
   overflow: hidden;
   border: 1px solid #86b49a;
   border-radius: 16px;
   background:
     repeating-linear-gradient(90deg, transparent 0 59px, rgba(255, 255, 255, 0.35) 59px 60px),
     linear-gradient(180deg, #d9f0e1, #c4e5cf);
+}
+.track:has(> .track-empty) {
+  display: block;
 }
 .track-empty {
   text-align: center;
@@ -1134,6 +1186,21 @@ onUnmounted(() => {
   }
   .commentary {
     font-size: 18px;
+  }
+  .lottery-live .stage-top {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'head'
+      'commentary'
+      'leaders';
+  }
+  .lottery-live .now-prize {
+    font-size: 20px;
+  }
+  .lottery-live .commentary {
+    justify-content: center;
+    font-size: 24px;
+    text-align: center;
   }
   .leaders {
     font-size: 15px;
