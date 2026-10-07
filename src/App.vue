@@ -36,6 +36,7 @@ import VideosPage from './pages/VideosPage.vue';
 import LotteryPage from './pages/LotteryPage.vue';
 
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
+const appVersion = __APP_VERSION__;
 const authClient = createAuthClient({ source });
 const platformClient = createPlatformSettingsClient({ source });
 const platformCache = createPlatformCache({ source, namespace: globalThis.__GUILD_GAS_KEY__ });
@@ -492,7 +493,7 @@ function skipToMain() {
         />
       </template>
       <footer v-show="!lineupFocus" class="page-footer">
-        <span>{{ platformName || '幫會平台' }} <span class="footer-divider">/</span> 幫會管理平台</span
+        <span>{{ platformName || '幫會平台' }} <span class="footer-divider">/</span> 幫會管理平台<span class="footer-version">v{{ appVersion }}</span></span
         ><span>每一次集結，都有跡可循。</span>
       </footer>
     </main>
