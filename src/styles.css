@@ -274,6 +274,11 @@ p {
   margin: 0 auto;
   padding: 36px 40px 0;
 }
+/* Keeps decorative snow behind content; only on pages without full-screen fixed panels. */
+.page-above-snow {
+  position: relative;
+  z-index: 1;
+}
 section {
   scroll-margin-top: 112px;
 }

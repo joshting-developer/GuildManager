@@ -22,6 +22,7 @@ import LoginDialog from './components/LoginDialog.vue';
 import DataLoading from './components/DataLoading.vue';
 import PlatformBrand from './components/PlatformBrand.vue';
 import MobileNavigation from './components/MobileNavigation.vue';
+import SnowField from './components/SnowField.vue';
 import HomePage from './pages/HomePage.vue';
 import CalendarHomePage from './pages/CalendarHomePage.vue';
 import MembersPage from './pages/MembersPage.vue';
@@ -163,6 +164,8 @@ function currentDetailId() {
 }
 const detailId = ref(currentDetailId());
 const view = ref(currentView());
+// Same pages game hid its petals on: dense editors and the full-screen race.
+const showSnow = computed(() => !['lineups', 'members', 'lottery'].includes(view.value));
 function returnHome() {
   view.value = 'home';
   lineupFocus.value = false;
@@ -356,6 +359,7 @@ function skipToMain() {
 
 <template>
   <v-app :class="{ 'lineup-route': view === 'lineups' && user }">
+    <SnowField v-if="showSnow" />
     <a class="skip-link" href="#main" @click.prevent="skipToMain">跳至主要內容</a>
     <header v-show="!lineupFocus" class="site-header">
       <div class="header-inner">
@@ -443,7 +447,7 @@ function skipToMain() {
     <main
       id="main"
       class="page"
-      :class="{ 'page-lineups': view === 'lineups' && user }"
+      :class="{ 'page-lineups': view === 'lineups' && user, 'page-above-snow': showSnow }"
       tabindex="-1"
     >
       <v-alert v-if="authError" type="error" variant="tonal" role="alert" class="mb-4">
