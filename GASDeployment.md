@@ -56,7 +56,7 @@ npm run build:gas
 | `Index.html` | HTML 檔 `Index` | Vue／Vuetify、內嵌 JS／CSS |
 | `Code.gs` | 指令碼檔 `Code` | `doGet()` 及前端可呼叫入口 |
 | `Backend.gs` | 指令碼檔 `Backend` | 已打包的驗證、登入、Sheets 與 Drive 邏輯 |
-| `appsscript.json` | 專案 manifest | V8、Asia/Taipei、Sheets／Drive 授權範圍 |
+| `appsscript.json` | 專案 manifest | V8、Asia/Taipei、Sheets／Drive／外部請求（Discord 通知）授權範圍 |
 
 在 Apps Script 建立獨立專案，建立以上 HTML／指令碼檔並貼入內容。在專案設定開啟「在編輯器中顯示 appsscript.json 資訊清單檔案」，以生成檔取代 manifest。日常修改仍在本機原始碼，重新編譯後同步四個檔案，不直接修改生成的 `Backend.gs`。
 
@@ -77,6 +77,8 @@ npm run build:gas
 | `GUILD_NAME` | 幫會顯示名稱，選填；未設定顯示「你的幫會」 |
 | `TABLE_PREFIX` | 選填，預設 `GM_`；只能英數字／底線，以英文開頭、最多 20 字元；上線後勿任意更改 |
 | `DRIVE_FOLDER_ID` | 初次可不填，初始化建立新的戰績資料夾並自動保存 ID；若指定既有資料夾，確認僅授權必要管理者 |
+| `DISCORD_WEBHOOK_LEAVE` | 選填，請假通知的 Discord Webhook 網址；未設定不發送 |
+| `DISCORD_WEBHOOK_MEMBER` | 選填，名冊通知的 Discord Webhook 網址；未設定不發送 |
 
 可在本機終端產生 `AUTH_SECRET`，只將結果填入私有指令碼屬性：
 
@@ -156,6 +158,7 @@ openssl rand -hex 32
 | `GM_battles` | 場次與逐場戰績摘要、私人 Drive 檔案引用 |
 | `GM_battle_players` | 按對戰保存玩家資料快照 |
 | `GM_battle_links` | 上傳時唯一同名對應的 UID／對戰／玩家列關聯 |
+| `GM_lottery` | 抽獎參加人員、獎品與得獎者（單一紀錄） |
 | `GM_commits` | 已完成寫入的 transaction_id 與時間 |
 
 業務表標題固定為 `record_id, transaction_id, part_number, part_count, payload_base64`；提交表為 `transaction_id, created_at`。record_id 以帶引號的 JSON 文字保存，payload 為 UTF-8 JSON 的 Base64 分段（每段 36,000 字元），避免 UID 被轉數字、輸入被當公式及大型 JSON 超過單格限制。最新已提交紀錄才有效，勿直接編輯、排序或刪除這些列；日常操作透過管理介面。
@@ -183,3 +186,12 @@ admin 可在「帳號管理 → 平台設定」修改左上角名稱，預設「
 設定保存於新增的 `GM_settings` 工作表，格式沿用提交日誌。更新舊 GAS 專案時，同步四檔並先於編輯器重跑 `setupGas()` 補上此表，再更新部署版本；重跑保留既有資料與平台名稱。本機設定獨立存於 SQLite `platform_settings`。
 
 admin 可於同一頁保存 PNG／JPEG／WebP 平台圖示（最多 256 KB）。GAS 將圖片寫入 `DRIVE_FOLDER_ID` 的私人資料夾，`GM_settings` 僅保存引用；公開設定回傳目前圖示內容的 data URL，不公開 Drive ID 或分享連結。名稱與圖片引用採同一提交，重試相同成功結果不建立新檔。替換／移除時舊檔保留，Drive 成功但 Sheets 失敗可能留下未引用私檔，備份及日後清理需涵蓋這些檔案。真實 Drive 授權、讀取速度與配額仍須測試部署驗證。
+
+## 抽獎賽馬與 Discord 通知更新
+
+此版本新增 `script.external_request` 授權範圍供 Discord 通知使用。同步程式後，部署者需在編輯器執行任一函式（例如 `setupGas`）或發布新版本時完成 Google 的新授權提示，否則送出通知會失敗（通知失敗不影響原操作）。
+
+- Discord：在指令碼屬性新增 `DISCORD_WEBHOOK_LEAVE`／`DISCORD_WEBHOOK_MEMBER`（Discord 頻道設定 → 整合 → Webhook → 複製網址）。只填需要的頻道；從舊 game 專案搬移時，舊屬性名稱 `WEBHOOK_LEAVE`／`WEBHOOK_MEMBER` 的值可直接複製到新名稱。
+- 抽獎：已初始化的專案首次開啟抽獎頁會自動補建 `GM_lottery`，不需重新執行 `setupGas()`。舊 game 試算表「抽獎」分頁不會自動匯入，請在抽獎頁「編輯名單」貼上人員與獎品。
+
+通知在 script lock 釋放後送出，會增加該次操作的回應時間；真實 Discord 送達、UrlFetchApp 配額與授權需於測試部署確認，隔離模擬驗證無法取代。

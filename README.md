@@ -98,7 +98,7 @@ npm run dev
 
 首頁仍在 `http://localhost:5173`, SQLite 位於 `data/guildmanager.sqlite`
 
-API 可透過 `DATABASE_PATH`、`API_PORT`、`API_HOST` 設定
+API 可透過 `DATABASE_PATH`、`API_PORT`、`API_HOST` 設定；Discord 通知另見下方「Discord 通知」
 
 ## 驗證與編譯
 
@@ -493,3 +493,25 @@ member／manager／admin 均可進入 `#/members`，成員與編外分類、UID�
 本機與 GAS 共用相同等待介面：行事曆在登入確認及安排讀取完成前顯示區塊遮罩；場次及需要讀取資料的選單顯示進度並停用。清單、詳情、報名／出勤／設定視窗提供轉圈與文字，讀取完成前不提前呈現空資料或未上傳狀態。
 
 新增／修改／刪除、匯入、報名／請假、影片與戰績上傳、排表及設定儲存，在操作位置持續顯示進度並停用重複操作，不使用全頁寫入遮罩。失敗保留輸入及重試方式；沒有新增人為 API 延遲或自動重送。
+
+## 抽獎賽馬
+
+admin／manager 從管理總覽的「抽獎賽馬」卡片（手機為選單）進入 `#/lottery`。按「編輯名單」每行填一位參加人員與一個獎品，可一鍵帶入幫會或俱樂部成員名稱；獎品由上往下抽，可重複同名。選好獎品按「開跑」，後端先決定並保存冠軍，畫面再演出約 20 秒的賽馬；已中獎的人不參加後續場次。重整或中斷不影響結果，同一獎品再抽會顯示原得獎者。「清空得獎紀錄」保留名單、清除所有得獎者。修改名單時，名稱仍存在的已抽獎品保留得獎者。
+
+## Discord 通知
+
+設定 Webhook 後，以下操作會在保存成功後發到 Discord：
+
+| 頻道設定 | 通知內容 |
+| --- | --- |
+| `DISCORD_WEBHOOK_LEAVE` | 成員／外援請假、請假後改回報名、管理者在出勤閱覽取消請假（一般報名不通知） |
+| `DISCORD_WEBHOOK_MEMBER` | 名冊新增、修改、移至編外；CSV 匯入合併為一則摘要 |
+
+本機在 `npm run server` 前設定環境變數，Docker 則在專案根目錄的 `.env`（已在 `.gitignore`）填寫，`compose.yaml` 會帶入 api 服務：
+
+```sh
+DISCORD_WEBHOOK_LEAVE=https://discord.com/api/webhooks/…
+DISCORD_WEBHOOK_MEMBER=https://discord.com/api/webhooks/…
+```
+
+GAS 改在 Script Properties 填同名屬性，見 [GASDeployment.md](GASDeployment.md#2-設定私有-script-properties)。未設定的頻道不發送；只接受 Discord 官方 Webhook 網址。Webhook 網址等同密碼，不要提交到 Git 或貼在公開頻道。通知失敗不影響原操作，伺服器紀錄只寫 HTTP 狀態，不含網址。
