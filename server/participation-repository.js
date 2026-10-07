@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { LINEUP_TYPES } from '../src/domain/lineups.js';
 import { eventAttendance } from '../src/domain/event-attendance.js';
+import { leaveNotice } from '../src/domain/discord-notifications.js';
 
 export class ParticipationError extends Error {
   constructor(message, status = 422, code = 'PARTICIPATION_INVALID') {
@@ -25,7 +26,7 @@ function revision(value) {
   if (!Number.isSafeInteger(value) || value < 0)
     throw new ParticipationError('資料版本不正確，請重新載入');
 }
-export function createParticipationRepository(db) {
+export function createParticipationRepository(db, { notify = () => {} } = {}) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS event_member_responses (
       event_id TEXT NOT NULL REFERENCES scheduled_events(id),
@@ -105,6 +106,31 @@ export function createParticipationRepository(db) {
       .update(JSON.stringify([responses, registrations]))
       .digest('hex');
   }
+  // Notices are queued inside the transaction and only delivered after it commits.
+  function notifyLeave(eventId, action, person) {
+    if (!action) return;
+    const event = db
+      .prepare(
+        `SELECT e.title, e.type, d.date FROM scheduled_events e
+        JOIN event_dates d ON d.event_id = e.id WHERE e.id = ?`,
+      )
+      .get(eventId);
+    notify({ type: 'leave', action, event, ...person });
+  }
+  function memberPerson(eventId, uid) {
+    return db
+      .prepare(
+        `SELECT m.name, p.name AS profession FROM members m
+        LEFT JOIN event_member_responses r ON r.member_uid = m.uid AND r.event_id = ?
+        LEFT JOIN professions p ON p.job_id = COALESCE(r.profession_id, m.primary_profession_id)
+        WHERE m.uid = ?`,
+      )
+      .get(eventId, uid);
+  }
+  const guestPerson = (id) => {
+    const guest = registration(id);
+    return { name: guest.name, profession: guest.profession };
+  };
   const repository = {
     getEventAttendance(eventId) {
       return eventAttendance(repository.getEventParticipation(eventId));
@@ -139,6 +165,7 @@ export function createParticipationRepository(db) {
           ) changed();
           db.prepare('UPDATE event_registrations SET active = 1, revision = revision + 1, updated_at = ? WHERE id = ?')
             .run(new Date().toISOString(), id);
+          notifyLeave(eventId, 'cancel', guestPerson(id));
         }
         return { eventId, cancelled: true };
       })();
@@ -284,7 +311,7 @@ export function createParticipationRepository(db) {
           ? null
           : db
               .prepare(
-                `SELECT id FROM event_registrations WHERE event_id = ? AND name = ? COLLATE NOCASE
+                `SELECT id, active FROM event_registrations WHERE event_id = ? AND name = ? COLLATE NOCASE
           ORDER BY active DESC, created_at DESC, id DESC LIMIT 1`,
               )
               .get(eventId, name);
@@ -314,6 +341,11 @@ export function createParticipationRepository(db) {
             professionId,
             new Date().toISOString(),
             guest.id,
+          );
+          notifyLeave(
+            eventId,
+            leaveNotice(guest.active ? 'registered' : 'leave', status),
+            guestPerson(guest.id),
           );
         } else if (status === 'registered') {
           repository.addGuestRegistration(eventId, {
@@ -379,6 +411,7 @@ export function createParticipationRepository(db) {
           note = excluded.note, revision = event_member_responses.revision + 1,
           updated_at = excluded.updated_at, profession_id = excluded.profession_id`,
         ).run(eventId, uid, status, note, now, professionId);
+        notifyLeave(eventId, leaveNotice(prior?.status ?? 'none', status), memberPerson(eventId, uid));
         return response(eventId, uid);
       })();
     },
@@ -454,6 +487,7 @@ export function createParticipationRepository(db) {
         db.prepare(
           'UPDATE event_registrations SET active = 0, revision = revision + 1, updated_at = ? WHERE id = ?',
         ).run(new Date().toISOString(), id);
+        notifyLeave(eventId, 'leave', guestPerson(id));
         return registration(id);
       })();
     },

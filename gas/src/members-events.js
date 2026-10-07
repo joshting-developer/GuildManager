@@ -16,7 +16,21 @@ export const PROFESSIONS = [
   [9, '#4682b4', '神相'],
 ].map(([job_id, colorcode, name]) => ({ job_id, colorcode, name }));
 export const battleType = (type) => ['scrimmage', 'guild_war', 'dragon_tiger'].includes(type);
-export function createCatalog(store, { uuid, now, guildName }) {
+export function createCatalog(store, { uuid, now, guildName, notify = () => {} }) {
+  const memberNotice = (action, dto, previousName) =>
+    notify({
+      type: 'member',
+      action,
+      member: {
+        uid: dto.uid,
+        name: dto.name,
+        primaryProfession: dto.primaryProfession,
+        secondaryProfession: dto.secondaryProfession,
+        isInGuild: dto.isInGuild,
+        isInClub: dto.isInClub,
+      },
+      previousName,
+    });
   const professions = () => store.all('professions').sort((a, b) => a.job_id - b.job_id);
   function profession(id) {
     if (!Number.isSafeInteger(id) || id < 1) fail('VALIDATION_ERROR', '請選擇有效職業');
@@ -58,7 +72,7 @@ export function createCatalog(store, { uuid, now, guildName }) {
       .filter((item) => !item.deletedAt)
       .map(({ deletedAt, ...item }) => item)
       .sort((a, b) => a.dates[0].localeCompare(b.dates[0]) || a.id.localeCompare(b.id));
-  function addMember(input, { linkBattles = true } = {}) {
+  function addMember(input, { linkBattles = true, quiet = false } = {}) {
     const value = validateMember(input);
     profession(value.primaryProfessionId);
     if (value.secondaryProfessionId) profession(value.secondaryProfessionId);
@@ -67,7 +81,9 @@ export function createCatalog(store, { uuid, now, guildName }) {
     const result = { ...value, revision: 1, joinedAt: now(), updatedAt: now() };
     store.put('members', value.uid, result);
     if (linkBattles) linkNewMemberBattles(store, [result]);
-    return memberDto(result);
+    const dto = memberDto(result);
+    if (!quiet) memberNotice('add', dto);
+    return dto;
   }
   function preview(input) {
     const parsed = parseMemberImport(input?.text, professions()),
@@ -121,7 +137,9 @@ export function createCatalog(store, { uuid, now, guildName }) {
       }
       const updated = { ...old, ...values, revision: old.revision + 1, updatedAt: now() };
       store.put('members', uid, updated);
-      return { member: memberDto(updated) };
+      const dto = memberDto(updated);
+      memberNotice('update', dto, old.name);
+      return { member: dto };
     },
     removeMember([uid, expected]) {
       const old = member(uid);
@@ -141,7 +159,9 @@ export function createCatalog(store, { uuid, now, guildName }) {
         updatedAt: now(),
       };
       store.put('members', uid, updated);
-      return { uid, member: memberDto(updated) };
+      const dto = memberDto(updated);
+      memberNotice('remove', dto);
+      return { uid, member: dto };
     },
     previewMemberImport: ([input]) => preview(input),
     importMembers([input]) {
@@ -158,10 +178,11 @@ export function createCatalog(store, { uuid, now, guildName }) {
         .map(({ uid, name, primaryProfessionId, secondaryProfessionId }) =>
           addMember(
             { uid, name, primaryProfessionId, secondaryProfessionId },
-            { linkBattles: false },
+            { linkBattles: false, quiet: true },
           ),
         );
       linkNewMemberBattles(store, members);
+      if (members.length) notify({ type: 'member-import', members, summary: result.summary });
       return { members, summary: result.summary };
     },
     getEvents: () => ({ events: liveEvents() }),

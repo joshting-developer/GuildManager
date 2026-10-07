@@ -1,6 +1,14 @@
 import { canonical, fail, hash, lower, revision, retry, text } from './common.js';
 import { eventAttendance } from '../../src/domain/event-attendance.js';
-export function createParticipation(store, catalog, { uuid, now }) {
+import { leaveNotice } from '../../src/domain/discord-notifications.js';
+export function createParticipation(store, catalog, { uuid, now, notify = () => {} }) {
+  // Queued notices are delivered by the RPC layer only after the store commits.
+  function notifyLeave(eventId, action, name, professionId) {
+    if (!action) return;
+    const { title, type, dates } = catalog.event(eventId, { battle: true });
+    const profession = professionId ? catalog.profession(professionId).name : '';
+    notify({ type: 'leave', action, event: { title, type, date: dates[0] }, name, profession });
+  }
   const responseKey = (eventId, uid) => canonical([eventId, uid]);
   const rawResponses = (eventId) =>
     store
@@ -52,6 +60,12 @@ export function createParticipation(store, catalog, { uuid, now }) {
       updatedAt: now(),
     };
     store.put('responses', key, value);
+    notifyLeave(
+      eventId,
+      leaveNotice(old?.status ?? 'none', status),
+      member.name,
+      professionId ?? member.primaryProfessionId,
+    );
     return value;
   }
   function createGuest(eventId, input) {
@@ -148,6 +162,12 @@ export function createParticipation(store, catalog, { uuid, now }) {
           revision: guest.revision + 1,
           updatedAt: now(),
         });
+        notifyLeave(
+          eventId,
+          leaveNotice(guest.active ? 'registered' : 'leave', status),
+          guest.name,
+          professionId || guest.professionId,
+        );
       } else if (status === 'registered') createGuest(eventId, { name, note, professionId });
       else fail('PARTICIPATION_NOT_FOUND', '沒有報名或沒有資料');
       return { eventId, name, status };
@@ -181,6 +201,7 @@ export function createParticipation(store, catalog, { uuid, now }) {
           !methods.getEventParticipation([eventId]).registrationLeaves.some((row) => row.id === id)
         ) changed();
         store.put('registrations', id, { ...current, active: true, revision: current.revision + 1, updatedAt: now() });
+        notifyLeave(eventId, 'cancel', current.name, current.professionId);
       }
       return { eventId, cancelled: true };
     },
@@ -251,6 +272,7 @@ export function createParticipation(store, catalog, { uuid, now }) {
       revision(expected, old.revision);
       const value = { ...old, active: false, revision: old.revision + 1, updatedAt: now() };
       store.put('registrations', id, value);
+      notifyLeave(eventId, 'leave', old.name, old.professionId);
       return { registration: guestDto(value) };
     },
   };

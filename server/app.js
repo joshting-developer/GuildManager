@@ -12,8 +12,23 @@ import { BattleRecordError } from '../src/domain/battle-records.js';
 import { EventVideoError } from '../src/domain/event-videos.js';
 import { LotteryError } from '../src/domain/lottery.js';
 
-export function createApp(repository, { authNow } = {}) {
+export function createApp(repository, { authNow, notifier = null } = {}) {
   const app = express();
+  // Writes run synchronously in one SQLite transaction, so notices queued during
+  // `work` belong to it; a thrown error leaves them to be discarded by the next call.
+  function notifying(work) {
+    repository.takeNotifications();
+    const result = work();
+    const notices = repository.takeNotifications();
+    if (notifier && notices.length) {
+      try {
+        notifier.send(notices, { footer: repository.getPlatformSettings().platform.name });
+      } catch (error) {
+        console.error('Discord 通知排程失敗：', error.message);
+      }
+    }
+    return result;
+  }
   app.disable('x-powered-by');
   app.use('/api', (request, response, next) => {
     if (!['POST', 'PATCH', 'DELETE'].includes(request.method)) return next();
@@ -140,7 +155,7 @@ export function createApp(repository, { authNow } = {}) {
     response.json(repository.getEventAttendance(request.params.id));
   });
   app.patch('/api/events/:id/attendance', (request, response) => {
-    response.json(repository.cancelEventLeave(request.params.id, request.body));
+    response.json(notifying(() => repository.cancelEventLeave(request.params.id, request.body)));
   });
   app.get('/api/events/:id/videos', (request, response) => {
     response.json(repository.listEventVideos(request.params.id));
@@ -152,10 +167,12 @@ export function createApp(repository, { authNow } = {}) {
     response.json(repository.listEventParticipationMembers(request.params.id));
   });
   app.patch('/api/events/:id/participation', (request, response) => {
-    response.json({ response: repository.saveMemberResponse(request.params.id, request.body) });
+    response.json({
+      response: notifying(() => repository.saveMemberResponse(request.params.id, request.body)),
+    });
   });
   app.post('/api/events/:id/participation', (request, response) => {
-    response.json(repository.submitParticipation(request.params.id, request.body));
+    response.json(notifying(() => repository.submitParticipation(request.params.id, request.body)));
   });
   app.post('/api/events/:id/registrations', (request, response) => {
     response
@@ -164,10 +181,12 @@ export function createApp(repository, { authNow } = {}) {
   });
   app.delete('/api/events/:id/registrations/:registrationId', (request, response) => {
     response.json({
-      registration: repository.cancelGuestRegistration(
-        request.params.id,
-        request.params.registrationId,
-        request.body?.revision,
+      registration: notifying(() =>
+        repository.cancelGuestRegistration(
+          request.params.id,
+          request.params.registrationId,
+          request.body?.revision,
+        ),
       ),
     });
   });
@@ -214,16 +233,20 @@ export function createApp(repository, { authNow } = {}) {
     response.set('Cache-Control', 'no-store').json(repository.previewMemberImport(request.body));
   });
   app.post('/api/members/import', (request, response) => {
-    response.json(repository.importMembers(request.body));
+    response.json(notifying(() => repository.importMembers(request.body)));
   });
   app.post('/api/members', (request, response) => {
-    response.status(201).json({ member: repository.addMember(request.body) });
+    response.status(201).json({ member: notifying(() => repository.addMember(request.body)) });
   });
   app.patch('/api/members/:uid', (request, response) => {
-    response.json({ member: repository.updateMember(request.params.uid, request.body) });
+    response.json({
+      member: notifying(() => repository.updateMember(request.params.uid, request.body)),
+    });
   });
   app.delete('/api/members/:uid', (request, response) => {
-    response.json(repository.removeMember(request.params.uid, request.body?.revision));
+    response.json(
+      notifying(() => repository.removeMember(request.params.uid, request.body?.revision)),
+    );
   });
   app.get('/api/lottery', (_request, response) => {
     response.json(repository.getLottery());

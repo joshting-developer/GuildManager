@@ -199,11 +199,34 @@ export function createRepository({ filename, authNow }) {
     new Date().toISOString(),
   );
 
+  // Discord notices queued by writes; the API layer takes them after a successful call.
+  let notices = [];
+  const notify = (notice) => notices.push(notice);
+  const memberNotice = (action, member, previousName) =>
+    notify({
+      type: 'member',
+      action,
+      member: {
+        uid: member.uid,
+        name: member.name,
+        primaryProfession: member.primaryProfession,
+        secondaryProfession: member.secondaryProfession,
+        isInGuild: member.isInGuild,
+        isInClub: member.isInClub,
+      },
+      previousName,
+    });
+
   const repository = {
+    takeNotifications() {
+      const taken = notices;
+      notices = [];
+      return taken;
+    },
     ...createAuthRepository(db, { now: authNow }),
     ...createEventRepository(db),
     ...createDutyRepository(db),
-    ...createParticipationRepository(db),
+    ...createParticipationRepository(db, { notify }),
     ...createEventVideoRepository(db),
     ...createLineupRepository(db),
     ...createBattleRecordRepository(db),
@@ -231,10 +254,11 @@ export function createRepository({ filename, authNow }) {
                 primaryProfessionId: row.primaryProfessionId,
                 secondaryProfessionId: row.secondaryProfessionId,
               },
-              { linkBattles: false },
+              { linkBattles: false, quiet: true },
             ),
           );
         repository.backfillMemberBattleRecords(members);
+        if (members.length) notify({ type: 'member-import', members, summary: preview.summary });
         return { members, summary: preview.summary };
       })();
     },
@@ -279,7 +303,7 @@ export function createRepository({ filename, authNow }) {
         })),
       };
     },
-    addMember(input, { linkBattles = true } = {}) {
+    addMember(input, { linkBattles = true, quiet = false } = {}) {
       const member = validateMember(input);
       return db.transaction(() => {
         const [primaryName, secondaryName] = professionNames(member);
@@ -329,6 +353,7 @@ export function createRepository({ filename, authNow }) {
         }
         const saved = getMember(member.uid);
         if (linkBattles) repository.backfillMemberBattleRecords([saved]);
+        if (!quiet) memberNotice('add', saved);
         return saved;
       })();
     },
@@ -364,7 +389,9 @@ export function createRepository({ filename, authNow }) {
           now,
           uid,
         );
-        return getMember(uid);
+        const updated = getMember(uid);
+        memberNotice('update', updated, current.name);
+        return updated;
       })();
     },
     removeMember(uid, revision) {
@@ -377,7 +404,9 @@ export function createRepository({ filename, authNow }) {
         db.prepare(
           'UPDATE members SET is_in_guild = 0, is_in_club = 0, updated_at = ?, revision = revision + 1 WHERE uid = ?',
         ).run(now, uid);
-        return { uid, member: getMember(uid) };
+        const moved = getMember(uid);
+        memberNotice('remove', moved);
+        return { uid, member: moved };
       })();
     },
     readHome() {

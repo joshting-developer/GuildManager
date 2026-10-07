@@ -15,6 +15,11 @@ import { createBattles } from './battles.js';
 import { createParticipation } from './participation.js';
 import { createVideos } from './videos.js';
 import { createLottery } from './lottery.js';
+import {
+  DISCORD_WEBHOOK_SETTINGS,
+  discordMessage,
+  isDiscordWebhookUrl,
+} from '../../src/domain/discord-notifications.js';
 
 const AUTH = [
   'getAuthSession',
@@ -70,9 +75,10 @@ const WRITES = [
   'drawLotteryPrize',
   'resetLottery',
 ];
-function environment() {
+function environment(notify = () => {}) {
   const properties = PropertiesService.getScriptProperties();
   const options = {
+    notify,
     uuid: () => Utilities.getUuid(),
     now: () => new Date().toISOString(),
     secret: properties.getProperty('AUTH_SECRET'),
@@ -106,7 +112,41 @@ function locked(work) {
     lock.releaseLock();
   }
 }
+// Runs after the script lock is released so slow webhooks never block other writers.
+function deliverNotices(notices, footer) {
+  if (!notices.length) return;
+  const properties = PropertiesService.getScriptProperties();
+  for (const notice of notices) {
+    try {
+      const { channel, payload } = discordMessage(notice, {
+        footer,
+        timestamp: new Date().toISOString(),
+      });
+      const url = properties.getProperty(DISCORD_WEBHOOK_SETTINGS[channel]);
+      if (!isDiscordWebhookUrl(url)) continue;
+      const request = {
+        method: 'post',
+        contentType: 'application/json',
+        payload: JSON.stringify(payload),
+        muteHttpExceptions: true,
+      };
+      const response = UrlFetchApp.fetch(url, request);
+      if (response.getResponseCode() === 429) {
+        let wait = 2000;
+        try {
+          wait = Math.ceil(JSON.parse(response.getContentText()).retry_after * 1000) + 250 || wait;
+        } catch {}
+        Utilities.sleep(Math.min(wait, 5000));
+        UrlFetchApp.fetch(url, request);
+      }
+    } catch {
+      // Saved data is authoritative; a failed notification must not fail the operation.
+    }
+  }
+}
 export function rpc(operation, args = [], context = {}) {
+  const notices = [];
+  let footer = DEFAULT_PLATFORM_NAME;
   try {
     const data = locked(() => {
       if (
@@ -117,7 +157,7 @@ export function rpc(operation, args = [], context = {}) {
         Array.isArray(context)
       )
         fail('INVALID_REQUEST', '操作參數不正確');
-      const { properties, options, privateStore } = environment();
+      const { properties, options, privateStore } = environment((notice) => notices.push(notice));
       const state = privateStore.load(),
         original = canonical(state);
       const auth = createGasAuth(state, options);
@@ -227,6 +267,8 @@ export function rpc(operation, args = [], context = {}) {
           else if (!PUBLIC.includes(operation)) auth.requireRole(context);
           if (WRITES.includes(operation)) auth.requireWrite(context);
           const result = methods[operation](args);
+          if (notices.length)
+            footer = store.get('settings', 'platform')?.name || DEFAULT_PLATFORM_NAME;
           if (operation === 'getEvents')
             return {
               events: visibleCalendarEvents(result.events, auth.session(context)?.user),
@@ -238,6 +280,9 @@ export function rpc(operation, args = [], context = {}) {
         if (canonical(state) !== original) privateStore.save(state);
       }
     });
+    try {
+      deliverNotices(notices, footer);
+    } catch {}
     return { __gasRpc: 1, ok: true, data: data ?? null };
   } catch (error) {
     return {
