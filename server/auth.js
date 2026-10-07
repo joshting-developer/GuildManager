@@ -17,7 +17,7 @@ function cookieOptions() {
 function battleReadRequest(request) {
   return (
     request.method === 'GET' &&
-    (/^\/battle-records(?:\/[^/]+(?:\/attachments\/(?:csv|image))?)?$/.test(request.path) ||
+    (/^\/battle-records(?:\/[^/]+(?:\/attachments\/(?:csv|image)|\/team-analysis)?)?$/.test(request.path) ||
       /^\/members\/[^/]+\/battle-records$/.test(request.path))
   );
 }

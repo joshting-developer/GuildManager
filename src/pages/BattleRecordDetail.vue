@@ -14,6 +14,7 @@ import { createBattleRecordClient } from '../api/battle-records.js';
 import { createMemberClient } from '../api/members.js';
 import { eventTypeLabel } from '../domain/event-types.js';
 import BattleMetadataDialog from './BattleMetadataDialog.vue';
+import BattleTeamAnalysisDialog from './BattleTeamAnalysisDialog.vue';
 import {
   battleDateLabel,
   battleResultLabel,
@@ -29,6 +30,11 @@ const props = defineProps({ recordId: { type: String, required: true } });
 const auth = inject('calendarAuth', null);
 const canManage = computed(() => ['admin', 'manager'].includes(auth?.user.value?.role));
 const editDialog = ref(false);
+const teamDialog = ref(false);
+const teamButton = ref(null);
+function restoreTeamFocus() {
+  teamButton.value?.$el?.focus();
+}
 const notice = ref('');
 function onMetadataUpdated(updated) {
   if (updated.id !== record.value?.id) return;
@@ -186,9 +192,11 @@ onUnmounted(() => {
     <v-alert v-if="notice" type="success" variant="tonal" role="status" class="mb-4">{{
       notice
     }}</v-alert>
-    <v-btn v-if="canManage" variant="outlined" class="mb-4" @click="editDialog = true"
-      >編輯對戰資訊</v-btn
-    >
+    <div class="d-flex flex-wrap ga-3 mb-4">
+      <v-btn ref="teamButton" variant="outlined" @click="teamDialog = true">團隊分析</v-btn>
+      <v-btn v-if="canManage" variant="outlined" @click="editDialog = true">編輯對戰資訊</v-btn>
+    </div>
+    <BattleTeamAnalysisDialog v-model="teamDialog" :record="record" @closed="restoreTeamFocus" />
     <BattleMetadataDialog
       v-if="canManage"
       v-model="editDialog"

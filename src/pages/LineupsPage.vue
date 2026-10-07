@@ -882,7 +882,7 @@ onUnmounted(() => {
       role="status"
       >{{ notice }}</v-alert
     >
-    <DataLoading v-if="busy && !membersLoading && !dialog" compact>{{ saving ? '正在儲存排表，請稍候…' : '正在處理排表資料…' }}</DataLoading>
+    <DataLoading v-if="busy && !membersLoading && !dialog" compact :spinner="!saving">{{ saving ? '正在儲存排表，請稍候…' : '正在處理排表資料…' }}</DataLoading>
     <DataLoading v-if="loading">正在載入戰場與成員資料…</DataLoading>
     <v-card v-else-if="!events.length && !error" class="lineup-empty"
       ><v-icon :icon="mdiSwordCross" size="32" />
@@ -1089,7 +1089,7 @@ onUnmounted(() => {
               hide-details
               :disabled="busy"
             />
-            <DataLoading v-if="membersLoading" compact>正在更新成員與職業…</DataLoading>
+            <DataLoading v-if="membersLoading" compact :spinner="false">正在更新成員與職業…</DataLoading>
             <p v-else class="lineup-list-count">
               {{ memberTabLabel }} · 符合 {{ visibleMembers.length }} 人 · 尚未安排
               {{ sourceMembers.filter((member) => !assigned.has(participantKey(member))).length }}
@@ -1318,7 +1318,7 @@ onUnmounted(() => {
             </p></template
           >
         </div>
-        <DataLoading v-if="busy" compact>正在處理資料，請稍候…</DataLoading>
+        <DataLoading v-if="busy" compact :spinner="false">正在處理資料，請稍候…</DataLoading>
         <div class="lineup-dialog-actions">
           <v-btn variant="outlined" :disabled="busy || catalogBusy" @click="closeDialog">取消</v-btn
           ><v-btn

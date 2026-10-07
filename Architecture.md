@@ -201,3 +201,11 @@ App 對 member 開放 members 路由及導覽，直接連結登入後保留目�
 ## Discord 通知
 
 `src/domain/discord-notifications.js` 共用 Webhook 網址檢查、請假狀態轉換判斷與 embed 內容。業務寫入在交易內把通知排入佇列：本機 repository 以 `takeNotifications()` 交給 `server/app.js`，只在呼叫成功後交由 `server/discord-notifier.js` 非同步依序送出；GAS `rpc()` 收集通知並在 script lock 釋放後以 UrlFetchApp 送出。資料保存為準，通知失敗只記錄或略過，不回滾也不影響回應；重試回應不重送。設定見 README「Discord 通知」與 GASDeployment。
+
+## 團隊戰績分析
+
+`GET /api/battle-records/:id/team-analysis`／GAS `getBattleTeamAnalysis` 只讀戰績、既有玩家關聯與同 eventId 的最後排表，透過共用 `src/domain/team-battle-analysis.js` 分團及計算比例。不新增表、不保存推算、不改原 CSV 或快照；戰績沒有固定排表版本引用，UI 標示保存時間及重新保存會更新分析。排表日期／類型不符不分團，已刪活動仍可使用原排表。
+
+暫以 attack-*／mobile-*／defense-1,2／defense-3,4 對應進攻1／進攻2／防守12隊／防守34隊（分團詢問待回覆）。第一場取 slot、第二場取 secondRound 或沿用 slot；缺少場序不推測。已關聯 memberUid 唯一對應 UID，未關聯才唯一精確比對排表姓名；跨陣營重複玩家、多人同名及同人多列保持未分類，回應不暴露識別碼。
+
+比例在紅藍各自計算，團內分母只取本團實際 CSV 玩家，全場分母含同陣營未分類者；內推不混用紅藍分母。缺值不當零，分母缺值或為 0 時不回傳百分比。member／manager／admin 可讀分析，匿名及撤銷 session 不可讀，member 排表管理權限維持拒絕；前端每次開啟重新讀取並拒絕過期回應。

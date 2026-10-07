@@ -221,6 +221,18 @@ function getBattleRecord(id, context) {
   return GuildGas.rpc('getBattleRecord', [id], context);
 }
 
+function getBattleTeamAnalysis(id, context) {
+  return GuildGas.rpc('getBattleTeamAnalysis', [id], context);
+}
+
+function previewBattleMemberSync(context) {
+  return GuildGas.rpc('previewBattleMemberSync', [], context);
+}
+
+function syncBattleMembers(input, context) {
+  return GuildGas.rpc('syncBattleMembers', [input], context);
+}
+
 function updateBattleRecord(id, input, context) {
   return GuildGas.rpc('updateBattleRecord', [id, input], context);
 }

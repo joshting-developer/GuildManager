@@ -756,7 +756,7 @@ onUnmounted(() => {
   <div class="battle-upload-footer">
     <v-alert v-if="error" type="error" variant="tonal" role="alert">{{ error }}</v-alert>
     <v-alert v-if="notice" type="success" variant="tonal" role="status">{{ notice }}</v-alert>
-    <DataLoading v-if="saving || reading || downloadBusy" compact>{{ saving ? '正在上傳戰績，請稍候…' : reading ? '正在讀取戰績檔案…' : '正在準備下載…' }}</DataLoading>
+    <DataLoading v-if="saving || reading || downloadBusy" compact :spinner="!saving">{{ saving ? '正在上傳戰績，請稍候…' : reading ? '正在讀取戰績檔案…' : '正在準備下載…' }}</DataLoading>
     <div class="battle-upload-actions">
       <template v-if="hasTwoRounds">
         <v-btn

@@ -127,11 +127,20 @@ export function createApp(repository, { authNow, notifier = null } = {}) {
       }),
     );
   });
+  app.get('/api/admin/battle-sync/preview', (_request, response) => {
+    response.set('Cache-Control', 'no-store').json(repository.previewBattleMemberSync());
+  });
+  app.post('/api/admin/battle-sync', (request, response) => {
+    response.json(repository.syncBattleMembers(request.body));
+  });
   app.post('/api/battle-records', (request, response) => {
     response.status(201).json(repository.saveBattleRecords(request.body));
   });
   app.get('/api/battle-records/:id', (request, response) => {
     response.json({ record: repository.getBattleRecord(request.params.id) });
+  });
+  app.get('/api/battle-records/:id/team-analysis', (request, response) => {
+    response.json(repository.getBattleTeamAnalysis(request.params.id));
   });
   app.patch('/api/battle-records/:id', (request, response) => {
     response.json(repository.updateBattleRecord(request.params.id, request.body));

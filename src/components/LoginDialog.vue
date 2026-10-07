@@ -1,5 +1,4 @@
 <script setup>
-import DataLoading from './DataLoading.vue';
 import { ref, watch, nextTick } from 'vue';
 import { mdiClose, mdiLogin } from '@mdi/js';
 const props = defineProps({
@@ -100,7 +99,9 @@ function submit() {
         <v-alert v-if="error" type="error" variant="tonal" role="alert" class="mb-4">{{
           error
         }}</v-alert>
-        <DataLoading v-if="busy" compact>正在登入，請稍候…</DataLoading>
+        <p v-if="busy" class="mb-4 text-medium-emphasis" role="status" aria-live="polite">
+          正在登入，請稍候…
+        </p>
         <v-btn
           type="submit"
           color="primary"

@@ -1,5 +1,6 @@
 <script setup>
 import DataLoading from '../components/DataLoading.vue';
+import BattleMemberSyncDialog from './BattleMemberSyncDialog.vue';
 import { ref, computed, inject, onMounted, onUnmounted } from 'vue';
 import { createAdminClient } from '../api/admin.js';
 import { createPlatformSettingsClient, readPlatformIcon } from '../api/platform-settings.js';
@@ -50,6 +51,7 @@ const settings = ref(null),
   error = ref(''),
   notice = ref('');
 const tab = ref('password');
+const syncOpen = ref(false);
 const currentPassword = ref(''),
   password = ref(''),
   passwordConfirm = ref('');
@@ -260,7 +262,7 @@ onUnmounted(() => {
     <div>
       <p class="eyebrow">ACCOUNT SETTINGS</p>
       <h1 id="admin-title">帳號管理<span class="heading-dot">.</span></h1>
-      <p class="page-subtitle">平台名稱與圖示、admin 密碼、manager 帳號與成員通行密碼。</p>
+      <p class="page-subtitle">管理平台設定、登入帳號與歷史戰績關聯。</p>
     </div>
     <v-btn variant="outlined" :disabled="busy || loading || iconReading" @click="load"
       >重新載入</v-btn
@@ -274,7 +276,7 @@ onUnmounted(() => {
   }}</v-alert>
   <DataLoading v-if="loading">正在載入帳號設定…</DataLoading>
   <v-card v-else-if="settings" class="admin-card">
-    <DataLoading v-if="busy && !managerOpen" compact>正在儲存帳號或平台設定，請稍候…</DataLoading>
+    <DataLoading v-if="busy && !managerOpen" compact :spinner="false">正在儲存帳號或平台設定，請稍候…</DataLoading>
     <v-tabs v-model="tab" aria-label="帳號設定" :disabled="busy">
       <v-tab value="platform" id="admin-platform-tab" aria-controls="admin-platform-panel"
         >平台設定</v-tab
@@ -287,6 +289,9 @@ onUnmounted(() => {
       >
       <v-tab value="members" id="admin-members-tab" aria-controls="admin-members-panel"
         >成員通行密碼</v-tab
+      >
+      <v-tab value="maintenance" id="admin-maintenance-tab" aria-controls="admin-maintenance-panel"
+        >資料維護</v-tab
       >
     </v-tabs>
     <section
@@ -462,7 +467,18 @@ onUnmounted(() => {
         }}</v-btn>
       </form>
     </section>
+    <section
+      v-show="tab === 'maintenance'"
+      id="admin-maintenance-panel"
+      role="tabpanel"
+      aria-labelledby="admin-maintenance-tab"
+    >
+      <h2 class="admin-section-title">歷史戰績同步</h2>
+      <p class="page-subtitle mb-4">依目前名稱與過去名稱，補上尚未歸屬的戰績。先預覽對應，再確認同步。</p>
+      <v-btn variant="outlined" :disabled="busy || iconReading" @click="syncOpen = true">同步歷史戰績</v-btn>
+    </section>
   </v-card>
+  <BattleMemberSyncDialog v-model="syncOpen" />
   <v-dialog
     :model-value="managerOpen"
     max-width="520"
@@ -505,7 +521,7 @@ onUnmounted(() => {
           :disabled="busy"
         />
         <v-alert v-if="error" type="error" variant="tonal" role="alert">{{ error }}</v-alert>
-        <DataLoading v-if="busy" compact>正在儲存 manager 帳號，請稍候…</DataLoading>
+        <DataLoading v-if="busy" compact :spinner="false">正在儲存 manager 帳號，請稍候…</DataLoading>
         <div class="admin-dialog-actions">
           <v-btn variant="outlined" :disabled="busy" @click="closeManager">取消</v-btn
           ><v-btn type="submit" color="primary" :loading="busy" :disabled="busy">儲存</v-btn>

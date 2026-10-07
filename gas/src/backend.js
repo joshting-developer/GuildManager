@@ -20,6 +20,7 @@ import {
   discordMessage,
   isDiscordWebhookUrl,
 } from '../../src/domain/discord-notifications.js';
+import { createBattleMemberSync } from './battle-member-sync.js';
 
 const AUTH = [
   'getAuthSession',
@@ -74,6 +75,7 @@ const WRITES = [
   'saveLottery',
   'drawLotteryPrize',
   'resetLottery',
+  'syncBattleMembers',
 ];
 function environment(notify = () => {}) {
   const properties = PropertiesService.getScriptProperties();
@@ -238,10 +240,12 @@ export function rpc(operation, args = [], context = {}) {
             ...createLineups(store, catalog, participation, options),
             ...createBattles(store, catalog, { ...options, files }),
             ...createLottery(store, options),
+            ...createBattleMemberSync(store),
           };
           if (!Object.prototype.hasOwnProperty.call(methods, operation))
             fail('OPERATION_INVALID', '不支援此操作');
-          if (operation === 'updatePlatformSettings') auth.requireRole(context, ['admin']);
+          if (['updatePlatformSettings', 'previewBattleMemberSync', 'syncBattleMembers'].includes(operation))
+            auth.requireRole(context, ['admin']);
           else if (PARTICIPATION.includes(operation)) {
             const event = catalog.event(args[0], { battle: true });
             if (
@@ -259,6 +263,7 @@ export function rpc(operation, args = [], context = {}) {
             [
               'getBattleRecords',
               'getBattleRecord',
+              'getBattleTeamAnalysis',
               'getBattleAttachment',
               'getMemberBattleRecords',
             ].includes(operation)
