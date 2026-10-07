@@ -192,6 +192,16 @@ App 對 member 開放 members 路由及導覽，直接連結登入後保留目�
 
 本機白名單為 GET／POST `/api/members`、POST `/api/members/import/preview` 及 `/api/members/import`、PATCH／DELETE `/api/members/:uid`；GAS 業務白名單為 getMembers／addMember／updateMember／removeMember／previewMemberImport／importMembers。有效 session 才可使用，寫入保留 CSRF 及原有驗證／並行保護，其他管理功能仍依角色檢查。新增及匯入仍沿用歷史戰績關聯流程。
 
+## 抽獎賽馬
+
+`src/domain/lottery.js` 共用名單驗證、獎品保留、抽獎與清空規則，`server/lottery-repository.js` 以 SQLite 單列 JSON（`lottery_boards`）保存，`gas/src/lottery.js` 以 `GM_lottery` 單一紀錄保存並於首次使用補建工作表；兩端都由後端決定冠軍並在同一交易／提交中保存，抽同一獎品可安全重試。`src/api/lottery.js` 提供 getLottery／saveLottery／drawLotteryPrize／resetLottery 同名介面（本機 `GET/PATCH /api/lottery`、`POST/DELETE /api/lottery/draws`），未登入／member 由既有權限規則拒絕。
+
+`src/domain/lottery-race.js` 只規劃動畫：冠軍固定在 20 秒到線，其他人較晚，突發狀況（摔倒、睡著、吃草、跑錯方向、暴衝）皆在各自到線前結束，因此動畫順序永遠與保存結果一致。`LotteryPage.vue` 以 requestAnimationFrame 直接更新位置，比賽中舞台全螢幕，結果視窗關閉後才把新得獎者套用到獎品清單；減少動畫設定下停用晃動與彩帶。
+
+## Discord 通知
+
+`src/domain/discord-notifications.js` 共用 Webhook 網址檢查、請假狀態轉換判斷與 embed 內容。業務寫入在交易內把通知排入佇列：本機 repository 以 `takeNotifications()` 交給 `server/app.js`，只在呼叫成功後交由 `server/discord-notifier.js` 非同步依序送出；GAS `rpc()` 收集通知並在 script lock 釋放後以 UrlFetchApp 送出。資料保存為準，通知失敗只記錄或略過，不回滾也不影響回應；重試回應不重送。設定見 README「Discord 通知」與 GASDeployment。
+
 ## 團隊戰績分析
 
 `GET /api/battle-records/:id/team-analysis`／GAS `getBattleTeamAnalysis` 只讀戰績、既有玩家關聯與同 eventId 的最後排表，透過共用 `src/domain/team-battle-analysis.js` 分團及計算比例。不新增表、不保存推算、不改原 CSV 或快照；戰績沒有固定排表版本引用，UI 標示保存時間及重新保存會更新分析。排表日期／類型不符不分團，已刪活動仍可使用原排表。

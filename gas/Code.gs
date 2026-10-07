@@ -252,3 +252,19 @@ function getEventVideos(eventId, context) {
 function submitEventVideo(eventId, input, context) {
   return GuildGas.rpc('submitEventVideo', [eventId, input], context);
 }
+
+function getLottery(context) {
+  return GuildGas.rpc('getLottery', [], context);
+}
+
+function saveLottery(input, context) {
+  return GuildGas.rpc('saveLottery', [input], context);
+}
+
+function drawLotteryPrize(input, context) {
+  return GuildGas.rpc('drawLotteryPrize', [input], context);
+}
+
+function resetLottery(input, context) {
+  return GuildGas.rpc('resetLottery', [input], context);
+}

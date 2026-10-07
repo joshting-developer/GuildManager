@@ -5,6 +5,9 @@ services:
     environment:
       API_HOST: 0.0.0.0
       DATABASE_PATH: /data/guildmanager.sqlite
+      # Optional; read from an untracked .env file next to compose.yaml.
+      DISCORD_WEBHOOK_LEAVE: ${DISCORD_WEBHOOK_LEAVE:-}
+      DISCORD_WEBHOOK_MEMBER: ${DISCORD_WEBHOOK_MEMBER:-}
     ports:
       - '127.0.0.1:3001:3001'
     volumes:

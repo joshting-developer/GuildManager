@@ -2,11 +2,14 @@ import { randomUUID } from 'node:crypto';
 export function gasEnvironment() {
   const sheets = new Map(),
     properties = new Map(),
-    files = new Map();
+    files = new Map(),
+    fetches = [];
+  let fetchStatus = 204;
   let failTable = null;
   const utilities = {
     Charset: { UTF_8: 'UTF-8' },
     getUuid: randomUUID,
+    sleep() {},
     base64Encode: (input) => Buffer.from(input).toString('base64'),
     base64Decode: (input) => [...Buffer.from(input, 'base64')],
     newBlob(input, mimeType, name) {
@@ -93,14 +96,29 @@ export function gasEnvironment() {
     propertyService,
     folder,
     lock,
+    fetches,
     failOn: (table) => {
       failTable = table;
+    },
+    fetchRespondsWith: (status) => {
+      fetchStatus = status;
     },
     globals: {
       Utilities: utilities,
       SpreadsheetApp: { openById: () => spreadsheet, flush() {} },
       PropertiesService: { getScriptProperties: () => propertyService },
       LockService: { getScriptLock: () => lock },
+      UrlFetchApp: {
+        fetch(url, options) {
+          fetches.push({ url, options: JSON.parse(JSON.stringify(options)) });
+          const status = fetchStatus;
+          if (status === 'throw') throw new Error('simulated network failure');
+          return {
+            getResponseCode: () => status,
+            getContentText: () => JSON.stringify({ retry_after: 0.01 }),
+          };
+        },
+      },
       DriveApp: {
         createFolder: () => folder,
         getFolderById: () => folder,

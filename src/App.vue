@@ -12,6 +12,7 @@ import {
   mdiChartBoxOutline,
   mdiAccountCogOutline,
   mdiVideoOutline,
+  mdiHorseVariantFast,
 } from '@mdi/js';
 import { createAuthClient } from './api/auth.js';
 import { createPlatformSettingsClient } from './api/platform-settings.js';
@@ -21,6 +22,7 @@ import LoginDialog from './components/LoginDialog.vue';
 import DataLoading from './components/DataLoading.vue';
 import PlatformBrand from './components/PlatformBrand.vue';
 import MobileNavigation from './components/MobileNavigation.vue';
+import SnowField from './components/SnowField.vue';
 import HomePage from './pages/HomePage.vue';
 import CalendarHomePage from './pages/CalendarHomePage.vue';
 import MembersPage from './pages/MembersPage.vue';
@@ -31,8 +33,10 @@ import BattleRecordsPage from './pages/BattleRecordsPage.vue';
 import AdminPage from './pages/AdminPage.vue';
 import MemberBattleRecordsPage from './pages/MemberBattleRecordsPage.vue';
 import VideosPage from './pages/VideosPage.vue';
+import LotteryPage from './pages/LotteryPage.vue';
 
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
+const appVersion = __APP_VERSION__;
 const authClient = createAuthClient({ source });
 const platformClient = createPlatformSettingsClient({ source });
 const platformCache = createPlatformCache({ source, namespace: globalThis.__GUILD_GAS_KEY__ });
@@ -82,6 +86,8 @@ const navigation = [
     adminOnly: true,
   },
   { page: 'videos', label: '影片閱覽', icon: mdiVideoOutline },
+  // Occasional tool: reachable from 管理總覽 and the drawer, keeping the desktop bar on one line.
+  { page: 'lottery', label: '抽獎賽馬', icon: mdiHorseVariantFast, drawerOnly: true },
 ];
 const mobileMenu = ref(false);
 const mobileMenuButton = ref(null);
@@ -159,6 +165,8 @@ function currentDetailId() {
 }
 const detailId = ref(currentDetailId());
 const view = ref(currentView());
+// Same pages game hid its petals on: dense editors and the full-screen race.
+const showSnow = computed(() => !['lineups', 'members', 'lottery'].includes(view.value));
 function returnHome() {
   view.value = 'home';
   lineupFocus.value = false;
@@ -352,6 +360,7 @@ function skipToMain() {
 
 <template>
   <v-app :class="{ 'lineup-route': view === 'lineups' && user }">
+    <SnowField v-if="showSnow" />
     <a class="skip-link" href="#main" @click.prevent="skipToMain">跳至主要內容</a>
     <header v-show="!lineupFocus" class="site-header">
       <div class="header-inner">
@@ -364,7 +373,7 @@ function skipToMain() {
         <nav class="desktop-nav" aria-label="主要導覽">
           <template v-for="item in visibleNavigation" :key="item.page">
             <button
-              v-if="!item.adminOnly"
+              v-if="!item.adminOnly && !item.drawerOnly"
               type="button"
               :class="{ 'nav-current': view === item.page }"
               :aria-current="view === item.page ? 'page' : undefined"
@@ -439,7 +448,7 @@ function skipToMain() {
     <main
       id="main"
       class="page"
-      :class="{ 'page-lineups': view === 'lineups' && user }"
+      :class="{ 'page-lineups': view === 'lineups' && user, 'page-above-snow': showSnow }"
       tabindex="-1"
     >
       <v-alert v-if="authError" type="error" variant="tonal" role="alert" class="mb-4">
@@ -477,13 +486,14 @@ function skipToMain() {
           :initial-event-id="battleUploadEventId"
         />
         <VideosPage v-else-if="view === 'videos'" />
+        <LotteryPage v-else-if="view === 'lottery'" />
         <AdminPage
           v-else-if="view === 'admin' && user.role === 'admin'"
           @platform-updated="applyPlatform"
         />
       </template>
       <footer v-show="!lineupFocus" class="page-footer">
-        <span>{{ platformName || '幫會平台' }} <span class="footer-divider">/</span> 幫會管理平台</span
+        <span>{{ platformName || '幫會平台' }} <span class="footer-divider">/</span> 幫會管理平台<span class="footer-version">v{{ appVersion }}</span></span
         ><span>每一次集結，都有跡可循。</span>
       </footer>
     </main>

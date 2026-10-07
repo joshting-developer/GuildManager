@@ -16,6 +16,7 @@ export const BUSINESS_TABLES = [
   'battles',
   'battle_players',
   'battle_links',
+  'lottery',
 ];
 const HEADER = ['record_id', 'transaction_id', 'part_number', 'part_count', 'payload_base64'];
 const COMMIT_HEADER = ['transaction_id', 'created_at'];
