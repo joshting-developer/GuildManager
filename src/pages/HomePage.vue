@@ -6,6 +6,7 @@ import {
   mdiSwordCross,
   mdiFileUploadOutline,
   mdiChartBoxOutline,
+  mdiHorseVariantFast,
 } from '@mdi/js';
 import MonthCalendar from './MonthCalendar.vue';
 const emit = defineEmits(['open-page']);
@@ -52,7 +53,15 @@ const modules = [
     color: 'blue',
     description: '查看對戰統計與排序玩家戰績。',
   },
+  {
+    id: 'lottery',
+    title: '抽獎賽馬',
+    icon: mdiHorseVariantFast,
+    color: 'green',
+    description: '設定參加人員與獎品，用賽馬抽出得獎者。',
+  },
 ];
+const openable = ['members', 'events', 'lineups', 'battle-upload', 'battle-records', 'lottery'];
 const dateLabel = new Intl.DateTimeFormat('zh-TW', {
   timeZone: 'Asia/Taipei',
   month: 'long',
@@ -80,31 +89,18 @@ const dateLabel = new Intl.DateTimeFormat('zh-TW', {
     <h2 id="management-title" class="sr-only">幫會管理功能</h2>
     <div class="modules-grid">
       <component
-        :is="
-          ['members', 'events', 'lineups', 'battle-upload', 'battle-records'].includes(module.id)
-            ? 'button'
-            : 'div'
-        "
+        :is="openable.includes(module.id) ? 'button' : 'div'"
         v-for="module in modules"
         :key="module.id"
         class="module-card"
-        :type="
-          ['members', 'events', 'lineups', 'battle-upload', 'battle-records'].includes(module.id)
-            ? 'button'
-            : undefined
-        "
-        @click="
-          ['members', 'events', 'lineups', 'battle-upload', 'battle-records'].includes(module.id) &&
-          emit('open-page', module.id)
-        "
+        :type="openable.includes(module.id) ? 'button' : undefined"
+        @click="openable.includes(module.id) && emit('open-page', module.id)"
       >
         <span :class="['icon-box', module.color]"><v-icon :icon="module.icon" size="24" /></span>
         <h3>{{ module.title }}</h3>
         <p>{{ module.description }}</p>
         <span class="module-status">{{
-          ['members', 'events', 'lineups', 'battle-upload', 'battle-records'].includes(module.id)
-            ? `開啟${module.title} →`
-            : '待開發'
+          openable.includes(module.id) ? `開啟${module.title} →` : '待開發'
         }}</span>
       </component>
     </div>

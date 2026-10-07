@@ -12,6 +12,7 @@ import {
   mdiChartBoxOutline,
   mdiAccountCogOutline,
   mdiVideoOutline,
+  mdiHorseVariantFast,
 } from '@mdi/js';
 import { createAuthClient } from './api/auth.js';
 import { createPlatformSettingsClient } from './api/platform-settings.js';
@@ -31,6 +32,7 @@ import BattleRecordsPage from './pages/BattleRecordsPage.vue';
 import AdminPage from './pages/AdminPage.vue';
 import MemberBattleRecordsPage from './pages/MemberBattleRecordsPage.vue';
 import VideosPage from './pages/VideosPage.vue';
+import LotteryPage from './pages/LotteryPage.vue';
 
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 const authClient = createAuthClient({ source });
@@ -82,6 +84,8 @@ const navigation = [
     adminOnly: true,
   },
   { page: 'videos', label: '影片閱覽', icon: mdiVideoOutline },
+  // Occasional tool: reachable from 管理總覽 and the drawer, keeping the desktop bar on one line.
+  { page: 'lottery', label: '抽獎賽馬', icon: mdiHorseVariantFast, drawerOnly: true },
 ];
 const mobileMenu = ref(false);
 const mobileMenuButton = ref(null);
@@ -364,7 +368,7 @@ function skipToMain() {
         <nav class="desktop-nav" aria-label="主要導覽">
           <template v-for="item in visibleNavigation" :key="item.page">
             <button
-              v-if="!item.adminOnly"
+              v-if="!item.adminOnly && !item.drawerOnly"
               type="button"
               :class="{ 'nav-current': view === item.page }"
               :aria-current="view === item.page ? 'page' : undefined"
@@ -477,6 +481,7 @@ function skipToMain() {
           :initial-event-id="battleUploadEventId"
         />
         <VideosPage v-else-if="view === 'videos'" />
+        <LotteryPage v-else-if="view === 'lottery'" />
         <AdminPage
           v-else-if="view === 'admin' && user.role === 'admin'"
           @platform-updated="applyPlatform"

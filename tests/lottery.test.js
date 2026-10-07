@@ -240,3 +240,23 @@ test('GAS lottery mirrors the local contract, creates its sheet on first use and
     setGasSession({ user: null });
   }
 });
+
+test('race plan always lets the saved winner finish first and keeps mishaps before each finish', async () => {
+  const { planRace, horseClock, RACE_MS, raceIcon } = await import('../src/domain/lottery-race.js');
+  const names = Array.from({ length: 40 }, (_value, index) => `玩家${index}`);
+  for (let round = 0; round < 50; round++) {
+    const winner = names[round % names.length];
+    const { finishAt, plans, rank } = planRace(names, winner);
+    assert.equal(rank[winner], 1);
+    assert.equal(finishAt[winner], RACE_MS);
+    names.forEach((name, index) => {
+      if (name !== winner) assert.ok(finishAt[name] > RACE_MS);
+      const plan = plans[index];
+      for (const event of plan.events) assert.ok(event.start + event.duration <= finishAt[name]);
+      assert.equal(plan.profile(horseClock(finishAt[name], plan.events)), 1);
+      assert.ok(plan.profile(horseClock(finishAt[name] * 0.5, plan.events)) < 1);
+    });
+  }
+  assert.equal(raceIcon('甲', 'zoo'), raceIcon('甲', 'zoo'));
+  assert.equal(raceIcon('甲', 'missing'), '🏇');
+});
