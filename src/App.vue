@@ -13,6 +13,7 @@ import {
   mdiAccountCogOutline,
   mdiVideoOutline,
   mdiGiftOutline,
+  mdiHistory,
 } from '@mdi/js';
 import { createAuthClient } from './api/auth.js';
 import { createPlatformSettingsClient } from './api/platform-settings.js';
@@ -34,6 +35,7 @@ import AdminPage from './pages/AdminPage.vue';
 import MemberBattleRecordsPage from './pages/MemberBattleRecordsPage.vue';
 import VideosPage from './pages/VideosPage.vue';
 import LotteryPage from './pages/lottery/LotteryPage.vue';
+import ReleaseNotesPage from './pages/ReleaseNotesPage.vue';
 
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 const appVersion = __APP_VERSION__;
@@ -88,6 +90,7 @@ const navigation = [
   { page: 'videos', label: '影片閱覽', icon: mdiVideoOutline },
   // Occasional tool: reachable from 管理總覽 and the drawer, keeping the desktop bar on one line.
   { page: 'lottery', label: '抽獎活動', icon: mdiGiftOutline, drawerOnly: true },
+  { page: 'release-notes', label: '更新紀錄', icon: mdiHistory, drawerOnly: true },
 ];
 const mobileMenu = ref(false);
 const mobileMenuButton = ref(null);
@@ -487,13 +490,22 @@ function skipToMain() {
         />
         <VideosPage v-else-if="view === 'videos'" />
         <LotteryPage v-else-if="view === 'lottery'" />
+        <ReleaseNotesPage v-else-if="view === 'release-notes'" />
         <AdminPage
           v-else-if="view === 'admin' && user.role === 'admin'"
           @platform-updated="applyPlatform"
         />
       </template>
       <footer v-show="!lineupFocus" class="page-footer">
-        <span>{{ platformName || '幫會平台' }} <span class="footer-divider">/</span> 幫會管理平台<span class="footer-version">v{{ appVersion }}</span></span
+        <span>{{ platformName || '幫會平台' }} <span class="footer-divider">/</span> 幫會管理平台<button
+            v-if="canManage"
+            type="button"
+            class="footer-version footer-version-link"
+            title="查看更新紀錄"
+            @click="navigate('release-notes')"
+          >
+            v{{ appVersion }}</button
+          ><span v-else class="footer-version">v{{ appVersion }}</span></span
         ><span>每一次集結，都有跡可循。</span>
       </footer>
     </main>

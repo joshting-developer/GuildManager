@@ -7,6 +7,7 @@ import {
   mdiFileUploadOutline,
   mdiChartBoxOutline,
   mdiGiftOutline,
+  mdiHistory,
 } from '@mdi/js';
 import MonthCalendar from './MonthCalendar.vue';
 const emit = defineEmits(['open-page']);
@@ -60,8 +61,23 @@ const modules = [
     color: 'green',
     description: '賽馬、轉盤等多種玩法抽出得獎者。',
   },
+  {
+    id: 'release-notes',
+    title: '更新紀錄',
+    icon: mdiHistory,
+    color: 'violet',
+    description: '每次更版改了什麼。',
+  },
 ];
-const openable = ['members', 'events', 'lineups', 'battle-upload', 'battle-records', 'lottery'];
+const openable = [
+  'members',
+  'events',
+  'lineups',
+  'battle-upload',
+  'battle-records',
+  'lottery',
+  'release-notes',
+];
 const dateLabel = new Intl.DateTimeFormat('zh-TW', {
   timeZone: 'Asia/Taipei',
   month: 'long',
