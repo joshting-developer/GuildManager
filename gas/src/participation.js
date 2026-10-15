@@ -207,6 +207,10 @@ export function createParticipation(store, catalog, { uuid, now, notify = () => 
     },
     getEventParticipation([eventId]) {
       catalog.event(eventId, { battle: true });
+      // Load every referenced member and the profession table in one pass each;
+      // looking them up row by row cost two Sheets reads per person.
+      store.all('professions');
+      store.getMany('members', rawResponses(eventId).map((row) => row.uid));
       const allGuests = guests(eventId);
       return {
         eventId,

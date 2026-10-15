@@ -146,6 +146,36 @@ function deliverNotices(notices, footer) {
     }
   }
 }
+// doGet runs on every page open; reading Sheets and the Drive icon there costs seconds.
+// Cache the public branding (script-wide) and clear it whenever settings change.
+const PLATFORM_CACHE_KEY = 'gm:platform:v1';
+const PLATFORM_CACHE_SECONDS = 6 * 60 * 60;
+function scriptCache() {
+  try {
+    return typeof CacheService === 'undefined' ? null : CacheService.getScriptCache();
+  } catch {
+    return null;
+  }
+}
+function forgetPlatform() {
+  try {
+    scriptCache()?.remove(PLATFORM_CACHE_KEY);
+  } catch {}
+}
+export function pagePlatform() {
+  const cache = scriptCache();
+  try {
+    const hit = cache?.get(PLATFORM_CACHE_KEY);
+    if (hit) return JSON.parse(hit);
+  } catch {}
+  const result = rpc('getPlatformSettings', []);
+  if (!result.ok) return null;
+  // Values over the 100 KB cache limit (large icons) simply stay uncached.
+  try {
+    cache?.put(PLATFORM_CACHE_KEY, JSON.stringify(result.data.platform), PLATFORM_CACHE_SECONDS);
+  } catch {}
+  return result.data.platform;
+}
 export function rpc(operation, args = [], context = {}) {
   const notices = [];
   let footer = DEFAULT_PLATFORM_NAME;
@@ -288,6 +318,7 @@ export function rpc(operation, args = [], context = {}) {
     try {
       deliverNotices(notices, footer);
     } catch {}
+    if (operation === 'updatePlatformSettings') forgetPlatform();
     return { __gasRpc: 1, ok: true, data: data ?? null };
   } catch (error) {
     return {
@@ -303,6 +334,7 @@ export function rpc(operation, args = [], context = {}) {
   }
 }
 export function setup() {
+  forgetPlatform();
   return locked(() => {
     const { properties, options, privateStore } = environment();
     const state = privateStore.load(),

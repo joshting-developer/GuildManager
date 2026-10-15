@@ -92,8 +92,11 @@ function resetForm() {
   baseline.value = formValues();
   attempt = null;
 }
-async function load() {
+// After a submit only this battle's responses change; professions and the roster are
+// reused so the dialog makes one backend call instead of three (each GAS call ≈ 2 s).
+async function load({ participationOnly = false } = {}) {
   if (locked.value || authLoading.value) return;
+  const reuse = participationOnly && professions.value.length > 0;
   const currentToken = ++token;
   loading.value = true;
   loadError.value = '';
@@ -101,8 +104,12 @@ async function load() {
   try {
     const [participation, jobs, roster] = await Promise.all([
       client.getParticipation(props.event.id),
-      memberClient.getProfessions(),
-      requiresLogin.value ? client.getMembers(props.event.id) : Promise.resolve({ members: [] }),
+      reuse ? { professions: professions.value } : memberClient.getProfessions(),
+      reuse
+        ? { members: members.value }
+        : requiresLogin.value
+          ? client.getMembers(props.event.id)
+          : Promise.resolve({ members: [] }),
     ]);
     if (disposed || currentToken !== token) return;
     if (
@@ -236,7 +243,7 @@ async function submit() {
       throw new Error('回應格式不正確, 請重試以確認結果');
     resetForm();
     notice.value = input.status === 'registered' ? '報名成功' : '請假成功';
-    await load();
+    await load({ participationOnly: true });
   } catch (cause) {
     error.value = cause.message;
   } finally {
