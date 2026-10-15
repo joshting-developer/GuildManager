@@ -1,7 +1,8 @@
 <script setup>
+// 轉盤玩法。玩法元件共同介面見 modes.js。
 import { computed, onUnmounted, ref, watch } from 'vue';
-import { WHEEL_SPIN_MS, planWheel, sliceAt, wheelEase } from '../domain/lottery-wheel.js';
-import { wheelLine } from '../domain/race-commentary.js';
+import { WHEEL_SPIN_MS, planWheel, sliceAt, wheelEase } from '../../domain/lottery-wheel.js';
+import { wheelLine } from '../../domain/lottery-commentary.js';
 
 const props = defineProps({ names: { type: Array, default: () => [] }, live: Boolean });
 const emit = defineEmits(['say']);
@@ -125,13 +126,16 @@ function animate(duration, step) {
 // Elastic overshoot so the stretching / bending pointer looks springy.
 const springy = (p) => (p >= 1 ? 1 : 1 - Math.pow(2, -10 * p) * Math.cos(p * Math.PI * 3));
 
-async function spin(winnerIndex) {
+async function play(winnerIndex) {
   reset();
   const count = props.names.length;
   const plan = planWheel(count, winnerIndex);
   const fast = reduceMotion();
   const winner = props.names[winnerIndex],
     decoy = props.names[plan.decoy];
+  // Hold still briefly after entering full screen so the eye can settle before it moves.
+  emit('say', wheelLine('ready'));
+  await wait(fast ? 300 : 1200);
   emit('say', wheelLine('spin'));
   let lastSlice = sliceAt(count, 0),
     tilt = 0,
@@ -206,7 +210,7 @@ onUnmounted(() => {
   cancelAnimationFrame(frame);
   timers.forEach(clearTimeout);
 });
-defineExpose({ spin, reset });
+defineExpose({ play });
 </script>
 
 <template>

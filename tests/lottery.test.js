@@ -264,7 +264,7 @@ test('race plan always lets the saved winner finish first and keeps mishaps befo
 test('race commentary matches each animal: no horse/grass lines for others, cars use only car lines', async () => {
   const { RACE_ICONS } = await import('../src/domain/lottery-race.js');
   const { commentary, commentaryLines, mishapFx, COMMENTARY_ANIMALS } =
-    await import('../src/domain/race-commentary.js');
+    await import('../src/domain/lottery-commentary.js');
   const types = ['fall', 'sleep', 'eat', 'back', 'boost', 'lateStart', 'start', 'sprint', 'win'];
   const animals = [...new Set(RACE_ICONS.flatMap((icon) => icon.set))];
   for (const animal of animals) {
@@ -298,8 +298,9 @@ test('wheel endings always land on the saved winner and twists first stop on som
     for (let round = 0; round < 400; round++) {
       const winner = round % count;
       const plan = planWheel(count, winner);
-      counts[plan.ending]++;
-      assert.ok(plan.rotation >= 5 * 360, 'spins several full turns');
+      // A single participant can only end normally; keep it out of the ratio check.
+      if (count > 1) counts[plan.ending]++;
+      assert.ok(plan.rotation >= 4 * 360, 'spins several full turns');
       assert.equal(sliceAt(count, plan.rotation, plan.pointerAngle), winner);
       assert.equal(plan.decoy, sliceAt(count, plan.rotation, 0));
       if (plan.ending === 'normal') assert.equal(plan.decoy, winner);

@@ -20,7 +20,7 @@ export const RACE_ICONS = [
 ];
 
 // rate is how fast the runner's own clock moves during the mishap (0 = stopped).
-// Lines and effect icons live in race-commentary.js so they can match each animal.
+// Lines and effect icons live in lottery-commentary.js so they can match each animal.
 export const MISHAPS = {
   fall: {
     rate: 0,

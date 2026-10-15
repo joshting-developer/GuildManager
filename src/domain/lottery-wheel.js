@@ -7,7 +7,9 @@ export const WHEEL_ENDINGS = [
   { key: 'extend', weight: 1 },
   { key: 'bend', weight: 1 },
 ];
-export const WHEEL_SPIN_MS = 7000;
+export const WHEEL_SPIN_MS = 8000;
+// Share of the spin spent speeding up from standstill, so it never starts at full speed.
+const SPIN_UP = 0.18;
 
 const mod = (value, base) => ((value % base) + base) % base;
 
@@ -52,7 +54,7 @@ export function planWheel(count, winnerIndex, random = Math.random, { turns } = 
   }
   // Wheel rotation R puts the winner's centre at `target`: center(w) + R ≡ target.
   const rest = mod(target - center(winnerIndex), 360);
-  const fullTurns = turns ?? 5 + Math.floor(random() * 2);
+  const fullTurns = turns ?? 4 + Math.floor(random() * 2);
   const rotation = fullTurns * 360 + rest;
   const decoy = sliceAt(count, rotation, 0);
   return { ending, rotation, pointerAngle, decoy, winner: winnerIndex, slice };
@@ -63,8 +65,13 @@ export function sliceAt(count, rotation, angle = 0) {
   return Math.floor(mod(angle - rotation, 360) / (360 / count)) % count;
 }
 
-// Fast start, long suspenseful slow-down.
+// Speed ramps up linearly from 0, then decays as (1 - t)^2: a gentle start and a long,
+// suspenseful slow-down. Returns the share of the total rotation covered at `progress`.
 export function wheelEase(progress) {
   const p = Math.min(1, Math.max(0, progress));
-  return 1 - Math.pow(1 - p, 4);
+  const rampArea = SPIN_UP / 2,
+    tailArea = (1 - SPIN_UP) / 3;
+  if (p <= SPIN_UP) return (p * p) / (2 * SPIN_UP) / (rampArea + tailArea);
+  const t = (p - SPIN_UP) / (1 - SPIN_UP);
+  return (rampArea + tailArea * (1 - Math.pow(1 - t, 3))) / (rampArea + tailArea);
 }

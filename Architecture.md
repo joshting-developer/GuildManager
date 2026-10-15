@@ -192,11 +192,11 @@ App 對 member 開放 members 路由及導覽，直接連結登入後保留目�
 
 本機白名單為 GET／POST `/api/members`、POST `/api/members/import/preview` 及 `/api/members/import`、PATCH／DELETE `/api/members/:uid`；GAS 業務白名單為 getMembers／addMember／updateMember／removeMember／previewMemberImport／importMembers。有效 session 才可使用，寫入保留 CSRF 及原有驗證／並行保護，其他管理功能仍依角色檢查。新增及匯入仍沿用歷史戰績關聯流程。
 
-## 抽獎賽馬
+## 抽獎活動
 
 `src/domain/lottery.js` 共用名單驗證、獎品保留、抽獎與清空規則，`server/lottery-repository.js` 以 SQLite 單列 JSON（`lottery_boards`）保存，`gas/src/lottery.js` 以 `GM_lottery` 單一紀錄保存並於首次使用補建工作表；兩端都由後端決定冠軍並在同一交易／提交中保存，抽同一獎品可安全重試。`src/api/lottery.js` 提供 getLottery／saveLottery／drawLotteryPrize／resetLottery 同名介面（本機 `GET/PATCH /api/lottery`、`POST/DELETE /api/lottery/draws`），未登入／member 由既有權限規則拒絕。
 
-`src/domain/lottery-race.js` 只規劃動畫：冠軍固定在 20 秒到線，其他人較晚，突發狀況（摔倒、睡著、吃草、跑錯方向、暴衝）皆在各自到線前結束，因此動畫順序永遠與保存結果一致。`LotteryPage.vue` 以 requestAnimationFrame 直接更新位置，比賽中舞台全螢幕，結果視窗關閉後才把新得獎者套用到獎品清單；減少動畫設定下停用晃動與彩帶。
+`src/domain/lottery-race.js` 只規劃動畫：冠軍固定在 20 秒到線，其他人較晚，突發狀況（摔倒、睡著、吃草、跑錯方向、暴衝）皆在各自到線前結束，因此動畫順序永遠與保存結果一致。頁面分成殼層與玩法：`src/pages/lottery/LotteryPage.vue` 負責名單、獎品、抽獎 API、全螢幕舞台、播報框與結果視窗；玩法元件（`RaceStage.vue`、`WheelStage.vue`）只接收參加者名稱、演出並在揭曉後 resolve `play(winnerIndex)`，由 `modes.js` 登記並顯示為玩法卡片。結果視窗關閉後才把新得獎者套用到獎品清單；減少動畫設定下停用晃動與彩帶。轉盤的停點與三種結局計算在 `src/domain/lottery-wheel.js`，台詞在 `src/domain/lottery-commentary.js`。
 
 ## Discord 通知
 

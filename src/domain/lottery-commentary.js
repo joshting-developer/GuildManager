@@ -196,6 +196,7 @@ export const COMMENTARY_ANIMALS = Object.keys(PROFILES);
 
 // 轉盤播報：{n} = 得獎者，{d} = 指針一開始停到的人。翻轉時不調侃 {d}。
 const WHEEL_LINES = {
+  ready: ['準備好了嗎……', '屏住呼吸……', '大家看這邊～'],
   spin: ['命運的轉盤，開轉！', '轉盤轉起來啦！', '轉啊轉～～'],
   slow: ['慢下來了……', '會是誰呢……', '心跳加速中……'],
   stop: ['指針停在 {d}……', '是 {d}嗎？！'],
