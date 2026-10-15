@@ -236,7 +236,8 @@ function runRace(names, winner, prizeName) {
     saidWin = false,
     lastBoard = 0;
   const say = (text, now, force) => {
-    if (!force && now - lastSay < 1100) return;
+    // Once the winner crosses, later mishaps of slower runners must not replace that line.
+    if (saidWin || (!force && now - lastSay < 1100)) return;
     lastSay = now;
     commentary.value = text;
   };
@@ -310,8 +311,8 @@ function runRace(names, winner, prizeName) {
           }
         }
         if (!saidWin && t >= RACE_MS) {
-          saidWin = true;
           say(raceLine('win', { name: winner, animal: animalOf(winner) }), t, true);
+          saidWin = true;
         }
         if (t < RACE_MS + AFTER_MS && done.size < names.length) frame = requestAnimationFrame(step);
         else {
