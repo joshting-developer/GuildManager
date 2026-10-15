@@ -105,12 +105,16 @@ export function createCatalog(store, { uuid, now, guildName, notify = () => {} }
   }
   const methods = {
     getProfessions: () => ({ professions: professions() }),
-    getMembers: () => ({
-      members: store
-        .all('members')
-        .sort((a, b) => a.joinedAt.localeCompare(b.joinedAt) || a.uid.localeCompare(b.uid))
-        .map(memberDto),
-    }),
+    getMembers() {
+      // Warm the whole profession table once instead of one Sheets read per member.
+      store.all('professions');
+      return {
+        members: store
+          .all('members')
+          .sort((a, b) => a.joinedAt.localeCompare(b.joinedAt) || a.uid.localeCompare(b.uid))
+          .map(memberDto),
+      };
+    },
     getParticipationMembers: () => ({
       members: store
         .all('members')

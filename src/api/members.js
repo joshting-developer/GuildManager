@@ -1,5 +1,10 @@
 import { callGas } from './gas.js';
 import { sessionFetch } from './session.js';
+
+// The nine professions rarely change, yet several pages request them; each GAS call
+// costs ~2 s. Share one in-flight/settled request per transport for the page's lifetime.
+const professionCache = new WeakMap();
+const DEFAULT_GAS = {};
 export function createMemberClient({ source = 'local', fetchImpl = sessionFetch, googleRun } = {}) {
   if (!['local', 'gas'].includes(source)) throw new Error('未知的資料來源設定');
   async function call(method, path, body, operation, args = []) {
@@ -42,7 +47,16 @@ export function createMemberClient({ source = 'local', fetchImpl = sessionFetch,
         'getMemberBattleRecords',
         [uid, page, filters],
       ),
-    getProfessions: () => call('GET', 'professions', null, 'getProfessions'),
+    getProfessions() {
+      const key = source === 'gas' ? googleRun || DEFAULT_GAS : fetchImpl;
+      if (!professionCache.has(key)) {
+        const request = call('GET', 'professions', null, 'getProfessions');
+        professionCache.set(key, request);
+        // A failed read must not stick; the next caller retries.
+        request.catch(() => professionCache.delete(key));
+      }
+      return professionCache.get(key);
+    },
     previewMemberImport: (input) =>
       call('POST', 'members/import/preview', input, 'previewMemberImport', [input]),
     importMembers: (input) => call('POST', 'members/import', input, 'importMembers', [input]),

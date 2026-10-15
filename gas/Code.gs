@@ -1,7 +1,6 @@
 // Frontend-callable wrappers expose only the documented RPC allowlist.
 function doGet() {
-  const settings = GuildGas.rpc('getPlatformSettings', []);
-  const platform = settings.ok ? settings.data.platform : null;
+  const platform = GuildGas.pagePlatform();
   const name = platform ? platform.name : '幫會平台';
   const namespace = JSON.stringify(ScriptApp.getScriptId()).replace(/</g, '\\u003c');
   const branding = JSON.stringify(platform).replace(/</g, '\\u003c');

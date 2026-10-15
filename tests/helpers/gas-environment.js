@@ -76,6 +76,15 @@ export function gasEnvironment() {
     },
     getId: () => 'test-folder',
   };
+  const cached = new Map();
+  const scriptCache = {
+    get: (key) => cached.get(key) ?? null,
+    put: (key, value) => {
+      if (value.length > 100 * 1024) throw new Error('Argument too large');
+      cached.set(key, value);
+    },
+    remove: (key) => cached.delete(key),
+  };
   let locked = false;
   const lock = {
     tryLock() {
@@ -97,6 +106,7 @@ export function gasEnvironment() {
     folder,
     lock,
     fetches,
+    cached,
     failOn: (table) => {
       failTable = table;
     },
@@ -108,6 +118,7 @@ export function gasEnvironment() {
       SpreadsheetApp: { openById: () => spreadsheet, flush() {} },
       PropertiesService: { getScriptProperties: () => propertyService },
       LockService: { getScriptLock: () => lock },
+      CacheService: { getScriptCache: () => scriptCache },
       UrlFetchApp: {
         fetch(url, options) {
           fetches.push({ url, options: JSON.parse(JSON.stringify(options)) });

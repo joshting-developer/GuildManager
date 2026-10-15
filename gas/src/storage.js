@@ -30,7 +30,9 @@ export function createSheetStore({
   flush = () => {},
 }) {
   if (!/^[A-Za-z][A-Za-z0-9_]{0,19}$/.test(prefix)) fail('CONFIG_INVALID', '工作表前綴格式不正確');
-  function sheet(table, initialize = false) {
+  // Reads skip the header round-trip (each Sheets call costs real time in GAS);
+  // writes and initialization still verify the schema before touching rows.
+  function sheet(table, initialize = false, verify = true) {
     const name = `${prefix}${table}`;
     let current = spreadsheet.getSheetByName(name);
     const header = table === 'commits' ? COMMIT_HEADER : HEADER;
@@ -40,6 +42,7 @@ export function createSheetStore({
       current.setFrozenRows(1);
     }
     if (!current) fail('SETUP_REQUIRED', '雲端資料尚未初始化，請聯絡管理者');
+    if (!verify) return current;
     const actual = current.getRange(1, 1, 1, header.length).getValues()[0];
     if (canonical(actual) !== canonical(header) || current.getLastColumn() !== header.length)
       fail('SCHEMA_INVALID', `工作表 ${name} 欄位不符，請勿覆寫既有資料`);
@@ -65,7 +68,7 @@ export function createSheetStore({
       .setValues(values);
   }
   function transaction(work) {
-    const commitRows = rows(sheet('commits'), 2);
+    const commitRows = rows(sheet('commits', false, false), 2);
     const order = new Map(commitRows.map(([id], index) => [id, index]));
     const tables = new Map(),
       partial = new Map(),
@@ -76,7 +79,7 @@ export function createSheetStore({
       if (!partial.has(table)) partial.set(table, new Map());
       const cache = partial.get(table);
       if (keys && keys.every((key) => cache.has(key))) return cache;
-      const current = sheet(table);
+      const current = sheet(table, false, false);
       let records = rows(current, keys ? 4 : 5);
       if (keys) {
         const selected = records.map(

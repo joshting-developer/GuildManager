@@ -696,6 +696,17 @@ h3 {
   color: var(--color-text-muted);
   font-size: 10px;
 }
+.footer-version-link {
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.footer-version-link:hover,
+.footer-version-link:focus-visible {
+  border-color: #1d4ed8;
+  color: #1d4ed8;
+}
 .footer-version {
   margin-left: 8px;
   padding: 1px 6px;
