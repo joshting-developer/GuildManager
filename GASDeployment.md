@@ -189,7 +189,7 @@ admin 可在「帳號管理 → 平台設定」修改左上角名稱，預設「
 
 admin 可於同一頁保存 PNG／JPEG／WebP 平台圖示（最多 256 KB）。GAS 將圖片寫入 `DRIVE_FOLDER_ID` 的私人資料夾，`GM_settings` 僅保存引用；公開設定回傳目前圖示內容的 data URL，不公開 Drive ID 或分享連結。名稱與圖片引用採同一提交，重試相同成功結果不建立新檔。替換／移除時舊檔保留，Drive 成功但 Sheets 失敗可能留下未引用私檔，備份及日後清理需涵蓋這些檔案。真實 Drive 授權、讀取速度與配額仍須測試部署驗證。
 
-## 抽獎賽馬與 Discord 通知更新
+## 抽獎活動與 Discord 通知更新
 
 此版本新增 `script.external_request` 授權範圍供 Discord 通知使用。同步程式後，部署者需在編輯器執行任一函式（例如 `setupGas`）或發布新版本時完成 Google 的新授權提示，否則送出通知會失敗（通知失敗不影響原操作）。
 

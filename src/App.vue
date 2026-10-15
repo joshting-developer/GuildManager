@@ -12,7 +12,7 @@ import {
   mdiChartBoxOutline,
   mdiAccountCogOutline,
   mdiVideoOutline,
-  mdiHorseVariantFast,
+  mdiGiftOutline,
 } from '@mdi/js';
 import { createAuthClient } from './api/auth.js';
 import { createPlatformSettingsClient } from './api/platform-settings.js';
@@ -33,7 +33,7 @@ import BattleRecordsPage from './pages/BattleRecordsPage.vue';
 import AdminPage from './pages/AdminPage.vue';
 import MemberBattleRecordsPage from './pages/MemberBattleRecordsPage.vue';
 import VideosPage from './pages/VideosPage.vue';
-import LotteryPage from './pages/LotteryPage.vue';
+import LotteryPage from './pages/lottery/LotteryPage.vue';
 
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 const appVersion = __APP_VERSION__;
@@ -87,7 +87,7 @@ const navigation = [
   },
   { page: 'videos', label: '影片閱覽', icon: mdiVideoOutline },
   // Occasional tool: reachable from 管理總覽 and the drawer, keeping the desktop bar on one line.
-  { page: 'lottery', label: '抽獎賽馬', icon: mdiHorseVariantFast, drawerOnly: true },
+  { page: 'lottery', label: '抽獎活動', icon: mdiGiftOutline, drawerOnly: true },
 ];
 const mobileMenu = ref(false);
 const mobileMenuButton = ref(null);

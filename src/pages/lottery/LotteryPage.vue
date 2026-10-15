@@ -1,32 +1,24 @@
 <script setup>
-import DataLoading from '../components/DataLoading.vue';
-import { computed, inject, nextTick, onMounted, onUnmounted, ref } from 'vue';
+import DataLoading from '../../components/DataLoading.vue';
+import { computed, inject, onMounted, onUnmounted, ref } from 'vue';
 import {
   mdiRefresh,
   mdiPencilOutline,
   mdiRestore,
-  mdiFlagCheckered,
+  mdiPlay,
   mdiTrophyOutline,
   mdiAccountMultiplePlus,
 } from '@mdi/js';
-import { createLotteryClient } from '../api/lottery.js';
-import { createMemberClient } from '../api/members.js';
-import { LOTTERY_MAX_PLAYERS, LOTTERY_MAX_PRIZES, lotteryRunners } from '../domain/lottery.js';
-import {
-  AFTER_MS,
-  MISHAPS,
-  RACE_ICONS,
-  RACE_MS,
-  horseClock,
-  planRace,
-  raceIcon,
-  shuffle,
-} from '../domain/lottery-race.js';
+import { createLotteryClient } from '../../api/lottery.js';
+import { createMemberClient } from '../../api/members.js';
+import { LOTTERY_MAX_PLAYERS, LOTTERY_MAX_PRIZES, lotteryRunners } from '../../domain/lottery.js';
+import { shuffle } from '../../domain/lottery-race.js';
+import { LOTTERY_MODES } from './modes.js';
 
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 const client = createLotteryClient({ source });
 const memberClient = createMemberClient({ source });
-const ICON_STORAGE_KEY = 'guild-lottery-icon';
+const MODE_STORAGE_KEY = 'guild-lottery-mode';
 
 const board = ref(null),
   loading = ref(true),
@@ -34,22 +26,18 @@ const board = ref(null),
   notice = ref(''),
   actionError = ref(''),
   selectedId = ref(null);
-const racing = ref(false),
+const playing = ref(false),
   drawing = ref(false),
   live = ref(false),
-  lanes = ref([]),
+  stageNames = ref([]),
   commentary = ref(''),
-  leaders = ref([]),
-  countdownText = ref('');
+  leader = ref('');
 const result = ref(null),
   resultOpen = ref(false),
   confetti = ref([]);
-const iconKey = ref(readIcon());
-const track = ref(null);
-const horseElements = [],
-  runElements = [];
+const modeKey = ref(readMode());
+const stage = ref(null);
 let pendingBoard = null,
-  frame = 0,
   timers = [],
   disposed = false,
   loadVersion = 0;
@@ -76,10 +64,13 @@ const unregister = registerGuard?.(
   () =>
     !saving.value &&
     !resetting.value &&
-    (!racing.value || window.confirm('比賽進行中（結果已保存），確定要離開嗎？')) &&
+    (!playing.value || window.confirm('抽獎進行中（結果已保存），確定要離開嗎？')) &&
     (!editorDirty.value || window.confirm('抽獎名單有尚未儲存的修改，確定要離開嗎？')),
 );
 
+const mode = computed(
+  () => LOTTERY_MODES.find((item) => item.key === modeKey.value) || LOTTERY_MODES[0],
+);
 const prizes = computed(() => board.value?.prizes || []);
 const remainingPrizes = computed(() => prizes.value.filter((prize) => !prize.winner).length);
 const drawnCount = computed(() => prizes.value.length - remainingPrizes.value);
@@ -89,12 +80,12 @@ const selectedPrize = computed(
 const runners = computed(() => (board.value ? lotteryRunners(board.value) : []));
 const canStart = computed(
   () =>
-    !racing.value &&
+    !playing.value &&
     !!selectedPrize.value &&
     !selectedPrize.value.winner &&
     runners.value.length > 0,
 );
-const busy = computed(() => racing.value || saving.value || resetting.value);
+const busy = computed(() => playing.value || saving.value || resetting.value);
 const editorLines = (text) =>
   text
     .split(/\r?\n/)
@@ -103,17 +94,18 @@ const editorLines = (text) =>
 const editorPlayers = computed(() => editorLines(playersText.value));
 const editorPrizes = computed(() => editorLines(prizesText.value));
 
-function readIcon() {
+function readMode() {
   try {
-    const stored = globalThis.localStorage?.getItem(ICON_STORAGE_KEY);
-    if (RACE_ICONS.some((icon) => icon.key === stored)) return stored;
+    const stored = globalThis.localStorage?.getItem(MODE_STORAGE_KEY);
+    if (LOTTERY_MODES.some((item) => item.key === stored)) return stored;
   } catch {}
-  return 'horse';
+  return LOTTERY_MODES[0].key;
 }
-function pickIcon(key) {
-  iconKey.value = key;
+function pickMode(key) {
+  if (playing.value) return;
+  modeKey.value = key;
   try {
-    globalThis.localStorage?.setItem(ICON_STORAGE_KEY, key);
+    globalThis.localStorage?.setItem(MODE_STORAGE_KEY, key);
   } catch {}
 }
 function applyBoard(next) {
@@ -121,10 +113,10 @@ function applyBoard(next) {
   const current = next.prizes.find((prize) => prize.id === selectedId.value);
   if (!current || current.winner)
     selectedId.value = next.prizes.find((prize) => !prize.winner)?.id || null;
-  if (!racing.value) showLanes(lotteryRunners(next));
+  if (!playing.value) stageNames.value = lotteryRunners(next);
 }
 async function load() {
-  if (racing.value) return;
+  if (playing.value) return;
   const version = ++loadVersion;
   loading.value = !board.value;
   error.value = '';
@@ -139,36 +131,6 @@ async function load() {
   }
 }
 
-// Large rosters (50–60 people) split into side-by-side columns on wide screens so
-// each lane stays readable; phones keep one column and scroll.
-function trackColumns(count) {
-  const width = track.value?.clientWidth ?? window.innerWidth;
-  if (count > 40 && width >= 1500) return 3;
-  if (count > 20 && width >= 900) return 2;
-  return 1;
-}
-function laneHeight(rows) {
-  const top = track.value?.getBoundingClientRect().top ?? 0;
-  const room = live.value ? window.innerHeight - top - 14 : Math.max(360, window.innerHeight - 260);
-  return Math.max(14, Math.min(44, Math.floor(room / Math.max(rows, 1))));
-}
-function sizeTrack() {
-  if (!track.value) return;
-  const columns = trackColumns(lanes.value.length);
-  const rows = Math.max(1, Math.ceil(lanes.value.length / columns));
-  const height = laneHeight(rows);
-  track.value.style.setProperty('--columns', columns);
-  track.value.style.setProperty('--rows', rows);
-  track.value.style.setProperty('--lane-h', `${height}px`);
-  track.value.style.setProperty('--name-fs', `${Math.min(20, Math.max(13, height))}px`);
-}
-function showLanes(names) {
-  horseElements.length = 0;
-  runElements.length = 0;
-  lanes.value = names.map((name) => ({ name, state: '', place: 0 }));
-  nextTick(sizeTrack);
-}
-
 function later(work, delay) {
   const id = setTimeout(() => {
     timers = timers.filter((value) => value !== id);
@@ -176,150 +138,47 @@ function later(work, delay) {
   }, delay);
   timers.push(id);
 }
-function countdown(done) {
-  const steps = ['3', '2', '1', 'GO!'];
-  let index = 0;
-  const next = () => {
-    if (index >= steps.length) {
-      countdownText.value = '';
-      done();
-      return;
-    }
-    countdownText.value = steps[index++];
-    later(next, index === steps.length ? 500 : 800);
-  };
-  next();
-}
 
-async function startRace() {
+async function start() {
   const prize = selectedPrize.value;
   if (!canStart.value || !prize) return;
-  racing.value = true;
+  playing.value = true;
   drawing.value = true;
   actionError.value = '';
   notice.value = '';
   commentary.value = '抽籤中…';
+  let data;
   try {
-    const data = await client.drawPrize(prize.id);
-    if (disposed) return;
-    drawing.value = false;
-    if (data.draw.already) {
-      racing.value = false;
-      commentary.value = '';
-      notice.value = `「${data.draw.prize}」已由其他人抽出，得獎者：${data.draw.winner}`;
-      applyBoard(data.lottery);
-      return;
-    }
-    // Keep the saved result off the prize list until the race reveals it.
-    pendingBoard = data.lottery;
-    runRace(shuffle(data.draw.runners), data.draw.winner, data.draw.prize);
+    data = await client.drawPrize(prize.id);
   } catch (cause) {
     if (disposed) return;
     drawing.value = false;
-    racing.value = false;
+    playing.value = false;
     commentary.value = '';
     actionError.value = cause.message;
     if (['LOTTERY_PRIZE_NOT_FOUND', 'LOTTERY_NO_RUNNERS'].includes(cause.code)) load();
+    return;
   }
-}
-
-function runRace(names, winner, prizeName) {
+  if (disposed) return;
+  drawing.value = false;
+  if (data.draw.already) {
+    playing.value = false;
+    commentary.value = '';
+    notice.value = `「${data.draw.prize}」已由其他人抽出，得獎者：${data.draw.winner}`;
+    applyBoard(data.lottery);
+    return;
+  }
+  // Keep the saved result off the prize list until the show reveals it.
+  pendingBoard = data.lottery;
+  const names = shuffle(data.draw.runners);
+  stageNames.value = names;
+  leader.value = '';
   live.value = true;
-  showLanes(names);
-  leaders.value = [];
-  commentary.value = '各就各位…';
-  const { plans, rank } = planRace(names, winner);
-  const pickLine = (lines) => lines[Math.floor(Math.random() * lines.length)];
-  let lastSay = -1e9,
-    saidSprint = false,
-    saidWin = false,
-    lastBoard = 0;
-  const say = (text, now, force) => {
-    if (!force && now - lastSay < 1100) return;
-    lastSay = now;
-    commentary.value = text;
-  };
-  nextTick(() =>
-    countdown(() => {
-      lanes.value.forEach((lane) => (lane.state = 'gallop'));
-      say('比賽開始！', 0, true);
-      const start = performance.now();
-      const done = new Set();
-      const step = (now) => {
-        if (disposed) return;
-        const t = now - start;
-        const positions = names.map((name, index) => {
-          const plan = plans[index];
-          const lane = lanes.value[index];
-          let x = done.has(index) ? 1 : plan.profile(horseClock(t, plan.events));
-          let state = '';
-          if (!done.has(index)) {
-            const event = plan.events.find(
-              (item) => t >= item.start && t < item.start + item.duration,
-            );
-            if (event) {
-              const progress = (t - event.start) / event.duration;
-              if (event.type === 'back') {
-                x -= 0.09 * Math.sin(Math.PI * progress);
-                state = progress < 0.5 ? 'back' : '';
-              } else state = event.type;
-              if (!event.said) {
-                event.said = true;
-                const line =
-                  event.start === 0 && event.type === 'sleep'
-                    ? '{n} 起跑還在睡…'
-                    : pickLine(MISHAPS[event.type].say);
-                say(line.replace('{n}', name), t, false);
-              }
-            }
-          }
-          x = Math.max(0, Math.min(1, x));
-          const nextState = done.has(index) ? '' : state || 'gallop';
-          if (lane.state !== nextState) lane.state = nextState;
-          const horse = horseElements[index],
-            run = runElements[index];
-          if (horse && run) {
-            const width = run.clientWidth - horse.offsetWidth - 26;
-            horse.style.transform = `translate(${x * width}px, -50%)`;
-          }
-          // Finishing order follows the planned times, so dropped frames cannot reorder it.
-          if (x >= 1 && !done.has(index)) {
-            done.add(index);
-            lane.state = '';
-            lane.place = rank[name];
-          }
-          return x;
-        });
-        if (now - lastBoard > 200) {
-          lastBoard = now;
-          const top = positions
-            .map((_x, index) => index)
-            // Finished runners all sit at 1; their planned rank keeps the podium correct.
-            .sort((a, b) => positions[b] - positions[a] || rank[names[a]] - rank[names[b]])
-            .slice(0, 3);
-          leaders.value = top.map((index) => names[index]);
-          if (!saidSprint && positions[top[0]] > 0.85) {
-            saidSprint = true;
-            say(`最後衝刺！${names[top[0]]} 暫時領先！`, t, true);
-          }
-        }
-        if (!saidWin && t >= RACE_MS) {
-          saidWin = true;
-          say(`🏁 ${winner} 衝線奪冠！`, t, true);
-        }
-        if (t < RACE_MS + AFTER_MS && done.size < names.length) frame = requestAnimationFrame(step);
-        else {
-          lanes.value.forEach((lane) => (lane.state = ''));
-          leaders.value = names
-            .slice()
-            .sort((a, b) => rank[a] - rank[b])
-            .slice(0, 3);
-          showResult(winner, prizeName);
-        }
-      };
-      frame = requestAnimationFrame(step);
-    }),
-  );
+  // Let the stage render the drawn runners in full-screen before it starts.
+  await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve)));
+  if (disposed || !stage.value) return;
+  await stage.value.play(names.indexOf(data.draw.winner));
+  if (!disposed) showResult(data.draw.winner, data.draw.prize);
 }
 
 function showResult(winner, prize) {
@@ -337,15 +196,14 @@ function showResult(winner, prize) {
   }));
   later(() => (confetti.value = []), 5000);
 }
-function finishRace() {
+function finish() {
   resultOpen.value = false;
   live.value = false;
-  leaders.value = [];
+  leader.value = '';
   commentary.value = '';
-  racing.value = false;
+  playing.value = false;
   if (pendingBoard) applyBoard(pendingBoard);
   pendingBoard = null;
-  nextTick(sizeTrack);
 }
 
 function openEditor() {
@@ -427,23 +285,11 @@ async function confirmReset() {
   }
 }
 
-function setHorse(index, element) {
-  if (element) horseElements[index] = element;
-}
-function setRun(index, element) {
-  if (element) runElements[index] = element;
-}
-const resize = () => sizeTrack();
-onMounted(() => {
-  window.addEventListener('resize', resize);
-  load();
-});
+onMounted(load);
 onUnmounted(() => {
   disposed = true;
   unregister?.();
-  cancelAnimationFrame(frame);
   timers.forEach(clearTimeout);
-  window.removeEventListener('resize', resize);
 });
 </script>
 
@@ -451,8 +297,10 @@ onUnmounted(() => {
   <section class="page-heading" aria-labelledby="lottery-title">
     <div>
       <p class="eyebrow">GUILD MANAGER <span class="eyebrow-divider">/</span> 幫會活動</p>
-      <h1 id="lottery-title">抽獎賽馬<span class="heading-dot">.</span></h1>
-      <p class="page-subtitle">每個獎品跑一場，第一個衝線的人抽中；結果由伺服器先決定並保存。</p>
+      <h1 id="lottery-title">抽獎活動<span class="heading-dot">.</span></h1>
+      <p class="page-subtitle">
+        選一種玩法，每個獎品抽一次；結果由伺服器先決定並保存，動畫只負責揭曉。
+      </p>
     </div>
     <v-btn variant="outlined" :prepend-icon="mdiRefresh" :disabled="loading || busy" @click="load"
       >重新載入</v-btn
@@ -515,7 +363,7 @@ onUnmounted(() => {
             class="prize-item"
             :class="{ 'prize-selected': prize.id === selectedId, 'prize-done': prize.winner }"
             :aria-pressed="prize.id === selectedId"
-            :disabled="!!prize.winner || racing"
+            :disabled="!!prize.winner || playing"
             @click="selectedId = prize.id"
           >
             <span class="prize-number">{{ index + 1 }}</span>
@@ -529,83 +377,70 @@ onUnmounted(() => {
     </v-card>
 
     <v-card class="lottery-card lottery-stage" :class="{ 'lottery-live': live }">
+      <div v-if="!live" class="mode-picker" role="radiogroup" aria-label="抽獎玩法">
+        <button
+          v-for="item in LOTTERY_MODES"
+          :key="item.key"
+          type="button"
+          role="radio"
+          class="mode-card"
+          :class="{ 'mode-active': item.key === mode.key }"
+          :aria-checked="item.key === mode.key"
+          :disabled="playing"
+          @click="pickMode(item.key)"
+        >
+          <span class="mode-emoji" aria-hidden="true">{{ item.emoji }}</span>
+          <span class="mode-text">
+            <strong>{{ item.title }}</strong>
+            <span>{{ item.description }}</span>
+          </span>
+        </button>
+      </div>
       <div class="stage-top">
         <div class="stage-head">
           <p class="now-prize">
             <template v-if="selectedPrize || live">
               本場獎品：<strong>{{ selectedPrize?.name }}</strong>
-              <span class="lottery-muted"> · {{ lanes.length }} 位參賽</span>
+              <span class="lottery-muted"> · {{ stageNames.length }} 位參加</span>
+              <span v-if="live && leader" class="now-leader">
+                · 目前領先：<strong>{{ leader }}</strong></span
+              >
             </template>
             <template v-else-if="prizes.length">獎品全部抽完了 🎉</template>
             <template v-else>尚未設定獎品</template>
           </p>
-          <v-select
-            v-if="!live"
-            class="icon-select"
-            :model-value="iconKey"
-            :items="RACE_ICONS.map((icon) => ({ title: icon.label, value: icon.key }))"
-            label="賽跑角色"
-            variant="outlined"
-            density="compact"
-            hide-details
-            :disabled="racing"
-            @update:model-value="pickIcon"
-          />
           <v-btn
             v-if="!live"
             color="primary"
             size="large"
-            :prepend-icon="mdiFlagCheckered"
+            :prepend-icon="mdiPlay"
             :loading="drawing"
             :disabled="!canStart"
-            @click="startRace"
-            >開跑</v-btn
+            @click="start"
+            >{{ mode.start }}</v-btn
           >
         </div>
         <p class="commentary" aria-live="off">{{ commentary }}</p>
-        <p class="leaders" aria-live="off">
-          <span v-for="(name, index) in leaders" :key="index"
-            >{{ ['🥇', '🥈', '🥉'][index] }} {{ name }}</span
-          >
-        </p>
       </div>
-      <p v-if="selectedPrize && !runners.length && !racing" class="lottery-state">
+      <p v-if="selectedPrize && !runners.length && !playing" class="lottery-state">
         所有參加人員都已經中獎了
       </p>
-      <div ref="track" class="track">
-        <p v-if="!lanes.length" class="lottery-state track-empty">
-          {{ board.players.length ? '沒有可參賽的人' : '尚無參加人員' }}
-        </p>
-        <div
-          v-for="(lane, index) in lanes"
-          :key="`${lane.name}-${index}`"
-          class="lane"
-          :class="{ 'lane-win': lane.place === 1 }"
-        >
-          <div class="lane-name" :title="lane.name">{{ lane.name }}</div>
-          <div :ref="(element) => setRun(index, element)" class="lane-run">
-            <div class="finish" aria-hidden="true"></div>
-            <div
-              :ref="(element) => setHorse(index, element)"
-              class="horse"
-              :class="lane.state"
-              aria-hidden="true"
-            >
-              <span class="horse-body">{{ raceIcon(lane.name, iconKey) }}</span
-              ><span class="horse-fx">{{ MISHAPS[lane.state]?.fx || '' }}</span>
-            </div>
-            <span v-if="lane.place" class="place" :class="{ 'place-first': lane.place === 1 }">{{
-              lane.place === 1 ? '🏆' : `#${lane.place}`
-            }}</span>
-          </div>
-        </div>
-      </div>
+      <p v-else-if="!board.players.length" class="lottery-state">
+        尚無參加人員，請按「編輯名單」加入。
+      </p>
+      <component
+        :is="mode.component"
+        v-else
+        :key="mode.key"
+        ref="stage"
+        :names="stageNames"
+        :live="live"
+        @say="commentary = $event"
+        @leader="leader = $event"
+      />
     </v-card>
   </div>
 
-  <div v-if="countdownText" class="race-countdown" aria-hidden="true">
-    <span :key="countdownText">{{ countdownText }}</span>
-  </div>
   <div class="confetti-layer" aria-hidden="true">
     <span
       v-for="piece in confetti"
@@ -627,7 +462,7 @@ onUnmounted(() => {
       <p class="result-prize">
         抽中 <strong>{{ result?.prize }}</strong>
       </p>
-      <v-btn color="primary" size="large" @click="finishRace">請大家恭喜他！</v-btn>
+      <v-btn color="primary" size="large" @click="finish">請大家恭喜他！</v-btn>
     </v-card>
   </v-dialog>
 
@@ -826,8 +661,51 @@ onUnmounted(() => {
 .now-prize strong {
   color: #1d4ed8;
 }
-.icon-select {
-  flex: 0 0 180px;
+.mode-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.mode-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 72px;
+  padding: 12px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+.mode-card:hover:not(:disabled) {
+  border-color: #93c5fd;
+}
+.mode-card:focus-visible {
+  outline: 2px solid #1d4ed8;
+  outline-offset: 2px;
+}
+.mode-active {
+  border-color: #1d4ed8;
+  background: #eff6ff;
+}
+.mode-emoji {
+  font-size: 34px;
+  line-height: 1;
+}
+.mode-text {
+  display: grid;
+  gap: 2px;
+}
+.mode-text span {
+  color: var(--color-text-muted);
+  font-size: 13px;
 }
 .commentary {
   min-height: 34px;
@@ -835,19 +713,15 @@ onUnmounted(() => {
   font-size: 22px;
   font-weight: 700;
 }
-.leaders {
-  min-height: 28px;
-  margin: 0 0 10px;
-  font-size: 18px;
-  font-weight: 700;
-  color: #b45309;
-}
-.leaders span {
-  margin-right: 20px;
+.now-leader {
   white-space: nowrap;
+}
+.now-prize .now-leader strong {
+  color: #b45309;
 }
 /* During the race the stage fills the viewport so long rosters stay visible. */
 .lottery-live.v-card {
+  animation: lottery-enter 0.45s ease-out;
   position: fixed;
   inset: 0;
   z-index: 2000;
@@ -857,12 +731,20 @@ onUnmounted(() => {
   padding: 12px 16px;
   background: var(--color-page, #f7f9fc);
 }
+@keyframes lottery-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
 .lottery-live .stage-top {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
-  grid-template-areas:
-    'head commentary'
-    'leaders commentary';
+  grid-template-areas: 'head commentary';
   align-items: center;
   gap: 4px 24px;
   margin-bottom: 10px;
@@ -875,10 +757,6 @@ onUnmounted(() => {
   flex: none;
   font-size: 26px;
   font-weight: 700;
-}
-.lottery-live .leaders {
-  grid-area: leaders;
-  margin: 0;
 }
 /* Live play-by-play sits top-right in large type; a fixed two-line box keeps the track still. */
 .lottery-live .commentary {
@@ -900,202 +778,6 @@ onUnmounted(() => {
 }
 .lottery-live .commentary:empty {
   visibility: hidden;
-}
-.track {
-  position: relative;
-  display: grid;
-  grid-auto-flow: column;
-  grid-template-columns: repeat(var(--columns, 1), minmax(0, 1fr));
-  grid-template-rows: repeat(var(--rows, 1), var(--lane-h, 40px));
-  column-gap: 10px;
-  overflow: hidden;
-  border: 1px solid #86b49a;
-  border-radius: 16px;
-  background:
-    repeating-linear-gradient(90deg, transparent 0 59px, rgba(255, 255, 255, 0.35) 59px 60px),
-    linear-gradient(180deg, #d9f0e1, #c4e5cf);
-}
-.track:has(> .track-empty) {
-  display: block;
-}
-.track-empty {
-  text-align: center;
-}
-.lane {
-  position: relative;
-  display: flex;
-  align-items: center;
-  height: var(--lane-h, 40px);
-  border-bottom: 1px dashed rgba(15, 23, 42, 0.12);
-}
-.lane:last-child {
-  border-bottom: 0;
-}
-.lane-win {
-  background: rgba(245, 158, 11, 0.22);
-}
-.lane-name {
-  flex-shrink: 0;
-  width: 140px;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  padding: 0 8px;
-  overflow: hidden;
-  border-right: 2px solid rgba(15, 23, 42, 0.35);
-  background: rgba(255, 255, 255, 0.75);
-  font-size: var(--name-fs, 14px);
-  font-weight: 700;
-  line-height: 1;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.lane-run {
-  position: relative;
-  flex: 1;
-  height: 100%;
-}
-.finish {
-  position: absolute;
-  top: 0;
-  right: 26px;
-  bottom: 0;
-  width: 8px;
-  background: repeating-linear-gradient(180deg, #fff 0 6px, #111 6px 12px);
-  opacity: 0.85;
-}
-.horse {
-  position: absolute;
-  top: 50%;
-  left: 0;
-  z-index: 1;
-  font-size: calc(var(--lane-h, 40px) * 1.4);
-  line-height: 1;
-  transform: translate(0, -50%);
-  will-change: transform;
-}
-.horse-body {
-  display: inline-block;
-  transform: scaleX(-1);
-}
-.horse-fx {
-  position: absolute;
-  top: -55%;
-  left: 55%;
-  font-size: max(12px, 0.6em);
-  animation: lottery-bob 0.5s ease-in-out infinite alternate;
-}
-.horse-fx:empty {
-  display: none;
-}
-.gallop .horse-body {
-  animation: lottery-gallop 0.28s ease-in-out infinite alternate;
-}
-.fall .horse-body {
-  animation: lottery-tumble 0.35s ease-out forwards;
-}
-.sleep .horse-body {
-  transform: scaleX(-1) rotate(10deg);
-  filter: grayscale(0.5);
-}
-.eat .horse-body {
-  animation: lottery-nibble 0.22s ease-in-out infinite alternate;
-}
-.back .horse-body {
-  animation: lottery-gallop-back 0.24s ease-in-out infinite alternate;
-}
-.boost .horse-body {
-  animation: lottery-gallop 0.1s ease-in-out infinite alternate;
-  filter: drop-shadow(-6px 0 3px rgba(255, 120, 0, 0.8));
-}
-.place {
-  position: absolute;
-  top: 50%;
-  right: 2px;
-  transform: translateY(-50%);
-  padding: 1px 5px;
-  border-radius: 6px;
-  background: rgba(15, 23, 42, 0.75);
-  color: #fff;
-  font-size: var(--name-fs, 12px);
-  font-weight: 700;
-}
-.place-first {
-  background: #f59e0b;
-  color: #0f172a;
-}
-@keyframes lottery-gallop {
-  from {
-    transform: scaleX(-1) translateY(-2px) rotate(-4deg);
-  }
-  to {
-    transform: scaleX(-1) translateY(2px) rotate(4deg);
-  }
-}
-@keyframes lottery-gallop-back {
-  from {
-    transform: translateY(-2px) rotate(4deg);
-  }
-  to {
-    transform: translateY(2px) rotate(-4deg);
-  }
-}
-@keyframes lottery-tumble {
-  0% {
-    transform: scaleX(-1) rotate(0);
-  }
-  60% {
-    transform: scaleX(-1) rotate(-140deg) translateY(-3px);
-  }
-  100% {
-    transform: scaleX(-1) rotate(-115deg);
-  }
-}
-@keyframes lottery-nibble {
-  from {
-    transform: scaleX(-1) rotate(0);
-  }
-  to {
-    transform: scaleX(-1) rotate(22deg);
-  }
-}
-@keyframes lottery-bob {
-  from {
-    transform: translateY(0);
-  }
-  to {
-    transform: translateY(-3px);
-  }
-}
-.race-countdown {
-  position: fixed;
-  inset: 0;
-  z-index: 2100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-  color: #1d4ed8;
-  font-size: 112px;
-  font-weight: 800;
-  text-shadow: 0 0 30px rgba(29, 78, 216, 0.35);
-}
-.race-countdown span {
-  animation: lottery-pop 0.8s ease-out both;
-}
-@keyframes lottery-pop {
-  from {
-    transform: scale(2.2);
-    opacity: 0;
-  }
-  40% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  to {
-    transform: scale(0.9);
-    opacity: 0;
-  }
 }
 .confetti-layer {
   position: fixed;
@@ -1164,6 +846,11 @@ onUnmounted(() => {
   gap: 8px;
   margin-top: 20px;
 }
+@media (prefers-reduced-motion: reduce) {
+  .lottery-live.v-card {
+    animation: none;
+  }
+}
 @media (max-width: 900px) {
   .lottery-layout {
     grid-template-columns: minmax(0, 1fr);
@@ -1174,12 +861,8 @@ onUnmounted(() => {
   .lottery-dialog {
     padding: 16px;
   }
-  .lane-name {
-    width: 90px;
-    padding: 0 5px;
-  }
-  .icon-select {
-    flex: 1 1 100%;
+  .mode-picker {
+    grid-template-columns: minmax(0, 1fr);
   }
   .stage-head .v-btn {
     flex: 1 1 100%;
@@ -1191,8 +874,7 @@ onUnmounted(() => {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
       'head'
-      'commentary'
-      'leaders';
+      'commentary';
   }
   .lottery-live .now-prize {
     font-size: 20px;
@@ -1202,9 +884,6 @@ onUnmounted(() => {
     font-size: 24px;
     text-align: center;
   }
-  .leaders {
-    font-size: 15px;
-  }
   .result-name {
     font-size: 40px;
   }
@@ -1213,13 +892,6 @@ onUnmounted(() => {
   }
   .editor-grid {
     grid-template-columns: minmax(0, 1fr);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .horse-body,
-  .horse-fx,
-  .race-countdown span {
-    animation: none !important;
   }
 }
 </style>

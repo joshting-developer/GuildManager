@@ -20,46 +20,37 @@ export const RACE_ICONS = [
 ];
 
 // rate is how fast the runner's own clock moves during the mishap (0 = stopped).
+// Lines and effect icons live in lottery-commentary.js so they can match each animal.
 export const MISHAPS = {
   fall: {
     rate: 0,
     min: 1500,
     max: 2300,
-    fx: '💥',
     weight: 3,
-    say: ['{n} 馬失前蹄，摔個狗吃屎！', '{n} 跌倒了！快爬起來啊！', '{n} 的馬腳滑了一下…'],
   },
   sleep: {
     rate: 0,
     min: 1600,
     max: 2600,
-    fx: '💤',
     weight: 2,
-    say: ['{n} 跑到一半睡著了…', '{n}：讓我躺一下就好'],
   },
   eat: {
     rate: 0,
     min: 1300,
     max: 2100,
-    fx: '🌿',
     weight: 2,
-    say: ['{n} 停下來吃草', '{n}：這邊的草好香'],
   },
   back: {
     rate: 0,
     min: 2200,
     max: 3200,
-    fx: '❓',
     weight: 6,
-    say: ['{n} 跑錯方向了！', '{n} 好像忘了東西要回去拿'],
   },
   boost: {
     rate: 2.4,
     min: 1000,
     max: 1600,
-    fx: '🔥',
     weight: 3,
-    say: ['{n} 突然暴衝！', '{n} 是吃了什麼這麼猛？！', '{n} 開始認真了！'],
   },
 };
 

@@ -6,7 +6,7 @@ import {
   mdiSwordCross,
   mdiFileUploadOutline,
   mdiChartBoxOutline,
-  mdiHorseVariantFast,
+  mdiGiftOutline,
 } from '@mdi/js';
 import MonthCalendar from './MonthCalendar.vue';
 const emit = defineEmits(['open-page']);
@@ -55,10 +55,10 @@ const modules = [
   },
   {
     id: 'lottery',
-    title: '抽獎賽馬',
-    icon: mdiHorseVariantFast,
+    title: '抽獎活動',
+    icon: mdiGiftOutline,
     color: 'green',
-    description: '設定參加人員與獎品，用賽馬抽出得獎者。',
+    description: '賽馬、轉盤等多種玩法抽出得獎者。',
   },
 ];
 const openable = ['members', 'events', 'lineups', 'battle-upload', 'battle-records', 'lottery'];

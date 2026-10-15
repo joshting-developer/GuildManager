@@ -260,3 +260,58 @@ test('race plan always lets the saved winner finish first and keeps mishaps befo
   assert.equal(raceIcon('甲', 'zoo'), raceIcon('甲', 'zoo'));
   assert.equal(raceIcon('甲', 'missing'), '🏇');
 });
+
+test('race commentary matches each animal: no horse/grass lines for others, cars use only car lines', async () => {
+  const { RACE_ICONS } = await import('../src/domain/lottery-race.js');
+  const { commentary, commentaryLines, mishapFx, COMMENTARY_ANIMALS } =
+    await import('../src/domain/lottery-commentary.js');
+  const types = ['fall', 'sleep', 'eat', 'back', 'boost', 'lateStart', 'start', 'sprint', 'win'];
+  const animals = [...new Set(RACE_ICONS.flatMap((icon) => icon.set))];
+  for (const animal of animals) {
+    assert.ok(COMMENTARY_ANIMALS.includes(animal), `${animal} needs a commentary profile`);
+    for (const type of types) {
+      const lines = commentaryLines(type, animal);
+      assert.ok(lines.length, `${animal} ${type}`);
+      if (!['🏇', '🐎', '🐄'].includes(animal))
+        for (const line of lines) assert.doesNotMatch(line, /馬|草/, `${animal}: ${line}`);
+      for (let i = 0; i < 20; i++) {
+        const text = commentary(type, { name: '青衫', animal });
+        assert.doesNotMatch(text, /\{[na]\}/);
+      }
+    }
+    for (const type of ['fall', 'sleep', 'eat', 'back', 'boost']) assert.ok(mishapFx(type, animal));
+  }
+  const car = ['sleep', 'eat'].flatMap((type) => commentaryLines(type, '🏎️'));
+  assert.ok(car.every((line) => !/睡|吃|點心|珍奶/.test(line)));
+  assert.equal(mishapFx('eat', '🏎️'), '⛽');
+  assert.match(commentary('fall', { name: '白鹿', animal: '🐖', random: () => 0 }), /^白鹿 /);
+  assert.equal(
+    commentary('fall', { name: '白鹿', animal: '🐕', random: () => 0 }),
+    '白鹿 的狗狗腳滑了一下，芭比Q了',
+  );
+});
+
+test('wheel endings always land on the saved winner and twists first stop on someone else', async () => {
+  const { planWheel, sliceAt } = await import('../src/domain/lottery-wheel.js');
+  const counts = { normal: 0, extend: 0, bend: 0 };
+  for (const count of [1, 2, 3, 7, 24, 60]) {
+    for (let round = 0; round < 400; round++) {
+      const winner = round % count;
+      const plan = planWheel(count, winner);
+      // A single participant can only end normally; keep it out of the ratio check.
+      if (count > 1) counts[plan.ending]++;
+      assert.ok(plan.rotation >= 4 * 360, 'spins several full turns');
+      assert.equal(sliceAt(count, plan.rotation, plan.pointerAngle), winner);
+      assert.equal(plan.decoy, sliceAt(count, plan.rotation, 0));
+      if (plan.ending === 'normal') assert.equal(plan.decoy, winner);
+      else assert.notEqual(plan.decoy, winner, `${plan.ending} with ${count}`);
+      if (plan.ending === 'extend') assert.equal(plan.pointerAngle, 180);
+      if (plan.ending === 'bend' && count >= 24)
+        assert.ok(Math.abs(plan.pointerAngle) >= 20 && Math.abs(plan.pointerAngle) <= 65);
+      if (count === 1) assert.equal(plan.ending, 'normal');
+    }
+  }
+  const total = counts.normal + counts.extend + counts.bend;
+  assert.ok(counts.normal / total > 0.45 && counts.normal / total < 0.6, JSON.stringify(counts));
+  assert.ok(counts.extend > total * 0.18 && counts.bend > total * 0.18, JSON.stringify(counts));
+});
