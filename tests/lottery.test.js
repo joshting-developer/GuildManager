@@ -260,3 +260,33 @@ test('race plan always lets the saved winner finish first and keeps mishaps befo
   assert.equal(raceIcon('甲', 'zoo'), raceIcon('甲', 'zoo'));
   assert.equal(raceIcon('甲', 'missing'), '🏇');
 });
+
+test('race commentary matches each animal: no horse/grass lines for others, cars use only car lines', async () => {
+  const { RACE_ICONS } = await import('../src/domain/lottery-race.js');
+  const { commentary, commentaryLines, mishapFx, COMMENTARY_ANIMALS } =
+    await import('../src/domain/race-commentary.js');
+  const types = ['fall', 'sleep', 'eat', 'back', 'boost', 'lateStart', 'start', 'sprint', 'win'];
+  const animals = [...new Set(RACE_ICONS.flatMap((icon) => icon.set))];
+  for (const animal of animals) {
+    assert.ok(COMMENTARY_ANIMALS.includes(animal), `${animal} needs a commentary profile`);
+    for (const type of types) {
+      const lines = commentaryLines(type, animal);
+      assert.ok(lines.length, `${animal} ${type}`);
+      if (!['🏇', '🐎', '🐄'].includes(animal))
+        for (const line of lines) assert.doesNotMatch(line, /馬|草/, `${animal}: ${line}`);
+      for (let i = 0; i < 20; i++) {
+        const text = commentary(type, { name: '青衫', animal });
+        assert.doesNotMatch(text, /\{[na]\}/);
+      }
+    }
+    for (const type of ['fall', 'sleep', 'eat', 'back', 'boost']) assert.ok(mishapFx(type, animal));
+  }
+  const car = ['sleep', 'eat'].flatMap((type) => commentaryLines(type, '🏎️'));
+  assert.ok(car.every((line) => !/睡|吃|點心|珍奶/.test(line)));
+  assert.equal(mishapFx('eat', '🏎️'), '⛽');
+  assert.match(commentary('fall', { name: '白鹿', animal: '🐖', random: () => 0 }), /^白鹿 /);
+  assert.equal(
+    commentary('fall', { name: '白鹿', animal: '🐕', random: () => 0 }),
+    '白鹿 的狗狗腳滑了一下，芭比Q了',
+  );
+});

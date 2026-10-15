@@ -12,9 +12,9 @@ import {
 import { createLotteryClient } from '../api/lottery.js';
 import { createMemberClient } from '../api/members.js';
 import { LOTTERY_MAX_PLAYERS, LOTTERY_MAX_PRIZES, lotteryRunners } from '../domain/lottery.js';
+import { commentary as raceLine, mishapFx } from '../domain/race-commentary.js';
 import {
   AFTER_MS,
-  MISHAPS,
   RACE_ICONS,
   RACE_MS,
   horseClock,
@@ -39,7 +39,7 @@ const racing = ref(false),
   live = ref(false),
   lanes = ref([]),
   commentary = ref(''),
-  leaders = ref([]),
+  leader = ref(''),
   countdownText = ref('');
 const result = ref(null),
   resultOpen = ref(false),
@@ -226,10 +226,11 @@ async function startRace() {
 function runRace(names, winner, prizeName) {
   live.value = true;
   showLanes(names);
-  leaders.value = [];
+  leader.value = '';
   commentary.value = '各就各位…';
   const { plans, rank } = planRace(names, winner);
-  const pickLine = (lines) => lines[Math.floor(Math.random() * lines.length)];
+  // Each runner's own animal picks its lines, so 動物大亂鬥 mixes them naturally.
+  const animalOf = (name) => raceIcon(name, iconKey.value);
   let lastSay = -1e9,
     saidSprint = false,
     saidWin = false,
@@ -242,7 +243,7 @@ function runRace(names, winner, prizeName) {
   nextTick(() =>
     countdown(() => {
       lanes.value.forEach((lane) => (lane.state = 'gallop'));
-      say('比賽開始！', 0, true);
+      say(raceLine('start', { animal: iconKey.value === 'zoo' ? null : animalOf('') }), 0, true);
       const start = performance.now();
       const done = new Set();
       const step = (now) => {
@@ -265,11 +266,8 @@ function runRace(names, winner, prizeName) {
               } else state = event.type;
               if (!event.said) {
                 event.said = true;
-                const line =
-                  event.start === 0 && event.type === 'sleep'
-                    ? '{n} 起跑還在睡…'
-                    : pickLine(MISHAPS[event.type].say);
-                say(line.replace('{n}', name), t, false);
+                const type = event.start === 0 && event.type === 'sleep' ? 'lateStart' : event.type;
+                say(raceLine(type, { name, animal: animalOf(name) }), t, false);
               }
             }
           }
@@ -292,28 +290,33 @@ function runRace(names, winner, prizeName) {
         });
         if (now - lastBoard > 200) {
           lastBoard = now;
-          const top = positions
+          // Finished runners all sit at 1; their planned rank keeps the leader correct.
+          const first = positions
             .map((_x, index) => index)
-            // Finished runners all sit at 1; their planned rank keeps the podium correct.
-            .sort((a, b) => positions[b] - positions[a] || rank[names[a]] - rank[names[b]])
-            .slice(0, 3);
-          leaders.value = top.map((index) => names[index]);
-          if (!saidSprint && positions[top[0]] > 0.85) {
+            .reduce((best, index) =>
+              positions[index] > positions[best] ||
+              (positions[index] === positions[best] && rank[names[index]] < rank[names[best]])
+                ? index
+                : best,
+            );
+          leader.value = names[first];
+          if (!saidSprint && positions[first] > 0.85) {
             saidSprint = true;
-            say(`最後衝刺！${names[top[0]]} 暫時領先！`, t, true);
+            say(
+              raceLine('sprint', { name: names[first], animal: animalOf(names[first]) }),
+              t,
+              true,
+            );
           }
         }
         if (!saidWin && t >= RACE_MS) {
           saidWin = true;
-          say(`🏁 ${winner} 衝線奪冠！`, t, true);
+          say(raceLine('win', { name: winner, animal: animalOf(winner) }), t, true);
         }
         if (t < RACE_MS + AFTER_MS && done.size < names.length) frame = requestAnimationFrame(step);
         else {
           lanes.value.forEach((lane) => (lane.state = ''));
-          leaders.value = names
-            .slice()
-            .sort((a, b) => rank[a] - rank[b])
-            .slice(0, 3);
+          leader.value = winner;
           showResult(winner, prizeName);
         }
       };
@@ -340,7 +343,7 @@ function showResult(winner, prize) {
 function finishRace() {
   resultOpen.value = false;
   live.value = false;
-  leaders.value = [];
+  leader.value = '';
   commentary.value = '';
   racing.value = false;
   if (pendingBoard) applyBoard(pendingBoard);
@@ -535,6 +538,9 @@ onUnmounted(() => {
             <template v-if="selectedPrize || live">
               本場獎品：<strong>{{ selectedPrize?.name }}</strong>
               <span class="lottery-muted"> · {{ lanes.length }} 位參賽</span>
+              <span v-if="live && leader" class="now-leader">
+                · 目前領先：<strong>{{ leader }}</strong></span
+              >
             </template>
             <template v-else-if="prizes.length">獎品全部抽完了 🎉</template>
             <template v-else>尚未設定獎品</template>
@@ -563,11 +569,6 @@ onUnmounted(() => {
           >
         </div>
         <p class="commentary" aria-live="off">{{ commentary }}</p>
-        <p class="leaders" aria-live="off">
-          <span v-for="(name, index) in leaders" :key="index"
-            >{{ ['🥇', '🥈', '🥉'][index] }} {{ name }}</span
-          >
-        </p>
       </div>
       <p v-if="selectedPrize && !runners.length && !racing" class="lottery-state">
         所有參加人員都已經中獎了
@@ -592,7 +593,9 @@ onUnmounted(() => {
               aria-hidden="true"
             >
               <span class="horse-body">{{ raceIcon(lane.name, iconKey) }}</span
-              ><span class="horse-fx">{{ MISHAPS[lane.state]?.fx || '' }}</span>
+              ><span class="horse-fx">{{
+                mishapFx(lane.state, raceIcon(lane.name, iconKey))
+              }}</span>
             </div>
             <span v-if="lane.place" class="place" :class="{ 'place-first': lane.place === 1 }">{{
               lane.place === 1 ? '🏆' : `#${lane.place}`
@@ -835,16 +838,11 @@ onUnmounted(() => {
   font-size: 22px;
   font-weight: 700;
 }
-.leaders {
-  min-height: 28px;
-  margin: 0 0 10px;
-  font-size: 18px;
-  font-weight: 700;
-  color: #b45309;
-}
-.leaders span {
-  margin-right: 20px;
+.now-leader {
   white-space: nowrap;
+}
+.now-prize .now-leader strong {
+  color: #b45309;
 }
 /* During the race the stage fills the viewport so long rosters stay visible. */
 .lottery-live.v-card {
@@ -860,9 +858,7 @@ onUnmounted(() => {
 .lottery-live .stage-top {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
-  grid-template-areas:
-    'head commentary'
-    'leaders commentary';
+  grid-template-areas: 'head commentary';
   align-items: center;
   gap: 4px 24px;
   margin-bottom: 10px;
@@ -875,10 +871,6 @@ onUnmounted(() => {
   flex: none;
   font-size: 26px;
   font-weight: 700;
-}
-.lottery-live .leaders {
-  grid-area: leaders;
-  margin: 0;
 }
 /* Live play-by-play sits top-right in large type; a fixed two-line box keeps the track still. */
 .lottery-live .commentary {
@@ -1191,8 +1183,7 @@ onUnmounted(() => {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
       'head'
-      'commentary'
-      'leaders';
+      'commentary';
   }
   .lottery-live .now-prize {
     font-size: 20px;
@@ -1201,9 +1192,6 @@ onUnmounted(() => {
     justify-content: center;
     font-size: 24px;
     text-align: center;
-  }
-  .leaders {
-    font-size: 15px;
   }
   .result-name {
     font-size: 40px;
