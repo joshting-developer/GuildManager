@@ -290,3 +290,27 @@ test('race commentary matches each animal: no horse/grass lines for others, cars
     '白鹿 的狗狗腳滑了一下，芭比Q了',
   );
 });
+
+test('wheel endings always land on the saved winner and twists first stop on someone else', async () => {
+  const { planWheel, sliceAt } = await import('../src/domain/lottery-wheel.js');
+  const counts = { normal: 0, extend: 0, bend: 0 };
+  for (const count of [1, 2, 3, 7, 24, 60]) {
+    for (let round = 0; round < 400; round++) {
+      const winner = round % count;
+      const plan = planWheel(count, winner);
+      counts[plan.ending]++;
+      assert.ok(plan.rotation >= 5 * 360, 'spins several full turns');
+      assert.equal(sliceAt(count, plan.rotation, plan.pointerAngle), winner);
+      assert.equal(plan.decoy, sliceAt(count, plan.rotation, 0));
+      if (plan.ending === 'normal') assert.equal(plan.decoy, winner);
+      else assert.notEqual(plan.decoy, winner, `${plan.ending} with ${count}`);
+      if (plan.ending === 'extend') assert.equal(plan.pointerAngle, 180);
+      if (plan.ending === 'bend' && count >= 24)
+        assert.ok(Math.abs(plan.pointerAngle) >= 20 && Math.abs(plan.pointerAngle) <= 65);
+      if (count === 1) assert.equal(plan.ending, 'normal');
+    }
+  }
+  const total = counts.normal + counts.extend + counts.bend;
+  assert.ok(counts.normal / total > 0.45 && counts.normal / total < 0.6, JSON.stringify(counts));
+  assert.ok(counts.extend > total * 0.18 && counts.bend > total * 0.18, JSON.stringify(counts));
+});

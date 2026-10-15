@@ -193,3 +193,21 @@ export function mishapFx(type, animal) {
 }
 
 export const COMMENTARY_ANIMALS = Object.keys(PROFILES);
+
+// 轉盤播報：{n} = 得獎者，{d} = 指針一開始停到的人。翻轉時不調侃 {d}。
+const WHEEL_LINES = {
+  spin: ['命運的轉盤，開轉！', '轉盤轉起來啦！', '轉啊轉～～'],
+  slow: ['慢下來了……', '會是誰呢……', '心跳加速中……'],
+  stop: ['指針停在 {d}……', '是 {d}嗎？！'],
+  normal: ['🏁 恭喜 {n}！就是你了！', '🏁 {n} 中獎！命運選中了你！'],
+  extend: ['等等！指針怎麼變長了？！', '指針：我還沒伸展完', '指針開始長高了！'],
+  extendWin: ['🏁 指針一路伸到 {n}！', '🏁 長長長長的指針選了 {n}！'],
+  bend: ['指針：我覺得 {n} 比較好', '物理學不存在了', '指針突然彎腰了？！'],
+  bendWin: ['🏁 指針硬彎給 {n}！', '🏁 {n}：謝謝指針大大'],
+};
+
+export function wheelLine(type, { winner, decoy, random = Math.random } = {}) {
+  return pick(WHEEL_LINES[type], random)
+    .replace(/\{n\}/g, winner ?? '')
+    .replace(/\{d\}/g, decoy ?? '');
+}

@@ -10,6 +10,7 @@ import {
   mdiAccountMultiplePlus,
 } from '@mdi/js';
 import { createLotteryClient } from '../api/lottery.js';
+import LotteryWheel from './LotteryWheel.vue';
 import { createMemberClient } from '../api/members.js';
 import { LOTTERY_MAX_PLAYERS, LOTTERY_MAX_PRIZES, lotteryRunners } from '../domain/lottery.js';
 import { commentary as raceLine, mishapFx } from '../domain/race-commentary.js';
@@ -27,6 +28,11 @@ const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 const client = createLotteryClient({ source });
 const memberClient = createMemberClient({ source });
 const ICON_STORAGE_KEY = 'guild-lottery-icon';
+const MODE_STORAGE_KEY = 'guild-lottery-mode';
+const MODES = [
+  { title: '🏇 賽馬', value: 'race' },
+  { title: '🎡 轉盤', value: 'wheel' },
+];
 
 const board = ref(null),
   loading = ref(true),
@@ -45,6 +51,8 @@ const result = ref(null),
   resultOpen = ref(false),
   confetti = ref([]);
 const iconKey = ref(readIcon());
+const mode = ref(readMode());
+const wheel = ref(null);
 const track = ref(null);
 const horseElements = [],
   runElements = [];
@@ -109,6 +117,20 @@ function readIcon() {
     if (RACE_ICONS.some((icon) => icon.key === stored)) return stored;
   } catch {}
   return 'horse';
+}
+function readMode() {
+  try {
+    const stored = globalThis.localStorage?.getItem(MODE_STORAGE_KEY);
+    if (MODES.some((mode) => mode.value === stored)) return stored;
+  } catch {}
+  return 'race';
+}
+function pickMode(value) {
+  mode.value = value;
+  try {
+    globalThis.localStorage?.setItem(MODE_STORAGE_KEY, value);
+  } catch {}
+  if (!racing.value) nextTick(sizeTrack);
 }
 function pickIcon(key) {
   iconKey.value = key;
@@ -212,7 +234,9 @@ async function startRace() {
     }
     // Keep the saved result off the prize list until the race reveals it.
     pendingBoard = data.lottery;
-    runRace(shuffle(data.draw.runners), data.draw.winner, data.draw.prize);
+    if (mode.value === 'wheel')
+      runWheel(shuffle(data.draw.runners), data.draw.winner, data.draw.prize);
+    else runRace(shuffle(data.draw.runners), data.draw.winner, data.draw.prize);
   } catch (cause) {
     if (disposed) return;
     drawing.value = false;
@@ -324,6 +348,16 @@ function runRace(names, winner, prizeName) {
       frame = requestAnimationFrame(step);
     }),
   );
+}
+
+async function runWheel(names, winner, prizeName) {
+  live.value = true;
+  leader.value = '';
+  showLanes(names);
+  await nextTick();
+  if (disposed || !wheel.value) return;
+  await wheel.value.spin(names.indexOf(winner));
+  if (!disposed) showResult(winner, prizeName);
 }
 
 function showResult(winner, prize) {
@@ -456,7 +490,9 @@ onUnmounted(() => {
     <div>
       <p class="eyebrow">GUILD MANAGER <span class="eyebrow-divider">/</span> 幫會活動</p>
       <h1 id="lottery-title">抽獎賽馬<span class="heading-dot">.</span></h1>
-      <p class="page-subtitle">每個獎品跑一場，第一個衝線的人抽中；結果由伺服器先決定並保存。</p>
+      <p class="page-subtitle">
+        每個獎品抽一次，可選賽馬或轉盤；結果由伺服器先決定並保存，動畫只負責揭曉。
+      </p>
     </div>
     <v-btn variant="outlined" :prepend-icon="mdiRefresh" :disabled="loading || busy" @click="load"
       >重新載入</v-btn
@@ -548,6 +584,18 @@ onUnmounted(() => {
           </p>
           <v-select
             v-if="!live"
+            class="mode-select"
+            :model-value="mode"
+            :items="MODES"
+            label="玩法"
+            variant="outlined"
+            density="compact"
+            hide-details
+            :disabled="racing"
+            @update:model-value="pickMode"
+          />
+          <v-select
+            v-if="!live && mode === 'race'"
             class="icon-select"
             :model-value="iconKey"
             :items="RACE_ICONS.map((icon) => ({ title: icon.label, value: icon.key }))"
@@ -566,7 +614,7 @@ onUnmounted(() => {
             :loading="drawing"
             :disabled="!canStart"
             @click="startRace"
-            >開跑</v-btn
+            >{{ mode === 'wheel' ? '開轉' : '開跑' }}</v-btn
           >
         </div>
         <p class="commentary" aria-live="off">{{ commentary }}</p>
@@ -574,7 +622,14 @@ onUnmounted(() => {
       <p v-if="selectedPrize && !runners.length && !racing" class="lottery-state">
         所有參加人員都已經中獎了
       </p>
-      <div ref="track" class="track">
+      <LotteryWheel
+        v-if="mode === 'wheel'"
+        ref="wheel"
+        :names="lanes.map((lane) => lane.name)"
+        :live="live"
+        @say="commentary = $event"
+      />
+      <div v-else ref="track" class="track">
         <p v-if="!lanes.length" class="lottery-state track-empty">
           {{ board.players.length ? '沒有可參賽的人' : '尚無參加人員' }}
         </p>
@@ -832,6 +887,9 @@ onUnmounted(() => {
 }
 .icon-select {
   flex: 0 0 180px;
+}
+.mode-select {
+  flex: 0 0 130px;
 }
 .commentary {
   min-height: 34px;
@@ -1171,7 +1229,8 @@ onUnmounted(() => {
     width: 90px;
     padding: 0 5px;
   }
-  .icon-select {
+  .icon-select,
+  .mode-select {
     flex: 1 1 100%;
   }
   .stage-head .v-btn {
