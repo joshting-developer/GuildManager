@@ -315,3 +315,55 @@ test('wheel endings always land on the saved winner and twists first stop on som
   assert.ok(counts.normal / total > 0.45 && counts.normal / total < 0.6, JSON.stringify(counts));
   assert.ok(counts.extend > total * 0.18 && counts.bend > total * 0.18, JSON.stringify(counts));
 });
+
+test('GAS lottery client tolerates google.script.run dropping null fields', async () => {
+  const env = await gasRuntime();
+  env.setup();
+  const admin = cloudResult(
+    env.raw('login', [{ username: 'admin', password: 'initial-password-123' }]),
+  );
+  // Simulate the HTML Service transport omitting null-valued properties.
+  const dropNulls = (value) =>
+    Array.isArray(value)
+      ? value.map(dropNulls)
+      : value && typeof value === 'object'
+        ? Object.fromEntries(
+            Object.entries(value)
+              .filter(([, item]) => item !== null)
+              .map(([key, item]) => [key, dropNulls(item)]),
+          )
+        : value;
+  let success;
+  const googleRun = {
+    withSuccessHandler(fn) {
+      success = fn;
+      return this;
+    },
+    withFailureHandler() {
+      return this;
+    },
+  };
+  for (const [operation, arity] of [
+    ['getLottery', 0],
+    ['saveLottery', 1],
+    ['drawLotteryPrize', 1],
+  ])
+    googleRun[operation] = (...args) =>
+      success(dropNulls(env.raw(operation, args.slice(0, arity), args[arity])));
+  setGasSession(admin);
+  try {
+    const client = createLotteryClient({ source: 'gas', googleRun });
+    const saved = (
+      await client.saveLottery({ players: ['甲', '乙'], prizes: ['一獎', '二獎'], revision: 0 })
+    ).lottery;
+    assert.equal(saved.prizes[0].winner, null, 'missing winner is normalized to null');
+    assert.equal(saved.prizes[0].drawnAt, null);
+    const loaded = (await client.getLottery()).lottery;
+    assert.equal(loaded.prizes.length, 2);
+    const drawn = await client.drawPrize(saved.prizes[0].id);
+    assert.ok(['甲', '乙'].includes(drawn.draw.winner));
+    assert.equal(drawn.lottery.prizes[1].winner, null);
+  } finally {
+    setGasSession({ user: null });
+  }
+});
