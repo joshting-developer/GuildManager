@@ -61,7 +61,7 @@ const dateLabel = (date) => date.replace(/-/g, '/');
   padding: 24px;
 }
 .release-current {
-  border-color: #1d4ed8;
+  border-color: var(--color-primary);
 }
 .release-head {
   display: flex;
@@ -76,8 +76,8 @@ const dateLabel = (date) => date.replace(/-/g, '/');
 .release-badge {
   padding: 2px 10px;
   border-radius: 999px;
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: var(--color-info-surface);
+  color: var(--color-primary);
   font-size: 12px;
   font-weight: 600;
 }

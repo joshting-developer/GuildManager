@@ -177,12 +177,14 @@ async function start() {
   // Let the stage render the drawn runners in full-screen before it starts.
   await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve)));
   if (disposed || !stage.value) return;
-  await stage.value.play(names.indexOf(data.draw.winner));
-  if (!disposed) showResult(data.draw.winner, data.draw.prize);
+  const outcome = await stage.value.play(names.indexOf(data.draw.winner));
+  if (!disposed) showResult(data.draw.winner, data.draw.prize, outcome);
 }
 
-function showResult(winner, prize) {
-  result.value = { winner, prize };
+// The fairness note would spoil the wheel's tricks if shown up front, so it only
+// appears in the result after the pointer actually misbehaved.
+function showResult(winner, prize, outcome) {
+  result.value = { winner, prize, twist: Boolean(outcome?.ending && outcome.ending !== 'normal') };
   resultOpen.value = true;
   const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   if (reduce) return;
@@ -298,9 +300,6 @@ onUnmounted(() => {
     <div>
       <p class="eyebrow">GUILD MANAGER <span class="eyebrow-divider">/</span> 幫會活動</p>
       <h1 id="lottery-title">抽獎活動<span class="heading-dot">.</span></h1>
-      <p class="page-subtitle">
-        選一種玩法，每個獎品抽一次；結果由伺服器先決定並保存，動畫只負責揭曉。
-      </p>
     </div>
     <v-btn variant="outlined" :prepend-icon="mdiRefresh" :disabled="loading || busy" @click="load"
       >重新載入</v-btn
@@ -462,6 +461,13 @@ onUnmounted(() => {
       <p class="result-prize">
         抽中 <strong>{{ result?.prize }}</strong>
       </p>
+      <p v-if="result?.twist" class="fair-notice" role="note">
+        <span class="fair-badge">⚖️ 公平聲明</span>
+        我真的沒改程式碼，也沒偷調權重，<br />
+        得獎者是系統亂數抽的，每個人機率一模一樣，<br />
+        指針會變長、會彎、會斷，那是指針自己的問題，<br />
+        跟我無關，有意見請找指針，恭喜中獎的朋友！
+      </p>
       <v-btn color="primary" size="large" @click="finish">請大家恭喜他！</v-btn>
     </v-card>
   </v-dialog>
@@ -556,6 +562,24 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.fair-notice {
+  margin: -8px 0 24px;
+  text-align: left;
+  padding: 10px 14px;
+  border: 1px solid var(--color-info-border);
+  border-radius: 12px;
+  background: var(--color-info-surface);
+  color: var(--color-text-secondary);
+  font-size: 16px;
+  line-height: 1.8;
+}
+.fair-badge {
+  margin-right: 8px;
+  font-size: 17px;
+  color: var(--color-primary);
+  font-weight: 700;
+  white-space: nowrap;
+}
 .lottery-layout {
   display: grid;
   grid-template-columns: 300px minmax(0, 1fr);
@@ -595,7 +619,7 @@ onUnmounted(() => {
   padding: 8px 12px;
   border: 1px solid var(--color-border);
   border-radius: 12px;
-  background: #fff;
+  background: var(--color-surface);
   color: inherit;
   font: inherit;
   text-align: left;
@@ -605,19 +629,19 @@ onUnmounted(() => {
     background 0.15s ease;
 }
 .prize-item:hover:not(:disabled) {
-  border-color: #93c5fd;
+  border-color: var(--color-info-border-strong);
 }
 .prize-item:focus-visible {
-  outline: 2px solid #1d4ed8;
+  outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
 .prize-selected {
-  border-color: #1d4ed8;
-  background: #eff6ff;
+  border-color: var(--color-primary);
+  background: var(--color-info-surface);
 }
 .prize-done {
   cursor: default;
-  background: #f8fafc;
+  background: var(--color-surface-subtle);
 }
 .prize-done .prize-name {
   color: var(--color-text-muted);
@@ -640,7 +664,7 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: #b45309;
+  color: var(--color-warning);
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
@@ -659,7 +683,7 @@ onUnmounted(() => {
   font-size: 17px;
 }
 .now-prize strong {
-  color: #1d4ed8;
+  color: var(--color-primary);
 }
 .mode-picker {
   display: grid;
@@ -675,7 +699,7 @@ onUnmounted(() => {
   padding: 12px 16px;
   border: 1px solid var(--color-border);
   border-radius: 16px;
-  background: #fff;
+  background: var(--color-surface);
   color: inherit;
   font: inherit;
   text-align: left;
@@ -685,15 +709,15 @@ onUnmounted(() => {
     background 0.15s ease;
 }
 .mode-card:hover:not(:disabled) {
-  border-color: #93c5fd;
+  border-color: var(--color-info-border-strong);
 }
 .mode-card:focus-visible {
-  outline: 2px solid #1d4ed8;
+  outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
 .mode-active {
-  border-color: #1d4ed8;
-  background: #eff6ff;
+  border-color: var(--color-primary);
+  background: var(--color-info-surface);
 }
 .mode-emoji {
   font-size: 34px;
@@ -717,7 +741,7 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 .now-prize .now-leader strong {
-  color: #b45309;
+  color: var(--color-warning);
 }
 /* During the race the stage fills the viewport so long rosters stay visible. */
 .lottery-live.v-card {
@@ -767,10 +791,10 @@ onUnmounted(() => {
   min-height: 2.6em;
   margin: 0;
   padding: 6px 20px;
-  border: 1px solid #bfdbfe;
+  border: 1px solid var(--color-info-border);
   border-radius: 16px;
-  background: #eff6ff;
-  color: #0f172a;
+  background: var(--color-info-surface);
+  color: var(--color-text);
   font-size: 38px;
   line-height: 1.25;
   text-align: right;
@@ -811,7 +835,7 @@ onUnmounted(() => {
 }
 .result-name {
   margin: 12px 0 8px;
-  color: #b45309;
+  color: var(--color-warning);
   font-size: 56px;
   font-weight: 800;
   line-height: 1.15;

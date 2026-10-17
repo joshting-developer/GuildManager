@@ -24,6 +24,10 @@ import { zhHant } from 'vuetify/locale';
 import 'vuetify/styles';
 import './styles.css';
 import App from './App.vue';
+import { VUETIFY_THEMES, applyDocumentTheme, readTheme } from './theme.js';
+
+const initialTheme = readTheme();
+applyDocumentTheme(initialTheme);
 
 const vuetify = createVuetify({
   components: {
@@ -48,7 +52,7 @@ const vuetify = createVuetify({
   icons: { defaultSet: 'mdi', aliases, sets: { mdi } },
   locale: { locale: 'zhHant', messages: { zhHant } },
   theme: {
-    defaultTheme: 'guild',
+    defaultTheme: VUETIFY_THEMES[initialTheme],
     themes: {
       guild: {
         dark: false,
@@ -58,6 +62,22 @@ const vuetify = createVuetify({
           primary: '#1d4ed8',
           'on-background': '#0f172a',
           'on-surface': '#0f172a',
+        },
+      },
+      guildDark: {
+        dark: true,
+        colors: {
+          background: '#151e2e',
+          surface: '#1c2639',
+          // Light blue reads on dark surfaces both as text and as a filled button.
+          primary: '#60a5fa',
+          'on-primary': '#0f172a',
+          error: '#f87171',
+          success: '#34d399',
+          warning: '#fbbf24',
+          info: '#60a5fa',
+          'on-background': '#e2e8f0',
+          'on-surface': '#e2e8f0',
         },
       },
     },

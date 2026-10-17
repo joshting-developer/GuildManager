@@ -215,7 +215,7 @@ onUnmounted(() => { loadToken++; });
 .team-analysis-controls .v-select { flex: 0 0 300px; }
 .team-analysis-table { min-width: 1060px; }
 .team-analysis-table th:first-child { min-width: 180px; position: sticky; left: 0; z-index: 1; }
-.team-analysis-player { background: white; text-align: left; font-weight: 400; overflow-wrap: anywhere; max-width: 230px; }
+.team-analysis-player { background: var(--color-surface); text-align: left; font-weight: 400; overflow-wrap: anywhere; max-width: 230px; }
 .team-analysis-player strong { display: block; color: var(--color-text); }
 .team-analysis-player span, .team-analysis-percent { display: block; color: var(--color-text-muted); font-size: 12px; font-weight: 400; line-height: 1.7; }
 .team-analysis-section-title { font-size: 18px; margin-bottom: 12px; }

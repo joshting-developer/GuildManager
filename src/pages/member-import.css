@@ -59,8 +59,8 @@
   overflow-wrap: anywhere;
 }
 .import-errors {
-  background: #fef2f2;
-  color: #b91c1c;
+  background: var(--color-danger-surface);
+  color: var(--color-danger);
   border-radius: 12px;
   padding: 16px;
   font-size: 14px;
@@ -92,7 +92,7 @@
 }
 .import-action.add,
 .import-action.restore {
-  color: #047857;
+  color: var(--color-success);
 }
 .import-action.skip {
   color: var(--color-text-muted);

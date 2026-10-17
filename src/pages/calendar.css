@@ -49,7 +49,7 @@
   cursor: pointer;
 }
 .calendar-create-date:hover:not(:disabled) {
-  background: #dbeafe;
+  background: var(--color-info-border);
 }
 .calendar-create-date:focus-visible {
   outline-offset: -3px;
@@ -84,18 +84,18 @@
   font-variant-numeric: tabular-nums;
 }
 .calendar-outside {
-  background: #fafbfc;
+  background: var(--color-surface-subtle);
 }
 .calendar-outside time {
   color: var(--color-text-muted);
   font-weight: 400;
 }
 .calendar-today {
-  background: #eff6ff;
+  background: var(--color-info-surface);
 }
 .calendar-today time {
-  background: var(--color-primary);
-  color: #fff;
+  background: var(--color-primary-strong);
+  color: var(--color-on-primary);
   border-radius: 50%;
 }
 .calendar-today-label {
@@ -158,14 +158,14 @@
   font-weight: 600;
 }
 .date-choice:hover:not(:disabled):not(.date-selected) {
-  background: #dbeafe;
+  background: var(--color-info-border);
 }
 .date-choice.date-selected {
-  background: var(--color-primary);
-  color: white;
+  background: var(--color-primary-strong);
+  color: var(--color-on-primary);
 }
 .date-choice.date-selected:hover:not(:disabled) {
-  background: #1e40af;
+  background: var(--color-primary-strong);
 }
 .calendar-outside .date-choice:not(.date-selected) {
   color: var(--color-text-muted);
@@ -197,20 +197,20 @@
   border-radius: 5px;
   margin-top: 3px;
   font-size: 12px;
-  color: #5b21b6;
-  background: #f5f3ff;
+  color: var(--color-violet);
+  background: var(--color-violet-surface);
 }
 .calendar-event-label.scrimmage {
-  color: #9a3412;
-  background: #fff7ed;
+  color: var(--color-orange);
+  background: var(--color-orange-surface);
 }
 .calendar-event-label.guild_war {
-  color: #1d4ed8;
-  background: #eff6ff;
+  color: var(--color-primary);
+  background: var(--color-info-surface);
 }
 .calendar-event-label.dragon_tiger {
-  color: #047857;
-  background: #ecfdf5;
+  color: var(--color-success);
+  background: var(--color-success-surface);
 }
 .calendar-event-more,
 .calendar-event-count {
@@ -251,12 +251,12 @@
   align-items: flex-start;
   justify-content: center;
   padding: min(18vh, 140px) 16px 16px;
-  background: rgb(247 249 252 / 85%);
+  background: var(--color-scrim);
   border-radius: 16px;
 }
 .calendar-loading-overlay .data-loading {
   min-height: 96px;
-  background: #ffffff;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 16px;
   box-shadow: 0 4px 16px rgb(15 23 42 / 6%);
