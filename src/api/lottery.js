@@ -14,7 +14,7 @@ export function createLotteryClient({
         : await http(method, path, input);
     if (!validBoard(data?.lottery) || (operation === 'drawLotteryPrize' && !validDraw(data.draw)))
       throw new Error('抽獎資料回應格式不正確，請重新載入');
-    return data;
+    return { ...data, lottery: normalizeBoard(data.lottery) };
   }
   async function http(method, path, input) {
     let response;
@@ -53,10 +53,21 @@ export function createLotteryClient({
           prize &&
           typeof prize.id === 'string' &&
           typeof prize.name === 'string' &&
-          (prize.winner === null || typeof prize.winner === 'string'),
+          // google.script.run may drop null-valued fields, so a missing winner means undrawn.
+          (prize.winner == null || typeof prize.winner === 'string'),
       ) &&
       Number.isSafeInteger(board.revision)
     );
+  }
+  function normalizeBoard(board) {
+    return {
+      ...board,
+      prizes: board.prizes.map((prize) => ({
+        ...prize,
+        winner: prize.winner ?? null,
+        drawnAt: prize.drawnAt ?? null,
+      })),
+    };
   }
   function validDraw(draw) {
     return (
