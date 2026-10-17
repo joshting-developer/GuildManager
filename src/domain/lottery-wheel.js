@@ -2,10 +2,15 @@
 // Angles are degrees clockwise from the pointer at 12 o'clock.
 
 // Endings are presentation only; every one of them finishes on the saved winner.
+// Normal 50%, each twist 10%. Twists vary in direction and distance so viewers can't
+// learn where the pointer will end up.
 export const WHEEL_ENDINGS = [
-  { key: 'normal', weight: 2 },
-  { key: 'extend', weight: 1 },
-  { key: 'bend', weight: 1 },
+  { key: 'normal', weight: 5 },
+  { key: 'fake', weight: 1 }, // scare: shakes and trembles, then stays put
+  { key: 'extend', weight: 1 }, // pointer stretches through the centre to the far side
+  { key: 'bend', weight: 1 }, // pointer bends a short or long way to either side
+  { key: 'slip', weight: 1 }, // wheel creeps on or rolls back a few slices
+  { key: 'break', weight: 1 }, // pointer snaps; a new one drops in anywhere
 ];
 export const WHEEL_SPIN_MS = 8000;
 // Share of the spin spent speeding up from standstill, so it never starts at full speed.
@@ -15,7 +20,9 @@ const mod = (value, base) => ((value % base) + base) % base;
 
 function pickEnding(count, random) {
   // A twist needs someone else on the wheel to stop on first.
-  const options = WHEEL_ENDINGS.filter((ending) => count > 1 || ending.key === 'normal');
+  const options = WHEEL_ENDINGS.filter(
+    (ending) => count > 1 || ['normal', 'fake'].includes(ending.key),
+  );
   let roll = random() * options.reduce((sum, ending) => sum + ending.weight, 0);
   for (const ending of options) {
     roll -= ending.weight;
@@ -25,39 +32,52 @@ function pickEnding(count, random) {
 }
 
 /**
- * Plans where the wheel stops and how the pointer then moves.
- * - normal: the winner's slice stops under the pointer.
- * - extend: the winner sits opposite; the pointer stretches through the centre.
- * - bend: the winner sits a few slices aside (25–60°); the pointer bends to it.
- * `decoy` is whoever the pointer first appears to land on.
+ * Plans where the wheel stops and how the reveal then plays.
+ * The wheel first stops at `stopRotation` with `decoy` under the pointer; the reveal
+ * ends with the wheel at `rotation` and the pointer at screen angle `pointerAngle`,
+ * which is always over the saved winner.
  */
-export function planWheel(count, winnerIndex, random = Math.random, { turns } = {}) {
+export function planWheel(
+  count,
+  winnerIndex,
+  random = Math.random,
+  { turns, ending: forced } = {},
+) {
   if (!Number.isSafeInteger(count) || count < 1) throw new Error('轉盤至少需要一位參加者');
   const slice = 360 / count;
   const center = (index) => index * slice + slice / 2;
-  const ending = pickEnding(count, random);
-  let target, pointerAngle;
+  const ending =
+    forced && WHEEL_ENDINGS.some((item) => item.key === forced) && (count > 1 || forced === 'fake')
+      ? forced
+      : pickEnding(count, random);
+  const side = () => (random() < 0.5 ? -1 : 1);
+  // A small offset inside the slice so stops don't look machine-perfect.
+  const jitter = () => (random() - 0.5) * slice * 0.6;
+  let target = jitter(),
+    pointerAngle = 0,
+    slipSlices = 0;
   if (ending === 'extend') {
-    target = 180;
-    pointerAngle = 180;
+    target = pointerAngle = 180;
   } else if (ending === 'bend') {
     const steps = Math.max(
       1,
-      Math.min(Math.floor(count / 2), Math.round((25 + random() * 35) / slice)),
+      Math.min(Math.floor(count / 2), Math.round((25 + random() * 125) / slice)),
     );
-    pointerAngle = (random() < 0.5 ? -1 : 1) * steps * slice;
-    target = pointerAngle;
-  } else {
-    // A small offset inside the slice so normal stops don't look machine-perfect.
-    target = (random() - 0.5) * slice * 0.6;
-    pointerAngle = 0;
+    target = pointerAngle = side() * steps * slice;
+  } else if (ending === 'break') {
+    // Any other slice, so the replacement pointer can land anywhere around the wheel.
+    target = pointerAngle = (1 + Math.floor(random() * (count - 1))) * slice;
+  } else if (ending === 'slip') {
+    slipSlices = side() * Math.max(1, Math.min(count - 1, 1 + Math.floor(random() * 3)));
   }
   // Wheel rotation R puts the winner's centre at `target`: center(w) + R ≡ target.
   const rest = mod(target - center(winnerIndex), 360);
   const fullTurns = turns ?? 4 + Math.floor(random() * 2);
   const rotation = fullTurns * 360 + rest;
-  const decoy = sliceAt(count, rotation, 0);
-  return { ending, rotation, pointerAngle, decoy, winner: winnerIndex, slice };
+  // Slip stops short (or overshoots) by whole slices, then rolls onto the winner.
+  const stopRotation = rotation - slipSlices * slice;
+  const decoy = sliceAt(count, stopRotation, 0);
+  return { ending, stopRotation, rotation, pointerAngle, decoy, winner: winnerIndex, slice };
 }
 
 // Which slice is under screen angle `angle` when the wheel is turned by `rotation`.

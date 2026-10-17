@@ -48,7 +48,8 @@ const slices = computed(() => {
   const count = props.names.length;
   if (!count) return [];
   const size = 360 / count;
-  const fontSize = Math.max(12, Math.min(40, ((2 * Math.PI * RADIUS * 0.62) / count) * 0.6));
+  // Size labels to the slice's width at the label radius, so small rosters get big names.
+  const fontSize = Math.max(14, Math.min(52, ((2 * Math.PI * RADIUS * 0.6) / count) * 0.8));
   const maxChars = Math.max(2, Math.floor((RADIUS * 0.72) / fontSize));
   return props.names.map((name, index) => {
     const start = index * size,
@@ -89,7 +90,11 @@ function setPointer(tipAngle, tipRadius, bendAmount = 0) {
   pointerPath.value?.setAttribute('d', `M${CX},${BASE_Y} Q${CX},${controlY} ${tx},${ty}`);
 }
 function setTilt(degrees) {
-  pointerGroup.value?.setAttribute('transform', `rotate(${degrees} ${CX} ${BASE_Y})`);
+  setPointerGroup(`rotate(${degrees} ${CX} ${BASE_Y})`);
+}
+function setPointerGroup(transform, opacity = 1) {
+  pointerGroup.value?.setAttribute('transform', transform);
+  pointerGroup.value?.setAttribute('opacity', String(opacity));
 }
 function reset() {
   cancelAnimationFrame(frame);
@@ -142,7 +147,7 @@ async function play(winnerIndex) {
     lastAngle = 0,
     saidSlow = false;
   await animate(fast ? 2500 : WHEEL_SPIN_MS, (progress) => {
-    const angle = plan.rotation * wheelEase(progress);
+    const angle = plan.stopRotation * wheelEase(progress);
     setRotation(angle);
     const speed = angle - lastAngle;
     lastAngle = angle;
@@ -164,15 +169,70 @@ async function play(winnerIndex) {
   emit('say', wheelLine('stop', { decoy }));
   await wait(fast ? 500 : 1100);
 
-  if (plan.ending === 'normal') {
+  const reveal = (key) => {
+    bubble.value = '';
+    if (plan.decoy !== winnerIndex) lost.value = plan.decoy;
+    landed.value = -1;
     winnerSlice.value = winnerIndex;
-    emit('say', wheelLine('normal', { winner }));
-  } else {
+    emit('say', wheelLine(key, { winner }));
+  };
+  const jolt = (mark) => {
     if (!fast) {
       shaking.value = true;
       wait(500).then(() => (shaking.value = false));
     }
-    bubble.value = plan.ending === 'extend' ? '!?' : '?!';
+    if (mark) bubble.value = mark;
+  };
+
+  if (plan.ending === 'normal') {
+    reveal('normal');
+  } else if (plan.ending === 'fake') {
+    // Every cue of a twist, then nothing changes: "!?" no longer gives the result away.
+    jolt('!?');
+    emit('say', wheelLine('fake'));
+    await animate(fast ? 300 : 1400, (p) => setTilt(Math.sin(p * Math.PI * 12) * 9 * (1 - p)));
+    setTilt(0);
+    await wait(fast ? 200 : 500);
+    reveal('fakeWin');
+  } else if (plan.ending === 'slip') {
+    emit('say', wheelLine('slip', { winner, decoy }));
+    await wait(fast ? 200 : 600);
+    let lastSlice = sliceAt(count, plan.stopRotation);
+    await animate(fast ? 300 : 1100, (p) => {
+      const eased = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+      const angle = plan.stopRotation + (plan.rotation - plan.stopRotation) * eased;
+      setRotation(angle);
+      const current = sliceAt(count, angle);
+      setTilt(current !== lastSlice ? 14 : 0);
+      lastSlice = current;
+    });
+    setRotation(plan.rotation);
+    setTilt(0);
+    reveal('slipWin');
+  } else if (plan.ending === 'break') {
+    jolt('!?');
+    emit('say', wheelLine('break', { winner, decoy }));
+    await wait(fast ? 200 : 500);
+    // The old pointer drops off the top; a new one falls in over the winner, anywhere.
+    await animate(fast ? 300 : 800, (p) =>
+      setPointerGroup(
+        `translate(${p * 70} ${p * p * 700}) rotate(${p * 95} ${CX} ${BASE_Y})`,
+        1 - p,
+      ),
+    );
+    setPointer(0, TIP);
+    await wait(fast ? 100 : 400);
+    await animate(fast ? 300 : 900, (p) => {
+      const drop = (1 - springy(p)) * 320;
+      setPointerGroup(
+        `rotate(${plan.pointerAngle} ${CX} ${CY}) translate(0 ${-drop})`,
+        Math.min(1, p * 2),
+      );
+    });
+    setPointerGroup(`rotate(${plan.pointerAngle} ${CX} ${CY})`);
+    reveal('breakWin');
+  } else {
+    jolt(plan.ending === 'extend' ? '!?' : '?!');
     emit('say', wheelLine(plan.ending, { winner, decoy }));
     await wait(fast ? 300 : 700);
     if (plan.ending === 'extend') {
@@ -190,11 +250,7 @@ async function play(winnerIndex) {
       });
       setPointer(plan.pointerAngle, TIP, 1);
     }
-    bubble.value = '';
-    lost.value = plan.decoy;
-    landed.value = -1;
-    winnerSlice.value = winnerIndex;
-    emit('say', wheelLine(plan.ending === 'extend' ? 'extendWin' : 'bendWin', { winner }));
+    reveal(plan.ending === 'extend' ? 'extendWin' : 'bendWin');
   }
   await wait(fast ? 600 : 1400);
   zoom.value = false;
