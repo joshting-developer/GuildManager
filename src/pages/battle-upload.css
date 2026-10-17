@@ -58,7 +58,7 @@
 .battle-dropzone {
   width: 100%;
   min-height: 170px;
-  border: 2px dashed #cbd5e1;
+  border: 2px dashed var(--color-border-strong);
   border-radius: 16px;
   background: var(--color-muted-surface);
   padding: 24px;
@@ -83,7 +83,7 @@
 }
 .battle-dropzone:hover:not(:disabled),
 .battle-drop-active {
-  background: #eff6ff;
+  background: var(--color-info-surface);
   border-color: var(--color-primary);
 }
 .battle-dropzone:focus-visible {
@@ -203,7 +203,7 @@
   overflow-wrap: anywhere;
 }
 .battle-record-table > tbody > tr:hover {
-  background: #f8fafc;
+  background: var(--color-surface-subtle);
 }
 .battle-player-table {
   min-width: 1050px;

@@ -274,7 +274,7 @@ onUnmounted(() => {
   overflow-wrap: anywhere;
 }
 .videos-table th {
-  background: #f8fafc;
+  background: var(--color-surface-subtle);
   color: var(--color-text-muted);
   font-weight: 600;
 }

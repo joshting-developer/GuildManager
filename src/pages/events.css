@@ -79,20 +79,20 @@
   font-size: 12px;
   padding: 4px 10px;
   border-radius: 8px;
-  color: #5b21b6;
-  background: #f5f3ff;
+  color: var(--color-violet);
+  background: var(--color-violet-surface);
 }
 .event-type.scrimmage {
-  color: #9a3412;
-  background: #fff7ed;
+  color: var(--color-orange);
+  background: var(--color-orange-surface);
 }
 .event-type.guild_war {
-  color: #1d4ed8;
-  background: #eff6ff;
+  color: var(--color-primary);
+  background: var(--color-info-surface);
 }
 .event-type.dragon_tiger {
-  color: #047857;
-  background: #ecfdf5;
+  color: var(--color-success);
+  background: var(--color-success-surface);
 }
 .event-date-list {
   display: flex;
@@ -160,7 +160,7 @@
   color: var(--color-text-muted);
 }
 .event-field-error {
-  color: #b91c1c;
+  color: var(--color-danger);
   font-size: 13px;
   margin-bottom: 12px;
 }

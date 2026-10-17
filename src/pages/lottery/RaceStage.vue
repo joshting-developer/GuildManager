@@ -295,6 +295,15 @@ defineExpose({ play });
     repeating-linear-gradient(90deg, transparent 0 59px, rgba(255, 255, 255, 0.35) 59px 60px),
     linear-gradient(180deg, #d9f0e1, #c4e5cf);
 }
+:root[data-theme='dark'] .track {
+  border-color: #3f6b52;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 59px, rgba(255, 255, 255, 0.08) 59px 60px),
+    linear-gradient(180deg, #24432f, #1d3828);
+}
+:root[data-theme='dark'] .lane {
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
 .track:has(> .track-empty) {
   display: block;
 }
@@ -326,6 +335,8 @@ defineExpose({ play });
   overflow: hidden;
   border-right: 2px solid rgba(15, 23, 42, 0.35);
   background: rgba(255, 255, 255, 0.75);
+  /* The track art stays light in both themes, so its labels keep dark text. */
+  color: #0f172a;
   font-size: var(--name-fs, 14px);
   font-weight: 700;
   line-height: 1;

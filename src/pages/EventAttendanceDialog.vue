@@ -273,7 +273,7 @@ onUnmounted(() => {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  border: 1px solid #0002;
+  border: 1px solid var(--color-border-strong);
   flex-shrink: 0;
 }
 .attendance-note {

@@ -27,7 +27,7 @@ defineProps({
   flex: 0 0 auto;
   width: 28px;
   height: 28px;
-  border: 3px solid #dbeafe;
+  border: 3px solid var(--color-info-border);
   border-top-color: var(--color-primary, #1d4ed8);
   border-radius: 50%;
   animation: data-loading-spin 0.8s linear infinite;

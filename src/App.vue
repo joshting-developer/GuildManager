@@ -1,5 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick, provide, watch } from 'vue';
+import { useTheme } from 'vuetify';
+import { VUETIFY_THEMES, applyDocumentTheme, readTheme, saveTheme } from './theme.js';
 import {
   mdiSwordCross,
   mdiViewDashboardOutline,
@@ -14,6 +16,8 @@ import {
   mdiVideoOutline,
   mdiGiftOutline,
   mdiHistory,
+  mdiWeatherNight,
+  mdiWhiteBalanceSunny,
 } from '@mdi/js';
 import { createAuthClient } from './api/auth.js';
 import { createPlatformSettingsClient } from './api/platform-settings.js';
@@ -38,6 +42,14 @@ import LotteryPage from './pages/lottery/LotteryPage.vue';
 import ReleaseNotesPage from './pages/ReleaseNotesPage.vue';
 
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
+const vuetifyTheme = useTheme();
+const colorTheme = ref(readTheme());
+function toggleTheme() {
+  colorTheme.value = colorTheme.value === 'dark' ? 'light' : 'dark';
+  vuetifyTheme.global.name.value = VUETIFY_THEMES[colorTheme.value];
+  applyDocumentTheme(colorTheme.value);
+  saveTheme(colorTheme.value);
+}
 const appVersion = __APP_VERSION__;
 const authClient = createAuthClient({ source });
 const platformClient = createPlatformSettingsClient({ source });
@@ -387,6 +399,14 @@ function skipToMain() {
           </template>
         </nav>
         <div class="header-actions">
+          <v-btn
+            class="theme-toggle"
+            variant="text"
+            :icon="colorTheme === 'dark' ? mdiWhiteBalanceSunny : mdiWeatherNight"
+            :aria-label="colorTheme === 'dark' ? '切換為淺色模式' : '切換為深色模式'"
+            :title="colorTheme === 'dark' ? '切換為淺色模式' : '切換為深色模式'"
+            @click="toggleTheme"
+          />
           <span class="environment-tag"
             ><span class="status-dot"></span>{{ source === 'gas' ? '雲端環境' : '本機開發' }}</span
           >

@@ -53,7 +53,7 @@
   border-bottom: 0;
 }
 .battle-view-table tbody tr:hover {
-  background: #f8fafc;
+  background: var(--color-surface-subtle);
 }
 .battle-view-table .numeric {
   text-align: right;
@@ -105,11 +105,11 @@
 }
 .battle-side-red .battle-side-label,
 .battle-red-text {
-  color: #b91c1c;
+  color: var(--color-danger);
 }
 .battle-side-blue .battle-side-label,
 .battle-blue-text {
-  color: #1d4ed8;
+  color: var(--color-primary);
 }
 .battle-profession-summary {
   display: flex;
@@ -134,7 +134,7 @@
   width: 10px;
   height: 10px;
   flex: 0 0 10px;
-  border: 1px solid rgba(15, 23, 42, 0.15);
+  border: 1px solid var(--color-border-strong);
   border-radius: 50%;
 }
 .battle-match-meta {
@@ -163,7 +163,7 @@
 .battle-metric-card {
   min-width: 0;
   border: 1px solid var(--color-border);
-  background: #f8fafc;
+  background: var(--color-surface-subtle);
   border-radius: 16px;
   padding: 16px;
 }
@@ -196,10 +196,10 @@
   color: var(--color-text-muted);
 }
 .battle-metric-comparison.battle-red-text {
-  color: #b91c1c;
+  color: var(--color-danger);
 }
 .battle-metric-comparison.battle-blue-text {
-  color: #1d4ed8;
+  color: var(--color-primary);
 }
 .battle-metric-values span {
   display: block;
@@ -257,7 +257,7 @@
   position: sticky;
   left: 0;
   z-index: 1;
-  background: #fff;
+  background: var(--color-surface);
 }
 .battle-detail-table th:first-child {
   background: var(--color-muted-surface);
@@ -280,7 +280,7 @@
   color: var(--color-primary);
 }
 .battle-sorted-cell {
-  background: #eff6ff;
+  background: var(--color-info-surface);
 }
 .battle-profession-cell {
   display: inline-flex;
