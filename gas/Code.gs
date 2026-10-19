@@ -30,6 +30,16 @@ function resetAdminPassword() {
   return result;
 }
 
+// Sends a test message to each configured Discord webhook; results appear in the log.
+function testDiscordWebhooks() {
+  requireGasExecutor_();
+  const results = GuildGas.testDiscordWebhooks();
+  results.forEach(function (line) {
+    Logger.log(line);
+  });
+  return results;
+}
+
 function requireGasExecutor_() {
   const activeEmail = Session.getActiveUser().getEmail();
   const effectiveEmail = Session.getEffectiveUser().getEmail();
