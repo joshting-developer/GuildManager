@@ -230,3 +230,10 @@ SQLite `member_maintenance_requests` 保存管理操作結果；`member_uid_revi
 影片提交新增必填 professionId 與選填 memberUid（只供驗證目前姓名與幫會／俱樂部資格，不寫入影片身分關聯）。SQLite event_video_submissions 追加可空 profession_id／profession_name／profession_colorcode，GAS videos 保存相同快照；舊列與重試資料不修改。新版提交驗證有效職業，保存快照後名冊職業改變不影響影片；舊影片回應容許未記錄職業。閱覽與 CSV 使用六欄並顯示職業名稱。
 
 影片團別選項與顯示共用 `VIDEO_GROUP_OPTIONS`／`videoGroupLabel`：進攻團對應既有值進攻一、機動團對應進攻二、防守團不變。上傳選擇、閱覽篩選及表格／CSV 使用同一對應；儲存值、SQLite CHECK、舊影片與 requestId 內容保持相容，不遷移或覆寫資料。
+
+
+## GAS 戰績上傳診斷
+
+`saveBattleRecords` 的未知例外由 `battle-upload-diagnostics.js` 追蹤失敗步驟、固定表別與耗時，RPC 回傳保留 `GAS_ERROR` 並附步驟／類型／診斷碼的訊息。執行紀錄只含固定分類及耗時，不記錄原始錯誤文字、stack、輸入、玩家、檔名、資源 ID 或憑證；原始錯誤只用來選擇固定類型。已知業務／權限錯誤維持原回應；紀錄失敗不改操作結果。
+
+Sheets storage 以可選的同步 run 包裝讀寫、flush 與提交標記，預設直接執行；未新增服務呼叫、資料搬移或改變提交順序。巢狀步驟時間包含其子步驟，不能相加視為總耗時。提交後錯誤回報結果未確認，由原 requestId 機制安全重試；Drive 未引用附件仍依既有規則保留。
