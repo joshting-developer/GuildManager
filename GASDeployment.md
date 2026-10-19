@@ -2,9 +2,15 @@
 
 目前已生成 Vue 單檔頁面與完整 GAS 後端，涵蓋登入／帳號管理、行事曆、成員／匯入／名稱歷史、活動、職責、報名／請假、排表／範本、戰績上傳／下載／閱覽、個人分析及團隊分析。本機 SQLite 環境保留。
 
-本機待交付 v1.0.15（最新功能來源 `f8361af`，含 `86ab643`／`3d56905`／`03816a0`／`f3fae2a`／`8a37aab`）：活動搜尋及排表重用排序與人員索引，報名名冊／職業／回應整併一次讀取，GAS 重用同次陣列；影片重載只查單場。Webhook 失敗加入不含敏感資料的執行診斷，未設定選填頻道維持靜默。排表 JPG 改善三欄閱讀性、放大姓名，跟隨深色／淺色主題。原 260 項測試未修改，新增 11 項後共 271 項通過；桌面／手機隔離 Chrome、實際 JPG／專注／未存草稿及一般／GAS 編譯通過，此批不重複升版。尚未同步 GAS，最新同步仍為下方 v1.0.14；實際 Google／Discord 送達與延遲未測，不改正式資料或部署。
+## 2026/10/19：v1.0.15 最新同步狀態
 
-## 2026/10/19：v1.0.14 最新同步狀態
+來源 `e762276`，平台版本 **1.0.15**，沿用本批已升版的版本，不重複升版。活動搜尋及排表重用排序與人員索引，報名名冊／職業／回應整併一次讀取，GAS 重用同次陣列；影片重載只查單場。Webhook 加入安全診斷並保留未設定頻道靜默，排表 JPG 改為三欄／姓名放大並跟隨明暗主題，更新紀錄已涵蓋全部內容。
+
+`npm run gas:push` 已重新編譯、備份遠端、上傳 `Index.html`／`Code.gs`／`Backend.gs`／`appsscript.json`，四檔讀回比對一致；私有備份 `data/gas-backups/2026-10-19T09-42-16-962Z/before` 與 `after`，不提交。package／lockfile／release note／GAS 套件皆為 1.0.15，新 RPC、通知診斷及 JPG 主題打包檢查通過，無外部 JS／CSS。沿用功能回合已通過的 271 項測試（原 260 項未修改，新增 11 項）、一般編譯、桌面手機及實際 JPG／草稿／封存驗證，本輪未重跑整套測試。
+
+**本輪僅同步 GAS 程式，未 push Git 或更新 Web App 部署，未執行 setupGas、改動 Script Properties／正式試算表或傳送 Discord 訊息。** 仍需由使用者更新既有 Web App 部署才會套用 1.0.15。對外部署本輪未查詢，最近一次歷史唯讀確認仍為第 17 版 v1.0.12，不能當成本輪部署結果；真實 Google／Discord 延遲及送達仍待發布後正常使用確認。
+
+## 2026/10/19：v1.0.14 同步狀態（歷史）
 
 來源 `bb53187`，平台版本 **1.0.14**，本批沿用已升版的版本，不重複升版。影片上傳、閱覽、篩選及 CSV 統一顯示進攻團／機動團／防守團，保留原儲存值與舊資料；活動安排清單新增名稱搜尋，可搭配類型篩選，依安排日期由新到舊顯示。
 
@@ -54,19 +60,19 @@
 
 ## 這次更新的部署步驟
 
-最新同步程式為 v1.0.14，新增活動安排名稱搜尋及日期倒序，影片團別統一為進攻團／機動團／防守團，包含前版各角色「回首頁」與 member 隱藏「移至編外」；驗證與部署限制以上方最新交付紀錄為準。
+最新同步程式為 v1.0.15，新增報名整併讀取、單場影片重載、活動與排表計算重用、Webhook 安全診斷，以及排表 JPG 三欄與明暗主題；驗證與部署限制以上方最新交付紀錄為準。舊版功能均保留，不需重新初始化資料。
 
 最新唯讀確認的部署說明為 `v1.0.12`，第 17 版，該版 manifest 為「以部署者身分執行（USER_DEPLOYING）」及「任何人（ANYONE_ANONYMOUS）」；發布時仍請核對管理部署畫面的目前設定。若先前已完成初始化，可沿用既有專用資料表發布新版本，本次更新不需另建表。
 
 1. 開啟 [Apps Script 專案](https://script.google.com/home/projects/1rkY7EI6rHYNoH8TZmIOKQ-MWSCexXUdFTOqInqyfxBR1qMoI8DAf9hG5/edit)。
 2. 右上「部署 → 管理部署作業」，選擇目前使用的既有 Web App。
-3. 點鉛筆「編輯」，版本選「新版本」；說明可填 `v1.0.14 活動安排搜尋與影片團別調整`。
+3. 點鉛筆「編輯」，版本選「新版本」；說明可填 `v1.0.15 排表圖片閱讀性與報名效能改善`。
 4. 點「部署」，若 Google 要求新增授權，由部署者本人完成。
 5. 使用[原 Web App 網址](https://script.google.com/macros/s/AKfycbwk1B2IdFlpLbeFF2Ti4hgkYTdLsWlcZVGyiSlb2OXDS1TNpoFTUUtlCAf52QTNTP0i/exec)重新開啟，以 member／manager／admin 查看對戰詳情的「團隊分析」：有保存排表時可切四團，查看本團合計／全場占比及排序個人明細；無排表時應顯示原因與未歸類。核對第二場換人、兩陣營及手機捲動；登入／儲存只顯示一個轉圈。既有日期雙模式、載入提示、手機選單、品牌快取、member 成員清單及 admin 資料維護可依操作手冊確認。
 
 更新既有部署可保留網址；直接同步程式不會更新已發布版本。[Google 版本部署說明](https://developers.google.com/apps-script/concepts/deployments)
 
-最新同步與備份紀錄見上方 v1.0.14 交付狀態；[2026/10/05 手冊與團隊分析同步計畫](plans/main/team-analysis-manual-gas-sync-plan.md)、[前次日期模式同步](plans/main/gas-date-mode-sync-plan.md)、[前次 admin 同步](plans/main/gas-admin-sync-plan.md)及[先前部署準備紀錄](plans/main/gas-release-preparation-plan.md)保留過往資訊。本節是已存在部署的更新流程；以下首次建立、私有屬性與初始化章節供尚未設定的環境參考。
+最新同步與備份紀錄見上方 v1.0.15 交付狀態；[2026/10/05 手冊與團隊分析同步計畫](plans/main/team-analysis-manual-gas-sync-plan.md)、[前次日期模式同步](plans/main/gas-date-mode-sync-plan.md)、[前次 admin 同步](plans/main/gas-admin-sync-plan.md)及[先前部署準備紀錄](plans/main/gas-release-preparation-plan.md)保留過往資訊。本節是已存在部署的更新流程；以下首次建立、私有屬性與初始化章節供尚未設定的環境參考。
 
 ## 本機自動上傳
 
