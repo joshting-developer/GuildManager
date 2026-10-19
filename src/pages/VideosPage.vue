@@ -5,7 +5,7 @@ import { mdiRefresh, mdiDownload } from '@mdi/js';
 import { createEventClient } from '../api/events.js';
 import { createEventVideoClient } from '../api/event-videos.js';
 import { eventDisplayTitle, eventTypeLabel } from '../domain/event-types.js';
-import { VIDEO_GROUPS } from '../domain/event-videos.js';
+import { VIDEO_GROUP_OPTIONS } from '../domain/event-videos.js';
 import { VIDEO_TABLE_HEADERS, videoTableRow, videoTableCsv } from '../domain/video-table-csv.js';
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 const eventClient = createEventClient({ source });
@@ -178,7 +178,7 @@ onUnmounted(() => {
         v-model="group"
         :items="[
           { title: '所有團別', value: null },
-          ...VIDEO_GROUPS.map((value) => ({ title: value, value })),
+          ...VIDEO_GROUP_OPTIONS,
         ]"
         label="團別篩選"
         :disabled="loading || !!error"

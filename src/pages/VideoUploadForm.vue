@@ -3,7 +3,7 @@ import DataLoading from '../components/DataLoading.vue';
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { createEventVideoClient } from '../api/event-videos.js';
 import { createEventClient } from '../api/events.js';
-import { VIDEO_GROUPS, validateVideoDetails } from '../domain/event-videos.js';
+import { VIDEO_GROUP_OPTIONS, validateVideoDetails } from '../domain/event-videos.js';
 import NameSourcePicker from './NameSourcePicker.vue';
 
 const props = defineProps({
@@ -155,7 +155,7 @@ async function submit() {
       />
       <v-select
         v-model="draft.groupName"
-        :items="VIDEO_GROUPS"
+        :items="VIDEO_GROUP_OPTIONS"
         label="團別"
         variant="outlined"
         density="compact"

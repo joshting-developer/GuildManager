@@ -1,4 +1,13 @@
-export const VIDEO_GROUPS = ['進攻一', '進攻二', '防守團'];
+// Keep persisted values stable for old videos, SQLite constraints and request retries.
+export const VIDEO_GROUP_OPTIONS = [
+  { title: '進攻團', value: '進攻一' },
+  { title: '機動團', value: '進攻二' },
+  { title: '防守團', value: '防守團' },
+];
+export const VIDEO_GROUPS = VIDEO_GROUP_OPTIONS.map((group) => group.value);
+export function videoGroupLabel(value) {
+  return VIDEO_GROUP_OPTIONS.find((group) => group.value === value)?.title || value || '未記錄';
+}
 export class EventVideoError extends Error {
   constructor(message, status = 422, code = 'VIDEO_INVALID', fields = {}) {
     super(message);

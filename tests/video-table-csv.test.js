@@ -19,12 +19,18 @@ test('CSV exports the given visible rows in table order, with BOM and profession
       groupName: '進攻一',
       note: '備註',
     },
+    {
+      name: '機動成員',
+      firstUrl: 'https://example.com/mobile',
+      groupName: '進攻二',
+    },
   ]);
   assert.equal(
     csv,
     '\ufeff"角色名稱","職業","第一場連結","第二場連結","團別","備註"\r\n' +
       '"空城","碎夢","https://example.com/first","—","防守團","—"\r\n' +
-      '"同名","未記錄","—","https://example.com/second","進攻一","備註"\r\n',
+      '"同名","未記錄","—","https://example.com/second","進攻團","備註"\r\n' +
+      '"機動成員","未記錄","https://example.com/mobile","—","機動團","—"\r\n',
   );
   assert.equal(videoTableCsv([]), '\ufeff"角色名稱","職業","第一場連結","第二場連結","團別","備註"\r\n');
 });

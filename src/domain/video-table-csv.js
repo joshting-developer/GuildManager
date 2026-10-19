@@ -1,3 +1,5 @@
+import { videoGroupLabel } from './event-videos.js';
+
 export const VIDEO_TABLE_HEADERS = ['角色名稱', '職業', '第一場連結', '第二場連結', '團別', '備註'];
 export function videoTableRow(video) {
   return [
@@ -5,7 +7,7 @@ export function videoTableRow(video) {
     video.professionName || '未記錄',
     video.firstUrl || '—',
     video.secondUrl || '—',
-    video.groupName || '未記錄',
+    videoGroupLabel(video.groupName),
     video.note || '—',
   ];
 }
