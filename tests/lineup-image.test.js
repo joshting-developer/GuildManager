@@ -93,23 +93,28 @@ test('JPG uses separate readable columns and theme while retaining all team head
     for (const label of ['職業', '姓名', '職責／備註']) assert.equal(texts.filter((c) => c.value === label).length, 0);
     for (const number of ['1', '2', '3', '4', '5', '6']) assert.equal(texts.filter((c) => c.value === number).length, 0);
     assert.equal(texts.filter((c) => c.value.includes('（副）')).length, 0);
-    assert.equal(texts.filter((c) => c.value === '尚未安排').length, 59);
+    assert.equal(texts.filter((c) => c.value === '—' && c.align === 'center').length, 59, 'empty positions show a dash');
+    assert.equal(texts.filter((c) => c.value === '尚未安排').length, 0);
     assert.ok(texts.some((c) => c.value === '第一場'));
     assert.ok(texts.some((c) => c.value === '第二場'));
     const person = texts.find((c) => c.value === '示範成員');
     const job = texts.find((c) => c.value === '龍吟');
-    assert.ok(Math.abs(Number(person.font.match(/([\d.]+)px/)[1]) - 91.8) < 1e-6);
-    assert.match(job.font, /81px/);
-    assert.ok(person.x > job.x && Math.abs(person.y - job.y + 5.4) < 1e-6);
+    const size = (call) => Number(call.font.match(/([\d.]+)px/)[1]);
+    assert.ok(Math.abs(size(person) - 70.2) < 1e-6);
+    assert.match(person.font, /^500 /, 'names use a medium weight, not bold');
+    assert.ok(Math.abs(size(job) - 75.6) < 1e-6);
+    assert.match(job.font, /^400 /);
+    // Name and job share a vertical centre even though their sizes differ.
+    assert.ok(person.x > job.x && Math.abs(person.y + size(person) / 2 - job.y - size(job) / 2) < 1e-6);
     assert.ok(texts.every((c) => c.y >= 0 && c.y + Number(c.font.match(/([\d.]+)px/)[1]) <= canvas.height));
     assert.ok(texts.some((c) => c.value.includes('有未儲存修改')));
   }
-  assert.equal(light.calls[0].color, '#f4f7fb');
-  assert.equal(dark.calls[0].color, '#101a29');
+  assert.equal(light.calls[0].color, '#eef2f7');
+  assert.equal(dark.calls[0].color, '#121b2a');
   assert.notEqual(light.calls.find((c) => c.value === '示範成員').color, dark.calls.find((c) => c.value === '示範成員').color);
 });
 
-test('long names, headings, both rounds and notes wrap completely, growing the image without horizontal clipping', async () => {
+test('long names shrink to one line, then wrap completely at the minimum size, growing the image without horizontal clipping', async () => {
   const data = fixture('dark');
   data.title = '很長的安排標題'.repeat(14);
   for (const group of data.groups) for (const team of group.teams) {
@@ -124,16 +129,16 @@ test('long names, headings, both rounds and notes wrap completely, growing the i
   assert.equal(JSON.stringify(data), original);
   assert.ok(canvas.height > (await render(fixture('dark'))).canvas.height);
   const texts = calls.filter((c) => c.type === 'text');
-  const names = texts.filter((c) => Math.abs(Number(c.font.match(/([\d.]+)px/)[1]) - 91.8) < 1e-6).map((c) => c.value).join('');
+  const names = texts.filter((c) => /^500 /.test(c.font) && Math.abs(Number(c.font.match(/([\d.]+)px/)[1]) - 48.6) < 1e-6).map((c) => c.value).join('');
   assert.equal(names, '長姓名測試'.repeat(10 * 2 * 60));
   assert.equal(texts.filter((c) => c.value === '保留換行').length, 60);
   for (const call of texts) {
-    const left = call.align === 'center' ? call.x - call.width / 2 : call.x;
+    const left = call.align === 'center' ? call.x - call.width / 2 : call.align === 'right' ? call.x - call.width : call.x;
     assert.ok(left >= 0 && left + call.width <= canvas.width, call.value);
     const size = Number(call.font.match(/([\d.]+)px/)[1]);
     assert.ok(call.y + size <= canvas.height);
-    if ([91.8, 81, 64.8, 43.2].some((expected) => Math.abs(size - expected) < 1e-6)) {
-      assert.ok(calls.some((cell) => cell.type === 'fill' && ['#1d2c3e', '#131f30'].includes(cell.color)
+    if ([48.6, 59.4].some((expected) => Math.abs(size - expected) < 1e-6)) {
+      assert.ok(calls.some((cell) => cell.type === 'fill' && ['#1b2639', '#172133'].includes(cell.color)
         && left >= cell.x && left + call.width <= cell.x + cell.width
         && call.y >= cell.y && call.y + size <= cell.y + cell.height), call.value);
     }
@@ -152,8 +157,9 @@ test('profession text maintains readable contrast in both themes, including ligh
       person.color = color;
       const { calls } = await render(data);
       const foreground = lum(calls.find((c) => c.value === person.job).color);
-      const background = lum(theme === 'dark' ? '#1d2c3e' : '#ffffff');
-      assert.ok((Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05) >= 4.5);
+      const background = lum(theme === 'dark' ? '#1b2639' : '#ffffff');
+      // Profession text is large (76px), so the WCAG large-text ratio of 3:1 applies.
+      assert.ok((Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05) >= 3);
     }
   }
 });

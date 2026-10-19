@@ -7,22 +7,26 @@ const BASE_HEIGHT = 3771;
 const EXPORT_SCALE = EXPORT_WIDTH / WIDTH;
 const MARGIN = 16;
 const GAP = 12;
-const GROUP_PADDING = 8;
-const NAME_SIZE = 34;
-const JOB_SIZE = 30;
-const NOTE_SIZE = 24;
+const GROUP_PADDING = 6;
+// Cells are inset from the grid colour so the table reads as separate tiles.
+const CELL_GAP = 4;
+const TITLE_SIZE = 36;
+const TEAM_SIZE = 26;
+const NAME_SIZE = 26;
+const JOB_SIZE = 28;
+const NOTE_SIZE = 22;
+// Long names and jobs shrink to stay on one line before wrapping at this size.
+const MIN_TEXT_SIZE = 18;
 const FONT = '"Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif';
 const GROUP_COLORS = { attack: '#ad353e', mobile: '#196e8c', defense: '#197661' };
 const PALETTES = {
   light: {
-    background: '#f4f7fb', panel: '#e8eef5', surface: '#ffffff',
-    note: '#f0f4f8', border: '#bdccdc',
-    text: '#16243a', muted: '#52657b',
+    background: '#eef2f7', grid: '#c5d2e1', surface: '#ffffff',
+    note: '#f5f8fb', text: '#1e2b3d', muted: '#6b7c90', title: '#1e2b3d',
   },
   dark: {
-    background: '#101a29', panel: '#172638', surface: '#1d2c3e',
-    note: '#131f30', border: '#3d5672',
-    text: '#f0eadc', muted: '#a5b6cb',
+    background: '#121b2a', grid: '#2c4262', surface: '#1b2639',
+    note: '#172133', text: '#f0e6cf', muted: '#93a4ba', title: '#e3c27a',
   },
 };
 
@@ -55,7 +59,7 @@ export function lineupImageData({ event, teams, members, professions, duties, sn
                 round: slot.secondRound ? (index === 0 ? '第一場' : '第二場') : '',
                 name: occupied
                   ? member?.name || (entry.registrationId ? '報名已取消或不屬於本場' : '找不到成員')
-                  : '尚未安排',
+                  : '—',
                 job: occupied ? job?.name || '職業未設定' : '',
                 color: job?.colorcode || '#64748b',
               };
@@ -97,18 +101,24 @@ function wrap(context, value, width) {
   }
   return lines;
 }
+// Prefer one line at a smaller size; wrap only when even the minimum size does not fit.
+function fit(context, value, width, size, weight) {
+  for (let current = size; current > MIN_TEXT_SIZE; current -= 2) {
+    font(context, current, weight);
+    if (context.measureText(value).width <= width) return { size: current, lines: [value] };
+  }
+  font(context, MIN_TEXT_SIZE, weight);
+  return { size: MIN_TEXT_SIZE, lines: wrap(context, value, width) };
+}
 function text(context, lines, x, y, size = 20, color = '#0f172a', weight = 400, align = 'left') {
   font(context, size, weight);
   context.fillStyle = color;
   context.textAlign = align;
   lines.forEach((line, index) => context.fillText(line, x, y + index * (size + 8)));
 }
-function box(context, x, y, width, height, fill, border) {
+function cell(context, x, y, width, height, fill) {
   context.fillStyle = fill;
-  context.fillRect(x, y, width, height);
-  context.strokeStyle = border;
-  context.lineWidth = 2;
-  context.strokeRect(x + 1, y + 1, width - 2, height - 2);
+  context.fillRect(x + CELL_GAP / 2, y + CELL_GAP / 2, width - CELL_GAP, height - CELL_GAP);
 }
 function luminance(rgb) {
   const values = rgb.map((value) => {
@@ -120,19 +130,20 @@ function luminance(rgb) {
 function rgb(hex) {
   return [1, 3, 5].map((start) => parseInt(hex.slice(start, start + 2), 16));
 }
-function professionColor(value, palette) {
-  if (!/^#[a-f0-9]{6}$/i.test(value || '')) return palette.text;
+// Profession and group colours keep their hue; they are only mixed toward white/black
+// until text reaches the WCAG ratio: 3:1 for large profession text, 4.5:1 for smaller text.
+function readableColor(value, backgroundHex, fallback, ratio = 3) {
+  if (!/^#[a-f0-9]{6}$/i.test(value || '')) return fallback;
   const color = rgb(value);
-  const background = luminance(rgb(palette.surface));
+  const background = luminance(rgb(backgroundHex));
   const target = background < 0.5 ? 255 : 0;
-  // Preserve the profession hue, adjusting only as much as needed for legible text.
-  for (let step = 0; step <= 10; step++) {
-    const mixed = color.map((channel) => Math.round(channel + (target - channel) * step / 10));
+  for (let step = 0; step <= 20; step++) {
+    const mixed = color.map((channel) => Math.round(channel + (target - channel) * step / 20));
     const light = luminance(mixed);
-    if ((Math.max(light, background) + 0.05) / (Math.min(light, background) + 0.05) >= 4.5)
+    if ((Math.max(light, background) + 0.05) / (Math.min(light, background) + 0.05) >= ratio)
       return '#' + mixed.map((channel) => channel.toString(16).padStart(2, '0')).join('');
   }
-  return palette.text;
+  return fallback;
 }
 function measureGroup(context, group) {
   const padding = GROUP_PADDING;
@@ -141,29 +152,29 @@ function measureGroup(context, group) {
   const nameWidth = width * 0.44;
   const descriptionWidth = width - jobWidth - nameWidth;
   const teams = group.teams.map((team) => {
-    font(context, 27, 700);
+    font(context, TEAM_SIZE, 600);
     const title = wrap(context, team.name, width - 24);
     const rows = team.rows.map((row) => {
       const people = row.people.map((person) => {
-        font(context, NAME_SIZE, 600);
-        const names = wrap(context, person.name, nameWidth - 16);
-        font(context, JOB_SIZE, 600);
-        const jobs = wrap(context, person.job, jobWidth - 16);
+        const name = fit(context, person.name, nameWidth - 24, NAME_SIZE, person.job ? 500 : 400);
+        const job = person.job
+          ? fit(context, person.job, jobWidth - 20, JOB_SIZE, 400)
+          : { size: JOB_SIZE, lines: [] };
         return {
-          ...person, names, jobs,
-          height: Math.max(names.length * (NAME_SIZE + 8), person.job ? jobs.length * (JOB_SIZE + 8) : 0) + (person.round ? 22 : 0),
+          ...person, name, job,
+          height: Math.max(name.lines.length * (name.size + 8), job.lines.length * (job.size + 8)) + (person.round ? 22 : 0),
         };
       });
       font(context, NOTE_SIZE);
-      return { people, description: wrap(context, row.description, descriptionWidth - 24) };
+      return { people, description: wrap(context, row.description, descriptionWidth - 28) };
     });
     return { ...team, title, rows };
   });
-  const titleHeight = Math.max(...teams.map((team) => team.title.length)) * 35 + 8;
+  const titleHeight = Math.max(...teams.map((team) => team.title.length)) * (TEAM_SIZE + 8) + 12;
   const rowHeights = Array.from({ length: 6 }, (_, index) =>
-    Math.max(52, ...teams.map((team) => Math.max(
-      team.rows[index].people.reduce((height, person) => height + person.height, 0) + 8,
-      team.rows[index].description.length * (NOTE_SIZE + 8) + 8,
+    Math.max(56, ...teams.map((team) => Math.max(
+      team.rows[index].people.reduce((height, person) => height + person.height, 0) + 16,
+      team.rows[index].description.length * (NOTE_SIZE + 8) + 16,
     ))),
   );
   return {
@@ -178,11 +189,14 @@ export async function lineupJpeg(data) {
   const context = canvas.getContext('2d');
   if (!context) throw new Error('瀏覽器無法產生圖片, 請換用支援 Canvas 的瀏覽器');
   const palette = PALETTES[data.theme === 'dark' ? 'dark' : 'light'];
-  font(context, 38, 700);
-  const heading = wrap(context, data.title, WIDTH - MARGIN * 2);
-  const headerHeight = MARGIN + heading.length * 46 + 40;
+  // One header row like a table: date/status left, title centred, colour legend right.
+  const SIDE = 520;
+  font(context, TITLE_SIZE, 600);
+  const heading = wrap(context, data.title, WIDTH - MARGIN * 2 - SIDE * 2);
+  const headingHeight = heading.length * (TITLE_SIZE + 8) - 8;
+  const headerHeight = MARGIN + headingHeight + 20;
   const groups = data.groups.map((group) => measureGroup(context, group));
-  const contentHeight = headerHeight + groups.reduce((height, group) => height + group.height + GAP, 0) + MARGIN;
+  const contentHeight = headerHeight + groups.reduce((height, group) => height + group.height + GAP, 0) + MARGIN - GAP;
   canvas.width = EXPORT_WIDTH;
   canvas.height = Math.max(BASE_HEIGHT, Math.ceil(contentHeight * EXPORT_SCALE));
   const height = canvas.height / EXPORT_SCALE;
@@ -197,32 +211,35 @@ export async function lineupJpeg(data) {
   context.scale(EXPORT_SCALE, EXPORT_SCALE);
   context.fillStyle = palette.background;
   context.fillRect(0, 0, WIDTH, height);
-  text(context, heading, WIDTH / 2, MARGIN, 38, palette.text, 700, 'center');
-  const metaY = MARGIN + heading.length * 46 + 10;
-  text(context, [`${data.date} · 戰場排表 · ${data.status}`], MARGIN, metaY, 21, palette.muted);
-  data.groups.forEach((group, index) => {
-    const x = WIDTH - MARGIN - (data.groups.length - index) * 146;
-    context.fillStyle = GROUP_COLORS[group.id];
-    context.fillRect(x, metaY + 5, 16, 16);
-    text(context, [group.name], x + 26, metaY, 22, palette.text, 600);
-  });
+  text(context, heading, WIDTH / 2, MARGIN, TITLE_SIZE, palette.title, 600, 'center');
+  const sideY = MARGIN + (headingHeight - 22) / 2;
+  text(context, [`${data.date} · ${data.status}`], MARGIN + 4, sideY + 1, 21, palette.muted);
+  font(context, 24, 600);
+  let legendX = WIDTH - MARGIN - 4;
+  for (const group of [...data.groups].reverse()) {
+    text(context, [`■ ${group.name}`], legendX, sideY - 1, 24,
+      readableColor(GROUP_COLORS[group.id], palette.background, palette.text, 4.5), 600, 'right');
+    font(context, 24, 600);
+    legendX -= context.measureText(`■ ${group.name}`).width + 28;
+  }
   let y = headerHeight;
   for (const group of groups) {
     const groupColor = GROUP_COLORS[group.id];
-    box(context, MARGIN, y, WIDTH - MARGIN * 2, group.height, palette.panel, palette.border);
+    context.fillStyle = palette.grid;
+    context.fillRect(MARGIN, y, WIDTH - MARGIN * 2, group.height);
     group.teams.forEach((team, teamIndex) => {
       const x = MARGIN + GROUP_PADDING + teamIndex * (group.width + GAP);
       const nameX = x + group.jobWidth;
       const noteX = nameX + group.nameWidth;
       let rowY = y + GROUP_PADDING;
-      box(context, x, rowY, group.width, group.titleHeight, groupColor, palette.border);
-      text(context, team.title, x + group.width / 2, rowY + 4, 27, '#ffffff', 700, 'center');
+      cell(context, x, rowY, group.width, group.titleHeight, groupColor);
+      text(context, team.title, x + group.width / 2, rowY + 6, TEAM_SIZE, '#ffffff', 600, 'center');
       rowY += group.titleHeight;
       team.rows.forEach((row, index) => {
         const height = group.rowHeights[index];
-        box(context, x, rowY, group.jobWidth, height, palette.surface, palette.border);
-        box(context, nameX, rowY, group.nameWidth, height, palette.surface, palette.border);
-        box(context, noteX, rowY, group.descriptionWidth, height, palette.note, palette.border);
+        cell(context, x, rowY, group.jobWidth, height, palette.surface);
+        cell(context, nameX, rowY, group.nameWidth, height, palette.surface);
+        cell(context, noteX, rowY, group.descriptionWidth, height, palette.note);
         const contentHeight = row.people.reduce((sum, person) => sum + person.height, 0);
         let personY = rowY + (height - contentHeight) / 2;
         for (const person of row.people) {
@@ -230,15 +247,16 @@ export async function lineupJpeg(data) {
           if (person.round)
             text(context, [person.round], nameX + group.nameWidth / 2, personY, 16, palette.muted, 400, 'center');
           const bodyHeight = person.height - labelHeight;
-          const jobY = personY + labelHeight + (bodyHeight - person.jobs.length * (JOB_SIZE + 8)) / 2;
-          const nameY = personY + labelHeight + (bodyHeight - person.names.length * (NAME_SIZE + 8)) / 2;
-          text(context, person.jobs, x + group.jobWidth / 2, jobY, JOB_SIZE,
-            professionColor(person.color, palette), 600, 'center');
-          text(context, person.names, nameX + group.nameWidth / 2, nameY, NAME_SIZE,
-            person.job ? palette.text : palette.muted, person.job ? 600 : 400, 'center');
+          const { name, job } = person;
+          const jobY = personY + labelHeight + (bodyHeight - job.lines.length * (job.size + 8) + 8) / 2;
+          const nameY = personY + labelHeight + (bodyHeight - name.lines.length * (name.size + 8) + 8) / 2;
+          text(context, job.lines, x + group.jobWidth / 2, jobY, job.size,
+            readableColor(person.color, palette.surface, palette.text), 400, 'center');
+          text(context, name.lines, nameX + group.nameWidth / 2, nameY, name.size,
+            person.job ? palette.text : palette.muted, person.job ? 500 : 400, 'center');
           personY += person.height;
         }
-        text(context, row.description, noteX + 12, rowY + (height - row.description.length * (NOTE_SIZE + 8)) / 2,
+        text(context, row.description, noteX + 14, rowY + (height - row.description.length * (NOTE_SIZE + 8) + 8) / 2,
           NOTE_SIZE, row.description[0] === '—' ? palette.muted : palette.text);
         rowY += height;
       });
