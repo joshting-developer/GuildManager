@@ -2,8 +2,12 @@ import { LINEUP_GROUPS, participantKey, slotAssignments } from './lineups.js';
 import { eventTypeLabel } from './event-types.js';
 
 const WIDTH = 2000;
+const EXPORT_SCALE = 2;
 const MARGIN = 24;
 const GAP = 16;
+const NAME_SIZE = 34;
+const JOB_SIZE = 30;
+const NOTE_SIZE = 24;
 const FONT = '"Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif';
 const GROUP_COLORS = { attack: '#ad353e', mobile: '#196e8c', defense: '#197661' };
 const PALETTES = {
@@ -49,9 +53,7 @@ export function lineupImageData({ event, teams, members, professions, duties, sn
                 name: occupied
                   ? member?.name || (entry.registrationId ? '報名已取消或不屬於本場' : '找不到成員')
                   : '尚未安排',
-                job: occupied
-                  ? `${job?.name || '職業未設定'}${entry.profession === 'secondary' ? '（副）' : ''}`
-                  : '',
+                job: occupied ? job?.name || '職業未設定' : '',
                 color: job?.colorcode || '#64748b',
               };
             }),
@@ -132,24 +134,24 @@ function professionColor(value, palette) {
 function measureGroup(context, group) {
   const padding = 12;
   const width = (WIDTH - MARGIN * 2 - padding * 2 - GAP * (group.teams.length - 1)) / group.teams.length;
-  const jobWidth = width * 0.25;
-  const nameWidth = width * 0.39;
+  const jobWidth = width * 0.21;
+  const nameWidth = width * 0.44;
   const descriptionWidth = width - jobWidth - nameWidth;
   const teams = group.teams.map((team) => {
     font(context, 27, 700);
     const title = wrap(context, team.name, width - 24);
     const rows = team.rows.map((row) => {
       const people = row.people.map((person) => {
-        font(context, 28, 600);
-        const names = wrap(context, person.name, nameWidth - 20);
-        font(context, 24, 600);
-        const jobs = wrap(context, person.job, jobWidth - 32);
+        font(context, NAME_SIZE, 600);
+        const names = wrap(context, person.name, nameWidth - 16);
+        font(context, JOB_SIZE, 600);
+        const jobs = wrap(context, person.job, jobWidth - 16);
         return {
           ...person, names, jobs,
-          height: Math.max(names.length * 36, person.job ? jobs.length * 32 : 0) + (person.round ? 22 : 0),
+          height: Math.max(names.length * (NAME_SIZE + 8), person.job ? jobs.length * (JOB_SIZE + 8) : 0) + (person.round ? 22 : 0),
         };
       });
-      font(context, 21);
+      font(context, NOTE_SIZE);
       return { people, description: wrap(context, row.description, descriptionWidth - 24) };
     });
     return { ...team, title, rows };
@@ -158,7 +160,7 @@ function measureGroup(context, group) {
   const rowHeights = Array.from({ length: 6 }, (_, index) =>
     Math.max(64, ...teams.map((team) => Math.max(
       team.rows[index].people.reduce((height, person) => height + person.height, 0) + 16,
-      team.rows[index].description.length * 29 + 18,
+      team.rows[index].description.length * (NOTE_SIZE + 8) + 18,
     ))),
   );
   return {
@@ -173,16 +175,19 @@ export async function lineupJpeg(data) {
   const context = canvas.getContext('2d');
   if (!context) throw new Error('瀏覽器無法產生圖片, 請換用支援 Canvas 的瀏覽器');
   const palette = PALETTES[data.theme === 'dark' ? 'dark' : 'light'];
-  font(context, 34, 700);
+  font(context, 38, 700);
   const heading = wrap(context, data.title, WIDTH - MARGIN * 2);
-  const headerHeight = MARGIN + heading.length * 42 + 54;
+  const headerHeight = MARGIN + heading.length * 46 + 54;
   const groups = data.groups.map((group) => measureGroup(context, group));
-  canvas.width = WIDTH;
-  canvas.height = headerHeight + groups.reduce((height, group) => height + group.height + GAP, 0) + MARGIN;
+  const height = headerHeight + groups.reduce((height, group) => height + group.height + GAP, 0) + MARGIN;
+  canvas.width = WIDTH * EXPORT_SCALE;
+  canvas.height = height * EXPORT_SCALE;
+  // Keep layout independent of screen size and device pixel ratio; export one sharper image.
+  context.scale(EXPORT_SCALE, EXPORT_SCALE);
   context.fillStyle = palette.background;
-  context.fillRect(0, 0, canvas.width, canvas.height);
-  text(context, heading, WIDTH / 2, MARGIN, 34, palette.text, 700, 'center');
-  const metaY = MARGIN + heading.length * 42 + 10;
+  context.fillRect(0, 0, WIDTH, height);
+  text(context, heading, WIDTH / 2, MARGIN, 38, palette.text, 700, 'center');
+  const metaY = MARGIN + heading.length * 46 + 10;
   text(context, [`${data.date} · 戰場排表 · ${data.status}`], MARGIN, metaY, 21, palette.muted);
   data.groups.forEach((group, index) => {
     const x = WIDTH - MARGIN - (data.groups.length - index) * 146;
@@ -214,7 +219,6 @@ export async function lineupJpeg(data) {
         box(context, x, rowY, group.jobWidth, height, palette.surface, palette.border);
         box(context, nameX, rowY, group.nameWidth, height, palette.surface, palette.border);
         box(context, noteX, rowY, group.descriptionWidth, height, palette.note, palette.border);
-        text(context, [String(index + 1)], x + 5, rowY + 6, 14, palette.muted);
         const contentHeight = row.people.reduce((sum, person) => sum + person.height, 0);
         let personY = rowY + (height - contentHeight) / 2;
         for (const person of row.people) {
@@ -222,16 +226,16 @@ export async function lineupJpeg(data) {
           if (person.round)
             text(context, [person.round], nameX + group.nameWidth / 2, personY, 16, palette.muted, 400, 'center');
           const bodyHeight = person.height - labelHeight;
-          const jobY = personY + labelHeight + (bodyHeight - person.jobs.length * 32) / 2;
-          const nameY = personY + labelHeight + (bodyHeight - person.names.length * 36) / 2;
-          text(context, person.jobs, x + 20 + (group.jobWidth - 20) / 2, jobY, 24,
+          const jobY = personY + labelHeight + (bodyHeight - person.jobs.length * (JOB_SIZE + 8)) / 2;
+          const nameY = personY + labelHeight + (bodyHeight - person.names.length * (NAME_SIZE + 8)) / 2;
+          text(context, person.jobs, x + group.jobWidth / 2, jobY, JOB_SIZE,
             professionColor(person.color, palette), 600, 'center');
-          text(context, person.names, nameX + group.nameWidth / 2, nameY, 28,
+          text(context, person.names, nameX + group.nameWidth / 2, nameY, NAME_SIZE,
             person.job ? palette.text : palette.muted, person.job ? 600 : 400, 'center');
           personY += person.height;
         }
-        text(context, row.description, noteX + 12, rowY + (height - row.description.length * 29) / 2,
-          21, row.description[0] === '—' ? palette.muted : palette.text);
+        text(context, row.description, noteX + 12, rowY + (height - row.description.length * (NOTE_SIZE + 8)) / 2,
+          NOTE_SIZE, row.description[0] === '—' ? palette.muted : palette.text);
         rowY += height;
       });
     });

@@ -24,15 +24,17 @@ function fixture(theme = 'light') {
 
 async function render(data, { contextAvailable = true, blobAvailable = true } = {}) {
   const calls = [];
+  let scale = 1;
   const context = {
+    scale(x, y) { assert.equal(x, y); scale *= x; },
     measureText(value) {
       const size = Number(this.font.match(/(\d+)px/)[1]);
       return { width: [...value].reduce((sum, char) => sum + (/[^\x00-\xff]/.test(char) ? size : size * 0.55), 0) };
     },
-    fillRect(x, y, width, height) { calls.push({ type: 'fill', x, y, width, height, color: this.fillStyle }); },
-    strokeRect(x, y, width, height) { calls.push({ type: 'border', x, y, width, height }); },
+    fillRect(x, y, width, height) { calls.push({ type: 'fill', x: x * scale, y: y * scale, width: width * scale, height: height * scale, color: this.fillStyle }); },
+    strokeRect(x, y, width, height) { calls.push({ type: 'border', x: x * scale, y: y * scale, width: width * scale, height: height * scale }); },
     fillText(value, x, y) {
-      calls.push({ type: 'text', value, x, y, font: this.font, align: this.textAlign, color: this.fillStyle, width: this.measureText(value).width });
+      calls.push({ type: 'text', value, x: x * scale, y: y * scale, font: this.font.replace(/(\d+)px/, (_, size) => `${Number(size) * scale}px`), align: this.textAlign, color: this.fillStyle, width: this.measureText(value).width * scale });
     },
   };
   const canvas = {
@@ -57,7 +59,7 @@ test('image data preserves all positions, both rounds, selected jobs, notes and 
   assert.equal(data.groups.flatMap((g) => g.teams.flatMap((t) => t.rows)).length, 60);
   const row = data.groups[0].teams[0].rows[0];
   assert.deepEqual(row.people.map((p) => [p.round, p.name, p.job]), [
-    ['第一場', '示範成員', '龍吟（副）'], ['第二場', '示範外援', '素問'],
+    ['第一場', '示範成員', '龍吟'], ['第二場', '示範外援', '素問'],
   ]);
   assert.equal(row.description, '山盟（停用） · 拆塔\n第二行備註');
   for (const value of ['private-id', 'guest-id', '"uid"', '"registrationId"'])
@@ -75,7 +77,7 @@ test('archived image data uses names, jobs and duties from snapshots without liv
     members: [], professions: [], duties: [], snapshots: true, status: '封存', theme: 'dark' });
   const row = data.groups[0].teams[0].rows[0];
   assert.equal(row.people[0].name, '當時姓名');
-  assert.equal(row.people[0].job, '當時職業（副）');
+  assert.equal(row.people[0].job, '當時職業');
   assert.equal(row.description, '當時職責 · 原備註');
   assert.equal(data.title, '幫戰');
 });
@@ -85,17 +87,20 @@ test('JPG uses separate readable columns and theme while retaining all team head
   const dark = await render(fixture('dark'));
   for (const { blob, canvas, calls } of [light, dark]) {
     assert.equal(blob.type, 'image/jpeg');
-    assert.equal(canvas.width, 2000);
-    assert.ok(canvas.height > 1000 && canvas.height < 2000);
+    assert.equal(canvas.width, 4000);
+    assert.ok(canvas.height > 2000 && canvas.height < 4000);
     const texts = calls.filter((c) => c.type === 'text');
     for (const label of ['職業', '姓名', '職責／備註']) assert.equal(texts.filter((c) => c.value === label).length, 10);
-    for (const number of ['1', '2', '3', '4', '5', '6']) assert.equal(texts.filter((c) => c.value === number).length, 10);
+    for (const number of ['1', '2', '3', '4', '5', '6']) assert.equal(texts.filter((c) => c.value === number).length, 0);
+    assert.equal(texts.filter((c) => c.value.includes('（副）')).length, 0);
+    assert.equal(texts.filter((c) => c.value === '尚未安排').length, 59);
     assert.ok(texts.some((c) => c.value === '第一場'));
     assert.ok(texts.some((c) => c.value === '第二場'));
     const person = texts.find((c) => c.value === '示範成員');
-    const job = texts.find((c) => c.value === '龍吟（副）');
-    assert.match(person.font, /28px/);
-    assert.ok(person.x > job.x && person.y === job.y - 2);
+    const job = texts.find((c) => c.value === '龍吟');
+    assert.match(person.font, /68px/);
+    assert.match(job.font, /60px/);
+    assert.ok(person.x > job.x && person.y === job.y - 4);
     assert.ok(texts.every((c) => c.y >= 0 && c.y + Number(c.font.match(/(\d+)px/)[1]) <= canvas.height));
     assert.ok(texts.some((c) => c.value.includes('有未儲存修改')));
   }
@@ -119,7 +124,7 @@ test('long names, headings, both rounds and notes wrap completely, growing the i
   assert.equal(JSON.stringify(data), original);
   assert.ok(canvas.height > (await render(fixture('dark'))).canvas.height);
   const texts = calls.filter((c) => c.type === 'text');
-  const names = texts.filter((c) => c.font.includes('28px')).map((c) => c.value).join('');
+  const names = texts.filter((c) => c.font.includes('68px')).map((c) => c.value).join('');
   assert.equal(names, '長姓名測試'.repeat(10 * 2 * 60));
   assert.equal(texts.filter((c) => c.value === '保留換行').length, 60);
   for (const call of texts) {
@@ -137,7 +142,7 @@ test('profession text maintains readable contrast in both themes, including ligh
     const data = fixture(theme);
     for (const [index, color] of ['#ffb6c1', '#3cb371', '#add8e6', '#00bfff', '#f0e68c', '#9932cc', '#ff8c00', '#8b0000', '#4682b4'].entries()) {
       const person = data.groups[0].teams[0].rows[index % 6].people[0];
-      person.job = '對比測試' + index;
+      person.job = ['素問', '龍吟', '碎夢', '潮光', '玄機', '九靈', '鐵衣', '血河', '神相'][index];
       person.color = color;
       const { calls } = await render(data);
       const foreground = lum(calls.find((c) => c.value === person.job).color);
