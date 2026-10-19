@@ -14,6 +14,7 @@ import {
   validatePersonalBattleFilters,
   filterPersonalBattles,
   personalBattleProfessions,
+  personalBattleReadAll,
 } from '../src/domain/personal-battle-filters.js';
 
 function text(value, label, limit = 120) {
@@ -279,6 +280,7 @@ export function createBattleRecordRepository(db, { project = (_kind, _id, value)
     getMemberBattleRecords(uid, { page = 1, ...input } = {}) {
       if (!Number.isSafeInteger(page) || page < 1) throw new BattleRecordError('頁碼不正確');
       const filters = validatePersonalBattleFilters(input);
+      const readAll = personalBattleReadAll(input);
       const memberUid = text(uid, '成員', 64);
       const member = db
         .prepare('SELECT name, primary_profession AS profession FROM members WHERE uid = ?')
@@ -310,11 +312,11 @@ export function createBattleRecordRepository(db, { project = (_kind, _id, value)
         member,
         filters,
         professions: personalBattleProfessions(allEntries),
-        summary: summarizePersonalBattles(entries),
-        entries: entries.slice((page - 1) * 20, page * 20),
+        ...(readAll ? {} : { summary: summarizePersonalBattles(entries) }),
+        entries: readAll ? entries : entries.slice((page - 1) * 20, page * 20),
         total: entries.length,
-        page,
-        pageSize: 20,
+        page: readAll ? 1 : page,
+        pageSize: readAll ? entries.length : 20,
       };
     },
     saveBattleRecords(input) {

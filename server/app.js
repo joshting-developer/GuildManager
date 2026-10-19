@@ -254,6 +254,8 @@ export function createApp(repository, { authNow, notifier = null } = {}) {
         startDate: request.query.startDate,
         endDate: request.query.endDate,
         profession: request.query.profession,
+        all: request.query.all === undefined || request.query.all === 'false'
+          ? false : request.query.all === 'true' ? true : request.query.all,
       }),
     );
   });

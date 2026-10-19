@@ -1,5 +1,11 @@
 import { BattleRecordError, taipeiBattleTime } from './battle-records.js';
 
+export function personalBattleReadAll(input = {}) {
+  if (input.all !== undefined && typeof input.all !== 'boolean')
+    throw new BattleRecordError('完整讀取選項格式不正確', 422, 'BATTLE_FILTER_INVALID');
+  return input.all === true;
+}
+
 export function validatePersonalBattleFilters(input = {}) {
   const invalid = (message, field) => {
     const error = new BattleRecordError(message, 422, 'BATTLE_FILTER_INVALID');

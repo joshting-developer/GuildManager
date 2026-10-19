@@ -11,18 +11,17 @@ import {
   validatePersonalBattleFilters,
   filterPersonalBattles,
   personalBattleProfessions,
+  personalBattleReadAll,
 } from '../../src/domain/personal-battle-filters.js';
 import { canonical, fail, hash, pageNumber, retry, text } from './common.js';
 export function createBattles(store, catalog, { uuid, now, files, prepareOnly = false, preparedUpload }) {
+  const compareRecords = (a, b) =>
+    b.playedAt.localeCompare(a.playedAt) ||
+    b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id);
   const all = () =>
     store
       .all('battles')
-      .sort(
-        (a, b) =>
-          b.playedAt.localeCompare(a.playedAt) ||
-          b.createdAt.localeCompare(a.createdAt) ||
-          a.id.localeCompare(b.id),
-      );
+      .sort(compareRecords);
   function get(id) {
     const record = store.get('battles', id);
     if (!record) fail('BATTLE_NOT_FOUND', '找不到這筆戰績');
@@ -113,14 +112,20 @@ export function createBattles(store, catalog, { uuid, now, files, prepareOnly = 
     getMemberBattleRecords([uid, page = 1, input = {}]) {
       pageNumber(page);
       const filters = validatePersonalBattleFilters(input);
+      const readAll = personalBattleReadAll(input);
       const member = catalog.member(uid);
       const links = store.all('battle_links').filter((link) => link.memberUid === uid);
-      const snapshots = store.getMany('battle_players', [
-        ...new Set(links.map((link) => link.recordId)),
-      ]);
-      const allEntries = all().flatMap((record) =>
-        links
-          .filter((link) => link.recordId === record.id)
+      const byRecord = new Map();
+      for (const link of links) {
+        if (!byRecord.has(link.recordId)) byRecord.set(link.recordId, []);
+        byRecord.get(link.recordId).push(link);
+      }
+      const recordIds = [...byRecord.keys()];
+      const snapshots = recordIds.length ? store.getMany('battle_players', recordIds) : new Map();
+      const records = recordIds.length ? [...store.getMany('battles', recordIds).values()]
+        .filter(Boolean).sort(compareRecords) : [];
+      const allEntries = records.flatMap((record) =>
+        byRecord.get(record.id)
           .sort((a, b) => a.playerIndex - b.playerIndex)
           .map(({ playerIndex }) => {
             const value =
@@ -149,11 +154,11 @@ export function createBattles(store, catalog, { uuid, now, files, prepareOnly = 
           name: member.name,
           profession: catalog.profession(member.primaryProfessionId).name,
         },
-        summary: summarizePersonalBattles(entries),
-        entries: entries.slice((page - 1) * 20, page * 20),
+        ...(readAll ? {} : { summary: summarizePersonalBattles(entries) }),
+        entries: readAll ? entries : entries.slice((page - 1) * 20, page * 20),
         total: entries.length,
-        page,
-        pageSize: 20,
+        page: readAll ? 1 : page,
+        pageSize: readAll ? entries.length : 20,
       };
     },
     saveBattleRecords([input]) {
