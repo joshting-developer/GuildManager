@@ -237,3 +237,11 @@ SQLite `member_maintenance_requests` 保存管理操作結果；`member_uid_revi
 `saveBattleRecords` 的未知例外由 `battle-upload-diagnostics.js` 追蹤失敗步驟、固定表別與耗時，RPC 回傳保留 `GAS_ERROR` 並附步驟／類型／診斷碼的訊息。執行紀錄只含固定分類及耗時，不記錄原始錯誤文字、stack、輸入、玩家、檔名、資源 ID 或憑證；原始錯誤只用來選擇固定類型。已知業務／權限錯誤維持原回應；紀錄失敗不改操作結果。
 
 Sheets storage 以可選的同步 run 包裝讀寫、flush 與提交標記，預設直接執行；未新增服務呼叫、資料搬移或改變提交順序。巢狀步驟時間包含其子步驟，不能相加視為總耗時。提交後錯誤回報結果未確認，由原 requestId 機制安全重試；Drive 未引用附件仍依既有規則保留。
+
+## GAS 最新已提交版本讀取（v1.0.20）
+
+`createSheetStore` 在交易開始固定 commits 次序；每張表首次存取時，按 record_id 與 transaction_id 選擇該快照中最新的已提交版本，再驗證該版本的分段及解碼 JSON。最新的刪除標記代表不存在，之後的新建版本可恢復；最新版本缺段／重複分段或內容損毀仍報錯，不退回舊資料。已被取代的舊 payload 不再是一般查詢的必要資料，歷史列仍原樣保留；這個讀取流程不作完整歷史健全性稽核。
+
+指定 key 的 get／getMany，以及超過 128 個資料列的大表 all，先讀前四欄索引，再依最新版本的相鄰列批次讀 payload_base64；不讀取其他歷史版本的 payload。不超過 128 列的小表 all 保留一次五欄批次讀取，避免多一次雲端往返，但仍只解碼最新版本。同一交易重用索引、已解碼值及不存在的查詢結果，並疊加本交易 put／remove；快取不跨請求。列數每次讀取只取得一次，避免重複 getLastRow。
+
+保留五欄格式、Base64／UTF-8 分段、全部歷史、write lock、flush 及提交標記，不需資料搬移或 setupGas。業務 API 的顯式排序維持原規則，不以內部 Map 枚舉當作業務排序。commits 與前四欄索引仍需掃描；若最新列分散，payload 可能需要多個範圍呼叫，因此效益依資料分布而異，呼叫量比較不等於正式 GAS 秒數。
