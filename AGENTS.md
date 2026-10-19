@@ -303,7 +303,7 @@ member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admi
 
 ## 成員戰績閱覽權限
 
-已登入 member／manager／admin 可使用戰績清單、對戰詳情、原始 CSV／既有附件下載及個人數據分析。member 的導覽顯示成員清單與戰績閱覽，點左上平台名稱返回行事曆，從對戰表格點已關聯人名可開啟個人頁；成員清單含所有既有操作開放 member／manager／admin，其他管理功能仍只供 admin／manager。共用 member 通行密碼不綁遊戲 UID，因此可查看所有已關聯成員的數據，不限制為本人。匿名不可讀，member 不可上傳／修改戰績、活動、排表或帳號。後端分別放行明確戰績 GET 路徑及成員清單的讀寫路徑／方法，不以 URL 前綴放寬其他管理操作。
+已登入 member／manager／admin 可使用戰績清單、對戰詳情、原始 CSV／既有附件下載及個人數據分析。member 的導覽顯示成員清單與戰績閱覽，點左上平台名稱返回行事曆，從對戰表格點已關聯人名可開啟個人頁；成員清單開放 member／manager／admin，「移至編外」按鈕及端點僅供 admin／manager，其他管理功能仍只供 admin／manager。共用 member 通行密碼不綁遊戲 UID，因此可查看所有已關聯成員的數據，不限制為本人。匿名不可讀，member 不可上傳／修改戰績、活動、排表或帳號。後端分別放行明確戰績 GET 路徑及成員清單的讀寫路徑／方法，不以 URL 前綴放寬其他管理操作。
 
 右上登入視窗包含「成員登入」「管理者登入」兩個 tab；前者只填 admin 發行的通行密碼（英數 6–128 字），後者沿用 Manager／Admin 帳號密碼。共用視窗一律預選成員登入，首頁登入後留在行事曆，直接開啟戰績／個人分析或管理連結成功後保留原目標及權限；切換 tab 清除密碼及登入錯誤。
 
@@ -362,9 +362,9 @@ admin 在帳號管理的「平台設定」分頁修改品牌名稱，預設「�
 
 ## member 成員清單權限
 
-member／manager／admin 均可進入 `#/members`，成員與編外分類、UID、過去名稱、主副職業／所屬篩選及查看數據皆可使用；新增、修改、移至編外、匯入預覽／確認不另限制角色。UID 仍只在成員管理清單及相關表單／匯入／歷史視窗顯示，其他頁面規則不變。
+member／manager／admin 均可進入 `#/members`，成員與編外分類、UID、過去名稱、主副職業／所屬篩選及查看數據皆可使用；新增、修改、匯入預覽／確認維持既有權限；member 隱藏「移至編外」按鈕，該端點僅供 admin／manager。UID 仍只在成員管理清單及相關表單／匯入／歷史視窗顯示，其他頁面規則不變。
 
-本機允許有效 member session 呼叫成員清單對應 GET／POST／PATCH／DELETE 路徑；GAS 開放 getMembers／addMember／updateMember／removeMember／previewMemberImport／importMembers。寫入維持 CSRF、格式、revision 及匯入版本檢查；共用 member 帳號角色不變，不綁本人 UID。其他管理總覽、活動、排表、戰績寫入、影片／出勤閱覽及帳號／平台設定沿用原權限。匿名仍不能讀寫完整名冊，通行密碼變更撤銷 session 後不能操作。
+本機允許有效 member session 呼叫成員清單對應 GET／POST／PATCH 路徑；GAS 開放 getMembers／addMember／updateMember／previewMemberImport／importMembers。DELETE /api/members/:uid 與 GAS removeMember 僅供 admin／manager；一般編輯所屬狀態維持現況，不額外限制。寫入維持 CSRF、格式、revision 及匯入版本檢查；共用 member 帳號角色不變，不綁本人 UID。其他管理總覽、活動、排表、戰績寫入、影片／出勤閱覽及帳號／平台設定沿用原權限。匿名仍不能讀寫完整名冊，通行密碼變更撤銷 session 後不能操作。
 
 
 ## API 等待介面
@@ -483,3 +483,9 @@ member／manager／admin 均可進入 `#/members`，成員與編外分類、UID�
 本輪未 push Git、更新 Web App 部署、執行 setupGas、變更正式試算表或 Script Properties，也未查詢部署版號。使用者仍需更新既有 Web App 的部署版本才會對外生效；同步成功不代表原正式儲存錯誤已完成真實業務驗證。後續新批次同步依發布規則遞增 patch，單純失敗重試／同批重新同步不重複升版。
 
 使用者再次要求同步 GAS：來源 `9457e3a`，程式與已同步的 `61caa9b` 無差異，沿用 1.0.12。重新 `npm run gas:push` 編譯／備份後，clasp 回報遠端已是最新，四檔讀回比對一致；最新備份 `data/gas-backups/2026-10-19T06-59-30-424Z/`。本次亦未 push Git、更新部署、初始化或更動正式資料。
+
+## member 隱藏移至編外（2026/10/19，本機待交付 v1.0.13）
+
+使用者兩次明確確認只要 member 看不到「移至編外」按鈕，其餘功能維持現況，不擴大限制新增、匯入或一般編輯所屬狀態。MembersPage 依既有 admin／manager 角色條件顯示按鈕並保護操作函式；Node DELETE /api/members/:uid 及 GAS removeMember 限管理者。member 改名、主副職業、所屬狀態、匯入與新增維持原權限，三項維護規則不變。
+
+本批本機版號 1.0.13，新增對應更新紀錄並保留 1.0.12。260 項測試、一般／GAS 編譯通過；隔離 Chrome 桌面 1440×1000／手機 390×844 確認 member 無移至編外按鈕、編輯能保存、所屬欄位及新增／匯入仍在，admin 按鈕保留。輸出 `/private/tmp/guild-member-move-permission-tests.log`，腳本 `/private/tmp/guild-member-move-preview/check.mjs`。本次未 push Git、同步 GAS、更新部署或操作正式資料；遠端 GAS 最新仍為上節 1.0.12。
