@@ -77,9 +77,6 @@ function togglePage(checked) {
   }
   selection.value = next;
 }
-function selectEntries(latestOnly = false) {
-  selection.value = latestOnly ? latestPersonalSelection(entries.value) : new Set(entries.value.map(personalBattleKey));
-}
 async function load() {
   const current = ++version, previous = data.value;
   loading.value = true;
@@ -256,11 +253,6 @@ onUnmounted(() => { disposed = true; version++; });
             >一命</v-btn
           >
         </div>
-      </div>
-      <div class="personal-actions mb-4" role="group" aria-label="戰績勾選操作">
-        <v-btn variant="outlined" :disabled="!entries.length" @click="selectEntries(true)">勾選最新 10 筆</v-btn>
-        <v-btn variant="text" :disabled="!entries.length" @click="selectEntries(false)">勾選全部符合紀錄</v-btn>
-        <v-btn variant="text" :disabled="!selection.size" @click="selection = new Set()">清除勾選</v-btn>
       </div>
       <p class="battle-view-muted mb-4" role="status" aria-live="polite">共 {{ data.total }} 筆，符合 {{ entries.length }} 筆，其中已勾選 {{ selectedEntries.length }} 筆；全部已勾選 {{ selection.size }} 筆。預設選取最新 10 筆，重新載入保留勾選。</p>
       <p v-if="!entries.length" class="battle-view-state">沒有符合篩選條件的戰績</p>
