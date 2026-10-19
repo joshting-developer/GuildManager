@@ -112,7 +112,7 @@
 | RPC | 業務讀取 | 業務寫入 | 建議 |
 | --- | --- | --- | --- |
 | `getBattleRecords` | battles | 無 | 讀 |
-| `getBattleRecord` | battles、battle_players、battle_links、requests | 無 | 讀 |
+| `getBattleRecord` | battles、battle_players、battle_links、requests；includeTeamContext 時追加 lineup_versions | 無 | 讀；同次快照帶最小分團對應，不讀 Drive／不占寫入鎖 |
 | `getBattleTeamAnalysis` | battles、battle_players、battle_links、lineup_versions、requests | 無 | 讀；分析計算不需持寫入鎖 |
 | `getMemberBattleRecords` | members、professions、battles、battle_players、battle_links | 無 | 讀；摘要與明細使用同次快照 |
 | `getBattleAttachment` | battles、Drive 附件 | 無 | 讀；下載不需擋住請假 |
@@ -222,3 +222,7 @@
 隔離 Chrome 以真正的 GAS 前端編譯與模擬後端驗證桌面／390px 手機：持鎖時首頁與表單仍可載入、不同人同舊表單送出成功、BUSY 自動重試保留原 payload、同人舊表單衝突保留輸入、手機失敗後使用相同 requestId 再送出成功，最終三筆請假、無頁面例外。腳本／摘要／截圖 `/private/tmp/guild-concurrency-preview/`；驗證未使用正式 GAS 或發送 Discord 訊息。
 
 2026-10-19 使用者要求同步後，來源 `ded5752` 已透過 `npm run gas:push` 重新編譯、備份、同步並讀回四檔一致，沿用 1.0.19；備份 `data/gas-backups/2026-10-19T14-39-28-254Z/`。本輪未更新 Web App 部署或修改正式資料，線上須由使用者更新既有部署才會生效，見 [GASDeployment.md](GASDeployment.md)。
+
+## v1.0.21 進攻／防守分析補充（本機待同步）
+
+詳情選填 includeTeamContext，在既有 READ_ONLY 快照內讀最後儲存排表與成員引用投影，只返回實際玩家的最小對應；不擴充鎖白名單、不新增表、put／remove 或 Drive 作業。後續團隊合計、比例、配對、排序與圖表在前端進行，開啟或互動不再次查詢 team-analysis。顯式重新載入詳情才重讀。編譯後 GAS 已驗證其他寫入持鎖時可讀，資料／Properties／Drive／通知均未變，舊 API／wrapper 與匿名拒絕維持相容。初次讀取仍有 Sheets／排表成本，未量測正式 Google 秒數。

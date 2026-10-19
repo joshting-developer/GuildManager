@@ -206,14 +206,15 @@ App 對 member 開放 members 路由及導覽，直接連結登入後保留目�
 
 `src/domain/discord-notifications.js` 共用 Webhook 網址檢查、請假狀態轉換判斷與 embed 內容。業務寫入在交易內把通知排入佇列：本機 repository 以 `takeNotifications()` 交給 `server/app.js`，只在呼叫成功後交由 `server/discord-notifier.js` 非同步依序送出；GAS `rpc()` 收集通知並在 script lock 釋放後以 UrlFetchApp 送出。資料保存為準，通知失敗不回滾或影響回應；重試回應不重送。GAS 未設定頻道靜默停用，已填無效網址、HTTP 失敗及傳送例外僅記錄設定名稱、固定分類與最終 HTTP 狀態，不保存網址、例外原文、回應本文或玩家資料；日誌失敗同樣不影響已保存回應。設定見 README「Discord 通知」與 GASDeployment。
 
-## 團隊戰績分析
+## 進攻／防守戰績分析
 
-`GET /api/battle-records/:id/team-analysis`／GAS `getBattleTeamAnalysis` 只讀戰績、既有玩家關聯與同 eventId 的最後排表，透過共用 `src/domain/team-battle-analysis.js` 分團及計算比例。不新增表、不保存推算、不改原 CSV 或快照；戰績沒有固定排表版本引用，UI 標示保存時間及重新保存會更新分析。排表日期／類型不符不分團，已刪活動仍可使用原排表。
+對戰詳情以 `GET /api/battle-records/:id?includeTeamContext=true`／GAS `getBattleRecord(id, { includeTeamContext: true }, context)`，在同次 SQLite 讀取交易或 GAS 唯讀 commits 快照，取玩家、既有成員引用投影與同 eventId 最新儲存排表。`includeTeamContext` 僅接受 boolean（HTTP 僅 true／false 字串），省略保持原詳情契約；GAS wrapper 亦相容舊第二參數 session context。不新增 RPC 或資料表、不讀 Drive、不占寫入鎖，也不修改原 CSV／排表／玩家快照。
 
-暫以 attack-*／mobile-*／defense-1,2／defense-3,4 對應進攻1／進攻2／防守12隊／防守34隊（分團詢問待回覆）。第一場取 slot、第二場取 secondRound 或沿用 slot；缺少場序不推測。已關聯 memberUid 唯一對應 UID，未關聯才唯一精確比對排表姓名；跨陣營重複玩家、多人同名及同人多列保持未分類，回應不暴露識別碼。
+後端共用 `matchBattlePlayers` 身分判定，再由 `battleTeamContext` 只傳 recordId、unavailable、lineup.savedAt 與逐玩家 playerIndex／teamId／teamName／reason。最小 context 不含排表 UID、報名 ID、備註、職責或未出場人員。日期／類型不符、缺場序／活動／排表時不推測；已刪活動仍可用最後排表。第一場取 slot，第二場取 secondRound 或沿用 slot；已關聯 memberUid 優先對應 UID，無關聯才唯一精確姓名，同名、跨陣營重複及同人多列保持未分類。
 
-比例在紅藍各自計算，團內分母只取本團實際 CSV 玩家，全場分母含同陣營未分類者；內推不混用紅藍分母。缺值不當零，分母缺值或為 0 時不回傳百分比。member／manager／admin 可讀分析，匿名及撤銷 session 不可讀，member 排表管理權限維持拒絕；前端每次開啟重新讀取並拒絕過期回應。
+前端 `analyzeBattleTeamContext` 使用當頁原始玩家快照及已驗證對應，形成進攻團、機動團、防守1–4 六組資料；兩個彈窗的合計、比例、排序、分頁、配對與圓餅由前端處理，開啟／切陣營／tab／配對不讀 API。比較頁每列一團／隊，固定數值與占全場比例兩表。防守 A 選兩隊，B 取其餘兩隊，互斥且四隊各一次。全場分母含同陣營未分類、團內只含本團玩家，圓餅分母為被比較兩組合的合計；缺值／部分資料／零分母保留未知，不造百分比。
 
+戰績未固定排表版本，詳情顯示分團來源保存時間；顯式重載詳情才更新排表對應並拒絕過期回應。首載增加排表讀取；目前 GAS 仍讀 lineup_versions 集合再篩選同活動，不宣稱已消除全表索引或其他排表 payload 的讀取。member／manager／admin 可讀，匿名及撤銷 session 不可讀，member 排表管理權限不變。舊 `GET /api/battle-records/:id/team-analysis`／GAS `getBattleTeamAnalysis` 保留原四團格式與名稱相容，新 UI 不再呼叫。
 
 ## 成員資料維護與 UID 修正
 
