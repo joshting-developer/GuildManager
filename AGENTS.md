@@ -6,7 +6,7 @@
 
 - 介面、文件與操作訊息使用繁體中文
 - 視覺參考相鄰專案 `../NSHM_history`, 本專案的具體規則以 [Style.md](Style.md) 為準
-- 已建立 Vuetify 首頁／成員管理／活動安排／戰場排表／戰績上傳／戰績閱覽、Docker 本機環境、SQLite 讀寫 API 與 GAS 單檔編譯流程；2026/10/19 最新來源 61caa9b（v1.0.12，公開報名／影片職業、請假置底、CSV 摘要與排表空人員儲存修正）已同步 GAS 並讀回四檔核對，本批尚未 push origin/main，Web App 仍需使用者更新部署。前次查詢部署為第 3 版，本輪未重查，見 GASDeployment.md；下方未同步紀錄為本次同步前的實作歷史。
+- 已建立 Vuetify 首頁／成員管理／活動安排／戰場排表／戰績上傳／戰績閱覽、Docker 本機環境、SQLite 讀寫 API 與 GAS 單檔編譯流程；v1.0.12 已同步 GAS 並讀回四檔核對。2026/10/19 Webhook 調查唯讀確認正式 Web App 為第 17 版、說明 v1.0.12，後端與已同步備份一致；本機 v1.0.13 尚待同步／發布，見 GASDeployment.md。下方第 3 版或未部署等舊交付紀錄保留作歷史參考。
 - 使用者已確認本機使用 SQLite, 後期資料來源為 Google 試算表
 - 試算表 ID 已取得, 本機使用帳號密碼登入；正式工作表名稱與 Google 登入待確認, 本機角色為 admin／manager／member, 成員、職業、過去名稱及活動安排欄位已依需求實作於本機
 
@@ -495,3 +495,11 @@ member／manager／admin 均可進入 `#/members`，成員與編外分類、UID�
 使用者先要求 member 的行事曆入口，隨後改為「回首頁」且所有角色都有。member／manager／admin 的桌面導覽及手機選單皆新增「回首頁」，連至既有 #/ 行事曆；點品牌仍可返回。共用既有角色導覽、目前頁 aria-current、路由切換與未儲存 guard，不另建行事曆頁或變更角色權限。
 
 併入尚未同步的 1.0.13 更新紀錄，不重複升版。一般／GAS 編譯通過；隔離 Chrome 以三角色分別驗證 1440×1000 桌面與 390×844 手機，入口存在、鍵盤 Enter 返回月曆、目前頁標示與手機點選關閉抽屜皆通過。腳本 `/private/tmp/guild-home-navigation-preview/check.mjs`；本輪未另跑完整後端測試，前一功能的 260 項結果保留。本次僅本機提交，尚未 push／同步 GAS／更新 Web App，遠端程式仍為 1.0.12。
+
+## 線上請假 Webhook 授權調查（2026/10/19）
+
+使用者回報線上請假未收到通知。唯讀查詢正式部署為第 17 版（說明 v1.0.12），下載該版四檔至私有 `data/gas-inspections/2026-10-19-webhook-v17/`，後端與已同步的 1.0.12 備份完全一致；manifest 包含 script.external_request，執行身分 USER_DEPLOYING。
+
+使用者自行在編輯器執行既有 testDiscordWebhooks，回報原先疑似權限不足，補授權後 `DISCORD_WEBHOOK_LEAVE：成功（HTTP 204）`；名冊回報未設定或不是 Discord webhook 網址。優先判斷請假失敗與授權有關，測試已證實目前請假 Webhook 可送達，正常請假仍待一筆新的狀態變更確認。相同 requestId 或已請假者再次送出不重複通知，先前保存但未送出的通知不會自動補發；不為測試改正式出勤。
+
+6 項通知測試通過（兩項本機 HTTP 測試需 sandbox 外執行），未改程式、升版、同步 GAS、更新部署、讀取 Webhook 值或由工具送真實 Discord 訊息；僅更新診斷交接。日常送出例外目前會靜默忽略，不能只憑請假成功認定通知已送達。
