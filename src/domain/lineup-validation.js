@@ -1,4 +1,4 @@
-import { emptyLineup, participantKey } from './lineups.js';
+import { emptyLineup, participantKey, LINEUP_GROUPS } from './lineups.js';
 
 export class LineupError extends Error {
   constructor(message, status = 422, code = 'LINEUP_INVALID') {
@@ -36,23 +36,28 @@ export function validateLineup(teams) {
     return {
       id: team.id,
       name: lineupText(team.name, '隊名', 40, true),
-      slots: team.slots.map((slot) => {
-        function validateAssignment(person, allowEmpty = false) {
+      slots: team.slots.map((slot, slotIndex) => {
+        function validateAssignment(person, round) {
+          // Empty controls and transported objects can omit uid or send an empty string.
+          const uid = person?.uid === '' ? null : person?.uid ?? null;
           const registrationId = person?.registrationId ?? null;
           if (
             !person ||
-            (person.uid !== null &&
-              (typeof person.uid !== 'string' || !person.uid || person.uid.length > 64)) ||
+            typeof person !== 'object' || Array.isArray(person) ||
+            (uid !== null && (typeof uid !== 'string' || uid.length > 64)) ||
             (registrationId !== null &&
               (typeof registrationId !== 'string' ||
                 !/^[a-zA-Z0-9_-]{1,64}$/.test(registrationId))) ||
-            (person.uid !== null && registrationId !== null) ||
-            (!allowEmpty && !person.uid && !registrationId)
-          )
-            throw new LineupError('人員資料格式不正確, 請重新選擇');
+            (uid !== null && registrationId !== null)
+          ) {
+            const group = LINEUP_GROUPS.find((group) => defaultTeam.id.startsWith(`${group.id}-`));
+            throw new LineupError(
+              `${group.name}「${team.name}」第 ${slotIndex + 1} 位${round === 2 ? '第二場' : '第一場'}的人員資料格式不正確，請重新選擇`,
+            );
+          }
           if (!['primary', 'secondary'].includes(person.profession))
             throw new LineupError('請選擇主職業或副職業');
-          const identity = participantKey(person);
+          const identity = participantKey({ uid, registrationId });
           if (identity) {
             if (seen.has(identity))
               throw new LineupError(
@@ -63,13 +68,14 @@ export function validateLineup(teams) {
             seen.add(identity);
           }
           return {
-            uid: person.uid,
+            uid,
             ...(registrationId ? { registrationId } : {}),
             profession: person.profession,
           };
         }
-        const first = validateAssignment(slot, true);
-        const secondRound = slot.secondRound == null ? null : validateAssignment(slot.secondRound);
+        const first = validateAssignment(slot, 1);
+        const second = slot.secondRound == null ? null : validateAssignment(slot.secondRound, 2);
+        const secondRound = participantKey(second) ? second : null;
         const dutyIds = slot.dutyIds === undefined ? [] : slot.dutyIds;
         if (
           !Array.isArray(dutyIds) ||

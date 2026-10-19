@@ -82,7 +82,6 @@ test('both rounds are validated for duplicates, eligibility, profession and exac
     assert.throws(() => repo.confirmLineup(input), code('DUPLICATE_LINEUP_UID'));
     teams[0].slots[1].uid = null;
     for (const invalid of [
-      { uid: null, profession: 'primary' },
       [],
       { uid: 42, profession: 'primary' },
       { uid: '002', profession: 'third' },
