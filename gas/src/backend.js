@@ -146,8 +146,10 @@ function deliverNotices(notices, footer) {
       });
       channel = message.channel;
       const url = webhookUrl(properties, DISCORD_WEBHOOK_SETTINGS[channel]);
+      // An unset optional channel keeps its existing silent, disabled behavior.
+      if (!url) continue;
       if (!isDiscordWebhookUrl(url)) {
-        logDiscordFailure(channel, url ? 'WEBHOOK_INVALID' : 'WEBHOOK_NOT_CONFIGURED');
+        logDiscordFailure(channel, 'WEBHOOK_INVALID');
         continue;
       }
       const request = {

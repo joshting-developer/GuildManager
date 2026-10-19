@@ -10,7 +10,7 @@ test('GAS webhook diagnostics record safe causes and final retry status after co
   const logs = [];
   env.sandbox.Logger = { log: (line) => logs.push(line) };
   call('addMember', [{ uid: 'private_uid', name: '私人名稱', primaryProfessionId: 1 }]);
-  assert.match(logs.pop(), /DISCORD_WEBHOOK_MEMBER.*WEBHOOK_NOT_CONFIGURED/);
+  assert.deepEqual(logs, [], 'an unset optional channel remains silently disabled');
   const event = call('createEvent', [{ title: '私人活動', type: 'guild_war', dates: ['2026-10-19'], requestId: 'event' }]).events[0];
   const url = 'https://discord.com/api/webhooks/12345/secret_test_token';
   const input = (id, status = 'leave') => ({ name: '私人名稱', status, note: '私人備註', professionId: 1,
