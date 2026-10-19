@@ -2,13 +2,15 @@
 
 目前已生成 Vue 單檔頁面與完整 GAS 後端，涵蓋登入／帳號管理、行事曆、成員／匯入／名稱歷史、活動、職責、報名／請假、排表／範本、戰績上傳／下載／閱覽、個人分析及團隊分析。本機 SQLite 環境保留。
 
-## 2026/10/19：本機 v1.0.18 待同步
+## 2026/10/19：v1.0.18 最新同步狀態
 
-來源 `1fd4f4d`，本機已補戰績上傳未知例外的失敗步驟、錯誤類型與診斷碼，以及固定分類的雲端紀錄。278 項測試、一般／GAS 編譯與兩份實際 CSV 的隔離匯入／重試驗證通過；未確定正式故障原因。這輪未同步 GAS、更新部署或改正式資料，後續交付沿用 1.0.18，不再次升版。
+來源 `eaa9c93`（功能 `1fd4f4d`），平台版本 **1.0.18**，沿用同批版本，不再次升版。戰績上傳未知例外會顯示失敗步驟、固定錯誤類型與診斷碼，雲端紀錄包含 Drive／Sheets 步驟、表別及耗時，不記原始例外文字、玩家、CSV 或憑證。正式上傳失敗原因仍未確定，診斷補強不等於故障已修復。
 
-使用者目前線上頁尾為 v1.0.17；前輪唯讀查詢與下載為第 21 版（v1.0.17），使用者後續截圖為第 22 版。下方 v1.0.16 是較早由本代理完成的同步紀錄，不能作為最新正式部署狀態。
+`npm run gas:push` 已重新編譯、備份遠端、上傳 `Index.html`／`Code.gs`／`Backend.gs`／`appsscript.json`，四檔讀回比對一致。私有備份 `data/gas-backups/2026-10-19T13-23-25-188Z/before` 與 `after` 不提交；版號、release note、BATTLE_UPLOAD_FAILURE、Drive／Sheets 步驟與診斷碼核對通過，無外部 JS／CSS。沿用前輪 278 項測試、一般／GAS 編譯與兩份實際 CSV 的隔離匯入／重試驗證，本輪重新 GAS 編譯及套件核對，未重跑完整測試。
 
-套用新診斷需先依授權同步程式，再更新既有 Web App 部署。從網站重試上傳後，畫面會提供步驟／類型／診斷碼；執行項目中的 `BATTLE_UPLOAD_FAILURE` 紀錄包含表別與各步驟耗時，不含原始例外文字、玩家資料、CSV 或憑證。各巢狀步驟耗時有重疊；提交後回應失敗可能已保存資料，應保留相同請求重試。不要從編輯器直接執行 saveBattleRecords 或為診斷重跑 setupGas。
+**本輪只同步 GAS 程式，未 push Git、更新 Web App 部署、執行 setupGas、修改 Script Properties／正式試算表或傳送 Discord 訊息。** 使用者需更新既有 Web App 部署才會套用 1.0.18；本輪未查部署版本。同步前線上頁尾 v1.0.17，前輪 API 查詢第 21 版，使用者後續截圖第 22 版，均保留作歷史。
+
+更新部署後從網站按「上傳戰績」，若失敗請提供畫面的步驟／類型／診斷碼及執行項目中的 BATTLE_UPLOAD_FAILURE 紀錄。各巢狀步驟耗時有重疊；提交後回應失敗可能已保存資料，應保留相同請求重試。不要從編輯器直接執行 saveBattleRecords 或為診斷重跑 setupGas。
 
 ## 2026/10/19：v1.0.16 同步狀態（歷史）
 
@@ -76,19 +78,19 @@
 
 ## 這次更新的部署步驟
 
-最新同步程式為 v1.0.16，排表 JPG 改為 5400×3771 橫向基準並簡化標示、縮減留白；先前報名整併讀取、單場影片重載、效能與通知診斷功能保留。驗證與部署限制以上方最新交付紀錄為準，不需重新初始化資料。
+最新同步程式為 v1.0.18，新增戰績上傳的安全診斷與失敗步驟提示；既有圖片樣式、報名與排表功能保留。驗證與部署限制以上方最新交付紀錄為準，不需重新初始化資料。
 
 最新唯讀確認的部署說明為 `v1.0.12`，第 17 版，該版 manifest 為「以部署者身分執行（USER_DEPLOYING）」及「任何人（ANYONE_ANONYMOUS）」；發布時仍請核對管理部署畫面的目前設定。若先前已完成初始化，可沿用既有專用資料表發布新版本，本次更新不需另建表。
 
 1. 開啟 [Apps Script 專案](https://script.google.com/home/projects/1rkY7EI6rHYNoH8TZmIOKQ-MWSCexXUdFTOqInqyfxBR1qMoI8DAf9hG5/edit)。
 2. 右上「部署 → 管理部署作業」，選擇目前使用的既有 Web App。
-3. 點鉛筆「編輯」，版本選「新版本」；說明可填 `v1.0.16 單張排表圖片放大與簡化標示`。
+3. 點鉛筆「編輯」，版本選「新版本」；說明可填 `v1.0.18 雲端戰績上傳錯誤診斷`。
 4. 點「部署」，若 Google 要求新增授權，由部署者本人完成。
-5. 使用[原 Web App 網址](https://script.google.com/macros/s/AKfycbwk1B2IdFlpLbeFF2Ti4hgkYTdLsWlcZVGyiSlb2OXDS1TNpoFTUUtlCAf52QTNTP0i/exec)重新開啟，確認頁尾為 v1.0.16；在一般／專注排表下載 JPG，確認單張三團十隊、5400px 寬、明暗主題、無位置數字或「（副）」、實際所選職業及雙場／長文字完整換行。手機下載應為同一完整版型，未儲存修改下載後仍保留；既有功能依操作手冊確認。
+5. 使用[原 Web App 網址](https://script.google.com/macros/s/AKfycbwk1B2IdFlpLbeFF2Ti4hgkYTdLsWlcZVGyiSlb2OXDS1TNpoFTUUtlCAf52QTNTP0i/exec)重新開啟，確認頁尾為 v1.0.18，再由網站重試原戰績上傳。成功時確認保存場序與玩家筆數；失敗時保留輸入並提供畫面的步驟、類型、診斷碼及雲端執行紀錄，不要在編輯器直接執行 saveBattleRecords。
 
 更新既有部署可保留網址；直接同步程式不會更新已發布版本。[Google 版本部署說明](https://developers.google.com/apps-script/concepts/deployments)
 
-最新同步與備份紀錄見上方 v1.0.16 交付狀態；[2026/10/05 手冊與團隊分析同步計畫](plans/main/team-analysis-manual-gas-sync-plan.md)、[前次日期模式同步](plans/main/gas-date-mode-sync-plan.md)、[前次 admin 同步](plans/main/gas-admin-sync-plan.md)及[先前部署準備紀錄](plans/main/gas-release-preparation-plan.md)保留過往資訊。本節是已存在部署的更新流程；以下首次建立、私有屬性與初始化章節供尚未設定的環境參考。
+最新同步與備份紀錄見上方 v1.0.18 交付狀態；[2026/10/05 手冊與團隊分析同步計畫](plans/main/team-analysis-manual-gas-sync-plan.md)、[前次日期模式同步](plans/main/gas-date-mode-sync-plan.md)、[前次 admin 同步](plans/main/gas-admin-sync-plan.md)及[先前部署準備紀錄](plans/main/gas-release-preparation-plan.md)保留過往資訊。本節是已存在部署的更新流程；以下首次建立、私有屬性與初始化章節供尚未設定的環境參考。
 
 ## 本機自動上傳
 
