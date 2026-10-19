@@ -56,8 +56,11 @@ const participationClient = createParticipationClient({ source });
 const participation = ref({ responses: [], registrations: [] });
 const memberTab = ref('guild');
 const participantPeople = computed(() => lineupPeople(members.value, participation.value));
+const participantsByKey = computed(() => new Map(
+  participantPeople.value.map((person) => [participantKey(person), person]),
+));
 function findPerson(key) {
-  return participantPeople.value.find((person) => participantKey(person) === key);
+  return participantsByKey.value.get(key);
 }
 const sidebarTab = ref('members');
 const duties = ref([]),
@@ -189,6 +192,7 @@ const positionCount = computed(
 const eligible = computed(() =>
   participantPeople.value.filter((member) => eligibleMember(member, currentEvent.value?.type)),
 );
+const eligibleKeys = computed(() => new Set(eligible.value.map(participantKey)));
 watch(eligible, (people) => {
   if (selectedUid.value && !people.some((person) => participantKey(person) === selectedUid.value)) {
     selectedUid.value = '';
@@ -253,7 +257,7 @@ const invalidAssignments = computed(
       .filter(
         (slot) =>
           participantKey(slot) &&
-          (!eligible.value.some((member) => participantKey(member) === participantKey(slot)) ||
+          (!eligibleKeys.value.has(participantKey(slot)) ||
             !findPerson(participantKey(slot))?.[`${slot.profession}ProfessionId`]),
       ).length,
 );

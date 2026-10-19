@@ -1,4 +1,5 @@
 <script setup>
+import { computed } from 'vue';
 import { LINEUP_GROUPS, slotAssignments, participantKey } from '../domain/lineups.js';
 const props = defineProps({
   teams: { type: Array, required: true },
@@ -12,13 +13,28 @@ const props = defineProps({
   selectedDutyId: String,
 });
 const emit = defineEmits(['place', 'assign-duty', 'edit-seat', 'rename-team']);
+const professionsById = computed(() => new Map(props.professions.map((job) => [job.job_id, job])));
+const dutiesById = computed(() => new Map(props.duties.map((duty) => [duty.id, duty])));
+const peopleByKey = computed(() => {
+  const people = new Map();
+  for (const member of props.members) {
+    const key = participantKey(member);
+    // Keep the first match, as the original Array.find lookup did.
+    if (key && !people.has(key)) people.set(key, {
+      ...member,
+      primaryProfession: professionsById.value.get(member.primaryProfessionId),
+      secondaryProfession: professionsById.value.get(member.secondaryProfessionId),
+    });
+  }
+  return people;
+});
 function dutiesFor(slot) {
   return props.snapshots
     ? slot.duties || []
     : (slot.dutyIds || []).map((id) => ({
         id,
-        name: props.duties.find((duty) => duty.id === id)?.name || '職責不存在',
-        active: props.duties.find((duty) => duty.id === id)?.active,
+        name: dutiesById.value.get(id)?.name || '職責不存在',
+        active: dutiesById.value.get(id)?.active,
       }));
 }
 function dutyDescription(slot) {
@@ -26,16 +42,12 @@ function dutyDescription(slot) {
 }
 function person(slot) {
   if (props.snapshots) return slot.member;
-  const member = props.members.find((member) => participantKey(member) === participantKey(slot));
+  const member = peopleByKey.value.get(participantKey(slot));
   if (!member)
     return participantKey(slot)
       ? { name: slot.registrationId ? '報名已取消或不屬於本場' : '找不到成員' }
       : null;
-  return {
-    ...member,
-    primaryProfession: props.professions.find((p) => p.job_id === member.primaryProfessionId),
-    secondaryProfession: props.professions.find((p) => p.job_id === member.secondaryProfessionId),
-  };
+  return member;
 }
 function job(slot) {
   return person(slot)?.[`${slot.profession}Profession`];
