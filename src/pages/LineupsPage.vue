@@ -765,6 +765,7 @@ async function downloadLineupImage() {
     duties: duties.value,
     snapshots: archived.value,
     status: saveStatus.value,
+    theme: document.documentElement.dataset.theme,
   });
   busy.value = true;
   exporting.value = true;

@@ -1,0 +1,156 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { emptyLineup } from '../src/domain/lineups.js';
+import { lineupImageData, lineupImageFilename, lineupJpeg } from '../src/domain/lineup-image.js';
+
+function fixture(theme = 'light') {
+  const teams = emptyLineup();
+  Object.assign(teams[0].slots[0], { uid: 'private-id', profession: 'secondary', note: '拆塔\n第二行備註', dutyIds: ['duty'],
+    secondRound: { uid: null, registrationId: 'guest-id', profession: 'primary' } });
+  return lineupImageData({
+    event: { type: 'scrimmage', title: '示範圖片／測試', dates: ['2026-11-26'] },
+    teams, theme, status: '有未儲存修改', snapshots: false,
+    members: [
+      { uid: 'private-id', name: '示範成員', primaryProfessionId: 1, secondaryProfessionId: 2 },
+      { registrationId: 'guest-id', name: '示範外援', primaryProfessionId: 1 },
+    ],
+    professions: [
+      { job_id: 1, name: '素問', colorcode: '#ffb6c1' },
+      { job_id: 2, name: '龍吟', colorcode: '#3cb371' },
+    ],
+    duties: [{ id: 'duty', name: '山盟', active: false }],
+  });
+}
+
+async function render(data, { contextAvailable = true, blobAvailable = true } = {}) {
+  const calls = [];
+  const context = {
+    measureText(value) {
+      const size = Number(this.font.match(/(\d+)px/)[1]);
+      return { width: [...value].reduce((sum, char) => sum + (/[^\x00-\xff]/.test(char) ? size : size * 0.55), 0) };
+    },
+    fillRect(x, y, width, height) { calls.push({ type: 'fill', x, y, width, height, color: this.fillStyle }); },
+    strokeRect(x, y, width, height) { calls.push({ type: 'border', x, y, width, height }); },
+    fillText(value, x, y) {
+      calls.push({ type: 'text', value, x, y, font: this.font, align: this.textAlign, color: this.fillStyle, width: this.measureText(value).width });
+    },
+  };
+  const canvas = {
+    getContext: () => contextAvailable ? context : null,
+    toBlob(callback, type) { callback(blobAvailable ? new Blob(['isolated'], { type }) : null); },
+  };
+  const before = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  globalThis.document = { fonts: { ready: Promise.resolve() }, createElement: () => canvas };
+  try {
+    const blob = await lineupJpeg(data);
+    return { blob, canvas, calls };
+  } finally {
+    if (before) Object.defineProperty(globalThis, 'document', before);
+    else delete globalThis.document;
+  }
+}
+
+test('image data preserves all positions, both rounds, selected jobs, notes and status without identities', () => {
+  const data = fixture('dark');
+  assert.equal(data.theme, 'dark');
+  assert.equal(data.groups.flatMap((g) => g.teams).length, 10);
+  assert.equal(data.groups.flatMap((g) => g.teams.flatMap((t) => t.rows)).length, 60);
+  const row = data.groups[0].teams[0].rows[0];
+  assert.deepEqual(row.people.map((p) => [p.round, p.name, p.job]), [
+    ['第一場', '示範成員', '龍吟（副）'], ['第二場', '示範外援', '素問'],
+  ]);
+  assert.equal(row.description, '山盟（停用） · 拆塔\n第二行備註');
+  for (const value of ['private-id', 'guest-id', '"uid"', '"registrationId"'])
+    assert.ok(!JSON.stringify(data).includes(value));
+  assert.equal(fixture('invalid').theme, 'light');
+  assert.equal(lineupImageFilename(data), '2026-11-26_約戰 · 示範圖片／測試_戰場排表.jpg');
+});
+
+test('archived image data uses names, jobs and duties from snapshots without live roster lookups', () => {
+  const teams = emptyLineup();
+  Object.assign(teams[0].slots[0], { uid: 'old-id', profession: 'secondary', note: '原備註', dutyIds: ['gone'],
+    member: { name: '當時姓名', secondaryProfession: { name: '當時職業', colorcode: '#ff0000' } },
+    duties: [{ id: 'gone', name: '當時職責' }] });
+  const data = lineupImageData({ event: { type: 'guild_war', title: '', dates: ['2026-11-26'] }, teams,
+    members: [], professions: [], duties: [], snapshots: true, status: '封存', theme: 'dark' });
+  const row = data.groups[0].teams[0].rows[0];
+  assert.equal(row.people[0].name, '當時姓名');
+  assert.equal(row.people[0].job, '當時職業（副）');
+  assert.equal(row.description, '當時職責 · 原備註');
+  assert.equal(data.title, '幫戰');
+});
+
+test('JPG uses separate readable columns and theme while retaining all team headers and rows', async () => {
+  const light = await render(fixture());
+  const dark = await render(fixture('dark'));
+  for (const { blob, canvas, calls } of [light, dark]) {
+    assert.equal(blob.type, 'image/jpeg');
+    assert.equal(canvas.width, 2000);
+    assert.ok(canvas.height > 1000 && canvas.height < 2000);
+    const texts = calls.filter((c) => c.type === 'text');
+    for (const label of ['職業', '姓名', '職責／備註']) assert.equal(texts.filter((c) => c.value === label).length, 10);
+    for (const number of ['1', '2', '3', '4', '5', '6']) assert.equal(texts.filter((c) => c.value === number).length, 10);
+    assert.ok(texts.some((c) => c.value === '第一場'));
+    assert.ok(texts.some((c) => c.value === '第二場'));
+    const person = texts.find((c) => c.value === '示範成員');
+    const job = texts.find((c) => c.value === '龍吟（副）');
+    assert.match(person.font, /28px/);
+    assert.ok(person.x > job.x && person.y === job.y - 2);
+    assert.ok(texts.every((c) => c.y >= 0 && c.y + Number(c.font.match(/(\d+)px/)[1]) <= canvas.height));
+    assert.ok(texts.some((c) => c.value.includes('有未儲存修改')));
+  }
+  assert.equal(light.calls[0].color, '#f4f7fb');
+  assert.equal(dark.calls[0].color, '#101a29');
+  assert.notEqual(light.calls.find((c) => c.value === '示範成員').color, dark.calls.find((c) => c.value === '示範成員').color);
+});
+
+test('long names, headings, both rounds and notes wrap completely, growing the image without horizontal clipping', async () => {
+  const data = fixture('dark');
+  data.title = '很長的安排標題'.repeat(14);
+  for (const group of data.groups) for (const team of group.teams) {
+    team.name = '長隊名測試'.repeat(8);
+    for (const row of team.rows) {
+      row.people = [1, 2].map((round) => ({ round: `第${round}場`, name: '長姓名測試'.repeat(10), job: '職業名稱（副）', color: '#8b0000' }));
+      row.description = '長職責與備註'.repeat(12) + '\n保留換行';
+    }
+  }
+  const original = JSON.stringify(data);
+  const { canvas, calls } = await render(data);
+  assert.equal(JSON.stringify(data), original);
+  assert.ok(canvas.height > (await render(fixture('dark'))).canvas.height);
+  const texts = calls.filter((c) => c.type === 'text');
+  const names = texts.filter((c) => c.font.includes('28px')).map((c) => c.value).join('');
+  assert.equal(names, '長姓名測試'.repeat(10 * 2 * 60));
+  assert.equal(texts.filter((c) => c.value === '保留換行').length, 60);
+  for (const call of texts) {
+    const left = call.align === 'center' ? call.x - call.width / 2 : call.x;
+    assert.ok(left >= 0 && left + call.width <= canvas.width, call.value);
+    assert.ok(call.y + Number(call.font.match(/(\d+)px/)[1]) <= canvas.height);
+  }
+});
+
+test('profession text maintains readable contrast in both themes, including light pink and dark red professions', async () => {
+  const lum = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+    .map((v) => v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)
+    .reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0);
+  for (const theme of ['light', 'dark']) {
+    const data = fixture(theme);
+    for (const [index, color] of ['#ffb6c1', '#3cb371', '#add8e6', '#00bfff', '#f0e68c', '#9932cc', '#ff8c00', '#8b0000', '#4682b4'].entries()) {
+      const person = data.groups[0].teams[0].rows[index % 6].people[0];
+      person.job = '對比測試' + index;
+      person.color = color;
+      const { calls } = await render(data);
+      const foreground = lum(calls.find((c) => c.value === person.job).color);
+      const background = lum(theme === 'dark' ? '#1d2c3e' : '#ffffff');
+      assert.ok((Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05) >= 4.5);
+    }
+  }
+});
+
+test('unavailable Canvas or failed JPG encoding reports errors without modifying the draft', async () => {
+  const data = fixture();
+  const before = JSON.stringify(data);
+  await assert.rejects(render(data, { contextAvailable: false }), /Canvas/);
+  await assert.rejects(render(data, { blobAvailable: false }), /JPG 產生失敗/);
+  assert.equal(JSON.stringify(data), before);
+});
