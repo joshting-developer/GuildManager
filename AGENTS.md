@@ -157,6 +157,12 @@ Apps Script 的 `.gs` 檔案共用全域環境, 避免重複命名與載入時�
 - 匯入內有格式或重複 UID 錯誤時整批拒絕, 確認需檢查預覽版本, SQLite 寫入使用同一交易
 - 一般本機驗證使用隔離 SQLite, 不自動播種假成員或寫入正式試算表。使用者已指定在日常本機加入 100 位示範成員：80 位幫派兼俱樂部、20 位僅俱樂部；使用 `npm run seed:demo` 手動新增, 示範 UID 固定且已存在時跳過, 不覆寫既有資料。
 
+2026/10/19 使用者另授權在日常 Docker SQLite 準備個人頁示範資料：新增獨立成員「示範資料・個人分析」（內部 UID `DEMO-PERSONAL-001`）、18 筆名稱含「示範資料・個人分析」的戰鬥安排及 30 場戰績；同場雙邊各一筆的案例使個人頁合計 31 筆，日期 2026/10/01–10/18，涵蓋九職業、雙場、勝敗／未知／內推、零擊敗與缺值。入口 `http://localhost:5173/#/member-records/DEMO-PERSONAL-001`，原有 100 位成員及所有舊資料逐表核對保持不變；不要覆寫這些已被使用者編輯的原有示範成員。
+
+新增前透過 SQLite backup 保存 `/data/local-fixture-backups/2026-10-19T15-41-14-840Z-before-personal-demo.sqlite`（api 容器內、guild_data volume）；檢查 31 張原有業務表的舊列內容仍完整，foreign_key_check／quick_check 通過。私人播種腳本 `data/local-personal-fixture-seed.mjs` 只供本機手動使用，以固定 requestId 安全重試且不覆寫既有資料，資料庫／腳本／結果不提交；摘要位於 api 容器 `/data/local-fixture-backups/personal-demo-latest.json`。需再執行時可用 `docker compose exec -T api node --input-type=module < data/local-personal-fixture-seed.mjs`，不走通知服務。
+
+本機 frontend 容器原為 1.0.3 且缺 ECharts，已用 `docker compose up -d --build --no-deps frontend` 更新到 1.0.21／ECharts 6.1.0，保留 api 與資料 volume。localhost 實際 API／Chrome 已驗證 31 筆完整讀取、預選十筆、第二頁 11 筆、跨頁勾選及擊殺效率圖，無頁面例外；截圖／摘要 `data/local-personal-preview/`（私有、不提交）。驗證帳號只透過既有本機設定讀取，測試 session 已登出，沒有修改帳密或發送 Webhook。本次只處理本機資料與容器，不升版、不同步 GAS 或更新部署。
+
 ## 已確認活動安排規則
 
 - 活動安排清單提供名稱搜尋（忽略頭尾空白與英文大小寫），與類型篩選取交集；變更條件回第一頁，清除同時重設名稱／類型。依每筆首個安排日期由新到舊，同日依建立時間由新到舊；多日安排內日期維持原順序。建立／修改成功清除篩選並定位該筆所在頁，手機搜尋／類型直排。
