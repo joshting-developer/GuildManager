@@ -6,7 +6,7 @@
 
 - 介面、文件與操作訊息使用繁體中文
 - 視覺參考相鄰專案 `../NSHM_history`, 本專案的具體規則以 [Style.md](Style.md) 為準
-- 已建立 Vuetify 首頁／成員管理／活動安排／戰場排表／戰績上傳／戰績閱覽、Docker 本機環境、SQLite 讀寫 API 與 GAS 單檔編譯流程；2026/10/19 來源 f02e43a（v1.0.11，新增成員維護及深色模式操作列修正）已推送 origin/main、同步 GAS 並讀回四檔核對，Web App 仍需更新部署；前次查詢為第 3 版，此次未重查，見 GASDeployment.md
+- 已建立 Vuetify 首頁／成員管理／活動安排／戰場排表／戰績上傳／戰績閱覽、Docker 本機環境、SQLite 讀寫 API 與 GAS 單檔編譯流程；2026/10/19 來源 687b01b（v1.0.11，成員維護功能 f02e43a 並補上更新紀錄）已推送 origin/main、同步 GAS 並讀回四檔核對，Web App 仍需更新部署；前次查詢為第 3 版，此次未重查，見 GASDeployment.md
 - 使用者已確認本機使用 SQLite, 後期資料來源為 Google 試算表
 - 試算表 ID 已取得, 本機使用帳號密碼登入；正式工作表名稱與 Google 登入待確認, 本機角色為 admin／manager／member, 成員、職業、過去名稱及活動安排欄位已依需求實作於本機
 
@@ -421,6 +421,8 @@ member／manager／admin 均可進入 `#/members`，成員與編外分類、UID�
 **最新交付狀態（優先於下方歷史紀錄）：** 使用者已確認本機畫面及深色模式，並明確要求 commit／push／同步 GAS，禁止重複升版及更新 Web App 部署。已沿用 1.0.11 完成功能提交 `f02e43a` 並推送 origin/main，GitHub main SHA 已核對。`npm run gas:push` 成功備份、上傳四檔並讀回比對一致；備份為 `data/gas-backups/2026-10-19T05-13-09-376Z/`（私有、不提交）。四項維護測試、一般／GAS 編譯及版本與單檔依賴檢查通過。未操作正式資料、初始化或更新 Web App 部署；本次未重查部署版本，詳見 GASDeployment.md。
 
 先前自動核准服務容量不足的交付阻礙已解除，本輪已在原 repository main 完成程式交付。根目錄真實名冊與規劃檔保留工作區，不納入提交。使用者目前未要求 Web App 發布；GAS 程式同步不能當作已發布或真實業務驗證完成。以下實作與受限驗證紀錄供接續參考。
+
+使用者接續要求補 release note 與日後交付規則：已提交 `687b01b`，在 `src/content/release-notes.json` 補上 v1.0.11 成員維護及深色模式修正，並於本檔「發布版本與 GAS 同步」要求每次交付更新紀錄。已推送並重新同步 GAS 四檔，讀回一致；最新備份 `data/gas-backups/2026-10-19T05-17-07-633Z/`。一般／GAS 編譯與打包內容核對通過，未重複升版或更新 Web App 部署。
 
 ### 使用者最新決定
 

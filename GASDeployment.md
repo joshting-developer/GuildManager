@@ -6,6 +6,8 @@
 
 本機已完成 admin／manager 成員永久刪除、UID 修正、過去名稱管理及深色模式操作列修正，使用者已確認本機畫面。平台版本升為 `1.0.11`，與 package-lock.json 一致。
 
+**最新同版補充：** `687b01b` 已補上更新紀錄頁的 v1.0.11 條目及 AGENTS.md 的交付規則，並推送至 `origin/main`。再次執行 `npm run gas:push` 成功，四檔讀回比對一致；最新遠端前後備份為 `data/gas-backups/2026-10-19T05-17-07-633Z/before` 與 `after`（私有、不提交）。一般／GAS 編譯及編譯產物中的四項更新說明核對通過。版本仍為 1.0.11，Web App 部署與正式資料未更動。以下為首次成員維護同步紀錄。
+
 來源提交 `f02e43a`（`feat(members): 新增成員資料維護並交付 v1.0.11`）已推送至 `origin/main`，並核對 GitHub main 的完整 SHA 為 `f02e43a84446e2346976448f68d1fc1b93acfe17`。沿用既有 `1.0.11`，本輪未重複升版。
 
 2026/10/19 已執行 `npm run gas:push`，將 `Index.html`／`Code.gs`／`Backend.gs`／`appsscript.json` 四檔同步至 `gas/upload-target.json` 指定的 Apps Script 專案；Google 接受上傳，四檔讀回比對一致。遠端前後備份位於 `data/gas-backups/2026-10-19T05-13-09-376Z/before` 與 `after`（私有、不提交）。先前自動核准服務容量不足的交付阻礙已解除。
