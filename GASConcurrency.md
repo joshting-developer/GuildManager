@@ -1,6 +1,6 @@
 # GAS 功能與鎖範圍盤點
 
-2026-10-19；來源 `efe13f9`／v1.0.18。這是目前程式的盤點與改善建議，尚未修改鎖策略或同步雲端。
+2026-10-19；盤點來源 `efe13f9`／v1.0.18。以下「目前／現況」指盤點基準；後續 v1.0.19 已完成的調整見文末，本機尚未同步雲端。
 
 ## 結論
 
@@ -201,3 +201,20 @@
 - [lineups.js](gas/src/lineups.js)、[battles.js](gas/src/battles.js)、[battle-member-sync.js](gas/src/battle-member-sync.js)：排表、戰績及同步的驗證與提交。
 - [auth.js](gas/src/auth.js)、[common.js](gas/src/common.js)、[videos.js](gas/src/videos.js)、[lottery.js](gas/src/lottery.js)：登入寫入、共用 requestId、延遲建表。
 - [Code.gs](gas/Code.gs)：61 個 RPC wrapper 及編輯器入口；[gas.js](src/api/gas.js)、[ParticipationDialog.vue](src/pages/ParticipationDialog.vue)：前端目前沒有 BUSY 自動重試，也沒有跨人版本衝突的自動處理。
+
+## v1.0.19 實作結果（本機待同步）
+
+使用者確認調整並要求優先保障請假體驗，功能提交 `629dd6d`，本輪完成：
+
+- 27 個已盤點讀取方法走嚴格唯讀交易，固定本次 commits 快照，禁止 put／remove／建立缺表及保存登入狀態。影片／抽獎缺表時才重新驗權並取得寫入鎖初始化，平時不占寫入鎖；新方法預設仍序列化，不依 get／preview 字首推測。
+- 匿名 getAuthSession 直接回傳匿名；有 token 的讀取採登入指標前後核對，遇到世代切換最多重讀三次，穩定缺段仍回資料錯誤。角色／CSRF 保護保留。
+- 戰績 CSV 在鎖外解析、預先驗證並建立私人附件，平台圖示亦先建檔。最終持鎖後重新載入已提交快照、驗權、檢查來源／版本／唯一性及 requestId，再一起提交；CSV 解析結果僅在該次執行內重用，不信任外部傳入的檔案 ID。圖示讀取使用該次執行的內容快取，避免最終鎖內 Drive I/O。
+- 已辨識成員／外援的前端送出新增可選 `expectedParticipant`（場次 revision＋人員 ID／姓名／身分／個人回應 revision）。本機 SQLite 與 GAS 在交易內核對；別人送出不再使整份表單失效，同人改動、改名／所屬變化及場次修改仍要求確認。新欄位有白名單／型別檢查並納入 requestId 指紋；原請求重播不反轉後續變更。
+- 舊呼叫不帶新欄位時維持整場 revision；未知／同名直接輸入沿用既有驗證。沒有變更原讀取回應格式，也沒有增加正常報名／請假的雲端往返。
+- 前端只針對明確 BUSY 最多呼叫三次，退避 350／700ms 加隨機延遲，沿用同一組輸入、requestId 與登入 context。等待顯示「內容已保留」，停用重複送出並只顯示一個轉圈；未知傳輸失敗、版本衝突或授權失敗不盲目重送，草稿保留供重試。
+
+原有登入／密碼計算、管理寫入及共用提交仍使用 Script Lock；沒有引進命名鎖／租約，也沒有把版本檢查移到鎖外後直接保存。Script Lock 最多等待仍為 10 秒，前端 BUSY 重試有上限；正式 Google 延遲與多人負載仍需同步後觀察，不能把隔離驗證當成服務時限保證。私人未引用檔案保留既有限制。
+
+新增 13 項測試，完整 291 項全通過；唯一修改的舊測試是與新需求相反的 getEvents 持鎖必須回 BUSY 斷言，改為讀取成功並驗證 createEvent 仍回 BUSY，其餘原測試不變。新版欄位白名單／型別強化後，6 項目標測試覆核通過。日誌 `/private/tmp/guild-concurrency-full-tests.log`、`/private/tmp/guild-concurrency-target-validation-tests.log`。一般／GAS 編譯通過。
+
+隔離 Chrome 以真正的 GAS 前端編譯與模擬後端驗證桌面／390px 手機：持鎖時首頁與表單仍可載入、不同人同舊表單送出成功、BUSY 自動重試保留原 payload、同人舊表單衝突保留輸入、手機失敗後使用相同 requestId 再送出成功，最終三筆請假、無頁面例外。腳本／摘要／截圖 `/private/tmp/guild-concurrency-preview/`；未使用正式 GAS 或發送 Discord 訊息。本輪只準備 v1.0.19，本機完成不代表已同步／部署。
