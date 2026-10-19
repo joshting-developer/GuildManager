@@ -2,7 +2,6 @@
 import DataLoading from '../components/DataLoading.vue';
 import { computed, ref, watch, inject, onUnmounted } from 'vue';
 import { createParticipationClient } from '../api/participation.js';
-import { createMemberClient } from '../api/members.js';
 import { eventDisplayTitle, eventTypeLabel } from '../domain/event-types.js';
 import VideoUploadForm from './VideoUploadForm.vue';
 import NameSourcePicker from './NameSourcePicker.vue';
@@ -10,7 +9,6 @@ const props = defineProps({ modelValue: Boolean, event: { type: Object, required
 const emit = defineEmits(['update:modelValue', 'closed', 'event-refreshed']);
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 const client = createParticipationClient({ source });
-const memberClient = createMemberClient({ source });
 const calendarAuth = inject('calendarAuth', null);
 const authLoading = computed(() => !!calendarAuth?.loading.value);
 const members = ref([]),
@@ -95,13 +93,11 @@ async function load({ participationOnly = false } = {}) {
   loadError.value = '';
   error.value = '';
   try {
-    const [participation, jobs, roster] = await Promise.all([
-      client.getParticipation(props.event.id),
-      reuse ? { professions: professions.value } : memberClient.getProfessions(),
-      reuse
-        ? { members: members.value }
-        : client.getMembers(props.event.id),
-    ]);
+    const participation = reuse
+      ? await client.getParticipation(props.event.id)
+      : await client.getForm(props.event.id);
+    const jobs = { professions: reuse ? professions.value : participation.professions };
+    const roster = { members: reuse ? members.value : participation.members };
     if (disposed || currentToken !== token) return;
     if (
       participation.eventId !== props.event.id ||

@@ -111,6 +111,9 @@ export function createApp(repository, { authNow, notifier = null } = {}) {
       : { event: repository.createEvent(request.body) };
     response.status(201).json(result);
   });
+  app.get('/api/events/:id', (request, response) => {
+    response.json(repository.getEvent(request.params.id));
+  });
   app.patch('/api/events/:id', (request, response) => {
     response.json({ event: repository.updateEvent(request.params.id, request.body) });
   });
@@ -160,6 +163,9 @@ export function createApp(repository, { authNow, notifier = null } = {}) {
     response
       .set('Cache-Control', 'no-store')
       .json(repository.getEventParticipation(request.params.id));
+  });
+  app.get('/api/events/:id/participation-form', (request, response) => {
+    response.json(repository.getEventParticipationForm(request.params.id));
   });
   app.get('/api/events/:id/attendance', (request, response) => {
     response.json(repository.getEventAttendance(request.params.id));

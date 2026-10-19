@@ -191,6 +191,10 @@ export function createCatalog(store, { uuid, now, guildName, notify = () => {} }
       return { members, summary: result.summary };
     },
     getEvents: () => ({ events: liveEvents() }),
+    getEvent([id]) {
+      const { deletedAt, ...value } = event(id);
+      return { event: value };
+    },
     createEvent([input]) {
       const values = validateEvent(input, { singleBattleDate: false });
       return retry(store, 'createEvent', values.requestId, values, () => {

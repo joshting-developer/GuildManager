@@ -146,6 +146,10 @@ function getEvents(context) {
   return GuildGas.rpc('getEvents', [], context);
 }
 
+function getEvent(eventId, context) {
+  return GuildGas.rpc('getEvent', [eventId], context);
+}
+
 function createEvent(input, context) {
   return GuildGas.rpc('createEvent', [input], context);
 }
@@ -184,6 +188,10 @@ function cancelEventLeave(eventId, input, context) {
 
 function getEventParticipationMembers(eventId, context) {
   return GuildGas.rpc('getEventParticipationMembers', [eventId], context);
+}
+
+function getEventParticipationForm(eventId, context) {
+  return GuildGas.rpc('getEventParticipationForm', [eventId], context);
 }
 
 function submitParticipation(eventId, input, context) {

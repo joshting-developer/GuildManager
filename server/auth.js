@@ -36,8 +36,9 @@ function publicRequest(request, repository) {
     return true;
   if (request.method === 'POST' && ['/auth/login', '/auth/member-login'].includes(path))
     return true;
+  if (request.method === 'GET' && /^\/events\/[^/]+$/.test(path)) return true;
   const participation = path.match(
-    /^\/events\/([^/]+)\/(participation|participation-members|registrations(?:\/[^/]+)?|videos)$/,
+    /^\/events\/([^/]+)\/(participation|participation-members|participation-form|registrations(?:\/[^/]+)?|videos)$/,
   );
   if (!participation) return false;
   // Only submitting videos inherits calendar access; viewing the list is management-only.
@@ -46,7 +47,7 @@ function publicRequest(request, repository) {
       ? ['POST']
       : participation[2] === 'participation'
         ? ['GET', 'POST', 'PATCH']
-        : participation[2] === 'participation-members'
+        : ['participation-members', 'participation-form'].includes(participation[2])
           ? ['GET']
           : participation[2] === 'registrations'
             ? ['POST']

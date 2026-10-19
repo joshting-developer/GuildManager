@@ -235,6 +235,13 @@ export function createRepository({ filename, authNow }) {
     ...createMemberMaintenance(db, { getMember, updateMember: (...args) => repository.updateMember(...args), references }),
     ...createPlatformSettingsRepository(db),
     ...createLotteryRepository(db),
+    getEventParticipationForm(eventId) {
+      return db.transaction(() => ({
+        ...repository.listEventParticipationMembers(eventId),
+        ...repository.listProfessions(),
+        ...repository.getEventParticipation(eventId),
+      }))();
+    },
     previewMemberImport,
     importMembers(input) {
       return db.transaction(() => {

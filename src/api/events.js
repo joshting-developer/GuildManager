@@ -5,14 +5,14 @@ export function createEventClient({ source = 'local', fetchImpl = sessionFetch, 
   async function call(method, input, id) {
     if (source === 'gas') {
       const operation = {
-        GET: 'getEvents',
+        GET: id === undefined ? 'getEvents' : 'getEvent',
         POST: 'createEvent',
         PATCH: 'updateEvent',
         DELETE: 'deleteEvent',
       }[method];
       const args =
         method === 'GET'
-          ? []
+          ? id === undefined ? [] : [id]
           : method === 'POST'
             ? [input]
             : [id, method === 'DELETE' ? input.revision : input];
@@ -48,6 +48,7 @@ export function createEventClient({ source = 'local', fetchImpl = sessionFetch, 
   }
   return {
     getEvents: () => call('GET'),
+    getEvent: (id) => call('GET', undefined, id),
     createEvent: (input) => call('POST', input),
     updateEvent: (id, input) => call('PATCH', input, id),
     deleteEvent: (id, revision) => call('DELETE', { revision }, id),

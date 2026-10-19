@@ -21,6 +21,8 @@ export function createParticipationClient({
         ? 'attendance'
         : operation === 'getEventParticipationMembers'
           ? 'participation-members'
+          : operation === 'getEventParticipationForm'
+            ? 'participation-form'
           : operation === 'addGuestRegistration'
             ? 'registrations'
             : 'participation';
@@ -53,6 +55,7 @@ export function createParticipationClient({
     cancelLeave: (eventId, input) => call('cancelEventLeave', eventId, 'PATCH', input),
     getParticipation: (eventId) => call('getEventParticipation', eventId),
     getMembers: (eventId) => call('getEventParticipationMembers', eventId),
+    getForm: (eventId) => call('getEventParticipationForm', eventId),
     submitParticipation: (eventId, input) => call('submitParticipation', eventId, 'POST', input),
     saveResponse: (eventId, input) => call('saveMemberResponse', eventId, 'PATCH', input),
     registerGuest: (eventId, input) => call('addGuestRegistration', eventId, 'POST', input),

@@ -34,7 +34,7 @@ const AUTH = [
   'updateManager',
   'setMemberToken',
 ];
-const PUBLIC = ['getEvents', 'getProfessions', 'getPlatformSettings'];
+const PUBLIC = ['getEvents', 'getEvent', 'getProfessions', 'getPlatformSettings'];
 const MEMBER_MANAGEMENT = [
   'getMembers',
   'addMember',
@@ -45,6 +45,7 @@ const MEMBER_MANAGEMENT = [
 const PARTICIPATION = [
   'getEventParticipation',
   'getEventParticipationMembers',
+  'getEventParticipationForm',
   'submitParticipation',
   'submitEventVideo',
   'saveMemberResponse',

@@ -118,6 +118,11 @@ export function createEventRepository(db) {
     return event;
   }
   const repository = {
+    getEvent(id) {
+      const event = getEvent(id);
+      if (!event) throw new EventError('找不到有效場次，請重新載入', {}, 404, 'EVENT_NOT_FOUND');
+      return { event };
+    },
     listEvents() {
       const rows = db
         .prepare(

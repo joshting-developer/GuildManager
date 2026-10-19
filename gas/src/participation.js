@@ -20,12 +20,12 @@ export function createParticipation(store, catalog, { uuid, now, notify = () => 
       .all('registrations')
       .filter((item) => item.eventId === eventId)
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
-  const currentRevision = (eventId) =>
+  const currentRevision = (eventId, responses = rawResponses(eventId), registrations = guests(eventId)) =>
     hash(
       canonical([
         catalog.event(eventId, { battle: true }).revision,
-        rawResponses(eventId).map(({ uid, revision }) => [uid, revision]),
-        guests(eventId).map(({ id, revision }) => [id, revision]),
+        responses.map(({ uid, revision }) => [uid, revision]),
+        registrations.map(({ id, revision }) => [id, revision]),
       ]),
     );
   const guestDto = (guest) => ({
@@ -210,12 +210,14 @@ export function createParticipation(store, catalog, { uuid, now, notify = () => 
       // Load every referenced member and the profession table in one pass each;
       // looking them up row by row cost two Sheets reads per person.
       store.all('professions');
-      store.getMany('members', rawResponses(eventId).map((row) => row.uid));
+      const responses = rawResponses(eventId);
+      store.getMany('members', responses.map((row) => row.uid));
       const allGuests = guests(eventId);
+      const activeNames = new Set(allGuests.filter((row) => row.active).map((row) => lower(row.name)));
       return {
         eventId,
-        revision: currentRevision(eventId),
-        responses: rawResponses(eventId).map((row) => {
+        revision: currentRevision(eventId, responses, allGuests),
+        responses: responses.map((row) => {
           const member = catalog.member(row.uid),
             professionId = row.professionId || member.primaryProfessionId;
           const job = catalog.profession(professionId);
@@ -232,10 +234,16 @@ export function createParticipation(store, catalog, { uuid, now, notify = () => 
           .filter(
             (row) =>
               !row.active &&
-              !allGuests.some((other) => other.active && lower(other.name) === lower(row.name)),
+              !activeNames.has(lower(row.name)),
           )
           .map(guestDto),
       };
+    },
+    getEventParticipationForm([eventId]) {
+      // Warm the complete roster first so participation does not fetch members again.
+      const roster = methods.getEventParticipationMembers([eventId]);
+      const jobs = catalog.methods.getProfessions();
+      return { ...methods.getEventParticipation([eventId]), ...roster, ...jobs };
     },
     getEventParticipationMembers([eventId]) {
       catalog.event(eventId, { battle: true });

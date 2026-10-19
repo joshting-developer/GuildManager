@@ -64,10 +64,10 @@ async function reloadEvent() {
   reloading.value = true;
   reloadError.value = '';
   try {
-    const data = await eventClient.getEvents();
+    const data = await eventClient.getEvent(props.event.id);
     if (disposed || token !== reloadToken) return;
-    const event = data.events?.find((item) => item.id === props.event.id);
-    if (!event || !['scrimmage', 'guild_war', 'dragon_tiger'].includes(event.type))
+    const event = data.event;
+    if (!event || event.id !== props.event.id || !['scrimmage', 'guild_war', 'dragon_tiger'].includes(event.type))
       throw new Error('這個場次已無法上傳影片，請重新載入行事曆');
     eventRevision.value = event.revision;
     emit('event-refreshed', event);
