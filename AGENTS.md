@@ -528,3 +528,15 @@ member／manager／admin 均可進入 `#/members`，成員與編外分類、UID�
 使用者授權同步 GAS，來源 `bb53187`，已同步影片團別名稱及活動安排搜尋／排序。沿用本批 1.0.14，不再次升版；package／lockfile／release note 與套件版本一致。`npm run gas:push` 編譯、遠端備份、四檔上傳及讀回比對成功；私有備份 `data/gas-backups/2026-10-19T08-05-03-858Z/`。本輪核對打包版號、搜尋／排序與三團文案及無外部 JS／CSS，沿用功能回合的隔離測試與桌面／手機驗證。
 
 本輪未 push Git、更新 Web App 部署、重查部署版本、執行 setupGas、修改正式資料／Script Properties 或傳送 Discord 訊息。上方 v1.0.14 待同步段落為同步前紀錄，以本節為最新結果；使用者仍需更新既有 Web App 部署，網站才會套用 v1.0.14。
+
+## 今日功能效能檢查（2026/10/19，本機待交付 v1.0.15）
+
+使用者要求檢查今天的寫法及效能。已檢查 CSV 摘要提醒、公開報名／影片三來源與職業、排表請假來源及空位驗證、成員角色限制、回首頁、影片團別及活動搜尋排序的差異。
+
+已改善兩處前端計算（`3d56905`）：EventsPage 將日期排序獨立為 computed，搜尋只篩選已排序資料且關鍵字只正規化一次；LineupsPage 重用 sourceMembers 的分類／請假排序，安排成員只篩除已安排者並保留請假卡片。v1.0.14 已同步，這批新增本機 1.0.15 與相符更新紀錄，未覆寫舊版。
+
+16 項既有活動安排、排表來源／雙場及 GAS 效能測試通過，一般／GAS 編譯通過。隔離 Chrome 以 27 筆安排驗證搜尋／類型交集、分頁、修改定位及手機鍵盤清除；輸入搜尋的額外日期比較由 24 次降為 0。排表新增安排的來源排序由每次重排改為 0 次，請假置底／停用、取消請假、保留草稿與明暗桌面／手機均通過。腳本 `/private/tmp/guild-event-search-preview/performance.mjs`、`/private/tmp/guild-lineup-leave-preview/performance.mjs`；這是計算次數驗證，不代表正式 GAS 秒數改善。
+
+後續優先建議（尚未實作）：報名視窗首次 load 分為 getEventParticipation／getProfessions／getEventParticipationMembers，職業快取命中後為兩個 RPC；所有 RPC 仍受同一 script lock 保護，Promise.all 無法讓後端同時執行。隔離 30 成員／30 外援初次三個 RPC 分別 8／2／4 次 Sheets getValues，合計 14 次；宜新增整併讀取端點，保留權限、版本及提交後只重讀回應規則，不直接移除一致性鎖。getEventParticipation 另有 responses 三次、registrations 兩次 all() 的記憶體複製／排序，及已取消外援對全部外援 some() 的平方比較，可重用同次讀取陣列並改用有效名稱 Set；store transaction 已快取資料，這些重複 all() 不是每次重新讀 Sheets。量測腳本 `/private/tmp/guild-today-performance-audit.mjs`，不使用正式資料。
+
+CSV 提醒僅增加兩隊摘要檢查，仍受 1 MB／500 玩家上限；影片三團選項只有三筆，不為三筆 find() 加上額外索引。名冊／職業由報名及影片表單共用、職業 transport 快取與排表 responses Map 仍保留。Webhook 在鎖外送出，但失敗無診斷紀錄屬後續可觀測性項目，本輪未修改或送出通知。本輪只本機提交，未 push Git／同步 GAS／更新 Web App，GAS 最新程式仍為 1.0.14。
