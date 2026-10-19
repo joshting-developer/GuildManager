@@ -74,7 +74,7 @@ GAS 已提供對應工作表、應用程式角色驗證、script lock、重試�
 
 `server/auth-repository.js` 使用獨立 auth_accounts／auth_sessions 表, 密碼 scrypt 雜湊及 salt, session token 隨機且只存 SHA-256 雜湊, 到期 8 小時；重啟保留 session, 登出或重新登入撤銷舊 token。`server/create-account.js` 接受本機 stdin 建立帳號, 另提供 admin-only manager 建立／更新與共用 member 通行密碼介面, 無公開註冊。
 
-首頁行事曆及約戰報名／請假保持公開；幫戰／龍虎戰要求帳號登入, 可填名或讀取名冊選人。`/api/calendar/members` 保留舊契約但改須登入, 完整名冊／歷史及所有既有成員管理操作允許 member／manager／admin。登入帳號尚未綁定遊戲 UID。
+首頁所有場次與約戰／幫戰／龍虎戰報名、請假、場次選人及影片提交均公開。舊 /api/calendar/members 保留登入限制，完整名冊／歷史及既有成員管理仍須 member／manager／admin；登入帳號未綁定 UID。
 
 GAS 已實作獨立帳密及通行密碼，PBKDF2-SHA256 600,000 次與私有 Script Properties 保存帳號／session；不使用 Node cookie、scrypt 或 Google Email 判定訪客。瀏覽器每分頁保存 token，後端檢查雜湊、到期、帳號版本與角色。部署需由部署者執行以讀寫其 Sheets／Drive；Google OAuth 尚未實作。[GAS Web App 執行身分](https://developers.google.com/apps-script/guides/web#permissions)
 
@@ -124,9 +124,9 @@ GAS 已以試算表分開保存摘要、玩家快照及個人關聯，Drive 保�
 
 ## 公開報名登入與選人
 
-App 提供 calendarAuth 的使用者及確認登入狀態，報名視窗沿用右上共用登入，不內嵌登入表單。auth adapter 與 HttpOnly session 保留共用 member 通行密碼。幫戰／龍虎戰才要求登入且有三個名稱來源, 約戰維持直接填名；有效登入可跨場次沿用。過期或修改帳號撤銷後，收起私人場次與報名視窗，需由右上重新登入；錯誤登入不清除已有 session／CSRF。
+App 提供 calendarAuth 的使用者及確認登入狀態；三種戰鬥名稱來源統一為手填／幫會／俱樂部成員。NameSourcePicker 共用分頁／選人介面，ParticipationDialog 一次讀取場次回應、職業與必要名冊，傳給影片表單使用；過期／撤銷後保留公開操作，登入狀態變化重讀但不清草稿。
 
-後端依目前場次類型檢查, GET／POST／PATCH participation 與 POST／DELETE registrations 均保護幫戰／龍虎戰, 不因使用舊介面繞過。member 允許報名端點、必要選單、登出，以及 GET 戰績清單／詳情／附件及個人分析；其他管理端點拒絕。所有已登入寫入檢查 CSRF。`GET /api/events/:id/participation-members` 驗證場次, 回傳 uid／name／primaryProfessionId／secondaryProfessionId／isInGuild／isInClub, 不含歷史與備註。
+後端先驗證有效單日戰鬥，再開放 GET／POST／PATCH participation、GET participation-members、POST／DELETE registrations 與 POST videos 的匿名操作；登入寫入維持 CSRF。完整名冊、出勤／影片閱覽及管理 API 不因公開場次而放寬。場次選人僅回傳 uid／name／主副職業 ID／所屬狀態，不含舊名、revision 或備註。
 
 名單選人傳送可選 memberUid；同一交易檢查 UID、姓名與目前幫派／俱樂部狀態, 同名仍可指定人員, 過期名單拒絕。不傳 memberUid 時維持原姓名比對, 舊 requestId 的 input_json 不變；新引用包含於重試比對, 不修改名冊或排表快照。GAS 已提供相同選人驗證與角色限制，尚未部署驗證。
 
@@ -135,7 +135,7 @@ App 提供 calendarAuth 的使用者及確認登入狀態，報名視窗沿用�
 
 ## 共用成員通行密碼
 
-member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admin 在帳號管理設定／修改 6–128 個英文字母或數字的通行密碼（區分大小寫，純數字仍可使用），初次不提供預設值，前導零保留。右上登入預設成員通行密碼；幫戰／龍虎戰僅在有效 member／manager／admin 登入後出現在行事曆，報名視窗不再提供登入表單。`POST /api/auth/member-login` 由後端指定帳號，與管理登入共用限流；`PATCH /api/admin/member-token` 須 admin、CSRF 及 revision。修改密碼撤銷共用 member 全部 session。舊個別 member 資料保留但不能再登入或沿用舊 session；舊新增／改名 member API 停用。admin／manager 密碼維持 12–128 字元。GAS 已生成對應資料功能，尚未部署驗證。
+member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admin 在帳號管理設定／修改 6–128 個英文字母或數字的通行密碼（區分大小寫，純數字仍可使用），初次不提供預設值，前導零保留。右上登入預設成員通行密碼；三種戰鬥的行事曆與報名均公開，報名視窗不提供登入表單。`POST /api/auth/member-login` 由後端指定帳號，與管理登入共用限流；`PATCH /api/admin/member-token` 須 admin、CSRF 及 revision。修改密碼撤銷共用 member 全部 session。舊個別 member 資料保留但不能再登入或沿用舊 session；舊新增／改名 member API 停用。admin／manager 密碼維持 12–128 字元。GAS 已生成對應資料功能，尚未部署驗證。
 
 
 ## 個人戰績
@@ -157,9 +157,9 @@ member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admi
 
 ## 行事曆可見性與登入入口
 
-右上登入預設「成員登入」，只填通行密碼；管理者切換至「管理者登入」填帳號密碼。未登入只顯示一般活動及約戰，幫戰／龍虎戰在 member／manager／admin 有效登入後才顯示。`GET /api/events` 依伺服器 session 過濾，未登入回應不含私人場次及其筆數，原始資料與管理功能不改。前端於登入／登出重新載入，立即收起私人場次及視窗，舊請求回應不能覆蓋新登入狀態。
+右上登入預設「成員登入」，管理者可切換「管理者登入」。首頁一般活動、約戰、幫戰與龍虎戰均公開可見；三種戰鬥皆可匿名報名／請假、選取成員及上傳影片。GET /api/events 不再依 session 隱藏幫戰／龍虎戰；管理頁、完整名冊、出勤閱覽與影片閱覽仍沿用原角色限制。
 
-報名視窗移除通行密碼輸入及驗證按鈕，已登入直接使用既有三種名稱來源及報名／請假表單。登入過期或撤銷後收起私人場次，需使用右上共用入口重新登入；約戰仍可匿名報名。GAS 已同步此規則並完成後端生成，尚未部署驗證。
+報名視窗不含登入表單，三種戰鬥都有「直接輸入名稱／幫會成員名單／龍虎戰成員名單」。登入過期或撤銷後仍可使用公開場次操作；有效登入寫入維持 CSRF，登入狀態變動時重讀資料並拒絕過期回應，不清除未送出草稿。
 
 
 ## 場次影片連結
@@ -220,3 +220,7 @@ UID 修正先建立新鍵、移動 member_name_history／event_member_responses�
 不可變排表／範本／戰績快照不改寫。SQLite `member_reference_overrides(kind, record_id, overrides_json)` 和 GAS `requests` 的保留鍵 `member-ref:<kind>:<id>`，只對受影響的舊紀錄記下原 UID→新 UID／null。讀取排表、範本套用、戰績及團隊分析時投影內部引用；姓名／職業快照不變，連續改 UID 可累積修正，但新紀錄重用舊 UID 不會跟著轉址。GAS 的排表／範本成功請求重試也套用目前有效引用，保留原請求雜湊。
 
 SQLite `member_maintenance_requests` 保存管理操作結果；`member_uid_revisions` 及 GAS requests 的 `member-revision:<uid>` 保留移除前版本下限，新建或移入曾使用的 UID 採更高版本，避免舊畫面修改另一個新身分。SQLite 全流程同一交易；GAS 保留 script lock／提交標記及既有工作表，不需重做 setupGas。GAS 刪除採日誌的移除標記，歷史列及備份不物理清除。
+
+## 影片職業快照
+
+影片提交新增必填 professionId 與選填 memberUid（只供驗證目前姓名與幫會／俱樂部資格，不寫入影片身分關聯）。SQLite event_video_submissions 追加可空 profession_id／profession_name／profession_colorcode，GAS videos 保存相同快照；舊列與重試資料不修改。新版提交驗證有效職業，保存快照後名冊職業改變不影響影片；舊影片回應容許未記錄職業。閱覽與 CSV 使用六欄並顯示職業名稱。
