@@ -612,3 +612,9 @@ CSV 提醒僅增加兩隊摘要檢查，仍受 1 MB／500 玩家上限；影片�
 使用者授權同步，來源 `eaa9c93`（功能 `1fd4f4d`），沿用已準備的 1.0.18，不再次升版。`npm run gas:push` 重新編譯、備份遠端、上傳四檔及讀回比對成功；私有前後備份 `data/gas-backups/2026-10-19T13-23-25-188Z/`，不提交。package／lockfile／release note／GAS 套件版號、BATTLE_UPLOAD_FAILURE、Drive／Sheets 步驟與診斷碼打包核對通過，無外部 JS／CSS。沿用前輪 278 項測試與真實 CSV 隔離匯入驗證，本輪未重複整套測試。
 
 本輪只同步程式，未 push Git、更新 Web App 部署、重查部署版本、執行 setupGas、修改正式試算表／Script Properties 或發送 Discord 訊息。使用者更新既有 Web App 部署後，從網站再次送出上傳才能取得新版失敗步驟／類型／診斷碼；不要在編輯器直接執行 saveBattleRecords。正式失敗原因仍未確定，不能宣稱上傳問題已修復；上方待同步段落為歷史，以本節為最新同步結果。
+
+## GAS 共用鎖與同時請假盤點（2026/10/19，尚未實作）
+
+使用者反映匿名首頁出現 BUSY，擔心多人同時請假，進一步要求先盤點各功能需要哪些鎖。完整 61 個 RPC、讀寫集合及改善順序見 [GASConcurrency.md](GASConcurrency.md)，以 `efe13f9`／v1.0.18 為來源；25 個純讀取、2 個會延遲建表的讀取、34 個寫入，目前全部先取得同一把 Script Lock。不同業務表仍共用 commits，requests 也跨功能；不能直接按表移除寫入鎖。報名另有整場 revision 導致不同成員先後送出也衝突的問題，與 BUSY 要分別處理。
+
+隔離模擬 8 項符合分析，包含不同表無鎖寫入覆蓋提交標記、登入讀取與舊分段清理競爭，以及 Drive 持鎖阻擋公開讀取；原有 GAS／Webhook 相關 31 項測試全部通過。證據 `/private/tmp/guild-lock-audit/`；沒有改產品或原測試。後續優先只讀快照／登入穩定讀取、隔離延遲建表、慢 I/O 移出鎖、同人版本保護及有限次重試；保留權限／CSRF／requestId／原子可見性，不只延長等鎖時間。文件盤點不升版；本輪未 push、同步 GAS、更新部署或修改正式資料／設定，實作與新版本仍待後續進行。
