@@ -122,35 +122,54 @@ function locked(work) {
 function webhookUrl(properties, name) {
   return (properties.getProperty(name) || '').trim();
 }
+function logDiscordFailure(channel, reason, status = null) {
+  // Exceptions and response bodies may contain webhook credentials or player input.
+  // Only fixed categories and numeric HTTP status codes belong in the execution log.
+  const setting = DISCORD_WEBHOOK_SETTINGS[channel] || 'DISCORD_WEBHOOK';
+  const http = Number.isInteger(status) ? `（HTTP ${status}）` : '';
+  try {
+    Logger.log(`Discord 通知失敗：${setting} · ${reason}${http}`);
+  } catch {
+    // Diagnostic failures must never change a committed operation's result.
+  }
+}
 // Runs after the script lock is released so slow webhooks never block other writers.
 function deliverNotices(notices, footer) {
   if (!notices.length) return;
   const properties = PropertiesService.getScriptProperties();
   for (const notice of notices) {
+    let channel;
     try {
-      const { channel, payload } = discordMessage(notice, {
+      const message = discordMessage(notice, {
         footer,
         timestamp: new Date().toISOString(),
       });
+      channel = message.channel;
       const url = webhookUrl(properties, DISCORD_WEBHOOK_SETTINGS[channel]);
-      if (!isDiscordWebhookUrl(url)) continue;
+      if (!isDiscordWebhookUrl(url)) {
+        logDiscordFailure(channel, url ? 'WEBHOOK_INVALID' : 'WEBHOOK_NOT_CONFIGURED');
+        continue;
+      }
       const request = {
         method: 'post',
         contentType: 'application/json',
-        payload: JSON.stringify(payload),
+        payload: JSON.stringify(message.payload),
         muteHttpExceptions: true,
       };
-      const response = UrlFetchApp.fetch(url, request);
+      let response = UrlFetchApp.fetch(url, request);
       if (response.getResponseCode() === 429) {
         let wait = 2000;
         try {
           wait = Math.ceil(JSON.parse(response.getContentText()).retry_after * 1000) + 250 || wait;
         } catch {}
-        Utilities.sleep(Math.min(wait, 5000));
-        UrlFetchApp.fetch(url, request);
+        Utilities.sleep(Math.min(Math.max(wait, 0), 5000));
+        response = UrlFetchApp.fetch(url, request);
       }
+      const status = response.getResponseCode();
+      if (status < 200 || status >= 300) logDiscordFailure(channel, 'HTTP_ERROR', status);
     } catch {
       // Saved data is authoritative; a failed notification must not fail the operation.
+      logDiscordFailure(channel, 'REQUEST_EXCEPTION（請檢查授權或網路）');
     }
   }
 }
@@ -320,7 +339,9 @@ export function rpc(operation, args = [], context = {}) {
     });
     try {
       deliverNotices(notices, footer);
-    } catch {}
+    } catch {
+      logDiscordFailure(null, 'DELIVERY_EXCEPTION');
+    }
     if (operation === 'updatePlatformSettings') forgetPlatform();
     return { __gasRpc: 1, ok: true, data: data ?? null };
   } catch (error) {
