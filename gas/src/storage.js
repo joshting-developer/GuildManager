@@ -21,6 +21,9 @@ export const BUSINESS_TABLES = [
 const HEADER = ['record_id', 'transaction_id', 'part_number', 'part_count', 'payload_base64'];
 const COMMIT_HEADER = ['transaction_id', 'created_at'];
 const CHUNK_SIZE = 36000;
+// A second Sheets round-trip costs more than a small bulk read. Large tables
+// and key lookups fetch payloads only after choosing the committed generations.
+const SMALL_TABLE_ROWS = 128;
 
 export function createSheetStore({
   spreadsheet,
@@ -55,10 +58,10 @@ export function createSheetStore({
       if (spreadsheet.getSheetByName(`${prefix}${table}`)) sheet(table);
     for (const table of ['commits', ...BUSINESS_TABLES]) sheet(table, true);
   }
-  function rows(current, width) {
-    return current.getLastRow() <= 1
+  function rows(current, width, lastRow = current.getLastRow()) {
+    return lastRow <= 1
       ? []
-      : current.getRange(2, 1, current.getLastRow() - 1, width).getValues();
+      : current.getRange(2, 1, lastRow - 1, width).getValues();
   }
   function append(current, values) {
     const end = current.getLastRow() + values.length;
@@ -73,63 +76,79 @@ export function createSheetStore({
     const order = new Map(commitRows.map(([id], index) => [id, index]));
     const tables = new Map(),
       partial = new Map(),
+      indexes = new Map(),
       changes = new Map();
+    function index(table, keys) {
+      if (indexes.has(table)) return indexes.get(table);
+      const current = run('SHEETS_READ', () => sheet(table, false, false), table);
+      const lastRow = run('SHEETS_READ', () => current.getLastRow(), table);
+      const inline = !keys && lastRow - 1 <= SMALL_TABLE_ROWS;
+      const records = run('SHEETS_READ', () => rows(current, inline ? 5 : 4, lastRow), table);
+      const latest = new Map();
+      for (let row = 0; row < records.length; row++) {
+        const [key, tx] = records[row];
+        if (!order.has(tx)) continue;
+        const id = JSON.parse(key), previous = latest.get(id);
+        if (!previous || order.get(tx) > order.get(previous.tx))
+          latest.set(id, { key: id, tx, rows: [row] });
+        else if (previous.tx === tx) previous.rows.push(row);
+      }
+      const result = { current, records, latest, inline };
+      indexes.set(table, result);
+      return result;
+    }
     function load(table, keys = null) {
       if (!BUSINESS_TABLES.includes(table)) fail('TABLE_INVALID', '資料表不允許存取');
       if (tables.has(table)) return tables.get(table);
       if (!partial.has(table)) partial.set(table, new Map());
       const cache = partial.get(table);
       if (keys && keys.every((key) => cache.has(key))) return cache;
-      const current = run('SHEETS_READ', () => sheet(table, false, false), table);
-      let records = run('SHEETS_READ', () => rows(current, keys ? 4 : 5), table);
-      if (keys) {
-        const selected = records.map(
-          ([key, tx]) => order.has(tx) && keys.includes(JSON.parse(key)),
-        );
-        // Read adjacent matching payload chunks together; unrelated battle snapshots stay unread.
-        for (let start = 0; start < records.length; start++) {
-          if (!selected[start]) continue;
-          let end = start + 1;
-          while (selected[end]) end++;
-          const payloads = run('SHEETS_READ', () => current.getRange(start + 2, 5, end - start, 1).getValues(), table);
-          for (let index = start; index < end; index++)
-            records[index].push(payloads[index - start][0]);
-          start = end - 1;
+      const { current, records, latest, inline } = index(table, keys);
+      const selected = keys
+        ? [...new Set(keys)].map((key) => latest.get(key)).filter(Boolean)
+        : [...latest.values()];
+      const groups = selected.filter((group) => !cache.has(group.key));
+      const selectedRows = [];
+      // Validate the latest generation before fetching data. Never fall back to
+      // an older value when a committed generation is incomplete or malformed.
+      for (const group of groups) {
+        group.count = records[group.rows[0]][3];
+        group.parts = new Map();
+        for (const row of group.rows) {
+          const [, , part, count] = records[row];
+          if (!Number.isSafeInteger(count) || count < 1 || group.count !== count ||
+              group.parts.has(part) || !Number.isSafeInteger(part) || part < 0 || part >= count)
+            fail('STORAGE_CORRUPT', '已提交資料不完整，請聯絡管理者');
+          group.parts.set(part, row);
+          selectedRows.push(row);
         }
-        records = records.filter((_row, index) => selected[index]);
-      }
-      const groups = new Map();
-      for (const [key, tx, part, count, payload] of records) {
-        if (!order.has(tx)) continue;
-        if (keys && !keys.includes(JSON.parse(key))) continue;
-        const groupKey = canonical([key, tx]);
-        if (!groups.has(groupKey))
-          groups.set(groupKey, { key: JSON.parse(key), tx, count, parts: new Map() });
-        const group = groups.get(groupKey);
-        if (
-          !Number.isSafeInteger(count) ||
-          count < 1 ||
-          group.count !== count ||
-          group.parts.has(part) ||
-          !Number.isSafeInteger(part) ||
-          part < 0 ||
-          part >= count
-        )
-          fail('STORAGE_CORRUPT', '已提交資料不完整，請聯絡管理者');
-        group.parts.set(part, payload);
-      }
-      const values = new Map();
-      for (const group of [...groups.values()].sort((a, b) => order.get(a.tx) - order.get(b.tx))) {
         if (group.parts.size !== group.count)
           fail('STORAGE_CORRUPT', '已提交資料分段缺漏，請聯絡管理者');
+      }
+      if (!inline) {
+        selectedRows.sort((a, b) => a - b);
+        for (let start = 0; start < selectedRows.length;) {
+          let end = start + 1;
+          while (end < selectedRows.length && selectedRows[end] === selectedRows[end - 1] + 1) end++;
+          const payloads = run('SHEETS_READ', () =>
+            current.getRange(selectedRows[start] + 2, 5, end - start, 1).getValues(), table);
+          for (let offset = start; offset < end; offset++)
+            records[selectedRows[offset]][4] = payloads[offset - start][0];
+          start = end;
+        }
+      }
+      const values = new Map();
+      for (const group of groups) {
         const payload = Array.from({ length: group.count }, (_, index) =>
-          group.parts.get(index),
+          records[group.parts.get(index)][4],
         ).join('');
         const encoded = utilities.newBlob(utilities.base64Decode(payload)).getDataAsString('UTF-8');
         const record = JSON.parse(encoded);
-        if (record.deleted) values.delete(group.key);
-        else values.set(group.key, record.value);
+        cache.set(group.key, record.deleted ? undefined : record.value);
       }
+      for (const group of selected)
+        if (cache.get(group.key) !== undefined)
+          values.set(group.key, cache.get(group.key));
       for (const [key, record] of changes.get(table) || []) {
         if (record.deleted) values.delete(key);
         else values.set(key, clone(record.value));
