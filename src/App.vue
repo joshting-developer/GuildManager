@@ -82,6 +82,7 @@ async function loadPlatform() {
   }
 }
 const navigation = [
+  { page: 'home', signedIn: true, label: '回首頁', icon: mdiCalendarMonthOutline },
   { page: 'magament', label: '管理總覽', icon: mdiViewDashboardOutline },
   { page: 'members', signedIn: true, label: '成員清單', icon: mdiAccountGroupOutline },
   { page: 'events', label: '活動安排', icon: mdiCalendarMonthOutline },
