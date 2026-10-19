@@ -47,7 +47,7 @@ function imageAttachment(input) {
   if (!valid) throw new BattleRecordError('圖片內容與格式不符');
   return { name, mimeType: input.mimeType, bytes };
 }
-export function createBattleRecordRepository(db) {
+export function createBattleRecordRepository(db, { project = (_kind, _id, value) => value } = {}) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS battle_uploads (
       id TEXT PRIMARY KEY, request_id TEXT NOT NULL UNIQUE, input_hash TEXT NOT NULL,
@@ -126,7 +126,7 @@ export function createBattleRecordRepository(db) {
       db.prepare('SELECT uid, name FROM members').all(),
       db.prepare('SELECT member_uid AS uid, name FROM member_name_history').all(),
       db.prepare('SELECT id, players_json FROM battle_records').all().map(row => ({
-        id: row.id, players: JSON.parse(row.players_json),
+        id: row.id, players: project('battle', row.id, JSON.parse(row.players_json)),
       })),
       db.prepare('SELECT record_id AS recordId, player_index AS playerIndex FROM battle_player_links').all(),
     );
@@ -139,7 +139,7 @@ export function createBattleRecordRepository(db) {
       )
       .get(id);
     if (!row) throw new BattleRecordError('找不到這筆戰績', 404, 'BATTLE_NOT_FOUND');
-    const players = JSON.parse(row.players_json);
+    const players = project('battle', row.id, JSON.parse(row.players_json));
     for (const link of db
       .prepare('SELECT player_index, member_uid FROM battle_player_links WHERE record_id = ?')
       .all(id)) {
@@ -214,10 +214,10 @@ export function createBattleRecordRepository(db) {
     getBattleTeamAnalysis(id) {
       const record = get(id);
       const row = record.eventId ? db.prepare(
-        'SELECT snapshot_json, created_at FROM lineup_versions WHERE event_id=? ORDER BY version DESC LIMIT 1',
+        'SELECT id, snapshot_json, created_at FROM lineup_versions WHERE event_id=? ORDER BY version DESC LIMIT 1',
       ).get(record.eventId) : null;
       return analyzeBattleTeams(record, row ? {
-        ...JSON.parse(row.snapshot_json), createdAt: row.created_at,
+        ...project('lineup', row.id, JSON.parse(row.snapshot_json)), createdAt: row.created_at,
       } : null);
     },
     updateBattleRecord(id, input) {

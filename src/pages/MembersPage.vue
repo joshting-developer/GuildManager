@@ -1,6 +1,6 @@
 <script setup>
 import DataLoading from '../components/DataLoading.vue';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, inject, onMounted, ref, watch } from 'vue';
 import {
   mdiAccountGroupOutline,
   mdiPlus,
@@ -11,12 +11,16 @@ import {
   mdiMagnify,
   mdiClose,
   mdiFileImportOutline,
+  mdiDeleteOutline,
 } from '@mdi/js';
 import { createMemberClient } from '../api/members.js';
 import './members.css';
 import MemberImportDialog from './MemberImportDialog.vue';
+import MemberMaintenanceDialog from './MemberMaintenanceDialog.vue';
 
 const client = createMemberClient({ source: import.meta.env.VITE_DATA_SOURCE || 'local' });
+const auth = inject('calendarAuth', null);
+const canMaintain = computed(() => ['admin', 'manager'].includes(auth?.user.value?.role));
 const members = ref([]);
 const professions = ref([]);
 const loading = ref(true);
@@ -118,6 +122,8 @@ const secondaryOptions = computed(() => [
 ]);
 const dialog = ref(false);
 const editing = ref(null);
+const uidUnlocked = ref(false);
+const editRequestId = ref('');
 const form = ref({
   uid: '',
   name: '',
@@ -135,6 +141,8 @@ const dirty = computed(() => JSON.stringify(form.value) !== baseline.value);
 function openForm(member = null) {
   opener = document.activeElement;
   editing.value = member;
+  uidUnlocked.value = false;
+  editRequestId.value = crypto.randomUUID();
   form.value = {
     uid: member?.uid || '',
     name: member?.name || '',
@@ -148,6 +156,10 @@ function openForm(member = null) {
   saveError.value = '';
   dialog.value = true;
 }
+watch(uidUnlocked, (unlocked) => {
+  if (!unlocked && editing.value) form.value.uid = editing.value.uid;
+});
+watch(form, () => { editRequestId.value = crypto.randomUUID(); }, { deep: true });
 function closeForm(value = false) {
   if (value || saving.value) return;
   if (dirty.value && !window.confirm('放棄尚未儲存的成員資料？')) return;
@@ -170,9 +182,11 @@ async function save() {
   try {
     const { uid, ...values } = { ...form.value };
     const data = editing.value
-      ? await client.updateMember(uid, { ...values, revision: editing.value.revision })
+      ? canMaintain.value && uidUnlocked.value
+        ? await client.maintainMember(editing.value.uid, { ...values, newUid: uid, revision: editing.value.revision, requestId: editRequestId.value })
+        : await client.updateMember(editing.value.uid, { ...values, revision: editing.value.revision })
       : await client.addMember({ uid, ...values });
-    const index = members.value.findIndex((member) => member.uid === data.member.uid);
+    const index = members.value.findIndex((member) => member.uid === (editing.value?.uid || data.member.uid));
     if (index < 0) members.value.push(data.member);
     else members.value[index] = data.member;
     const destination = data.member.isInGuild || data.member.isInClub ? 'members' : 'external';
@@ -221,8 +235,32 @@ const history = ref(null);
 const historyDialog = ref(false);
 function openHistory(member) {
   opener = document.activeElement;
-  history.value = member;
-  historyDialog.value = true;
+  if (canMaintain.value) {
+    maintenanceMember.value = member;
+    maintenanceMode.value = 'history';
+    maintenanceDialog.value = true;
+  } else {
+    history.value = member;
+    historyDialog.value = true;
+  }
+}
+const maintenanceMember = ref(null);
+const maintenanceMode = ref('history');
+const maintenanceDialog = ref(false);
+function openDelete(member) {
+  opener = document.activeElement;
+  maintenanceMember.value = member;
+  maintenanceMode.value = 'delete';
+  maintenanceDialog.value = true;
+}
+function acceptHistory(member) {
+  const index = members.value.findIndex((row) => row.uid === member.uid);
+  if (index >= 0) members.value[index] = member;
+  notice.value = `「${member.name}」的過去名稱已儲存。`;
+}
+function acceptDelete(member) {
+  members.value = members.value.filter((row) => row.uid !== member.uid);
+  notice.value = `「${member.name}」已永久刪除，原始戰績與排表快照已保留。`;
 }
 const importDialog = ref(false);
 const importResultDialog = ref(false);
@@ -459,13 +497,13 @@ function formatDate(value) {
                   </td>
                   <td>
                     <v-btn
-                      v-if="member.previousNames.length"
+                      v-if="canMaintain || member.previousNames.length"
                       variant="text"
                       size="small"
                       :prepend-icon="mdiHistory"
-                      :aria-label="`查看 ${member.name} 的過去名稱`"
+                      :aria-label="`${canMaintain ? '管理' : '查看'} ${member.name} 的過去名稱`"
                       @click="openHistory(member)"
-                      >{{ member.previousNames.length }} 筆紀錄</v-btn
+                      >{{ member.previousNames.length ? `${member.previousNames.length} 筆紀錄` : '新增舊名' }}</v-btn
                     ><span v-else class="member-muted">—</span>
                   </td>
                   <td>
@@ -495,6 +533,9 @@ function formatDate(value) {
                         @click="openMove(member)"
                         >移至編外</v-btn
                       >
+                      <v-btn v-if="canMaintain" variant="text" color="error" size="small"
+                        :prepend-icon="mdiDeleteOutline" :aria-label="`永久刪除 ${member.name}`"
+                        @click="openDelete(member)">永久刪除</v-btn>
                     </div>
                   </td>
                 </tr>
@@ -540,7 +581,7 @@ function formatDate(value) {
           <p class="member-dialog-description">
             {{
               editing
-                ? 'UID 固定不變，改名後會自動保留過去名稱。'
+                ? '改名後會自動保留過去名稱。UID 修正僅供管理者使用。'
                 : '填寫遊戲內 UID、名稱與職業。主職業為必填。'
             }}
           </p>
@@ -556,11 +597,14 @@ function formatDate(value) {
             ></v-alert
           >
           <fieldset :disabled="saving" class="member-fields">
+            <v-switch v-if="editing && canMaintain" v-model="uidUnlocked" color="warning"
+              label="開啟 UID 修正" :disabled="saving" hide-details />
+            <p v-if="uidUnlocked" class="member-dialog-description">請核對遊戲內 UID。儲存會同步更新報名、排表及戰績關聯，不能改成其他人已使用的 UID。</p>
             <v-text-field
               v-model="form.uid"
               label="UID（遊戲內 ID）*"
               variant="outlined"
-              :disabled="!!editing || saving"
+              :disabled="(!!editing && !uidUnlocked) || saving"
               maxlength="64"
               :error-messages="errors.uid"
               hint="以文字保存，保留前導零"
@@ -706,7 +750,7 @@ function formatDate(value) {
       <ol class="member-history">
         <li v-for="entry in history?.previousNames" :key="entry.id">
           <strong>{{ entry.name }}</strong
-          ><time :datetime="entry.changedAt">{{ formatDate(entry.changedAt) }} 改名</time>
+          ><time :datetime="entry.changedAt">{{ formatDate(entry.changedAt) }} 記錄</time>
         </li>
       </ol>
       <div class="member-dialog-actions">
@@ -714,6 +758,9 @@ function formatDate(value) {
       </div></v-card
     >
   </v-dialog>
+  <MemberMaintenanceDialog v-if="canMaintain" v-model="maintenanceDialog" :member="maintenanceMember"
+    :mode="maintenanceMode" :client="client" @saved="acceptHistory" @deleted="acceptDelete"
+    @after-leave="restoreFocus" />
   <MemberImportDialog
     v-model="importDialog"
     :professions="professions"

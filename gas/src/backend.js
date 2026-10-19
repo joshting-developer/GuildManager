@@ -1,4 +1,5 @@
 import './runtime-compat.js';
+import { createMemberMaintenance } from './member-maintenance.js';
 import { visibleCalendarEvents } from '../../src/domain/calendar-access.js';
 import {
   DEFAULT_PLATFORM_NAME,
@@ -52,6 +53,9 @@ const PARTICIPATION = [
   'cancelGuestRegistration',
 ];
 const WRITES = [
+  'maintainMember',
+  'saveMemberNameHistory',
+  'deleteMemberPermanently',
   'updatePlatformSettings',
   'addMember',
   'updateMember',
@@ -271,6 +275,7 @@ export function rpc(operation, args = [], context = {}) {
             ...createBattles(store, catalog, { ...options, files }),
             ...createLottery(store, options),
             ...createBattleMemberSync(store),
+            ...createMemberMaintenance(store, catalog, options),
           };
           if (!Object.prototype.hasOwnProperty.call(methods, operation))
             fail('OPERATION_INVALID', '不支援此操作');

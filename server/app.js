@@ -47,6 +47,7 @@ export function createApp(repository, { authNow, notifier = null } = {}) {
     next();
   });
   app.use('/api/members/import', express.json({ limit: '512kb' }));
+  app.use('/api/members/:uid/history', express.json({ limit: '128kb' }));
   app.use('/api/lineups', express.json({ limit: '64kb' }));
   app.use('/api/battle-records', express.json({ limit: '10mb' }));
   app.use('/api/admin/platform-settings', express.json({ limit: '360kb' }));
@@ -227,6 +228,18 @@ export function createApp(repository, { authNow, notifier = null } = {}) {
   });
   app.get('/api/members', (_request, response) => {
     response.set('Cache-Control', 'no-store').json(repository.listMembers());
+  });
+  app.get('/api/members/:uid/maintenance', (request, response) => {
+    response.set('Cache-Control', 'no-store').json(repository.getMemberMaintenance(request.params.uid));
+  });
+  app.patch('/api/members/:uid/maintenance', (request, response) => {
+    response.json(notifying(() => repository.maintainMember(request.params.uid, request.body)));
+  });
+  app.patch('/api/members/:uid/history', (request, response) => {
+    response.json(repository.saveMemberNameHistory(request.params.uid, request.body));
+  });
+  app.post('/api/members/:uid/permanent-delete', (request, response) => {
+    response.json(repository.deleteMemberPermanently(request.params.uid, request.body));
   });
   app.get('/api/members/:uid/battle-records', (request, response) => {
     response.json(

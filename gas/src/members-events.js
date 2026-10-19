@@ -78,7 +78,8 @@ export function createCatalog(store, { uuid, now, guildName, notify = () => {} }
     if (value.secondaryProfessionId) profession(value.secondaryProfessionId);
     if (store.get('members', value.uid))
       fail('DUPLICATE_UID', '這個 UID 已在成員清單中', { uid: '這個 UID 已存在' });
-    const result = { ...value, revision: 1, joinedAt: now(), updatedAt: now() };
+    const revision = (store.get('requests', `member-revision:${value.uid}`)?.revision || 0) + 1;
+    const result = { ...value, revision, joinedAt: now(), updatedAt: now() };
     store.put('members', value.uid, result);
     if (linkBattles) linkNewMemberBattles(store, [result]);
     const dto = memberDto(result);

@@ -1,3 +1,4 @@
+import { projectReferences } from './member-maintenance.js';
 import {
   parseBattleCsv,
   taipeiBattleTime,
@@ -32,7 +33,7 @@ export function createBattles(store, catalog, { uuid, now, files }) {
     revision: record.revision ?? 0,
   });
   const detail = ({ csvFileId, imageFileId, contentHash, ...record }) => {
-    const players = store.get('battle_players', record.id)?.players || record.players;
+    const players = projectReferences(store, 'battle', record.id, store.get('battle_players', record.id)?.players || record.players);
     if (!Array.isArray(players)) fail('STORAGE_CORRUPT', '戰績玩家資料不完整，請聯絡管理者');
     const links = new Map(
       store
@@ -90,7 +91,7 @@ export function createBattles(store, catalog, { uuid, now, files }) {
       const lineup = record.eventId ? store.all('lineup_versions')
         .filter((value) => value.eventId === record.eventId)
         .sort((a, b) => b.version - a.version)[0] : null;
-      return analyzeBattleTeams(record, lineup || null);
+      return analyzeBattleTeams(record, lineup ? projectReferences(store, 'lineup', lineup.id, lineup) : null);
     },
     updateBattleRecord([id, input]) {
       const current = get(id);

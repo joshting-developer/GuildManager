@@ -1,3 +1,4 @@
+import { projectReferences } from './member-maintenance.js';
 import { planBattleMemberSync, publicBattleSyncPlan, validateBattleSyncInput } from '../../src/domain/battle-member-sync.js';
 import { canonical, fail, hash, retry } from './common.js';
 
@@ -7,7 +8,7 @@ export function createBattleMemberSync(store) {
     const snapshots = store.getMany('battle_players', records.map(record => record.id));
     return planBattleMemberSync(
       store.all('members'), store.all('name_history'),
-      records.map(record => ({ id: record.id, players: snapshots.get(record.id)?.players || record.players })),
+      records.map(record => ({ id: record.id, players: projectReferences(store, 'battle', record.id, snapshots.get(record.id)?.players || record.players) })),
       store.all('battle_links'),
     );
   }

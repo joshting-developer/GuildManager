@@ -267,3 +267,19 @@ function drawLotteryPrize(input, context) {
 function resetLottery(input, context) {
   return GuildGas.rpc('resetLottery', [input], context);
 }
+
+function getMemberMaintenance(uid, context) {
+  return GuildGas.rpc('getMemberMaintenance', [uid], context);
+}
+
+function maintainMember(uid, input, context) {
+  return GuildGas.rpc('maintainMember', [uid, input], context);
+}
+
+function saveMemberNameHistory(uid, input, context) {
+  return GuildGas.rpc('saveMemberNameHistory', [uid, input], context);
+}
+
+function deleteMemberPermanently(uid, input, context) {
+  return GuildGas.rpc('deleteMemberPermanently', [uid, input], context);
+}

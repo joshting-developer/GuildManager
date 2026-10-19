@@ -15,7 +15,7 @@ import {
 } from '../src/domain/lineup-validation.js';
 export { LineupError, validateLineup } from '../src/domain/lineup-validation.js';
 
-export function createLineupRepository(db) {
+export function createLineupRepository(db, { project = (_kind, _id, value) => value } = {}) {
   // Confirmation snapshots deliberately do not reference mutable member/profession rows.
   db.exec(`
     CREATE TABLE IF NOT EXISTS lineup_versions (
@@ -155,14 +155,14 @@ export function createLineupRepository(db) {
       eventId: row.event_id,
       version: row.version,
       createdAt: row.created_at,
-      ...JSON.parse(row.snapshot_json),
+      ...project('lineup', row.id, JSON.parse(row.snapshot_json)),
     };
   }
   function template(row) {
     return {
       id: row.id,
       name: row.name,
-      teams: JSON.parse(row.teams_json),
+      teams: project('template', row.id, JSON.parse(row.teams_json)),
       createdAt: row.created_at,
     };
   }
@@ -302,7 +302,7 @@ export function createLineupRepository(db) {
       if (!row) throw new LineupError('找不到這份範本，請重新載入', 404, 'TEMPLATE_NOT_FOUND');
       const current = members(currentEvent.id);
       const skipped = [];
-      const savedTeams = JSON.parse(row.teams_json);
+      const savedTeams = project('template', row.id, JSON.parse(row.teams_json));
       const catalog = new Map(
         db
           .prepare('SELECT id,name,active FROM duties')

@@ -1,3 +1,4 @@
+import { createMemberReferences, createMemberMaintenance } from './member-maintenance.js';
 import Database from 'better-sqlite3';
 import { createPlatformSettingsRepository } from './platform-settings-repository.js';
 import { createAuthRepository } from './auth-repository.js';
@@ -217,6 +218,7 @@ export function createRepository({ filename, authNow }) {
       previousName,
     });
 
+  const references = createMemberReferences(db);
   const repository = {
     takeNotifications() {
       const taken = notices;
@@ -228,8 +230,9 @@ export function createRepository({ filename, authNow }) {
     ...createDutyRepository(db),
     ...createParticipationRepository(db, { notify }),
     ...createEventVideoRepository(db),
-    ...createLineupRepository(db),
-    ...createBattleRecordRepository(db),
+    ...createLineupRepository(db, { project: references.project }),
+    ...createBattleRecordRepository(db, { project: references.project }),
+    ...createMemberMaintenance(db, { getMember, updateMember: (...args) => repository.updateMember(...args), references }),
     ...createPlatformSettingsRepository(db),
     ...createLotteryRepository(db),
     previewMemberImport,
@@ -336,8 +339,8 @@ export function createRepository({ filename, authNow }) {
           );
         } else {
           db.prepare(
-            `INSERT INTO members (uid, name, primary_profession_id, secondary_profession_id, primary_profession, secondary_profession, is_in_guild, is_in_club, joined_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO members (uid, name, primary_profession_id, secondary_profession_id, primary_profession, secondary_profession, is_in_guild, is_in_club, joined_at, updated_at, revision)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           ).run(
             member.uid,
             member.name,
@@ -349,6 +352,7 @@ export function createRepository({ filename, authNow }) {
             Number(member.isInClub),
             now,
             now,
+            references.nextRevision(member.uid),
           );
         }
         const saved = getMember(member.uid);

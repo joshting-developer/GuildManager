@@ -63,6 +63,14 @@ export function createMemberClient({ source = 'local', fetchImpl = sessionFetch,
     addMember: (input) => call('POST', 'members', input, 'addMember', [input]),
     updateMember: (uid, input) =>
       call('PATCH', `members/${encodeURIComponent(uid)}`, input, 'updateMember', [uid, input]),
+    getMemberMaintenance: (uid) =>
+      call('GET', `members/${encodeURIComponent(uid)}/maintenance`, null, 'getMemberMaintenance', [uid]),
+    maintainMember: (uid, input) =>
+      call('PATCH', `members/${encodeURIComponent(uid)}/maintenance`, input, 'maintainMember', [uid, input]),
+    saveMemberNameHistory: (uid, input) =>
+      call('PATCH', `members/${encodeURIComponent(uid)}/history`, input, 'saveMemberNameHistory', [uid, input]),
+    deleteMemberPermanently: (uid, input) =>
+      call('POST', `members/${encodeURIComponent(uid)}/permanent-delete`, input, 'deleteMemberPermanently', [uid, input]),
     removeMember: (uid, revision) =>
       call('DELETE', `members/${encodeURIComponent(uid)}`, { revision }, 'removeMember', [
         uid,

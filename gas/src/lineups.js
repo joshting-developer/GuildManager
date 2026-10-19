@@ -1,12 +1,15 @@
+import { projectReferences } from './member-maintenance.js';
 import { validateLineup } from '../../src/domain/lineup-validation.js';
 import { editableLineup, participantKey } from '../../src/domain/lineups.js';
 import { canonical, fail, revision, retry, text } from './common.js';
 export function createLineups(store, catalog, participation, { uuid, now }) {
+  const projected = (kind, value) => projectReferences(store, kind, value.id, value);
   const versions = (eventId) =>
     store
       .all('lineup_versions')
       .filter((version) => version.eventId === eventId)
-      .sort((a, b) => b.version - a.version);
+      .sort((a, b) => b.version - a.version)
+      .map((value) => projectReferences(store, 'lineup', value.id, value));
   function event(id) {
     const current = catalog.event(id, { battle: true });
     if (current.dates.length !== 1) fail('EVENT_UNAVAILABLE', '排表需要單日戰鬥場次');
@@ -85,7 +88,7 @@ export function createLineups(store, catalog, participation, { uuid, now }) {
         events: events.sort(
           (a, b) => b.dates[0].localeCompare(a.dates[0]) || a.title.localeCompare(b.title),
         ),
-        templates: store.all('templates').sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+        templates: store.all('templates').map((value) => projectReferences(store, 'template', value.id, value)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
       };
     },
     getLineupHistory: ([eventId]) => ({ versions: versions(eventId) }),
@@ -94,7 +97,7 @@ export function createLineups(store, catalog, participation, { uuid, now }) {
       if (!Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 0)
         fail('LINEUP_INVALID', '排表版本不正確');
       return {
-        version: retry(
+        version: projected('lineup', retry(
           store,
           'confirmLineup',
           input.requestId,
@@ -121,23 +124,24 @@ export function createLineups(store, catalog, participation, { uuid, now }) {
             store.put('lineup_versions', version.id, version);
             return version;
           },
-        ),
+        )),
       };
     },
     createLineupTemplate([input]) {
       const name = text(input?.name, '範本名稱', 64),
         teams = validateLineup(input.teams);
       return {
-        template: retry(store, 'createLineupTemplate', input.requestId, { name, teams }, () => {
+        template: projected('template', retry(store, 'createLineupTemplate', input.requestId, { name, teams }, () => {
           const template = { id: uuid(), name, teams: snapshot(teams), createdAt: now() };
           store.put('templates', template.id, template);
           return template;
-        }),
+        })),
       };
     },
     applyLineupTemplate([id, eventId]) {
       const currentEvent = event(eventId),
-        template = store.get('templates', id);
+        rawTemplate = store.get('templates', id);
+      const template = rawTemplate ? projectReferences(store, 'template', id, rawTemplate) : null;
       if (!template) fail('TEMPLATE_NOT_FOUND', '找不到這份範本，請重新載入');
       const current = people(eventId),
         skipped = [],
