@@ -14,6 +14,7 @@ const side = ref('red'), tab = ref('comparison'), page = ref(1), unclassifiedPag
 const firstPair = ref(['defense1', 'defense2']);
 const sortKey = ref(null), sortDirection = ref('desc');
 const unclassifiedSort = ref(null), unclassifiedDirection = ref('asc');
+const comparisonTables = [{ key: 'value', label: '數值' }, { key: 'wholePercent', label: '占全場％' }];
 const data = computed(() => props.analysis);
 const current = computed(() => data.value?.sides[side.value]);
 const groups = computed(() => current.value?.groups.filter(group => group.attack === (props.mode === 'attack')) || []);
@@ -83,14 +84,16 @@ watch([side, tab, sortKey, sortDirection], () => { page.value = 1; unclassifiedP
           </v-tabs>
           <div :id="`${id}-${tab}-panel`" role="tabpanel" :aria-labelledby="`${id}-${tab}-tab`">
             <template v-if="tab === 'comparison'">
-              <section v-for="item in groups" :key="item.id" :aria-label="`${item.name}合計`" class="mb-6">
-                <h3 class="team-analysis-section-title">{{ item.name }} · {{ item.rows.length }} 人</h3>
-                <div class="battle-view-scroll" tabindex="0" :aria-label="`${item.name}合計表格，可橫向捲動`">
-                  <table class="battle-view-table team-analysis-table team-analysis-summary">
-                    <caption class="sr-only">{{ item.name }}合計及占同陣營全場比例</caption>
-                    <thead><tr><th scope="col">統計</th><th v-for="[label, key] in metrics" :key="key" scope="col" class="numeric">{{ label }}</th></tr></thead>
-                    <tbody><tr><th scope="row">合計</th><td v-for="[, key] in metrics" :key="key" class="numeric"><strong>{{ numberLabel(item.totals[key].value) }}</strong><span v-if="item.totals[key].missing" class="team-analysis-percent">部分資料</span></td></tr>
-                      <tr><th scope="row">占全場％</th><td v-for="[, key] in metrics" :key="key" class="numeric">{{ percentLabel(item.totals[key].wholePercent) }}</td></tr></tbody>
+              <section v-for="comparison in comparisonTables" :key="comparison.key" class="mb-6">
+                <h3 class="team-analysis-section-title">各{{ mode === 'attack' ? '團' : '隊' }}{{ comparison.label }}</h3>
+                <p v-if="comparison.key === 'wholePercent'" class="battle-view-muted mb-3">各指標以同陣營全部玩家的合計為分母，包含未歸類玩家。</p>
+                <div class="battle-view-scroll" tabindex="0" :aria-label="`${comparison.label}比較表格，可橫向捲動`">
+                  <table class="battle-view-table team-analysis-table team-analysis-summary" :class="`team-analysis-${comparison.key}`">
+                    <caption class="sr-only">各{{ mode === 'attack' ? '團' : '隊' }}{{ comparison.label }}</caption>
+                    <thead><tr><th scope="col">{{ mode === 'attack' ? '團別' : '隊別' }}</th><th v-for="[label, key] in metrics" :key="key" scope="col" class="numeric">{{ label }}</th></tr></thead>
+                    <tbody><tr v-for="item in groups" :key="item.id"><th scope="row"><strong>{{ item.name }}</strong><span class="team-analysis-percent">{{ item.rows.length }} 人</span></th>
+                      <td v-for="[, key] in metrics" :key="key" class="numeric"><strong>{{ comparison.key === 'value' ? numberLabel(item.totals[key].value) : percentLabel(item.totals[key].wholePercent) }}</strong><span v-if="comparison.key === 'value' && item.totals[key].missing" class="team-analysis-percent">部分資料</span></td>
+                    </tr></tbody>
                   </table>
                 </div>
               </section>
