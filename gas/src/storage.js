@@ -28,6 +28,7 @@ export function createSheetStore({
   prefix = 'GM_',
   clock = Date.now,
   flush = () => {},
+  run = (_stage, work) => work(),
 }) {
   if (!/^[A-Za-z][A-Za-z0-9_]{0,19}$/.test(prefix)) fail('CONFIG_INVALID', '工作表前綴格式不正確');
   // Reads skip the header round-trip (each Sheets call costs real time in GAS);
@@ -68,7 +69,7 @@ export function createSheetStore({
       .setValues(values);
   }
   function transaction(work) {
-    const commitRows = rows(sheet('commits', false, false), 2);
+    const commitRows = run('SHEETS_READ', () => rows(sheet('commits', false, false), 2), 'commits');
     const order = new Map(commitRows.map(([id], index) => [id, index]));
     const tables = new Map(),
       partial = new Map(),
@@ -79,8 +80,8 @@ export function createSheetStore({
       if (!partial.has(table)) partial.set(table, new Map());
       const cache = partial.get(table);
       if (keys && keys.every((key) => cache.has(key))) return cache;
-      const current = sheet(table, false, false);
-      let records = rows(current, keys ? 4 : 5);
+      const current = run('SHEETS_READ', () => sheet(table, false, false), table);
+      let records = run('SHEETS_READ', () => rows(current, keys ? 4 : 5), table);
       if (keys) {
         const selected = records.map(
           ([key, tx]) => order.has(tx) && keys.includes(JSON.parse(key)),
@@ -90,7 +91,7 @@ export function createSheetStore({
           if (!selected[start]) continue;
           let end = start + 1;
           while (selected[end]) end++;
-          const payloads = current.getRange(start + 2, 5, end - start, 1).getValues();
+          const payloads = run('SHEETS_READ', () => current.getRange(start + 2, 5, end - start, 1).getValues(), table);
           for (let index = start; index < end; index++)
             records[index].push(payloads[index - start][0]);
           start = end - 1;
@@ -175,29 +176,30 @@ export function createSheetStore({
     if (!changes.size) return result;
     const tx = utilities.getUuid();
     for (const [table, records] of changes) {
-      const current = sheet(table),
-        values = [];
-      for (const [key, record] of records) {
-        // Base64 and a quoted JSON key prevent formula interpretation, including chunk boundaries.
-        const payload = utilities.base64Encode(JSON.stringify(record), utilities.Charset.UTF_8);
-        const count = Math.ceil(payload.length / CHUNK_SIZE);
-        for (let index = 0; index < count; index++)
-          values.push([
-            JSON.stringify(key),
-            tx,
-            index,
-            count,
-            payload.slice(index * CHUNK_SIZE, (index + 1) * CHUNK_SIZE),
-          ]);
-      }
-      append(current, values);
+      run('SHEETS_WRITE', () => {
+        const current = sheet(table),
+          values = [];
+        for (const [key, record] of records) {
+          // Base64 and a quoted JSON key prevent formula interpretation, including chunk boundaries.
+          const payload = utilities.base64Encode(JSON.stringify(record), utilities.Charset.UTF_8);
+          const count = Math.ceil(payload.length / CHUNK_SIZE);
+          for (let index = 0; index < count; index++)
+            values.push([
+              JSON.stringify(key),
+              tx,
+              index,
+              count,
+              payload.slice(index * CHUNK_SIZE, (index + 1) * CHUNK_SIZE),
+            ]);
+        }
+        append(current, values);
+      }, table);
     }
     // Flush all entity rows before publishing the marker; Sheets may buffer writes.
-    flush();
-    const commits = sheet('commits');
+    run('SHEETS_FLUSH', flush);
     // This marker is authoritative; abandoned rows from any failed write are invisible.
-    append(commits, [[tx, new Date(clock()).toISOString()]]);
-    flush();
+    run('SHEETS_COMMIT', () => append(sheet('commits'), [[tx, new Date(clock()).toISOString()]]), 'commits');
+    run('SHEETS_FLUSH', flush);
     return result;
   }
   return { initialize, transaction };

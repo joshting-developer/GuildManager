@@ -22,6 +22,7 @@ import {
   isDiscordWebhookUrl,
 } from '../../src/domain/discord-notifications.js';
 import { createBattleMemberSync } from './battle-member-sync.js';
+import { createBattleUploadDiagnostics } from './battle-upload-diagnostics.js';
 
 const AUTH = [
   'getAuthSession',
@@ -93,7 +94,7 @@ function environment(notify = () => {}) {
   const privateStore = createPrivateStore(properties, options.uuid);
   return { properties, options, privateStore };
 }
-function sheets(properties) {
+function sheets(properties, run) {
   const id = properties.getProperty('SPREADSHEET_ID');
   if (!id || !/^[a-zA-Z0-9_-]{10,150}$/.test(id))
     fail('CONFIG_INVALID', '請先設定 SPREADSHEET_ID 並執行初始化');
@@ -102,6 +103,7 @@ function sheets(properties) {
     utilities: Utilities,
     prefix: properties.getProperty('TABLE_PREFIX') || 'GM_',
     flush: () => SpreadsheetApp.flush(),
+    run,
   });
 }
 function cloudFolder(properties) {
@@ -207,9 +209,11 @@ export function pagePlatform() {
 }
 export function rpc(operation, args = [], context = {}) {
   const notices = [];
+  const diagnostics = operation === 'saveBattleRecords' ? createBattleUploadDiagnostics() : null;
+  const run = diagnostics?.run || ((_stage, work) => work());
   let footer = DEFAULT_PLATFORM_NAME;
   try {
-    const data = locked(() => {
+    const data = run('LOCK', () => locked(() => {
       if (
         !Array.isArray(args) ||
         args.length > 4 ||
@@ -218,22 +222,22 @@ export function rpc(operation, args = [], context = {}) {
         Array.isArray(context)
       )
         fail('INVALID_REQUEST', '操作參數不正確');
-      const { properties, options, privateStore } = environment((notice) => notices.push(notice));
-      const state = privateStore.load(),
+      const { properties, options, privateStore } = run('SETTINGS', () => environment((notice) => notices.push(notice)));
+      const state = run('AUTH_READ', () => privateStore.load()),
         original = canonical(state);
       const auth = createGasAuth(state, options);
       try {
         if (AUTH.includes(operation)) return auth.methods[operation](args, context);
-        return sheets(properties).transaction((store) => {
+        return run('SHEETS_OPEN', () => sheets(properties, run)).transaction((store) => {
           const catalog = createCatalog(store, options);
           const participation = createParticipation(store, catalog, options);
           const files = {
             decode: (value) => Utilities.base64Decode(value),
-            createCsv: (name, csv) =>
+            createCsv: (name, csv) => run('DRIVE_CSV', () =>
               cloudFolder(properties)
                 .createFile(Utilities.newBlob(csv, 'text/csv', name))
-                .getId(),
-            createBase64: (image) =>
+                .getId()),
+            createBase64: (image) => run('DRIVE_IMAGE', () =>
               cloudFolder(properties)
                 .createFile(
                   Utilities.newBlob(
@@ -242,7 +246,7 @@ export function rpc(operation, args = [], context = {}) {
                     image.name,
                   ),
                 )
-                .getId(),
+                .getId()),
             read: (id) => Utilities.base64Encode(DriveApp.getFileById(id).getBlob().getBytes()),
           };
           const methods = {
@@ -323,9 +327,9 @@ export function rpc(operation, args = [], context = {}) {
             ].includes(operation)
           )
             auth.requireRole(context, ['admin', 'manager', 'member']);
-          else if (!PUBLIC.includes(operation)) auth.requireRole(context);
-          if (WRITES.includes(operation)) auth.requireWrite(context);
-          const result = methods[operation](args);
+          else if (!PUBLIC.includes(operation)) run('AUTH_CHECK', () => auth.requireRole(context));
+          if (WRITES.includes(operation)) run('AUTH_CHECK', () => auth.requireWrite(context));
+          const result = run('PROCESS', () => methods[operation](args));
           if (notices.length)
             footer = store.get('settings', 'platform')?.name || DEFAULT_PLATFORM_NAME;
           if (operation === 'getEvents')
@@ -336,9 +340,9 @@ export function rpc(operation, args = [], context = {}) {
         });
       } finally {
         // Persist failed-login throttles too; no secrets are returned to clients.
-        if (canonical(state) !== original) privateStore.save(state);
+        if (canonical(state) !== original) run('AUTH_SAVE', () => privateStore.save(state));
       }
-    });
+    }));
     try {
       deliverNotices(notices, footer);
     } catch {
@@ -352,7 +356,9 @@ export function rpc(operation, args = [], context = {}) {
       ok: false,
       error: {
         code: error.code || 'GAS_ERROR',
-        message: error.code ? error.message : '雲端操作失敗，請確認授權與設定後重試',
+        message: error.code ? error.message : diagnostics
+          ? diagnostics.report(error)
+          : '雲端操作失敗，請確認授權與設定後重試',
         fields: error.fields || {},
         rows: error.rows || [],
       },
