@@ -25,7 +25,11 @@
   margin-bottom: 16px;
 }
 .event-filters .v-select {
+  flex: 1 1 220px;
   max-width: 280px;
+}
+.event-filters .v-text-field {
+  min-width: 0;
 }
 .event-result {
   color: var(--color-text-muted);
@@ -234,8 +238,14 @@
     justify-content: flex-end;
   }
   .event-filters {
+    flex-direction: column;
+    align-items: stretch;
     gap: 8px;
     padding: 12px;
+  }
+  .event-filters .v-select {
+    flex: none;
+    max-width: none;
   }
   .event-table th,
   .event-table td {

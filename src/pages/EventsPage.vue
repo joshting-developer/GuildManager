@@ -8,6 +8,7 @@ import {
   mdiPencilOutline,
   mdiTrashCanOutline,
   mdiAccountGroupOutline,
+  mdiMagnify,
 } from '@mdi/js';
 import { createEventClient } from '../api/events.js';
 import EventCreateDialog from './EventCreateDialog.vue';
@@ -22,14 +23,21 @@ const loadError = ref('');
 const notice = ref('');
 const typeOptions = EVENT_TYPE_OPTIONS;
 const filter = ref(null);
+const search = ref('');
 const page = ref(1);
 const filtered = computed(() =>
   events.value
     .filter((event) => !filter.value || event.type === filter.value)
-    .sort((a, b) => a.dates[0].localeCompare(b.dates[0]) || a.createdAt.localeCompare(b.createdAt)),
+    .filter((event) => eventDisplayTitle(event).toLocaleLowerCase().includes((search.value || '').trim().toLocaleLowerCase()))
+    .sort((a, b) => b.dates[0].localeCompare(a.dates[0]) || b.createdAt.localeCompare(a.createdAt)),
 );
 const pageCount = computed(() => Math.max(1, Math.ceil(filtered.value.length / 20)));
 const visible = computed(() => filtered.value.slice((page.value - 1) * 20, page.value * 20));
+function clearFilters() {
+  filter.value = null;
+  search.value = '';
+  page.value = 1;
+}
 async function load() {
   loading.value = true;
   loadError.value = '';
@@ -74,7 +82,7 @@ function onSaved(value, edited = false) {
     else events.value[index] = event;
   }
   const event = saved[0];
-  filter.value = null;
+  clearFilters();
   page.value = Math.floor(filtered.value.findIndex((value) => value.id === event.id) / 20) + 1;
   notice.value =
     saved.length > 1
@@ -173,6 +181,16 @@ function formatDate(date) {
     </div>
     <template v-else>
       <div v-if="events.length" class="event-filters">
+        <v-text-field
+          v-model="search"
+          label="搜尋安排名稱"
+          :prepend-inner-icon="mdiMagnify"
+          variant="outlined"
+          density="compact"
+          hide-details
+          clearable
+          @update:model-value="page = 1"
+        />
         <v-select
           v-model="filter"
           :items="typeOptions"
@@ -182,13 +200,11 @@ function formatDate(date) {
           hide-details
           clearable
           @update:model-value="page = 1"
-        /><v-btn
+        />
+        <v-btn
           variant="text"
-          :disabled="!filter"
-          @click="
-            filter = null;
-            page = 1;
-          "
+          :disabled="!filter && !search"
+          @click="clearFilters"
           >清除篩選</v-btn
         >
       </div>
@@ -199,17 +215,10 @@ function formatDate(date) {
       </div>
       <div v-else-if="!filtered.length" class="empty-state">
         <h3>沒有符合條件的安排</h3>
-        <v-btn
-          variant="text"
-          @click="
-            filter = null;
-            page = 1;
-          "
-          >清除篩選</v-btn
-        >
+        <v-btn variant="text" @click="clearFilters">清除篩選</v-btn>
       </div>
       <template v-else>
-        <p class="event-result" aria-live="polite">顯示 {{ filtered.length }} 筆安排</p>
+        <p class="event-result" aria-live="polite">顯示 {{ filtered.length }} 筆安排 · 日期由新到舊</p>
         <div class="event-table-scroll" tabindex="0" aria-label="安排表格，可左右捲動">
           <table class="event-table">
             <thead>
