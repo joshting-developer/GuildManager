@@ -46,7 +46,9 @@ export function createBattleRecordClient({
         undefined,
         [page, eventId],
       ),
-    getRecord: (id) => call('getBattleRecord', `/${encodeURIComponent(id)}`, undefined, [id]),
+    getRecord: (id, options) => call('getBattleRecord',
+      `/${encodeURIComponent(id)}${options ? `?${new URLSearchParams(options)}` : ''}`,
+      undefined, options ? [id, options] : [id]),
     getTeamAnalysis: (id) => call('getBattleTeamAnalysis', `/${encodeURIComponent(id)}/team-analysis`, undefined, [id]),
     saveRecords: (input) => call('saveBattleRecords', '', input, [input]),
     updateRecord: (id, input) =>

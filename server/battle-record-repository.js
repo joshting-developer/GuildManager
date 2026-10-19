@@ -6,7 +6,7 @@ import {
   MAX_IMAGE_BYTES,
 } from '../src/domain/battle-records.js';
 import { summarizePersonalBattles } from '../src/domain/personal-battle-statistics.js';
-import { analyzeBattleTeams } from '../src/domain/team-battle-analysis.js';
+import { analyzeBattleTeams, battleTeamContext, includeBattleTeamContext } from '../src/domain/team-battle-analysis.js';
 import { uniqueNewMemberNames } from '../src/domain/battle-member-links.js';
 import { planBattleMemberSync, publicBattleSyncPlan, validateBattleSyncInput } from '../src/domain/battle-member-sync.js';
 import { validateBattleMetadata } from '../src/domain/battle-metadata.js';
@@ -167,6 +167,13 @@ export function createBattleRecordRepository(db, { project = (_kind, _id, value)
       players,
     };
   }
+  function analysisLineup(record) {
+    if (!record.eventId || ![1, 2].includes(record.roundNumber)) return null;
+    const row = db.prepare(
+      'SELECT id, snapshot_json, created_at FROM lineup_versions WHERE event_id=? ORDER BY version DESC LIMIT 1',
+    ).get(record.eventId);
+    return row ? { ...project('lineup', row.id, JSON.parse(row.snapshot_json)), createdAt: row.created_at } : null;
+  }
   return {
     previewBattleMemberSync() {
       return db.transaction(() => {
@@ -211,15 +218,19 @@ export function createBattleRecordRepository(db, { project = (_kind, _id, value)
         });
       return { records, total, page, pageSize: 20 };
     },
-    getBattleRecord: get,
+    getBattleRecord(id, options = {}) {
+      const withContext = includeBattleTeamContext(options);
+      if (!withContext) return get(id);
+      return db.transaction(() => {
+        const record = get(id);
+        return { ...record, teamContext: battleTeamContext(record, analysisLineup(record)) };
+      })();
+    },
     getBattleTeamAnalysis(id) {
-      const record = get(id);
-      const row = record.eventId ? db.prepare(
-        'SELECT id, snapshot_json, created_at FROM lineup_versions WHERE event_id=? ORDER BY version DESC LIMIT 1',
-      ).get(record.eventId) : null;
-      return analyzeBattleTeams(record, row ? {
-        ...project('lineup', row.id, JSON.parse(row.snapshot_json)), createdAt: row.created_at,
-      } : null);
+      return db.transaction(() => {
+        const record = get(id);
+        return analyzeBattleTeams(record, analysisLineup(record));
+      })();
     },
     updateBattleRecord(id, input) {
       return db.transaction(() => {

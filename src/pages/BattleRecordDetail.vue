@@ -1,6 +1,6 @@
 <script setup>
 import DataLoading from '../components/DataLoading.vue';
-import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, inject, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue';
 import {
   mdiArrowLeft,
   mdiArrowRight,
@@ -15,6 +15,7 @@ import { createMemberClient } from '../api/members.js';
 import { eventTypeLabel } from '../domain/event-types.js';
 import BattleMetadataDialog from './BattleMetadataDialog.vue';
 import BattleTeamAnalysisDialog from './BattleTeamAnalysisDialog.vue';
+import { analyzeBattleTeamContext } from '../domain/team-battle-analysis.js';
 import {
   battleDateLabel,
   battleResultLabel,
@@ -31,9 +32,13 @@ const auth = inject('calendarAuth', null);
 const canManage = computed(() => ['admin', 'manager'].includes(auth?.user.value?.role));
 const editDialog = ref(false);
 const teamDialog = ref(false);
-const teamButton = ref(null);
+const analysisMode = ref('attack'), attackButton = ref(null), defenseButton = ref(null);
+function openTeamAnalysis(mode) {
+  analysisMode.value = mode;
+  teamDialog.value = true;
+}
 function restoreTeamFocus() {
-  teamButton.value?.$el?.focus();
+  (analysisMode.value === 'attack' ? attackButton.value : defenseButton.value)?.$el?.focus({ preventScroll: true });
 }
 const notice = ref('');
 function onMetadataUpdated(updated) {
@@ -44,9 +49,14 @@ function onMetadataUpdated(updated) {
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 const client = createBattleRecordClient({ source }),
   memberClient = createMemberClient({ source });
-const record = ref(null),
+const record = shallowRef(null),
   loading = ref(true),
   error = ref('');
+const teamAnalysis = computed(() => {
+  if (!record.value) return { data: null, error: '' };
+  try { return { data: analyzeBattleTeamContext(record.value), error: '' }; }
+  catch (cause) { return { data: null, error: cause.message }; }
+});
 const professions = ref([]),
   professionError = ref('');
 const activeSide = ref('red'),
@@ -139,7 +149,7 @@ async function loadRecord() {
   loading.value = true;
   error.value = '';
   try {
-    const data = await client.getRecord(props.recordId);
+    const data = await client.getRecord(props.recordId, { includeTeamContext: true });
     if (disposed || token !== loadToken) return;
     if (!Array.isArray(data.record?.players)) throw new Error('戰績資料格式不正確, 請重新載入');
     record.value = data.record;
@@ -193,10 +203,11 @@ onUnmounted(() => {
       notice
     }}</v-alert>
     <div class="d-flex flex-wrap ga-3 mb-4">
-      <v-btn ref="teamButton" variant="outlined" @click="teamDialog = true">團隊分析</v-btn>
+      <v-btn ref="attackButton" variant="outlined" aria-haspopup="dialog" @click="openTeamAnalysis('attack')">進攻分析</v-btn>
+      <v-btn ref="defenseButton" variant="outlined" aria-haspopup="dialog" @click="openTeamAnalysis('defense')">防守分析</v-btn>
       <v-btn v-if="canManage" variant="outlined" @click="editDialog = true">編輯對戰資訊</v-btn>
     </div>
-    <BattleTeamAnalysisDialog v-model="teamDialog" :record="record" @closed="restoreTeamFocus" />
+    <BattleTeamAnalysisDialog v-model="teamDialog" :record="record" :mode="analysisMode" :analysis="teamAnalysis.data" :error="teamAnalysis.error" @reload="loadRecord" @closed="restoreTeamFocus" />
     <BattleMetadataDialog
       v-if="canManage"
       v-model="editDialog"

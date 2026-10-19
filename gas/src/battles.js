@@ -5,7 +5,7 @@ import {
   MAX_IMAGE_BYTES,
 } from '../../src/domain/battle-records.js';
 import { summarizePersonalBattles } from '../../src/domain/personal-battle-statistics.js';
-import { analyzeBattleTeams } from '../../src/domain/team-battle-analysis.js';
+import { analyzeBattleTeams, battleTeamContext, includeBattleTeamContext } from '../../src/domain/team-battle-analysis.js';
 import { validateBattleMetadata } from '../../src/domain/battle-metadata.js';
 import {
   validatePersonalBattleFilters,
@@ -26,6 +26,13 @@ export function createBattles(store, catalog, { uuid, now, files, prepareOnly = 
     const record = store.get('battles', id);
     if (!record) fail('BATTLE_NOT_FOUND', '找不到這筆戰績');
     return record;
+  }
+  function analysisLineup(record) {
+    if (!record.eventId || ![1, 2].includes(record.roundNumber)) return null;
+    const lineup = store.all('lineup_versions')
+      .filter(value => value.eventId === record.eventId)
+      .sort((a, b) => b.version - a.version)[0];
+    return lineup ? projectReferences(store, 'lineup', lineup.id, lineup) : null;
   }
   const metadata = ({ csvFileId, imageFileId, contentHash, players, ...record }) => ({
     ...record,
@@ -84,13 +91,14 @@ export function createBattles(store, catalog, { uuid, now, files, prepareOnly = 
         pageSize: 20,
       };
     },
-    getBattleRecord: ([id]) => ({ record: detail(get(id)) }),
+    getBattleRecord([id, options = {}]) {
+      const withContext = includeBattleTeamContext(options);
+      const record = detail(get(id));
+      return { record: withContext ? { ...record, teamContext: battleTeamContext(record, analysisLineup(record)) } : record };
+    },
     getBattleTeamAnalysis([id]) {
       const record = detail(get(id));
-      const lineup = record.eventId ? store.all('lineup_versions')
-        .filter((value) => value.eventId === record.eventId)
-        .sort((a, b) => b.version - a.version)[0] : null;
-      return analyzeBattleTeams(record, lineup ? projectReferences(store, 'lineup', lineup.id, lineup) : null);
+      return analyzeBattleTeams(record, analysisLineup(record));
     },
     updateBattleRecord([id, input]) {
       const current = get(id);

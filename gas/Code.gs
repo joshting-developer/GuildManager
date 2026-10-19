@@ -234,8 +234,14 @@ function getBattleRecords(page, eventId, context) {
   return GuildGas.rpc('getBattleRecords', [page, eventId], context);
 }
 
-function getBattleRecord(id, context) {
-  return GuildGas.rpc('getBattleRecord', [id], context);
+function getBattleRecord(id, options, context) {
+  // Older clients pass their session as the second argument.
+  if (context === undefined && options && typeof options === 'object' &&
+      ('sessionToken' in options || 'csrfToken' in options)) {
+    context = options;
+    options = {};
+  }
+  return GuildGas.rpc('getBattleRecord', [id, options === undefined ? {} : options], context);
 }
 
 function getBattleTeamAnalysis(id, context) {

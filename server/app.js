@@ -141,7 +141,10 @@ export function createApp(repository, { authNow, notifier = null } = {}) {
     response.status(201).json(repository.saveBattleRecords(request.body));
   });
   app.get('/api/battle-records/:id', (request, response) => {
-    response.json({ record: repository.getBattleRecord(request.params.id) });
+    response.json({ record: repository.getBattleRecord(request.params.id, {
+      includeTeamContext: request.query.includeTeamContext === undefined || request.query.includeTeamContext === 'false'
+        ? false : request.query.includeTeamContext === 'true' ? true : request.query.includeTeamContext,
+    }) });
   });
   app.get('/api/battle-records/:id/team-analysis', (request, response) => {
     response.json(repository.getBattleTeamAnalysis(request.params.id));
