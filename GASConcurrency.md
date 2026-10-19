@@ -1,6 +1,6 @@
 # GAS 功能與鎖範圍盤點
 
-2026-10-19；盤點來源 `efe13f9`／v1.0.18。以下「目前／現況」指盤點基準；後續 v1.0.19 已完成的調整見文末，本機尚未同步雲端。
+2026-10-19；盤點來源 `efe13f9`／v1.0.18。以下「目前／現況」指盤點基準；後續 v1.0.19 已完成的調整見文末，程式已同步 GAS，尚未更新 Web App 部署。
 
 ## 結論
 
@@ -202,7 +202,7 @@
 - [auth.js](gas/src/auth.js)、[common.js](gas/src/common.js)、[videos.js](gas/src/videos.js)、[lottery.js](gas/src/lottery.js)：登入寫入、共用 requestId、延遲建表。
 - [Code.gs](gas/Code.gs)：61 個 RPC wrapper 及編輯器入口；[gas.js](src/api/gas.js)、[ParticipationDialog.vue](src/pages/ParticipationDialog.vue)：前端目前沒有 BUSY 自動重試，也沒有跨人版本衝突的自動處理。
 
-## v1.0.19 實作結果（本機待同步）
+## v1.0.19 實作結果（已同步 GAS，尚未更新部署）
 
 使用者確認調整並要求優先保障請假體驗，功能提交 `629dd6d`，本輪完成：
 
@@ -217,4 +217,6 @@
 
 新增 13 項測試，完整 291 項全通過；唯一修改的舊測試是與新需求相反的 getEvents 持鎖必須回 BUSY 斷言，改為讀取成功並驗證 createEvent 仍回 BUSY，其餘原測試不變。新版欄位白名單／型別強化後，6 項目標測試覆核通過。日誌 `/private/tmp/guild-concurrency-full-tests.log`、`/private/tmp/guild-concurrency-target-validation-tests.log`。一般／GAS 編譯通過。
 
-隔離 Chrome 以真正的 GAS 前端編譯與模擬後端驗證桌面／390px 手機：持鎖時首頁與表單仍可載入、不同人同舊表單送出成功、BUSY 自動重試保留原 payload、同人舊表單衝突保留輸入、手機失敗後使用相同 requestId 再送出成功，最終三筆請假、無頁面例外。腳本／摘要／截圖 `/private/tmp/guild-concurrency-preview/`；未使用正式 GAS 或發送 Discord 訊息。本輪只準備 v1.0.19，本機完成不代表已同步／部署。
+隔離 Chrome 以真正的 GAS 前端編譯與模擬後端驗證桌面／390px 手機：持鎖時首頁與表單仍可載入、不同人同舊表單送出成功、BUSY 自動重試保留原 payload、同人舊表單衝突保留輸入、手機失敗後使用相同 requestId 再送出成功，最終三筆請假、無頁面例外。腳本／摘要／截圖 `/private/tmp/guild-concurrency-preview/`；驗證未使用正式 GAS 或發送 Discord 訊息。
+
+2026-10-19 使用者要求同步後，來源 `ded5752` 已透過 `npm run gas:push` 重新編譯、備份、同步並讀回四檔一致，沿用 1.0.19；備份 `data/gas-backups/2026-10-19T14-39-28-254Z/`。本輪未更新 Web App 部署或修改正式資料，線上須由使用者更新既有部署才會生效，見 [GASDeployment.md](GASDeployment.md)。
