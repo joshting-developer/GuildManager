@@ -204,11 +204,9 @@ const memberTabLabel = computed(
   () => ({ guild: '幫會成員', club: '俱樂部成員', extra: '額外報名' })[memberTab.value],
 );
 const availableSourceMembers = computed(() =>
-  lineupSourceMembers(participantPeople.value, {
-    type: currentEvent.value?.type,
-    tab: memberTab.value,
-    assigned: assigned.value,
-  }),
+  sourceMembers.value.filter((member) =>
+    member.isOnLeave || !assigned.value.has(participantKey(member)),
+  ),
 );
 const unassignedCount = computed(
   () => availableSourceMembers.value.filter((member) => !member.isOnLeave).length,

@@ -25,12 +25,18 @@ const typeOptions = EVENT_TYPE_OPTIONS;
 const filter = ref(null);
 const search = ref('');
 const page = ref(1);
-const filtered = computed(() =>
-  events.value
-    .filter((event) => !filter.value || event.type === filter.value)
-    .filter((event) => eventDisplayTitle(event).toLocaleLowerCase().includes((search.value || '').trim().toLocaleLowerCase()))
-    .sort((a, b) => b.dates[0].localeCompare(a.dates[0]) || b.createdAt.localeCompare(a.createdAt)),
+const sortedEvents = computed(() =>
+  [...events.value].sort(
+    (a, b) => b.dates[0].localeCompare(a.dates[0]) || b.createdAt.localeCompare(a.createdAt),
+  ),
 );
+const filtered = computed(() => {
+  const needle = (search.value || '').trim().toLocaleLowerCase();
+  return sortedEvents.value.filter((event) =>
+    (!filter.value || event.type === filter.value) &&
+    (!needle || eventDisplayTitle(event).toLocaleLowerCase().includes(needle)),
+  );
+});
 const pageCount = computed(() => Math.max(1, Math.ceil(filtered.value.length / 20)));
 const visible = computed(() => filtered.value.slice((page.value - 1) * 20, page.value * 20));
 function clearFilters() {
