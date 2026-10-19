@@ -8,21 +8,22 @@ import { CanvasRenderer } from 'echarts/renderers';
 import { PERSONAL_TREND_METRICS, personalTrendPoints } from '../domain/personal-battle-selection.js';
 
 use([LineChart, GridComponent, TooltipComponent, DataZoomComponent, CanvasRenderer]);
-const props = defineProps({ entries: { type: Array, required: true } });
+const props = defineProps({ entries: { type: Array, required: true }, active: Boolean });
 const theme = useTheme();
-const metric = ref('playerDamage'), element = ref(null), chartError = ref(''), detailsOpen = ref(false), detailPage = ref(1);
+const metric = ref('playerDamage'), element = ref(null), chartError = ref('');
 const points = computed(() => personalTrendPoints(props.entries, metric.value));
 const metricLabel = computed(() => PERSONAL_TREND_METRICS.find((item) => item.value === metric.value).title);
-const detailPoints = computed(() => points.value.slice((detailPage.value - 1) * 20, detailPage.value * 20));
 const label = (value) => value == null ? '—' : value.toLocaleString('zh-TW', { maximumFractionDigits: 2 });
-let chart, observer, frame;
+let chart, observer, frame, renderedEntries, renderedMetric, renderedDark;
 function render() {
-  if (!element.value) return;
-  if (!points.value.length) { chart?.clear(); return; }
+  if (!props.active || !element.value) return;
+  if (!points.value.length) { chart?.clear(); renderedEntries = undefined; return; }
   const dark = theme.current.value.dark;
   const color = dark ? '#cbd5e1' : '#475569';
   try {
     chart ||= init(element.value, null, { renderer: 'canvas', devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2) });
+    chart.resize();
+    if (renderedEntries === props.entries && renderedMetric === metric.value && renderedDark === dark && !chartError.value) return;
     chart.setOption({
       animation: false,
       textStyle: { color },
@@ -35,18 +36,22 @@ function render() {
         sampling: 'lttb', showSymbol: points.value.length <= 100, symbolSize: 7, lineStyle: { width: 2 }, itemStyle: { color: dark ? '#60a5fa' : '#2563eb' } }],
     }, { notMerge: true, lazyUpdate: true });
     chartError.value = '';
+    renderedEntries = props.entries;
+    renderedMetric = metric.value;
+    renderedDark = dark;
   } catch {
-    chartError.value = '圖表暫時無法顯示，仍可查看下方數據或重試。';
+    chartError.value = '圖表暫時無法顯示，可重試或返回戰績表格查看數據。';
   }
 }
 function schedule() {
   cancelAnimationFrame(frame);
+  if (!props.active) return;
   frame = requestAnimationFrame(render);
 }
-watch([points, () => theme.current.value.dark], schedule);
-watch(points, () => { detailPage.value = 1; });
+watch([() => props.entries, metric, () => theme.current.value.dark, () => props.active], schedule);
+defineExpose({ refresh: schedule });
 onMounted(() => {
-  observer = new ResizeObserver(() => { chart?.resize(); });
+  observer = new ResizeObserver(() => { if (props.active) chart?.resize(); });
   observer.observe(element.value);
   schedule();
 });
@@ -58,31 +63,21 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <v-card class="battle-view-card mb-6">
-    <div class="section-header">
-      <h2>數據走勢</h2>
+  <div class="personal-trend-content">
+    <div class="personal-trend-controls">
       <v-select v-model="metric" :items="PERSONAL_TREND_METRICS" label="走勢指標" variant="outlined" density="compact" hide-details class="trend-select" />
     </div>
     <p class="battle-view-muted">依已勾選且符合篩選的紀錄，由舊到新呈現；缺值保留斷點，可拖曳下方滑桿縮放。</p>
     <p v-if="metric === 'killEfficiency'" class="battle-view-muted">擊殺效率＝對玩家傷害 ÷ 擊敗數，單位為傷害／人；數值越低代表每次擊敗所需傷害較少。零擊敗或缺值顯示 —。</p>
-    <p v-if="!points.length" class="battle-view-state">請勾選下方戰績以顯示走勢。</p>
+    <p v-if="active && !entries.length" class="battle-view-state">尚未勾選符合條件的紀錄，請返回戰績表格選取。</p>
     <v-alert v-if="chartError" type="error" variant="tonal">{{ chartError }}<v-btn variant="text" @click="schedule">重試圖表</v-btn></v-alert>
-    <div ref="element" class="personal-trend" role="img" :aria-label="`${metricLabel}走勢，共 ${points.length} 筆；精確數據可展開下方走勢數據查看。`" :style="{ display: points.length ? undefined : 'none' }" />
-    <details v-if="points.length" class="mt-3" @toggle="detailsOpen = $event.target.open">
-      <summary>查看走勢數據（{{ points.length }} 筆）</summary>
-      <div v-if="detailsOpen" class="battle-view-scroll" tabindex="0" aria-label="走勢精確數據，可左右捲動">
-        <table class="battle-view-table"><thead><tr><th scope="col">場次</th><th scope="col">{{ metricLabel }}</th></tr></thead>
-          <tbody><tr v-for="point in detailPoints" :key="point.key"><td>{{ point.label }}</td><td class="numeric">{{ label(point.value) }}</td></tr></tbody>
-        </table>
-      </div>
-      <v-pagination v-if="detailsOpen && points.length > 20" v-model="detailPage" :length="Math.ceil(points.length / 20)" :total-visible="5" aria-label="走勢數據分頁" />
-    </details>
-  </v-card>
+    <div ref="element" class="personal-trend" role="img" :aria-label="`${metricLabel}走勢，共 ${active ? points.length : 0} 筆；精確數據可返回各場戰績表格查看。`" :style="{ display: active && entries.length ? undefined : 'none' }" />
+  </div>
 </template>
 
 <style scoped>
 .trend-select { max-width: 340px; min-width: 220px; }
-.personal-trend { height: 360px; width: 100%; }
-summary { cursor: pointer; padding: 12px 0; }
+.personal-trend-controls { display: flex; justify-content: flex-end; margin-bottom: 20px; }
+.personal-trend { height: clamp(320px, 55vh, 560px); width: 100%; margin-top: 16px; }
 @media (max-width: 767px) { .trend-select { max-width: 100%; width: 100%; } .personal-trend { height: 300px; } }
 </style>

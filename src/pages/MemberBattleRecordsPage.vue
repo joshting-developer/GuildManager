@@ -1,6 +1,7 @@
 <script setup>
 import DataLoading from '../components/DataLoading.vue';
 import { ref, shallowRef, computed, watch, onUnmounted, defineAsyncComponent } from 'vue';
+import { mdiClose, mdiChartLine } from '@mdi/js';
 import { createMemberClient } from '../api/members.js';
 import { validatePersonalBattleFilters, filterPersonalBattles } from '../domain/personal-battle-filters.js';
 import { summarizePersonalBattles } from '../domain/personal-battle-statistics.js';
@@ -9,11 +10,17 @@ import { eventTypeLabel } from '../domain/event-types.js';
 import { battleDateLabel, battleRoundLabel, battlePlayerValue, BATTLE_TABLE_COLUMNS } from '../domain/battle-statistics.js';
 import './battle-record-view.css';
 
-const PersonalBattleTrend = defineAsyncComponent(() => import('../components/PersonalBattleTrend.vue'));
+const PersonalBattleTrend = defineAsyncComponent({
+  loader: () => import('../components/PersonalBattleTrend.vue'),
+  loadingComponent: DataLoading,
+  delay: 0,
+});
 const props = defineProps({ memberUid: { type: String, required: true } });
 const client = createMemberClient({ source: import.meta.env.VITE_DATA_SOURCE || 'local' });
 const data = shallowRef(null), loading = ref(true), error = ref(''), page = ref(1);
 const selection = shallowRef(new Set());
+const trendOpen = ref(false), trendVisited = ref(false);
+const trendButton = ref(null), trendClose = ref(null), trendChart = ref(null);
 const summaryMode = ref('total'), tableMode = ref('total');
 const draftFilters = ref({ startDate: '', endDate: '', profession: '' });
 const appliedFilters = ref({}), filterError = ref('');
@@ -35,6 +42,17 @@ const summaryModes = [
   { value: 'perLife', label: '一命貢獻' },
 ];
 let disposed = false, version = 0;
+function openTrend() {
+  trendVisited.value = true;
+  trendOpen.value = true;
+}
+function focusTrend() {
+  trendClose.value?.$el?.focus({ preventScroll: true });
+  trendChart.value?.refresh?.();
+}
+function returnFromTrend() {
+  if (!disposed) trendButton.value?.$el?.focus({ preventScroll: true });
+}
 function numberLabel(value) {
   return value == null ? '—' : value.toLocaleString('zh-TW', { maximumFractionDigits: 2 });
 }
@@ -98,6 +116,8 @@ function clearFilters() {
 }
 watch(() => props.memberUid, () => {
   data.value = null;
+  trendOpen.value = false;
+  trendVisited.value = false;
   selection.value = new Set();
   page.value = 1;
   draftFilters.value = { startDate: '', endDate: '', profession: '' };
@@ -218,11 +238,11 @@ onUnmounted(() => { disposed = true; version++; });
         統計已關聯的戰績；上傳或新增成員時依唯一同名關聯。未關聯紀錄不計入，同場有兩筆數據時均保留，但場數只計一次。
       </p>
     </v-card>
-    <PersonalBattleTrend v-if="data.total" :entries="selectedEntries" />
     <v-card v-if="data.total" class="battle-view-card">
       <div class="section-header">
         <h2>各場戰績</h2>
         <div class="personal-actions" role="group" aria-label="個人明細模式">
+          <v-btn ref="trendButton" variant="outlined" color="primary" :prepend-icon="mdiChartLine" aria-haspopup="dialog" aria-controls="personal-trend-panel" :aria-expanded="trendOpen" @click="openTrend">查看走勢</v-btn>
           <v-btn
             :aria-pressed="tableMode === 'total'"
             :variant="tableMode === 'total' ? 'tonal' : 'text'"
@@ -307,6 +327,24 @@ onUnmounted(() => { disposed = true; version++; });
         class="mt-4"
       />
     </v-card>
+    <v-dialog v-model="trendOpen" eager class="personal-trend-dialog" transition="mobile-drawer" aria-labelledby="personal-trend-title" @after-enter="focusTrend" @after-leave="returnFromTrend">
+      <div id="personal-trend-panel" class="personal-trend-panel">
+        <header class="personal-trend-heading">
+          <div>
+            <h2 id="personal-trend-title">數據走勢</h2>
+            <p>{{ data.member.name }} · {{ selectedEntries.length }} 筆已選紀錄</p>
+          </div>
+          <v-btn ref="trendClose" variant="text" :icon="mdiClose" aria-label="關閉數據走勢" @click="trendOpen = false" />
+        </header>
+        <div class="personal-trend-body">
+          <PersonalBattleTrend v-if="trendVisited" ref="trendChart" :entries="selectedEntries" :active="trendOpen" />
+        </div>
+        <footer class="personal-trend-footer">
+          <p class="battle-view-muted">精確數值可在各場戰績表格查看。</p>
+          <v-btn variant="outlined" @click="trendOpen = false">返回戰績表格</v-btn>
+        </footer>
+      </div>
+    </v-dialog>
   </template>
 </template>
 
