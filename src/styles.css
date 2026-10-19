@@ -1276,6 +1276,29 @@ h3 {
   opacity: 0.6;
   cursor: default;
 }
+.lineup-member.member-on-leave {
+  background: var(--color-muted-surface);
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
+  cursor: default;
+}
+.lineup-leave-badge {
+  padding: 1px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+}
+.lineup-member-select:disabled,
+.lineup-member-professions button:disabled {
+  cursor: default;
+}
+.member-on-leave .lineup-member-professions button[aria-pressed='true'] {
+  background: var(--color-border);
+  color: var(--color-text-muted);
+}
 .lineup-member-select {
   width: 100%;
   display: flex;

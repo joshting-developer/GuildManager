@@ -1,6 +1,6 @@
 <script setup>
 import DataLoading from '../components/DataLoading.vue';
-import { computed, ref, onMounted, onUnmounted, inject, nextTick } from 'vue';
+import { computed, ref, onMounted, onUnmounted, inject, nextTick, watch } from 'vue';
 import {
   mdiFullscreen,
   mdiFullscreenExit,
@@ -24,6 +24,7 @@ import {
   slotAssignments,
 } from '../domain/lineups.js';
 import { eventTypeLabel, eventDisplayTitle } from '../domain/event-types.js';
+import { lineupPeople, lineupSourceMembers } from '../domain/lineup-sources.js';
 import { lineupImageData, lineupJpeg, lineupImageFilename } from '../domain/lineup-image.js';
 import LineupBoard from './LineupBoard.vue';
 import DutyList from './DutyList.vue';
@@ -54,28 +55,7 @@ const dutyClient = createDutyClient({ source });
 const participationClient = createParticipationClient({ source });
 const participation = ref({ responses: [], registrations: [] });
 const memberTab = ref('guild');
-const participantPeople = computed(() => [
-  ...members.value.map((member) => {
-    const response = participation.value.responses.find((row) => row.uid === member.uid);
-    return {
-      ...member,
-      isOnLeave: response?.status === 'leave',
-      isRegistered: response?.status === 'registered',
-      registrationNote: response?.note || '',
-    };
-  }),
-  ...participation.value.registrations.map((row) => ({
-    uid: null,
-    registrationId: row.id,
-    name: row.name,
-    primaryProfessionId: row.professionId,
-    primaryProfession: row.profession,
-    secondaryProfessionId: null,
-    isInGuild: false,
-    isInClub: false,
-    registrationNote: row.note,
-  })),
-]);
+const participantPeople = computed(() => lineupPeople(members.value, participation.value));
 function findPerson(key) {
   return participantPeople.value.find((person) => participantKey(person) === key);
 }
@@ -120,7 +100,10 @@ function memberJob(member) {
   );
 }
 function chooseMemberProfession(member, profession) {
-  if (!busy.value && (profession === 'primary' || member.secondaryProfessionId)) {
+  if (
+    !readOnly.value && !member.isOnLeave &&
+    (profession === 'primary' || member.secondaryProfessionId)
+  ) {
     memberProfessions.value.set(participantKey(member), profession);
   }
 }
@@ -206,20 +189,29 @@ const positionCount = computed(
 const eligible = computed(() =>
   participantPeople.value.filter((member) => eligibleMember(member, currentEvent.value?.type)),
 );
+watch(eligible, (people) => {
+  if (selectedUid.value && !people.some((person) => participantKey(person) === selectedUid.value)) {
+    selectedUid.value = '';
+  }
+});
 const sourceMembers = computed(() =>
-  eligible.value.filter((person) =>
-    memberTab.value === 'guild'
-      ? person.isInGuild
-      : memberTab.value === 'club'
-        ? person.isInClub && !person.isInGuild
-        : !person.isInGuild && !person.isInClub,
-  ),
+  lineupSourceMembers(participantPeople.value, {
+    type: currentEvent.value?.type,
+    tab: memberTab.value,
+  }),
 );
 const memberTabLabel = computed(
   () => ({ guild: '幫會成員', club: '俱樂部成員', extra: '額外報名' })[memberTab.value],
 );
 const availableSourceMembers = computed(() =>
-  sourceMembers.value.filter((member) => !assigned.value.has(participantKey(member))),
+  lineupSourceMembers(participantPeople.value, {
+    type: currentEvent.value?.type,
+    tab: memberTab.value,
+    assigned: assigned.value,
+  }),
+);
+const unassignedCount = computed(
+  () => availableSourceMembers.value.filter((member) => !member.isOnLeave).length,
 );
 const visibleMembers = computed(() =>
   availableSourceMembers.value.filter((member) => {
@@ -306,6 +298,7 @@ function selectDuty(id) {
   selectedUid.value = '';
 }
 function selectMember(uid) {
+  if (readOnly.value || !eligible.value.some((member) => participantKey(member) === uid)) return;
   selectedUid.value = selectedUid.value === uid ? '' : uid;
   selectedDutyId.value = '';
 }
@@ -324,10 +317,10 @@ function assignDuty(id, teamId, index) {
 }
 const qualification = computed(() =>
   memberTab.value === 'guild'
-    ? '幫派內成員，排除本場已請假者。'
+    ? '幫派內成員；已請假者列於最下方，無法安排。'
     : memberTab.value === 'club'
-      ? '僅俱樂部成員，排除幫派內及本場已請假者。'
-      : '本場額外報名者及已報名的編外人員。',
+      ? '僅俱樂部成員；已請假者列於最下方，無法安排。'
+      : '本場額外報名及編外回應；已請假者列於最下方，無法安排。',
 );
 function mayDiscard(message = '排表有尚未儲存的修改，確定要放棄嗎？') {
   return (
@@ -450,6 +443,10 @@ function place(uid, teamId, index, profession) {
   return true;
 }
 function drag(event, member) {
+  if (readOnly.value || !eligibleMember(member, currentEvent.value?.type)) {
+    event.preventDefault();
+    return;
+  }
   event.dataTransfer.setData('application/x-guild-member', participantKey(member));
   event.dataTransfer.setData('application/x-guild-profession', memberProfession(member));
   event.dataTransfer.effectAllowed = 'move';
@@ -1092,7 +1089,7 @@ onUnmounted(() => {
             <DataLoading v-if="membersLoading" compact :spinner="false">正在更新成員與職業…</DataLoading>
             <p v-else class="lineup-list-count">
               {{ memberTabLabel }} · 符合 {{ visibleMembers.length }} 人 · 尚未安排
-              {{ sourceMembers.filter((member) => !assigned.has(participantKey(member))).length }}
+              {{ unassignedCount }}
               人
             </p>
             <div v-if="selectedUid" class="lineup-selected" role="status">
@@ -1108,7 +1105,8 @@ onUnmounted(() => {
                   'lineup-member',
                   {
                     'member-selected': selectedUid === participantKey(member),
-                    'member-disabled': busy,
+                    'member-disabled': readOnly,
+                    'member-on-leave': member.isOnLeave,
                   },
                 ]"
                 :data-member="member.uid || member.registrationId"
@@ -1116,15 +1114,16 @@ onUnmounted(() => {
                 <button
                   type="button"
                   class="lineup-member-select"
-                  :draggable="!busy"
-                  :disabled="busy"
+                  :draggable="!readOnly && !member.isOnLeave"
+                  :disabled="readOnly || member.isOnLeave"
                   :aria-pressed="selectedUid === participantKey(member)"
                   @dragstart="drag($event, member)"
                   @click="selectMember(participantKey(member))"
                 >
                   <span class="lineup-member-main"
                     ><strong>{{ member.name }}</strong
-                    ><small v-if="member.registrationId">額外報名</small></span
+                    ><small v-if="member.registrationId">額外報名</small
+                    ><span v-if="member.isOnLeave" class="lineup-leave-badge">已請假</span></span
                   ><span class="lineup-member-job"
                     ><span
                       class="profession-dot"
@@ -1145,7 +1144,7 @@ onUnmounted(() => {
                 >
                   <button
                     type="button"
-                    :disabled="busy"
+                    :disabled="readOnly || member.isOnLeave"
                     :title="`主職業：${member.primaryProfession}`"
                     :aria-label="`${member.name} 使用主職業：${member.primaryProfession}`"
                     :aria-pressed="memberProfession(member) === 'primary'"
@@ -1156,7 +1155,7 @@ onUnmounted(() => {
                   <button
                     v-if="member.secondaryProfessionId"
                     type="button"
-                    :disabled="busy"
+                    :disabled="readOnly || member.isOnLeave"
                     :title="`副職業：${member.secondaryProfession}`"
                     :aria-label="`${member.name} 使用副職業：${member.secondaryProfession}`"
                     :aria-pressed="memberProfession(member) === 'secondary'"
