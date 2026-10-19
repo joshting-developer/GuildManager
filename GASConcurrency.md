@@ -223,6 +223,8 @@
 
 2026-10-19 使用者要求同步後，來源 `ded5752` 已透過 `npm run gas:push` 重新編譯、備份、同步並讀回四檔一致，沿用 1.0.19；備份 `data/gas-backups/2026-10-19T14-39-28-254Z/`。本輪未更新 Web App 部署或修改正式資料，線上須由使用者更新既有部署才會生效，見 [GASDeployment.md](GASDeployment.md)。
 
-## v1.0.21 進攻／防守分析補充（本機待同步）
+## v1.0.21 進攻／防守分析補充（已同步 GAS，尚未更新部署）
 
 詳情選填 includeTeamContext，在既有 READ_ONLY 快照內讀最後儲存排表與成員引用投影，只返回實際玩家的最小對應；不擴充鎖白名單、不新增表、put／remove 或 Drive 作業。後續團隊合計、比例、配對、排序與圖表在前端進行，開啟或互動不再次查詢 team-analysis。顯式重新載入詳情才重讀。編譯後 GAS 已驗證其他寫入持鎖時可讀，資料／Properties／Drive／通知均未變，舊 API／wrapper 與匿名拒絕維持相容。初次讀取仍有 Sheets／排表成本，未量測正式 Google 秒數。
+
+2026/10/20 來源 `f33db9c` 已同步 v1.0.21、四檔讀回一致；未查詢或更新 Web App 部署，實際備份與交付狀態見 [GASDeployment.md](GASDeployment.md)。
