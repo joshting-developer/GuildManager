@@ -330,3 +330,34 @@ test('GAS sends committed notices after the lock, skips retries and survives web
     ['乙'],
   );
 });
+
+test('GAS editor webhook check posts one test message per channel and never logs the URL', async () => {
+  const env = await gasRuntime();
+  const logs = [];
+  env.sandbox.Session = {
+    getActiveUser: () => ({ getEmail: () => 'deployer@example.com' }),
+    getEffectiveUser: () => ({ getEmail: () => 'deployer@example.com' }),
+  };
+  env.sandbox.Logger = { log: (message) => logs.push(message) };
+
+  env.propertyService.setProperty('DISCORD_WEBHOOK_LEAVE', `${LEAVE_URL}\n`);
+  let results = env.sandbox.testDiscordWebhooks();
+  assert.equal(env.fetches.length, 1, 'trailing whitespace is tolerated');
+  assert.equal(env.fetches[0].url, LEAVE_URL);
+  assert.match(JSON.parse(env.fetches[0].options.payload).content, /測試通知（請假頻道）/);
+  assert.equal(results[0], 'DISCORD_WEBHOOK_LEAVE：成功（HTTP 204）');
+  assert.equal(results[1], 'DISCORD_WEBHOOK_MEMBER：未設定或不是 Discord webhook 網址');
+
+  env.propertyService.setProperty('DISCORD_WEBHOOK_MEMBER', MEMBER_URL);
+  env.fetchRespondsWith(404);
+  results = env.sandbox.testDiscordWebhooks();
+  assert.deepEqual([...results], [
+    'DISCORD_WEBHOOK_LEAVE：失敗（HTTP 404）',
+    'DISCORD_WEBHOOK_MEMBER：失敗（HTTP 404）',
+  ]);
+  assert.equal(logs.length, 4);
+  assert.equal(logs.some((line) => line.includes('webhooks/')), false);
+
+  env.sandbox.Session.getActiveUser = () => ({ getEmail: () => '' });
+  assert.throws(() => env.sandbox.testDiscordWebhooks(), /Google 執行帳號/);
+});

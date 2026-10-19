@@ -118,6 +118,10 @@ function locked(work) {
     lock.releaseLock();
   }
 }
+// Pasted Script Property values often carry a trailing space or newline.
+function webhookUrl(properties, name) {
+  return (properties.getProperty(name) || '').trim();
+}
 // Runs after the script lock is released so slow webhooks never block other writers.
 function deliverNotices(notices, footer) {
   if (!notices.length) return;
@@ -128,7 +132,7 @@ function deliverNotices(notices, footer) {
         footer,
         timestamp: new Date().toISOString(),
       });
-      const url = properties.getProperty(DISCORD_WEBHOOK_SETTINGS[channel]);
+      const url = webhookUrl(properties, DISCORD_WEBHOOK_SETTINGS[channel]);
       if (!isDiscordWebhookUrl(url)) continue;
       const request = {
         method: 'post',
@@ -383,6 +387,26 @@ export function setup() {
 }
 
 // Caller is the Google-identity-guarded wrapper in Code.gs; not in the RPC allowlist.
+// Editor-only check: posts one test message per configured channel and reports the HTTP
+// status, without the URL, so a webhook can be verified outside the web app.
+export function testDiscordWebhooks() {
+  const properties = PropertiesService.getScriptProperties();
+  return Object.entries(DISCORD_WEBHOOK_SETTINGS).map(([channel, name]) => {
+    const url = webhookUrl(properties, name);
+    if (!isDiscordWebhookUrl(url)) return `${name}：未設定或不是 Discord webhook 網址`;
+    const response = UrlFetchApp.fetch(url, {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify({
+        allowed_mentions: { parse: [] },
+        content: `🔔 GuildManager 測試通知（${channel === 'leave' ? '請假' : '名冊'}頻道）`,
+      }),
+      muteHttpExceptions: true,
+    });
+    const status = response.getResponseCode();
+    return `${name}：${status >= 200 && status < 300 ? '成功' : '失敗'}（HTTP ${status}）`;
+  });
+}
 export function resetAdminPassword() {
   return locked(() => {
     const { properties, options, privateStore } = environment();
