@@ -6,7 +6,7 @@
 
 - 介面、文件與操作訊息使用繁體中文
 - 視覺參考相鄰專案 `../NSHM_history`, 本專案的具體規則以 [Style.md](Style.md) 為準
-- 已建立 Vuetify 首頁／成員管理／活動安排／戰場排表／戰績上傳／戰績閱覽、Docker 本機環境、SQLite 讀寫 API 與 GAS 單檔編譯流程；來源 9817861（功能 9974bcf，含團隊分析分表／排序及單一儲存進度）已同步並讀回四檔核對，Web App 仍需更新部署；前次查詢為第 3 版，此次未重查，見 GASDeployment.md
+- 已建立 Vuetify 首頁／成員管理／活動安排／戰場排表／戰績上傳／戰績閱覽、Docker 本機環境、SQLite 讀寫 API 與 GAS 單檔編譯流程；2026/10/19 來源 f02e43a（v1.0.11，新增成員維護及深色模式操作列修正）已推送 origin/main、同步 GAS 並讀回四檔核對，Web App 仍需更新部署；前次查詢為第 3 版，此次未重查，見 GASDeployment.md
 - 使用者已確認本機使用 SQLite, 後期資料來源為 Google 試算表
 - 試算表 ID 已取得, 本機使用帳號密碼登入；正式工作表名稱與 Google 登入待確認, 本機角色為 admin／manager／member, 成員、職業、過去名稱及活動安排欄位已依需求實作於本機
 
@@ -34,6 +34,15 @@
 - 保留各步驟的提交紀錄, 不自行 amend、squash 或重寫既有歷史
 - 完成回報包含 commit 短雜湊、提交內容與驗證結果；未能提交時說明原因
 - 每步驟的本機 commit 已獲使用者授權, 不需重複詢問；推送遠端依使用者後續指示執行
+
+## 發布版本與 GAS 同步
+
+- 發布版本的唯一來源為 `package.json` 的 `version`；`package-lock.json` 根層與根套件的版本需一致。Vite 透過 `__APP_VERSION__` 帶入頁尾，不手改 App.vue 或編譯後 HTML 的版本字樣。
+- 使用者要求交付新版本／同步 GAS 時，同一批尚未發布的功能與修正升版一次；預設沿用既有 `1.0.x` 流程遞增 patch，有明確 major／minor 指示再調整。文件整理、失敗重試或同一版本重新同步不重複升版。
+- 使用 `npm version patch --no-git-tag-version --ignore-scripts` 同步 package 與 lockfile，避免額外自動 commit／tag；不手改 lockfile 中套件依賴版本。先升版，再執行一般及 GAS 編譯，確認套件與頁尾版本一致。
+- 先檢查與提交本次功能、修正及版本檔；文件／規範可獨立提交。只有使用者本輪明確要求才 push 或同步 GAS，遠端資料、憑證、根目錄名單及私有備份不提交。
+- `npm run gas:push` 會編譯、備份遠端、同步四檔、讀回比對；以工具成功結果確認同步完成，記錄來源 commit、平台版本及備份位置。更新 GASDeployment.md 的實際狀態，不把過往版本當成本輪結果。
+- GAS 程式同步與 Web App 發布不同；除非另外明確授權發布，不更新對外部署、不執行 setupGas，也不改正式試算表或 Script Properties。回報需明確區分已 push／已同步程式／已發布。
 
 ## 技術方向
 
@@ -85,7 +94,7 @@ Apps Script 的 `.gs` 檔案共用全域環境, 避免重複命名與載入時�
 
 ## 已確認成員規則
 
-- UID 是不可修改的文字主鍵, 名稱及主職業必填, 副職業可空
+- UID 是文字主鍵，名稱及主職業必填、副職業可空；一般編輯維持 UID 鎖定，admin／manager 可透過專用維護功能修正 UID（見成員資料維護）
 - UID 僅在成員管理清單及相關表單／匯入／歷史視窗顯示；報名、排表、排表歷史、範本提示與 title 不顯示玩家 UID, 內部關聯與快照仍保留 UID
 - isInGuild／isInClub 為獨立 boolean, SQLite is_in_guild／is_in_club 保存 0／1 並有 CHECK 約束。
 - 名冊分成成員／編外人員 tab：成員至少一個所屬狀態 true, 編外兩者 false；成員頁提供俱樂部／幫派／不篩選, 與名稱／職業條件交集。
@@ -393,3 +402,51 @@ member／manager／admin 均可進入 `#/members`，成員與編外分類、UID�
 - `GET /api/admin/battle-sync/preview`／GAS `previewBattleMemberSync` 只讀；`POST /api/admin/battle-sync`／GAS `syncBattleMembers` 檢查 admin 角色及 CSRF，不接受前端指定歸屬。失敗保留預覽及重試識別，送出時停用重複操作、重讀與關閉，關閉返回入口焦點。
 - 新增／匯入及上傳的既有自動關聯仍依現在名稱；改名、匯入既有 UID 與啟動不自動補關聯。本次手動同步處理舊版本成員與舊名戰績。
 - 2026/10/05 已將來源 a9afe73 的四檔程式同步至指定 GAS 指令碼，遠端備份與讀回比對成功；見 plans/main/gas-admin-sync-plan.md。未執行正式戰績同步、初始化或更新 Web App 部署，實際雲端功能仍待新版本發布後驗證。
+
+
+## 成員資料維護（2026/10/19）
+
+- admin／manager 可永久刪除錯誤資料、修正 UID 及新增／修改／刪除過去名稱。member 保留所有既有名冊功能，但不開放這三項維護操作；清單隱藏入口，Node 與 GAS 後端均檢查角色，不能用一般 updateMember 傳 UID 繞過。
+- UID 編輯預設 disabled，管理者在編輯視窗開啟「開啟 UID 修正」才可修改；不能覆蓋既有 UID。名稱、職業與所屬狀態可一起保存，改名仍自動記錄舊名；UID 修正同步歷史、場次回應、戰績關聯及已保存排表／範本的有效引用。
+- 過去名稱管理每次開啟讀最新資料，可在現在姓名不變的情況下補舊名、修正錯字、移除錯誤紀錄。既有紀錄保留記錄時間，新紀錄保存新增時間；新增或修正名稱不可與現在名或其他舊名重複，既有自動改名造成的重複舊名可原樣保留。不自動轉移既有戰績，沿用 admin 戰績同步預覽核對同名衝突。
+- 永久刪除與「移至編外」分開，須輸入完整 UID 確認；移除名冊、過去名稱、場次報名／請假及戰績 UID 關聯，保留整場原始 CSV、玩家數值和排表姓名快照，不刪整場排表或外援資料。GAS 沿用刪除標記與提交日誌，已提交的歷史資料／備份不物理清除。
+- 新維護讀寫使用 GET／PATCH `/api/members/:uid/maintenance`、PATCH `/api/members/:uid/history`、POST `/api/members/:uid/permanent-delete`；GAS 對應 getMemberMaintenance／maintainMember／saveMemberNameHistory／deleteMemberPermanently。寫入檢查 CSRF、revision、requestId 及欄位白名單，成功請求可安全重試；過期畫面要求重新載入，失敗保留草稿，送出只顯示一個轉圈。
+- 不改不可變排表／CSV JSON；SQLite member_reference_overrides、GAS requests 中保留逐紀錄的 UID 對應，讀取時套用，不做全域舊 UID 轉址。刪除後引用變 null、姓名快照保留；UID 再利用不使舊引用復活。另保留 UID revision 下限，重建或移入曾使用的 UID 時版本遞增，舊畫面不能操作新人。
+- v1.0.11 已實作、完成隔離驗證、推送並同步 GAS 程式；未操作實際名冊或正式試算表，亦未更新 Web App 部署。
+
+## 接續交接：成員維護功能（2026/10/19，開新對話先讀）
+
+**最新交付狀態（優先於下方歷史紀錄）：** 使用者已確認本機畫面及深色模式，並明確要求 commit／push／同步 GAS，禁止重複升版及更新 Web App 部署。已沿用 1.0.11 完成功能提交 `f02e43a` 並推送 origin/main，GitHub main SHA 已核對。`npm run gas:push` 成功備份、上傳四檔並讀回比對一致；備份為 `data/gas-backups/2026-10-19T05-13-09-376Z/`（私有、不提交）。四項維護測試、一般／GAS 編譯及版本與單檔依賴檢查通過。未操作正式資料、初始化或更新 Web App 部署；本次未重查部署版本，詳見 GASDeployment.md。
+
+先前自動核准服務容量不足的交付阻礙已解除，本輪已在原 repository main 完成程式交付。根目錄真實名冊與規劃檔保留工作區，不納入提交。使用者目前未要求 Web App 發布；GAS 程式同步不能當作已發布或真實業務驗證完成。以下實作與受限驗證紀錄供接續參考。
+
+### 使用者最新決定
+
+- 功能範圍是 admin／manager 的「永久刪除錯誤成員」「以預設關閉開關解鎖 UID」「新增／編輯／刪除過去名稱」；後續已授權完成 commit／push／GAS 程式同步，不匯入真實名冊或更新 Web App 部署。
+- 使用者已決定畫面由本人直接看效果，暫時不用補跑 Chrome 或完整 HTTP 測試；不要再次要求切換模型或核准測試才能讓使用者試用。
+- 使用者要求把注意事項留在 AGENTS.md，準備開新對話接續。應沿用現有實作，先檢查差異，不重新從零寫一次。
+
+### 已完成的程式
+
+- 共用驗證與快照引用對應：`src/domain/member-maintenance.js`。
+- SQLite：`server/member-maintenance.js`；`server/repository.js` 接線、UID 重用 revision 下限；`server/app.js` 新管理者路徑與舊名 128 KB JSON 限制；排表／戰績 repository 讀取時投影引用。
+- GAS：`gas/src/member-maintenance.js` 與 backend／Code.gs RPC 接線；members-events、lineups、battles、battle-member-sync 已配合引用修正。沿用既有 requests 工作表，不需重新初始化。
+- 前端：`src/api/members.js` 新四個方法；`src/pages/MembersPage.vue` UID 開關及管理者入口；`src/pages/MemberMaintenanceDialog.vue` 最新資料讀取、舊名編輯與完整 UID 刪除確認，單一送出進度與草稿保護。
+- 文件：本檔、Style.md、Architecture.md、README.md、docs/README.md 與新 `docs/成員資料維護.md`。原 PDF／HTML／Markdown 主手冊保留第 11 版；新功能在補充文件，不宣稱已補拍截圖或重製 PDF。
+
+### 驗證結果與限制
+
+- 新 `tests/member-maintenance.test.js` 共 4 項通過：SQLite 行為／保存／FK／不可變快照、真實 GAS 編譯的模擬 RPC 對等契約／角色／CSRF／部分失敗、SQLite 交易回滾、Express 路由與 adapter 權限。
+- Express 測試使用真實 app.handle、IncomingMessage／ServerResponse 在程序內送出 JSON，不監聽網路；涵蓋 manager 可寫、member／匿名拒絕、CSRF、舊端點不能改 UID及超過 16 KB 的舊名提交。這不是瀏覽器或實際網路連線測試。
+- `npm test` 首輪 247 項：199 通過、48 因 `listen EPERM: operation not permitted 127.0.0.1` 中斷；當時新維護 Express 測試仍用 socket，之後已改為程序內並通過。不可把首輪結果宣稱全數通過，也不應把這 48 項當程式斷言失敗修功能。
+- 一般與 GAS 編譯已成功；GAS 套件在忽略的 build/gas，v1.0.11 已上傳並讀回四檔一致。Chrome 先前在沙箱無法啟動，未完成自動桌面／手機驗證；使用者已自行確認本機畫面。
+- 原始測試輸出 `/private/tmp/guild-member-maintenance-tests.log`；工作說明 `plans/main/member-maintenance-plan.md`。這些是本機交接，不包含正式帳密。
+
+### Git 與下一步
+
+- 作業開始／目前分支都是原專案 `main`，功能與版本提交為 `f02e43a`，已推送 origin/main；GAS 四檔同步及讀回比對成功。操作文件、規範與實際交付紀錄另行提交，不混入功能 commit。
+- 先前 git add／GAS 同步曾在執行前受自動核准服務容量錯誤阻擋；本輪重試成功。此歷史錯誤並非使用者未授權或操作不安全，不應沿用為目前阻礙。
+- 接續前依共用 Git skill 檢查 status／diff，保留使用者資料。規劃檔預設不提交；後續新功能另依使用者需求決定版本與交付，不重複升本輪 1.0.11。
+- 根目錄既有 `10_17.txt`、主職.txt、復職.txt、幫戰排序表.xlsx、多份成員匯入 CSV／改名 MD／缺 UID 清單均是使用者真實名冊且原本就 untracked，不能混入 stage、刪除或改寫。`data/local-admin.json`、SQLite、OAuth 及正式資料不得提交或輸出。
+- 下一輪優先讓使用者用既有本機頁面、admin／manager 帳號試用：過去名稱 0 筆列也能「新增舊名」；編輯內 UID 開關預設關閉；紅色永久刪除和原移至編外分開。沒有回報問題時不擴大功能或增加測試／設定流程。
+- 後續使用者回報過去名稱／永久刪除視窗深色模式底部白色區塊；已將 MemberMaintenanceDialog.vue 固定操作列的 `background: white` 改為 `var(--color-surface)`，跟隨明暗主題，按鈕維持 Vuetify 原有狀態。使用者已確認修正顯示正常，未新增瀏覽器測試要求。

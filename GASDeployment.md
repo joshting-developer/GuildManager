@@ -2,13 +2,25 @@
 
 目前已生成 Vue 單檔頁面與完整 GAS 後端，涵蓋登入／帳號管理、行事曆、成員／匯入／名稱歷史、活動、職責、報名／請假、排表／範本、戰績上傳／下載／閱覽、個人分析及團隊分析。本機 SQLite 環境保留。
 
+## 2026/10/19：v1.0.11 交付狀態
+
+本機已完成 admin／manager 成員永久刪除、UID 修正、過去名稱管理及深色模式操作列修正，使用者已確認本機畫面。平台版本升為 `1.0.11`，與 package-lock.json 一致。
+
+來源提交 `f02e43a`（`feat(members): 新增成員資料維護並交付 v1.0.11`）已推送至 `origin/main`，並核對 GitHub main 的完整 SHA 為 `f02e43a84446e2346976448f68d1fc1b93acfe17`。沿用既有 `1.0.11`，本輪未重複升版。
+
+2026/10/19 已執行 `npm run gas:push`，將 `Index.html`／`Code.gs`／`Backend.gs`／`appsscript.json` 四檔同步至 `gas/upload-target.json` 指定的 Apps Script 專案；Google 接受上傳，四檔讀回比對一致。遠端前後備份位於 `data/gas-backups/2026-10-19T05-13-09-376Z/before` 與 `after`（私有、不提交）。先前自動核准服務容量不足的交付阻礙已解除。
+
+本輪只同步程式，未更新 Web App 部署、執行初始化或修改正式試算表／私有設定；新功能仍需日後更新既有 Web App 部署版本才會對外生效。成員維護沿用既有 GAS 工作表，不需重跑 setupGas；本次未重新查詢目前部署版本。
+
+本輪重新執行維護功能四項隔離測試全部通過，含 SQLite／模擬 GAS、交易回滾與程序內 Express 權限驗證；一般與 GAS 編譯、package／lockfile／GAS HTML 的 `1.0.11` 版本及無外部 JS／CSS 依賴檢查皆通過。完整測試先前受 localhost 沙箱權限限制，依交接決定未重跑完整 HTTP 或瀏覽器測試。實際 Google 服務／業務操作仍未驗證。以下 2026/10/05 同步／部署段落為過往紀錄。
+
 2026/10/05 已將來源 `9817861`（團隊分表／排序功能為 `9974bcf`）的四檔程式上傳至指定 Apps Script 專案，包含團隊分析與唯讀 API、本團合計／全場占比、個人明細排序、共用儲存／送出單一進度，以及先前日期雙模式與 admin 資料維護。Google 接受程式語法且四檔讀回比對一致；遠端前後備份位於 `data/gas-backups/2026-10-05T10-02-44-053Z/`（私有、不提交）。此次未執行初始化、正式業務操作或發布，亦未重新查詢部署版本；前次部署 API 記錄為第 3 版（說明 `v1.0.2`）。上傳驗證不能代替實際 Sheets／Drive 授權、執行速度、服務配額與 iframe 下載測試。
 
 團隊分析沿用既有資料，不需新增工作表或重新初始化；本機完整 226 項測試、兩種編譯及隔離瀏覽器驗證通過。附圖操作手冊已更新至第 11 版，Markdown／離線 HTML／PDF 及團隊分析圖片同步更新。本機示範成員改名與排表僅在日常 SQLite 測試資料，未上傳正式試算表。
 
 ## 這次更新的部署步驟
 
-最新程式已同步，包含成員資料與個人分析篩選、出勤閱覽／取消請假、對戰資訊編輯、member 成員管理、API 載入提示、手機右側選單、名稱／圖示快取、admin 歷史戰績同步、安排日期雙模式、單一登入／儲存進度及團隊分析分表與排序。發布前本機 226 項測試、兩種編譯與隔離瀏覽器驗證已通過。
+最新程式已同步，包含成員資料與個人分析篩選、出勤閱覽／取消請假、對戰資訊編輯、member 成員管理、API 載入提示、手機右側選單、名稱／圖示快取、admin 歷史戰績同步、安排日期雙模式、單一登入／儲存進度、團隊分析分表與排序，以及 v1.0.11 的成員資料維護。2026/10/05 的 226 項測試與隔離瀏覽器驗證屬過往版本；v1.0.11 的驗證與限制以上方交付紀錄為準。
 
 前次查詢的部署說明為 `v1.0.2`，第 3 版，設定為「以部署者身分執行（USER_DEPLOYING）」及「任何人（ANYONE_ANONYMOUS）」；發布時請核對管理部署畫面的目前設定。若先前已完成初始化，可沿用既有專用資料表發布新版本，本次團隊分析及進度整理不需另建表。
 
@@ -20,7 +32,7 @@
 
 更新既有部署可保留網址；直接同步程式不會更新已發布版本。[Google 版本部署說明](https://developers.google.com/apps-script/concepts/deployments)
 
-最新同步與備份紀錄見 [本次手冊與團隊分析同步計畫](plans/main/team-analysis-manual-gas-sync-plan.md)；[前次日期模式同步](plans/main/gas-date-mode-sync-plan.md)；[前次 admin 同步](plans/main/gas-admin-sync-plan.md)；[先前部署準備紀錄](plans/main/gas-release-preparation-plan.md)保留前次查詢資訊。本節是已存在部署的更新流程；以下首次建立、私有屬性與初始化章節供尚未設定的環境參考。
+最新同步與備份紀錄見上方 v1.0.11 交付狀態；[2026/10/05 手冊與團隊分析同步計畫](plans/main/team-analysis-manual-gas-sync-plan.md)、[前次日期模式同步](plans/main/gas-date-mode-sync-plan.md)、[前次 admin 同步](plans/main/gas-admin-sync-plan.md)及[先前部署準備紀錄](plans/main/gas-release-preparation-plan.md)保留過往資訊。本節是已存在部署的更新流程；以下首次建立、私有屬性與初始化章節供尚未設定的環境參考。
 
 ## 本機自動上傳
 

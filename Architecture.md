@@ -209,3 +209,14 @@ App 對 member 開放 members 路由及導覽，直接連結登入後保留目�
 暫以 attack-*／mobile-*／defense-1,2／defense-3,4 對應進攻1／進攻2／防守12隊／防守34隊（分團詢問待回覆）。第一場取 slot、第二場取 secondRound 或沿用 slot；缺少場序不推測。已關聯 memberUid 唯一對應 UID，未關聯才唯一精確比對排表姓名；跨陣營重複玩家、多人同名及同人多列保持未分類，回應不暴露識別碼。
 
 比例在紅藍各自計算，團內分母只取本團實際 CSV 玩家，全場分母含同陣營未分類者；內推不混用紅藍分母。缺值不當零，分母缺值或為 0 時不回傳百分比。member／manager／admin 可讀分析，匿名及撤銷 session 不可讀，member 排表管理權限維持拒絕；前端每次開啟重新讀取並拒絕過期回應。
+
+
+## 成員資料維護與 UID 修正
+
+`src/domain/member-maintenance.js` 共用欄位白名單、UID／舊名驗證及紀錄引用投影；`server/member-maintenance.js` 與 `gas/src/member-maintenance.js` 各自處理資料交易。新增 GET／PATCH `/api/members/:uid/maintenance`、PATCH `/api/members/:uid/history`、POST `/api/members/:uid/permanent-delete`，GAS 對應四個具名 RPC。這些路徑／RPC 不加入 member 白名單，沿用 admin／manager 驗證、CSRF、revision 及 requestId 防重試；原 updateMember 仍拒絕 UID。
+
+UID 修正先建立新鍵、移動 member_name_history／event_member_responses／battle_player_links，再移除舊鍵；刪除只清除名冊和這些成員關聯，不刪 battle_records／原始 CSV、lineup_versions 或整場資料。舊名管理只改名冊歷史，不變更戰績數字或立即轉移戰績；admin 同步仍先預覽唯一精確名稱及衝突。
+
+不可變排表／範本／戰績快照不改寫。SQLite `member_reference_overrides(kind, record_id, overrides_json)` 和 GAS `requests` 的保留鍵 `member-ref:<kind>:<id>`，只對受影響的舊紀錄記下原 UID→新 UID／null。讀取排表、範本套用、戰績及團隊分析時投影內部引用；姓名／職業快照不變，連續改 UID 可累積修正，但新紀錄重用舊 UID 不會跟著轉址。GAS 的排表／範本成功請求重試也套用目前有效引用，保留原請求雜湊。
+
+SQLite `member_maintenance_requests` 保存管理操作結果；`member_uid_revisions` 及 GAS requests 的 `member-revision:<uid>` 保留移除前版本下限，新建或移入曾使用的 UID 採更高版本，避免舊畫面修改另一個新身分。SQLite 全流程同一交易；GAS 保留 script lock／提交標記及既有工作表，不需重做 setupGas。GAS 刪除採日誌的移除標記，歷史列及備份不物理清除。

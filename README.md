@@ -164,7 +164,7 @@ npm run build:gas
 - `members`：UID (TEXT 主鍵)、名稱、主／副職業 ID、是否在幫派／俱樂部內、加入／更新時間、revision, removed_at 留作舊資料相容
 - `professions`：`job_id`、`colorcode`、`name`, 依使用者提供的九筆正式職業初始化, 不放示範成員
 - `member_name_history`：紀錄 ID、`member_uid`、過去名稱、改名時間, 以 UID 關聯
-- 主職業必填, 副職業可選「無副職業」；UID 加入後不可修改, 保留前導零與長 ID
+- 主職業必填, 副職業可選「無副職業」；UID 一般編輯預設鎖定，admin／manager 可開啟修正開關，保留前導零與長 ID
 - 改名會在同一交易保存舊名, 只修改職業不增加改名紀錄
 - 原移除改為「移至編外」, 將幫派內與俱樂部內設為否, 資料與過去名稱保留；回歸時編輯勾選任一狀態
 - 編輯與移至編外需帶 revision, 舊版本會拒絕, 請重新載入後再操作
@@ -523,3 +523,8 @@ DISCORD_WEBHOOK_MEMBER=https://discord.com/api/webhooks/…
 ```
 
 GAS 改在 Script Properties 填同名屬性，見 [GASDeployment.md](GASDeployment.md#2-設定私有-script-properties)。未設定的頻道不發送；只接受 Discord 官方 Webhook 網址。Webhook 網址等同密碼，不要提交到 Git 或貼在公開頻道。通知失敗不影響原操作，伺服器紀錄只寫 HTTP 狀態，不含網址。
+
+
+### 成員資料維護
+
+admin／manager 可在成員清單永久刪除錯誤資料、開啟 UID 修正，以及直接新增／修改／刪除過去名稱。member 保留原有成員功能。操作說明與保留範圍見 [成員資料維護](docs/成員資料維護.md)；v1.0.11 已同步 GAS 程式並讀回核對，Web App 尚未更新部署，見 [交付狀態](GASDeployment.md)。
