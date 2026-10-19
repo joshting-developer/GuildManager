@@ -28,13 +28,13 @@ async function render(data, { contextAvailable = true, blobAvailable = true } = 
   const context = {
     scale(x, y) { assert.equal(x, y); scale *= x; },
     measureText(value) {
-      const size = Number(this.font.match(/(\d+)px/)[1]);
+      const size = Number(this.font.match(/([\d.]+)px/)[1]);
       return { width: [...value].reduce((sum, char) => sum + (/[^\x00-\xff]/.test(char) ? size : size * 0.55), 0) };
     },
     fillRect(x, y, width, height) { calls.push({ type: 'fill', x: x * scale, y: y * scale, width: width * scale, height: height * scale, color: this.fillStyle }); },
     strokeRect(x, y, width, height) { calls.push({ type: 'border', x: x * scale, y: y * scale, width: width * scale, height: height * scale }); },
     fillText(value, x, y) {
-      calls.push({ type: 'text', value, x: x * scale, y: y * scale, font: this.font.replace(/(\d+)px/, (_, size) => `${Number(size) * scale}px`), align: this.textAlign, color: this.fillStyle, width: this.measureText(value).width * scale });
+      calls.push({ type: 'text', value, x: x * scale, y: y * scale, font: this.font.replace(/([\d.]+)px/, (_, size) => `${Number(size) * scale}px`), align: this.textAlign, color: this.fillStyle, width: this.measureText(value).width * scale });
     },
   };
   const canvas = {
@@ -87,10 +87,10 @@ test('JPG uses separate readable columns and theme while retaining all team head
   const dark = await render(fixture('dark'));
   for (const { blob, canvas, calls } of [light, dark]) {
     assert.equal(blob.type, 'image/jpeg');
-    assert.equal(canvas.width, 4000);
-    assert.ok(canvas.height > 2000 && canvas.height < 4000);
+    assert.equal(canvas.width, 5400);
+    assert.equal(canvas.height, 3771);
     const texts = calls.filter((c) => c.type === 'text');
-    for (const label of ['職業', '姓名', '職責／備註']) assert.equal(texts.filter((c) => c.value === label).length, 10);
+    for (const label of ['職業', '姓名', '職責／備註']) assert.equal(texts.filter((c) => c.value === label).length, 0);
     for (const number of ['1', '2', '3', '4', '5', '6']) assert.equal(texts.filter((c) => c.value === number).length, 0);
     assert.equal(texts.filter((c) => c.value.includes('（副）')).length, 0);
     assert.equal(texts.filter((c) => c.value === '尚未安排').length, 59);
@@ -98,10 +98,10 @@ test('JPG uses separate readable columns and theme while retaining all team head
     assert.ok(texts.some((c) => c.value === '第二場'));
     const person = texts.find((c) => c.value === '示範成員');
     const job = texts.find((c) => c.value === '龍吟');
-    assert.match(person.font, /68px/);
-    assert.match(job.font, /60px/);
-    assert.ok(person.x > job.x && person.y === job.y - 4);
-    assert.ok(texts.every((c) => c.y >= 0 && c.y + Number(c.font.match(/(\d+)px/)[1]) <= canvas.height));
+    assert.ok(Math.abs(Number(person.font.match(/([\d.]+)px/)[1]) - 91.8) < 1e-6);
+    assert.match(job.font, /81px/);
+    assert.ok(person.x > job.x && Math.abs(person.y - job.y + 5.4) < 1e-6);
+    assert.ok(texts.every((c) => c.y >= 0 && c.y + Number(c.font.match(/([\d.]+)px/)[1]) <= canvas.height));
     assert.ok(texts.some((c) => c.value.includes('有未儲存修改')));
   }
   assert.equal(light.calls[0].color, '#f4f7fb');
@@ -124,13 +124,19 @@ test('long names, headings, both rounds and notes wrap completely, growing the i
   assert.equal(JSON.stringify(data), original);
   assert.ok(canvas.height > (await render(fixture('dark'))).canvas.height);
   const texts = calls.filter((c) => c.type === 'text');
-  const names = texts.filter((c) => c.font.includes('68px')).map((c) => c.value).join('');
+  const names = texts.filter((c) => Math.abs(Number(c.font.match(/([\d.]+)px/)[1]) - 91.8) < 1e-6).map((c) => c.value).join('');
   assert.equal(names, '長姓名測試'.repeat(10 * 2 * 60));
   assert.equal(texts.filter((c) => c.value === '保留換行').length, 60);
   for (const call of texts) {
     const left = call.align === 'center' ? call.x - call.width / 2 : call.x;
     assert.ok(left >= 0 && left + call.width <= canvas.width, call.value);
-    assert.ok(call.y + Number(call.font.match(/(\d+)px/)[1]) <= canvas.height);
+    const size = Number(call.font.match(/([\d.]+)px/)[1]);
+    assert.ok(call.y + size <= canvas.height);
+    if ([91.8, 81, 64.8, 43.2].some((expected) => Math.abs(size - expected) < 1e-6)) {
+      assert.ok(calls.some((cell) => cell.type === 'fill' && ['#1d2c3e', '#131f30'].includes(cell.color)
+        && left >= cell.x && left + call.width <= cell.x + cell.width
+        && call.y >= cell.y && call.y + size <= cell.y + cell.height), call.value);
+    }
   }
 });
 

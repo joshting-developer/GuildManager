@@ -2,9 +2,12 @@ import { LINEUP_GROUPS, participantKey, slotAssignments } from './lineups.js';
 import { eventTypeLabel } from './event-types.js';
 
 const WIDTH = 2000;
-const EXPORT_SCALE = 2;
-const MARGIN = 24;
-const GAP = 16;
+const EXPORT_WIDTH = 5400;
+const BASE_HEIGHT = 3771;
+const EXPORT_SCALE = EXPORT_WIDTH / WIDTH;
+const MARGIN = 16;
+const GAP = 12;
+const GROUP_PADDING = 8;
 const NAME_SIZE = 34;
 const JOB_SIZE = 30;
 const NOTE_SIZE = 24;
@@ -13,12 +16,12 @@ const GROUP_COLORS = { attack: '#ad353e', mobile: '#196e8c', defense: '#197661' 
 const PALETTES = {
   light: {
     background: '#f4f7fb', panel: '#e8eef5', surface: '#ffffff',
-    note: '#f0f4f8', header: '#e0e8f1', border: '#bdccdc',
+    note: '#f0f4f8', border: '#bdccdc',
     text: '#16243a', muted: '#52657b',
   },
   dark: {
     background: '#101a29', panel: '#172638', surface: '#1d2c3e',
-    note: '#131f30', header: '#25374d', border: '#3d5672',
+    note: '#131f30', border: '#3d5672',
     text: '#f0eadc', muted: '#a5b6cb',
   },
 };
@@ -132,7 +135,7 @@ function professionColor(value, palette) {
   return palette.text;
 }
 function measureGroup(context, group) {
-  const padding = 12;
+  const padding = GROUP_PADDING;
   const width = (WIDTH - MARGIN * 2 - padding * 2 - GAP * (group.teams.length - 1)) / group.teams.length;
   const jobWidth = width * 0.21;
   const nameWidth = width * 0.44;
@@ -156,16 +159,16 @@ function measureGroup(context, group) {
     });
     return { ...team, title, rows };
   });
-  const titleHeight = Math.max(...teams.map((team) => team.title.length)) * 35 + 14;
+  const titleHeight = Math.max(...teams.map((team) => team.title.length)) * 35 + 8;
   const rowHeights = Array.from({ length: 6 }, (_, index) =>
-    Math.max(64, ...teams.map((team) => Math.max(
-      team.rows[index].people.reduce((height, person) => height + person.height, 0) + 16,
-      team.rows[index].description.length * (NOTE_SIZE + 8) + 18,
+    Math.max(52, ...teams.map((team) => Math.max(
+      team.rows[index].people.reduce((height, person) => height + person.height, 0) + 8,
+      team.rows[index].description.length * (NOTE_SIZE + 8) + 8,
     ))),
   );
   return {
     ...group, teams, width, jobWidth, nameWidth, descriptionWidth, titleHeight, rowHeights,
-    height: padding * 2 + titleHeight + 32 + rowHeights.reduce((sum, height) => sum + height, 0),
+    height: padding * 2 + titleHeight + rowHeights.reduce((sum, height) => sum + height, 0),
   };
 }
 
@@ -177,11 +180,19 @@ export async function lineupJpeg(data) {
   const palette = PALETTES[data.theme === 'dark' ? 'dark' : 'light'];
   font(context, 38, 700);
   const heading = wrap(context, data.title, WIDTH - MARGIN * 2);
-  const headerHeight = MARGIN + heading.length * 46 + 54;
+  const headerHeight = MARGIN + heading.length * 46 + 40;
   const groups = data.groups.map((group) => measureGroup(context, group));
-  const height = headerHeight + groups.reduce((height, group) => height + group.height + GAP, 0) + MARGIN;
-  canvas.width = WIDTH * EXPORT_SCALE;
-  canvas.height = height * EXPORT_SCALE;
+  const contentHeight = headerHeight + groups.reduce((height, group) => height + group.height + GAP, 0) + MARGIN;
+  canvas.width = EXPORT_WIDTH;
+  canvas.height = Math.max(BASE_HEIGHT, Math.ceil(contentHeight * EXPORT_SCALE));
+  const height = canvas.height / EXPORT_SCALE;
+  // Match the reference's landscape canvas when content fits; longer content grows without clipping.
+  const rowCount = groups.reduce((sum, group) => sum + group.rowHeights.length, 0);
+  const extraRowHeight = rowCount ? (height - contentHeight) / rowCount : 0;
+  for (const group of groups) {
+    group.rowHeights = group.rowHeights.map((rowHeight) => rowHeight + extraRowHeight);
+    group.height += extraRowHeight * group.rowHeights.length;
+  }
   // Keep layout independent of screen size and device pixel ratio; export one sharper image.
   context.scale(EXPORT_SCALE, EXPORT_SCALE);
   context.fillStyle = palette.background;
@@ -200,20 +211,13 @@ export async function lineupJpeg(data) {
     const groupColor = GROUP_COLORS[group.id];
     box(context, MARGIN, y, WIDTH - MARGIN * 2, group.height, palette.panel, palette.border);
     group.teams.forEach((team, teamIndex) => {
-      const x = MARGIN + 12 + teamIndex * (group.width + GAP);
+      const x = MARGIN + GROUP_PADDING + teamIndex * (group.width + GAP);
       const nameX = x + group.jobWidth;
       const noteX = nameX + group.nameWidth;
-      let rowY = y + 12;
+      let rowY = y + GROUP_PADDING;
       box(context, x, rowY, group.width, group.titleHeight, groupColor, palette.border);
-      text(context, team.title, x + group.width / 2, rowY + 7, 27, '#ffffff', 700, 'center');
+      text(context, team.title, x + group.width / 2, rowY + 4, 27, '#ffffff', 700, 'center');
       rowY += group.titleHeight;
-      for (const [cellX, width, label] of [
-        [x, group.jobWidth, '職業'], [nameX, group.nameWidth, '姓名'], [noteX, group.descriptionWidth, '職責／備註'],
-      ]) {
-        box(context, cellX, rowY, width, 32, palette.header, palette.border);
-        text(context, [label], cellX + width / 2, rowY + 4, 19, palette.muted, 600, 'center');
-      }
-      rowY += 32;
       team.rows.forEach((row, index) => {
         const height = group.rowHeights[index];
         box(context, x, rowY, group.jobWidth, height, palette.surface, palette.border);
