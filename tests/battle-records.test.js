@@ -356,7 +356,7 @@ test('upload, list, detail and download APIs require login, mutation requires CS
   }
 });
 
-test('game team summaries supply names and reject incomplete exports without confusing player rows', () => {
+test('game team summaries supply names and warn about count differences without confusing player rows', () => {
   const exported = `我方,1\n${header}\n空城,碎夢,0,0,780,0,14007676,0,1388582,0,0,0\n\n敵方,1\n${header}\n對手,鐵衣,0,0,0,0,0,0,0,0,0,0\n`;
   const parsed = parseBattleCsv(exported);
   assert.deepEqual(
@@ -364,8 +364,13 @@ test('game team summaries supply names and reject incomplete exports without con
     ['我方', '敵方', 1, 1],
   );
   assert.equal(parsed.players[1].playerDamage, 0);
-  assert.throws(() => parseBattleCsv(exported.replace('我方,1', '我方,2')), /人數/);
+  const mismatched = parseBattleCsv(exported.replace('我方,1', '我方,2'));
+  assert.deepEqual(mismatched.players, parsed.players);
+  assert.deepEqual([mismatched.redCount, mismatched.blueCount], [1, 1]);
+  assert.match(mismatched.warnings[0], /摘要為 2 人.*實際玩家戰績為 1 筆/);
+  assert.equal(parsed.warnings, undefined);
   assert.throws(() => parseBattleCsv(exported.replace('我方,1', '我方,-1')));
+  assert.throws(() => parseBattleCsv(exported.replace('我方,1', '我方,9007199254740992')), /摘要人數/);
   assert.throws(() => parseBattleCsv(exported + '假摘要,1\n'));
 });
 

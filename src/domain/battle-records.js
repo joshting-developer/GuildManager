@@ -94,7 +94,10 @@ export function parseBattleCsv(text) {
       if (next?.includes('玩家名字') && next.includes('職業')) {
         if (row[0].length > 120 || /[\u0000-\u001f\u007f]/.test(row[0]))
           throw new BattleRecordError(`CSV 第 ${index + 1} 列的隊名不正確`);
-        pendingSummary = { name: row[0], count: Number(row[1]) };
+        const count = Number(row[1]);
+        if (!Number.isSafeInteger(count))
+          throw new BattleRecordError(`CSV 第 ${index + 1} 列的摘要人數超出範圍`);
+        pendingSummary = { name: row[0], count };
         continue;
       }
     }
@@ -130,14 +133,18 @@ export function parseBattleCsv(text) {
   }
   if (!players.length) throw new BattleRecordError('CSV 沒有可匯入的玩家戰績, 請確認遊戲匯出格式');
   const counts = ['red', 'blue'].map((side) => players.filter((row) => row.side === side).length);
+  const warnings = [];
   summaries.forEach((summary, index) => {
     if (summary && summary.count !== counts[index])
-      throw new BattleRecordError(`${summary.name} 的人數與 CSV 玩家列數不符, 請重新匯出`);
+      warnings.push(
+        `${index === 0 ? '紅方' : '藍方'}「${summary.name}」摘要為 ${summary.count} 人，實際玩家戰績為 ${counts[index]} 筆；將以實際 ${counts[index]} 筆匯入，可繼續上傳。`,
+      );
   });
   return {
     players,
     redCount: counts[0],
     blueCount: counts[1],
+    ...(warnings.length ? { warnings } : {}),
     ...(summaries[0] ? { redTeam: summaries[0].name } : {}),
     ...(summaries[1] ? { blueTeam: summaries[1].name } : {}),
   };

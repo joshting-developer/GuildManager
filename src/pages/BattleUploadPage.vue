@@ -584,6 +584,14 @@ onUnmounted(() => {
             @click="removeFile(slot.file.id)"
           />
         </div>
+        <v-alert
+          v-for="warning in slot.file.parsed.warnings || []"
+          :key="warning"
+          type="warning"
+          variant="tonal"
+          role="status"
+          class="mb-4"
+        >{{ warning }}</v-alert>
         <form class="battle-match-form" @submit.prevent="submit(slot.roundNumber)">
           <div class="battle-match-fields">
             <v-text-field
