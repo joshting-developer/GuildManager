@@ -13,7 +13,7 @@ import {
   personalBattleProfessions,
 } from '../../src/domain/personal-battle-filters.js';
 import { canonical, fail, hash, pageNumber, retry, text } from './common.js';
-export function createBattles(store, catalog, { uuid, now, files }) {
+export function createBattles(store, catalog, { uuid, now, files, prepareOnly = false, preparedUpload }) {
   const all = () =>
     store
       .all('battles')
@@ -159,8 +159,8 @@ export function createBattles(store, catalog, { uuid, now, files }) {
     saveBattleRecords([input]) {
       if (!Array.isArray(input?.records) || input.records.length < 1 || input.records.length > 2)
         fail('BATTLE_INVALID', '每次請上傳 1–2 個 CSV');
-      const attachment = image(input.image);
-      const records = input.records.map((record) => {
+      const attachment = preparedUpload ? preparedUpload.image : image(input.image);
+      const records = preparedUpload ? preparedUpload.records : input.records.map((record) => {
         if (!record || !['scrimmage', 'guild_war', 'dragon_tiger'].includes(record.type))
           fail('BATTLE_INVALID', '請選擇戰鬥類型');
         if (
@@ -244,6 +244,11 @@ export function createBattles(store, catalog, { uuid, now, files }) {
             contents.add(contentHash);
             return { record, event, contentHash };
           });
+          if (prepareOnly) return {
+            csvFiles: prepared.map(({ record }) => ({ name: record.filename, csv: record.csvText })),
+            image: attachment,
+            records,
+          };
           const names = new Map();
           for (const member of store.all('members')) {
             if (!names.has(member.name)) names.set(member.name, []);
@@ -284,6 +289,7 @@ export function createBattles(store, catalog, { uuid, now, files }) {
           });
           return { records: saved };
         },
+        { prepareOnly },
       );
     },
     getBattleAttachment([id, kind]) {

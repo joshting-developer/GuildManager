@@ -4,6 +4,7 @@ export function createParticipationClient({
   source = 'local',
   fetchImpl = sessionFetch,
   googleRun,
+  onBusyRetry,
 } = {}) {
   if (!['local', 'gas'].includes(source)) throw new Error('未知的資料來源設定');
   async function call(operation, eventId, method = 'GET', input, registrationId) {
@@ -13,7 +14,7 @@ export function createParticipationClient({
         : input
           ? [eventId, input]
           : [eventId];
-      return callGas(operation, args, googleRun);
+      return callGas(operation, args, googleRun, { onBusyRetry });
     }
     const path = registrationId
       ? `registrations/${encodeURIComponent(registrationId)}`

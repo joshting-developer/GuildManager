@@ -82,6 +82,17 @@ const WRITES = [
   'resetLottery',
   'syncBattleMembers',
 ];
+// Explicit allowlist: newly added methods remain serialized until audited.
+const READ_ONLY = [
+  'getAuthSession', 'getAccountSettings', 'getHomeData', 'getPlatformSettings',
+  'getProfessions', 'getMembers', 'getParticipationMembers', 'previewMemberImport',
+  'getMemberMaintenance', 'getEvents', 'getEvent', 'getDuties',
+  'getEventParticipation', 'getEventParticipationForm', 'getEventParticipationMembers',
+  'getEventAttendance', 'getLineupIndex', 'getLineupHistory', 'applyLineupTemplate',
+  'getBattleRecords', 'getBattleRecord', 'getBattleTeamAnalysis', 'getMemberBattleRecords',
+  'getBattleAttachment', 'previewBattleMemberSync', 'getEventVideos', 'getLottery',
+];
+const LAZY_TABLE_READS = ['getEventVideos', 'getLottery'];
 function environment(notify = () => {}) {
   const properties = PropertiesService.getScriptProperties();
   const options = {
@@ -111,9 +122,29 @@ function cloudFolder(properties) {
   if (!id) fail('SETUP_REQUIRED', '請先執行初始化以設定私人戰績資料夾');
   return DriveApp.getFolderById(id);
 }
+function cloudFiles(properties, run, cache) {
+  return {
+    decode: (value) => Utilities.base64Decode(value),
+    createCsv: (name, csv) => run('DRIVE_CSV', () =>
+      cloudFolder(properties).createFile(Utilities.newBlob(csv, 'text/csv', name)).getId()),
+    createBase64: (image) => run('DRIVE_IMAGE', () => {
+      const id = cloudFolder(properties).createFile(Utilities.newBlob(
+        Utilities.base64Decode(image.base64), image.mimeType, image.name,
+      )).getId();
+      cache?.set(id, image.base64);
+      return id;
+    }),
+    read: (id) => {
+      if (cache?.has(id)) return cache.get(id);
+      const value = Utilities.base64Encode(DriveApp.getFileById(id).getBlob().getBytes());
+      cache?.set(id, value);
+      return value;
+    },
+  };
+}
 function locked(work) {
   const lock = LockService.getScriptLock();
-  if (!lock.tryLock(10000)) fail('BUSY', '其他人正在儲存，請稍後重試');
+  if (!lock.tryLock(10000)) fail('BUSY', '目前操作較忙碌，請稍後再試；已填內容會保留');
   try {
     return work();
   } finally {
@@ -213,7 +244,8 @@ export function rpc(operation, args = [], context = {}) {
   const run = diagnostics?.run || ((_stage, work) => work());
   let footer = DEFAULT_PLATFORM_NAME;
   try {
-    const data = run('LOCK', () => locked(() => {
+    const fileCache = new Map();
+    const execute = ({ readOnly = false, prepareOnly = false, preparedFiles, preparedUpload } = {}) => {
       if (
         !Array.isArray(args) ||
         args.length > 4 ||
@@ -222,6 +254,7 @@ export function rpc(operation, args = [], context = {}) {
         Array.isArray(context)
       )
         fail('INVALID_REQUEST', '操作參數不正確');
+      if (operation === 'getAuthSession' && !context.sessionToken) return { user: null };
       const { properties, options, privateStore } = run('SETTINGS', () => environment((notice) => notices.push(notice)));
       const state = run('AUTH_READ', () => privateStore.load()),
         original = canonical(state);
@@ -231,24 +264,7 @@ export function rpc(operation, args = [], context = {}) {
         return run('SHEETS_OPEN', () => sheets(properties, run)).transaction((store) => {
           const catalog = createCatalog(store, options);
           const participation = createParticipation(store, catalog, options);
-          const files = {
-            decode: (value) => Utilities.base64Decode(value),
-            createCsv: (name, csv) => run('DRIVE_CSV', () =>
-              cloudFolder(properties)
-                .createFile(Utilities.newBlob(csv, 'text/csv', name))
-                .getId()),
-            createBase64: (image) => run('DRIVE_IMAGE', () =>
-              cloudFolder(properties)
-                .createFile(
-                  Utilities.newBlob(
-                    Utilities.base64Decode(image.base64),
-                    image.mimeType,
-                    image.name,
-                  ),
-                )
-                .getId()),
-            read: (id) => Utilities.base64Encode(DriveApp.getFileById(id).getBlob().getBytes()),
-          };
+          const files = preparedFiles || cloudFiles(properties, run, fileCache);
           const methods = {
             getPlatformSettings: () => {
               const settings = store.get('settings', 'platform') || {
@@ -276,6 +292,14 @@ export function rpc(operation, args = [], context = {}) {
               const image = hasIcon ? validatePlatformIcon(input.icon) : null;
               const iconChanged =
                 hasIcon && platformIconSource(image) !== (current.iconSrc || null);
+              if (prepareOnly) return name === current.name && !iconChanged
+                ? { completed: true, result: methods.getPlatformSettings() }
+                : { completed: false, plan: {
+                    csvFiles: [],
+                    image: iconChanged && image
+                      ? { ...image, name: `platform-icon-${options.uuid()}` }
+                      : null,
+                  } };
               if (name !== current.name || iconChanged) {
                 const saved = store.get('settings', 'platform') || current;
                 const icon = iconChanged
@@ -301,7 +325,7 @@ export function rpc(operation, args = [], context = {}) {
             ...participation.methods,
             ...createVideos(store, catalog, options),
             ...createLineups(store, catalog, participation, options),
-            ...createBattles(store, catalog, { ...options, files }),
+            ...createBattles(store, catalog, { ...options, files, prepareOnly, preparedUpload }),
             ...createLottery(store, options),
             ...createBattleMemberSync(store),
             ...createMemberMaintenance(store, catalog, options),
@@ -337,12 +361,55 @@ export function rpc(operation, args = [], context = {}) {
               events: visibleCalendarEvents(result.events, auth.session(context)?.user),
             };
           return result;
-        });
+        }, { readOnly });
       } finally {
         // Persist failed-login throttles too; no secrets are returned to clients.
-        if (canonical(state) !== original) run('AUTH_SAVE', () => privateStore.save(state));
+        if (canonical(state) !== original) {
+          if (readOnly) fail('READ_ONLY', '唯讀操作不能修改登入資料');
+          run('AUTH_SAVE', () => privateStore.save(state));
+        }
       }
-    }));
+    };
+    let data;
+    if (READ_ONLY.includes(operation)) {
+      try {
+        data = execute({ readOnly: true });
+      } catch (error) {
+        // Old projects gain optional tables once, with permission checks repeated
+        // under the writer lock. Ordinary reads never create or modify a sheet.
+        if (error.code !== 'TABLE_INITIALIZATION_REQUIRED' || !LAZY_TABLE_READS.includes(operation)) throw error;
+        data = run('LOCK', () => locked(() => execute()));
+      }
+    } else if (['saveBattleRecords', 'updatePlatformSettings'].includes(operation)) {
+      const prepared = execute({ readOnly: true, prepareOnly: true });
+      if (prepared.completed) data = prepared.result;
+      else {
+        const files = cloudFiles(PropertiesService.getScriptProperties(), run, fileCache);
+        const csvFiles = prepared.plan.csvFiles.map((file) => ({ ...file, id: files.createCsv(file.name, file.csv) }));
+        const imageId = prepared.plan.image ? files.createBase64(prepared.plan.image) : null;
+        let csvIndex = 0;
+        const preparedFiles = {
+          ...files,
+          createCsv: (name, csv) => {
+            const file = csvFiles[csvIndex++];
+            if (!file || file.name !== name || file.csv !== csv) fail('INVALID_REQUEST', '附件內容已變更，請重新送出');
+            return file.id;
+          },
+          createBase64: (image) => {
+            if (!imageId || image.base64 !== prepared.plan.image.base64 || image.mimeType !== prepared.plan.image.mimeType)
+              fail('INVALID_REQUEST', '附件內容已變更，請重新送出');
+            return imageId;
+          },
+          read: (id) => {
+            if (!fileCache.has(id)) fail('STALE_SETTINGS', '平台設定已被修改，請重新載入後再儲存');
+            return fileCache.get(id);
+          },
+        };
+        // Reopen the latest committed snapshot and repeat auth, validation and
+        // requestId/uniqueness checks. Only file preparation escapes the lock.
+        data = run('LOCK', () => locked(() => execute({ preparedFiles, preparedUpload: prepared.plan })));
+      }
+    } else data = run('LOCK', () => locked(() => execute()));
     try {
       deliverNotices(notices, footer);
     } catch {

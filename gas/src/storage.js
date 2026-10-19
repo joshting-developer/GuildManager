@@ -68,7 +68,7 @@ export function createSheetStore({
       .getRange(current.getLastRow() + 1, 1, values.length, values[0].length)
       .setValues(values);
   }
-  function transaction(work) {
+  function transaction(work, { readOnly = false } = {}) {
     const commitRows = run('SHEETS_READ', () => rows(sheet('commits', false, false), 2), 'commits');
     const order = new Map(commitRows.map(([id], index) => [id, index]));
     const tables = new Map(),
@@ -144,7 +144,9 @@ export function createSheetStore({
     const store = {
       ensureTable(table) {
         if (!BUSINESS_TABLES.includes(table)) fail('TABLE_INVALID', '資料表不允許存取');
-        sheet(table, true);
+        if (readOnly && !spreadsheet.getSheetByName(`${prefix}${table}`))
+          fail('TABLE_INITIALIZATION_REQUIRED', '資料表需要初始化');
+        sheet(table, !readOnly);
       },
       all: (table) => [...load(table).values()].map(clone),
       get: (table, key) => clone(load(table, [String(key)]).get(String(key))),
@@ -154,6 +156,7 @@ export function createSheetStore({
         return new Map(keys.map((key) => [key, clone(values.get(key))]));
       },
       put(table, key, value) {
+        if (readOnly) fail('READ_ONLY', '唯讀操作不能修改資料');
         key = String(key);
         if (!BUSINESS_TABLES.includes(table)) fail('TABLE_INVALID', '資料表不允許存取');
         if (tables.has(table)) tables.get(table).set(key, clone(value));
@@ -163,6 +166,7 @@ export function createSheetStore({
         changes.get(table).set(key, { value: clone(value) });
       },
       remove(table, key) {
+        if (readOnly) fail('READ_ONLY', '唯讀操作不能修改資料');
         key = String(key);
         if (!BUSINESS_TABLES.includes(table)) fail('TABLE_INVALID', '資料表不允許存取');
         if (tables.has(table)) tables.get(table).delete(key);
@@ -209,16 +213,23 @@ export function createPrivateStore(properties, uuid) {
   const POINTER = 'GM_AUTH_POINTER',
     PREFIX = 'GM_AUTH_';
   function load() {
-    const pointer = properties.getProperty(POINTER);
-    if (!pointer) return { accounts: [], sessions: [], limits: [] };
-    const { id, count } = JSON.parse(pointer);
-    let text = '';
-    for (let index = 0; index < count; index++) {
-      const chunk = properties.getProperty(`${PREFIX}${id}_${index}`);
-      if (chunk === null) fail('AUTH_STORAGE_INVALID', '登入資料不完整，請聯絡管理者');
-      text += chunk;
+    // A writer publishes a new pointer before removing old chunks. Readers pin a
+    // generation and retry when publication/cleanup crosses their read window.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const pointer = properties.getProperty(POINTER);
+      if (!pointer) return { accounts: [], sessions: [], limits: [] };
+      const { id, count } = JSON.parse(pointer);
+      let text = '', missing = false;
+      for (let index = 0; index < count; index++) {
+        const chunk = properties.getProperty(`${PREFIX}${id}_${index}`);
+        if (chunk === null) { missing = true; break; }
+        text += chunk;
+      }
+      if (properties.getProperty(POINTER) !== pointer) continue;
+      if (missing) fail('AUTH_STORAGE_INVALID', '登入資料不完整，請聯絡管理者');
+      return JSON.parse(text);
     }
-    return JSON.parse(text);
+    fail('BUSY', '登入資料正在更新，請稍後重試');
   }
   function save(state) {
     const text = JSON.stringify(state),

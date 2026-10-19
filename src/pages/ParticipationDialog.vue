@@ -5,10 +5,11 @@ import { createParticipationClient } from '../api/participation.js';
 import { eventDisplayTitle, eventTypeLabel } from '../domain/event-types.js';
 import VideoUploadForm from './VideoUploadForm.vue';
 import NameSourcePicker from './NameSourcePicker.vue';
+import { participationTarget } from '../domain/participation-target.js';
 const props = defineProps({ modelValue: Boolean, event: { type: Object, required: true } });
 const emit = defineEmits(['update:modelValue', 'closed', 'event-refreshed']);
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
-const client = createParticipationClient({ source });
+const client = createParticipationClient({ source, onBusyRetry: () => { retrying.value = true; } });
 const calendarAuth = inject('calendarAuth', null);
 const authLoading = computed(() => !!calendarAuth?.loading.value);
 const members = ref([]),
@@ -24,6 +25,7 @@ const professions = ref([]),
   revision = ref('');
 const loading = ref(true),
   busy = ref(false),
+  retrying = ref(false),
   loadError = ref(''),
   error = ref(''),
   notice = ref('');
@@ -205,6 +207,7 @@ async function submit() {
     return;
   }
   busy.value = true;
+  retrying.value = false;
   const input = {
     name: name.value.trim(),
     professionId: status.value === 'registered' ? professionId.value : null,
@@ -215,6 +218,11 @@ async function submit() {
       ? { memberUid: selectedMemberUid.value }
       : {}),
   };
+  const person = participationTarget(input, {
+    members: members.value, responses: responses.value,
+    registrations: registrations.value, registrationLeaves: registrationLeaves.value,
+  });
+  if (person) input.expectedParticipant = { eventRevision: props.event.revision, person };
   const encoded = JSON.stringify(input);
   if (attempt?.encoded !== encoded) attempt = { encoded, requestId: crypto.randomUUID() };
   try {
@@ -235,6 +243,7 @@ async function submit() {
     error.value = cause.message;
   } finally {
     busy.value = false;
+    retrying.value = false;
   }
 }
 </script>
@@ -345,7 +354,7 @@ async function submit() {
               :disabled="busy"
               hide-details
             />
-            <DataLoading v-if="busy" compact :spinner="false">{{ status === 'registered' ? '正在送出報名…' : '正在送出請假…' }}</DataLoading>
+            <DataLoading v-if="busy" compact :spinner="false">{{ retrying ? '正在等候送出，內容已保留，請稍候…' : status === 'registered' ? '正在送出報名…' : '正在送出請假…' }}</DataLoading>
             <v-btn type="submit" color="primary" :loading="busy" :disabled="busy">{{
               status === 'registered' ? '送出報名' : '送出請假'
             }}</v-btn>

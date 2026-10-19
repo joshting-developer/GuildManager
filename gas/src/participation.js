@@ -1,6 +1,7 @@
 import { canonical, fail, hash, lower, revision, retry, text } from './common.js';
 import { eventAttendance } from '../../src/domain/event-attendance.js';
 import { leaveNotice } from '../../src/domain/discord-notifications.js';
+import { participationTarget, validParticipationExpectation, sameParticipationTarget } from '../../src/domain/participation-target.js';
 export function createParticipation(store, catalog, { uuid, now, notify = () => {} }) {
   // Queued notices are delivered by the RPC layer only after the store commits.
   function notifyLeave(eventId, action, name, professionId) {
@@ -100,6 +101,8 @@ export function createParticipation(store, catalog, { uuid, now, notify = () => 
     if (!['registered', 'leave'].includes(status)) fail('VALIDATION_ERROR', '請選擇報名或請假');
     if (typeof input.revision !== 'string' || !/^[a-f0-9]{64}$/.test(input.revision))
       fail('VALIDATION_ERROR', '資料版本不正確，請重新載入');
+    if (input.expectedParticipant !== undefined && !validParticipationExpectation(input.expectedParticipant))
+      fail('VALIDATION_ERROR', '人員資料版本不正確，請重新載入');
     const professionId = status === 'registered' ? input.professionId : null;
     const memberUid = input.memberUid === undefined ? null : text(input.memberUid, '成員資料', 64);
     const normalized = {
@@ -110,10 +113,17 @@ export function createParticipation(store, catalog, { uuid, now, notify = () => 
       professionId,
       memberUid,
       revision: input.revision,
+      ...(input.expectedParticipant !== undefined ? { expectedParticipant: input.expectedParticipant } : {}),
     };
     return retry(store, 'submitParticipation', input.requestId, normalized, () => {
-      catalog.event(eventId, { battle: true });
-      if (currentRevision(eventId) !== input.revision)
+      const event = catalog.event(eventId, { battle: true });
+      if (input.expectedParticipant !== undefined) {
+        if (event.revision !== input.expectedParticipant.eventRevision)
+          fail('EVENT_CHANGED', '場次已修改，請重新載入場次後再送出');
+        const person = participationTarget(normalized, methods.getEventParticipationForm([eventId]));
+        if (!sameParticipationTarget(person, input.expectedParticipant.person))
+          fail('PARTICIPATION_CHANGED', '這位人員的資料已更新，請重新載入確認後再送出');
+      } else if (currentRevision(eventId) !== input.revision)
         fail('PARTICIPATION_CHANGED', '本場報名資料已更新，請重新載入後再送出');
       if (status === 'registered') catalog.profession(professionId);
       const responses = rawResponses(eventId);

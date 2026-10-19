@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { LINEUP_TYPES } from '../src/domain/lineups.js';
 import { eventAttendance } from '../src/domain/event-attendance.js';
 import { leaveNotice } from '../src/domain/discord-notifications.js';
+import { participationTarget, validParticipationExpectation, sameParticipationTarget } from '../src/domain/participation-target.js';
 
 export class ParticipationError extends Error {
   constructor(message, status = 422, code = 'PARTICIPATION_INVALID') {
@@ -240,6 +241,8 @@ export function createParticipationRepository(db, { notify = () => {} } = {}) {
         throw new ParticipationError('缺少有效的操作識別碼, 請重新操作');
       if (typeof input?.revision !== 'string' || !/^[a-f0-9]{64}$/.test(input.revision))
         throw new ParticipationError('資料版本不正確, 請重新載入');
+      if (input.expectedParticipant !== undefined && !validParticipationExpectation(input.expectedParticipant))
+        throw new ParticipationError('人員資料版本不正確，請重新載入');
       const encoded = JSON.stringify({
         name,
         note,
@@ -247,6 +250,7 @@ export function createParticipationRepository(db, { notify = () => {} } = {}) {
         professionId,
         revision: input.revision,
         ...(memberUid ? { memberUid } : {}),
+        ...(input.expectedParticipant !== undefined ? { expectedParticipant: input.expectedParticipant } : {}),
       });
       return db.transaction(() => {
         const priorRequest = db
@@ -272,7 +276,17 @@ export function createParticipationRepository(db, { notify = () => {} } = {}) {
             'REQUEST_CONFLICT',
           );
         checkEvent(eventId);
-        if (participationRevision(eventId) !== input.revision)
+        if (input.expectedParticipant !== undefined) {
+          const event = db.prepare('SELECT revision FROM scheduled_events WHERE id = ?').get(eventId);
+          if (event.revision !== input.expectedParticipant.eventRevision)
+            throw new ParticipationError('場次已修改，請重新載入場次後再送出', 409, 'EVENT_CHANGED');
+          const person = participationTarget({ name, status, memberUid }, {
+            ...repository.getEventParticipation(eventId),
+            ...repository.listEventParticipationMembers(eventId),
+          });
+          if (!sameParticipationTarget(person, input.expectedParticipant.person))
+            throw new ParticipationError('這位人員的資料已更新，請重新載入確認後再送出', 409, 'PARTICIPATION_CHANGED');
+        } else if (participationRevision(eventId) !== input.revision)
           throw new ParticipationError(
             '本場報名資料已更新, 請重新載入後再送出',
             409,

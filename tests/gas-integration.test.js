@@ -64,7 +64,8 @@ test('compiled GAS runs without Node or browser encoders; setup is non-destructi
   assert.equal(env.rpc('getEvents', [], { user: { role: 'admin' } }).data.events.length, 0);
   assert.equal(env.rpc('getEvents', [], null).error.code, 'INVALID_REQUEST');
   env.lock.tryLock();
-  assert.equal(env.raw('getEvents').error.code, 'BUSY');
+  assert.equal(env.raw('getEvents').ok, true);
+  assert.equal(env.rpc('createEvent').error.code, 'BUSY');
   env.lock.releaseLock();
   assert.equal(env.raw('getEvents').ok, true);
 });

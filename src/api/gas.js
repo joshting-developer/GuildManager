@@ -20,18 +20,32 @@ export function setGasSession(data) {
     else globalThis.sessionStorage?.removeItem(storageKey());
   } catch {}
 }
-export async function callGas(operation, args = [], googleRun) {
+export async function callGas(operation, args = [], googleRun, {
+  wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  random = Math.random,
+  onBusyRetry = () => {},
+} = {}) {
   const run = googleRun || globalThis.google?.script?.run;
   if (!run) throw new Error('請在 Apps Script Web App 中使用雲端資料介面');
   const token = readToken();
-  const result = await new Promise((resolve, reject) => {
+  const context = token ? [{ sessionToken: token, csrfToken: cloudCsrf }] : [];
+  const invoke = () => new Promise((resolve, reject) => {
     run
       .withSuccessHandler(resolve)
       .withFailureHandler((error) =>
         reject(new Error(error?.message || '雲端操作失敗，請稍後再試')),
       )
-      [operation](...args, ...(token ? [{ sessionToken: token, csrfToken: cloudCsrf }] : []));
+      [operation](...args, ...context);
   });
+  let result;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    result = await invoke();
+    if (result?.__gasRpc !== 1 || result.ok || result.error?.code !== 'BUSY' || attempt === 2) break;
+    // BUSY means no business operation ran. Reuse the exact request/context;
+    // transport failures and unknown commit outcomes are never retried here.
+    onBusyRetry();
+    await wait(350 * 2 ** attempt + Math.floor(random() * 250));
+  }
   if (result?.__gasRpc !== 1) return result;
   if (result.ok) return result.data;
   const error = Object.assign(new Error(result.error?.message || '雲端操作失敗'), {

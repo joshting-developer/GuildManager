@@ -66,16 +66,19 @@ export function pageNumber(value = 1) {
   if (!Number.isSafeInteger(value) || value < 1) fail('VALIDATION_ERROR', '頁碼不正確');
   return value;
 }
-export function retry(store, operation, id, input, work) {
+export function retry(store, operation, id, input, work, { prepareOnly = false } = {}) {
   const key = requestId(id),
     fingerprint = hash(canonical([operation, input]));
   const previous = store.get('requests', key);
   if (previous) {
     if (previous.hash !== fingerprint)
       fail('REQUEST_CONFLICT', '操作識別碼已用於其他資料，請重新操作');
-    return clone(previous.result);
+    return prepareOnly
+      ? { completed: true, result: clone(previous.result) }
+      : clone(previous.result);
   }
   const result = work();
+  if (prepareOnly) return { completed: false, plan: result };
   store.put('requests', key, { hash: fingerprint, result });
   return result;
 }
