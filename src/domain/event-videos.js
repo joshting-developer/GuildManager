@@ -47,7 +47,7 @@ function videoUrl(value, field, label) {
   }
   return url;
 }
-export function validateVideoDetails(input, { allowMissingGroup = false } = {}) {
+export function validateVideoDetails(input, { allowMissingGroup = false, allowMissingProfession = false } = {}) {
   if (!input || typeof input !== 'object') throw new EventVideoError('影片資料格式不正確');
   const name = text(input.name, '角色名稱', 64, 'name');
   const firstUrl = videoUrl(input.firstUrl, 'firstUrl', '第一場網址');
@@ -60,12 +60,17 @@ export function validateVideoDetails(input, { allowMissingGroup = false } = {}) 
     });
   if (!VIDEO_GROUPS.includes(input.groupName) && !(allowMissingGroup && input.groupName == null))
     throw new EventVideoError('請選擇團別', 422, 'VIDEO_INVALID', { groupName: '請選擇團別' });
-  return { name, firstUrl, secondUrl, groupName: input.groupName ?? null, note };
+  const professionId = input.professionId ?? null;
+  if (!(allowMissingProfession && professionId === null) &&
+    (!Number.isSafeInteger(professionId) || professionId < 1))
+    throw new EventVideoError('請選擇有效職業', 422, 'VIDEO_INVALID', { professionId: '請選擇職業' });
+  return { name, professionId, firstUrl, secondUrl, groupName: input.groupName ?? null, note };
 }
 export function validateVideoSubmission(input) {
   const details = validateVideoDetails(input);
   const requestId = text(input.requestId, '提交識別碼', 128, 'requestId');
   if (!Number.isSafeInteger(input.eventRevision) || input.eventRevision < 1)
     throw new EventVideoError('場次版本不正確，請重新載入場次');
-  return { ...details, requestId, eventRevision: input.eventRevision };
+  const memberUid = input.memberUid === undefined ? null : text(input.memberUid, '成員資料', 64, 'name');
+  return { ...details, requestId, eventRevision: input.eventRevision, ...(memberUid ? { memberUid } : {}) };
 }

@@ -74,44 +74,38 @@ async function setup() {
   };
 }
 
-test('guild/dragon reads and all current/legacy mutations require login; anonymous scrimmage remains available', async () => {
+test('all three battles allow anonymous current/legacy participation and minimal event rosters', async () => {
   const f = await setup();
   try {
-    for (const event of f.events.slice(1)) {
+    for (const event of f.events) {
       const registration = f.repo.addGuestRegistration(event.id, {
-        name: '舊外援',
-        professionId: 1,
-        requestId: event.type + 'guest',
+        name: '舊外援', professionId: 1, requestId: event.type + 'guest',
       });
-      for (const [method, suffix, body] of [
-        ['GET', 'participation'],
-        ['GET', 'participation-members'],
-        ['POST', 'participation', f.input(event)],
-        ['PATCH', 'participation', { uid: 'guild', status: 'leave', note: '', revision: 0 }],
-        ['POST', 'registrations', { name: '新外援', professionId: 1, requestId: event.type }],
-        ['DELETE', `registrations/${registration.id}`, { revision: 1 }],
+      for (const [method, suffix, body, expected] of [
+        ['GET', 'participation', undefined, 200],
+        ['GET', 'participation-members', undefined, 200],
+        ['POST', 'participation', f.input(event), 200],
+        ['PATCH', 'participation', { uid: 'guild', status: 'leave', note: '', revision: 0 }, 200],
+        ['POST', 'registrations', { name: '新外援', professionId: 1, requestId: event.type }, 201],
+        ['DELETE', `registrations/${registration.id}`, { revision: 1 }, 200],
       ]) {
         const response = await f.request(`/events/${event.id}/${suffix}`, method, body);
-        assert.equal(response.status, 401, method + suffix);
-        assert.equal((await response.json()).error.code, 'AUTH_REQUIRED');
+        assert.equal(response.status, expected, method + suffix);
       }
-      assert.equal(f.repo.getEventParticipation(event.id).registrations.length, 1);
-      assert.equal(f.repo.getEventParticipation(event.id).responses.length, 0);
+      const roster = await (await f.request(`/events/${event.id}/participation-members`)).json();
+      assert.equal(roster.members.length, 2);
+      assert.ok(roster.members.every(row => !('previousNames' in row) && !('revision' in row)));
+      assert.equal(f.repo.getEventParticipation(event.id).responses[0].status, 'leave');
     }
-    const event = f.events[0];
-    assert.equal((await f.request(`/events/${event.id}/participation`)).status, 200);
-    assert.equal(
-      (await f.request(`/events/${event.id}/participation`, 'POST', f.input(event))).status,
-      200,
-    );
-    assert.equal((await f.request(`/events/${event.id}/participation-members`)).status, 401);
     assert.equal((await f.request('/calendar/members')).status, 401);
+    assert.equal((await f.request('/members')).status, 401);
+    assert.equal((await f.request('/lineups')).status, 401);
   } finally {
     await f.close();
   }
 });
 
-test('member can use both roster categories, register and leave with CSRF, can read the full roster while other management remains restricted; revoked/expired sessions fail', async () => {
+test('member can use both roster categories, register and leave with CSRF, can read the full roster while other management remains restricted; revoked/expired sessions retain public access', async () => {
   const f = await setup();
   try {
     const headers = await f.login();
@@ -161,7 +155,7 @@ test('member can use both roster categories, register and leave with CSRF, can r
     assert.equal(
       (await f.request(`/events/${f.events[1].id}/participation`, 'GET', undefined, headers))
         .status,
-      401,
+      200,
     );
     const response = await f.request('/auth/member-login', 'POST', {
       password: '654321',
@@ -171,7 +165,7 @@ test('member can use both roster categories, register and leave with CSRF, can r
     assert.equal(
       (await f.request(`/events/${f.events[1].id}/participation`, 'GET', undefined, current))
         .status,
-      401,
+      200,
     );
   } finally {
     await f.close();
@@ -181,7 +175,7 @@ test('member can use both roster categories, register and leave with CSRF, can r
 test('selected roster identities resolve duplicate names, validate current membership and preserve retry/roster', async () => {
   const f = await setup();
   try {
-    const headers = await f.login();
+    const headers = {};
     const event = f.events[1];
     const client = createParticipationClient({
       fetchImpl: (path, options = {}) =>
@@ -242,7 +236,7 @@ test('manager reporting and member logout work; selected-name GAS adapter forwar
     assert.equal((await f.request('/auth/logout', 'POST', {}, member)).status, 200);
     assert.equal(
       (await f.request(`/events/${event.id}/participation`, 'GET', undefined, member)).status,
-      401,
+      200,
     );
     let success, failure;
     const input = f.input(event, { memberUid: 'guild', name: '同名成員' });

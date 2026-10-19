@@ -4,21 +4,21 @@ import { createRepository } from '../server/repository.js';
 import { createApp } from '../server/app.js';
 import { visibleCalendarEvents } from '../src/domain/calendar-access.js';
 
-test('calendar filtering hides member-only events without altering dates or record snapshots', () => {
+test('calendar exposes every event type regardless of login without altering dates or snapshots', () => {
   const events = ['activity', 'scrimmage', 'guild_war', 'dragon_tiger'].map((type) => ({
     id: type,
     type,
     title: type,
     dates: ['2026-10-04'],
   }));
-  assert.deepEqual(visibleCalendarEvents(events), events.slice(0, 2));
-  assert.deepEqual(visibleCalendarEvents(events, { role: 'invalid' }), events.slice(0, 2));
+  assert.deepEqual(visibleCalendarEvents(events), events);
+  assert.deepEqual(visibleCalendarEvents(events, { role: 'invalid' }), events);
   for (const role of ['member', 'manager', 'admin'])
     assert.deepEqual(visibleCalendarEvents(events, { role }), events);
   assert.equal(events.length, 4);
 });
 
-test('events API returns only public events anonymously and after expiry/revocation, but all events for the three valid roles', async () => {
+test('events API returns all event types anonymously, signed in, and after expiry or revocation', async () => {
   let clock = Date.now();
   const repo = createRepository({ filename: ':memory:', authNow: () => clock });
   const password = 'test-password-2026';
@@ -60,14 +60,13 @@ test('events API returns only public events anonymously and after expiry/revocat
     };
   }
   const publicIds = events
-    .slice(0, 2)
     .map((event) => event.id)
     .sort();
   try {
     const publicData = await list();
     assert.deepEqual(publicData.events.map((event) => event.id).sort(), publicIds);
-    assert.ok(!JSON.stringify(publicData).includes('guild_war'));
-    assert.ok(!JSON.stringify(publicData).includes('dragon_tiger'));
+    assert.ok(JSON.stringify(publicData).includes('guild_war'));
+    assert.ok(JSON.stringify(publicData).includes('dragon_tiger'));
     assert.deepEqual(
       (await list({ Cookie: 'guild_session=invalid', role: 'member' }, '?role=member')).events,
       publicData.events,
@@ -92,7 +91,7 @@ test('events API returns only public events anonymously and after expiry/revocat
     assert.deepEqual((await list(expiry)).events.map((event) => event.id).sort(), publicIds);
     assert.equal(
       (await fetch(`${base}/events/${events[2].id}/participation`, { headers: expiry })).status,
-      401,
+      200,
     );
     assert.equal(repo.listEvents().events.length, 4);
   } finally {

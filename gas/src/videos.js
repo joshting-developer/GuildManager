@@ -1,4 +1,4 @@
-import { validateVideoSubmission } from '../../src/domain/event-videos.js';
+import { EventVideoError, validateVideoSubmission } from '../../src/domain/event-videos.js';
 import { canonical, fail, hash } from './common.js';
 
 export function createVideos(store, catalog, { uuid, now }) {
@@ -33,12 +33,23 @@ export function createVideos(store, catalog, { uuid, now }) {
       const event = checkEvent(eventId);
       if (event.revision !== input.eventRevision)
         fail('EVENT_CHANGED', '場次已修改，請重新載入場次後再送出');
+      const profession = store.get('professions', input.professionId);
+      if (!profession)
+        throw new EventVideoError('請選擇有效職業', 422, 'VIDEO_INVALID', { professionId: '職業已失效，請重新載入' });
+      if (input.memberUid) {
+        const member = store.get('members', input.memberUid);
+        if (!member || member.name !== input.name || !(member.isInGuild || member.isInClub))
+          throw new EventVideoError('成員資料已更新，請重新載入後選擇成員', 409, 'VIDEO_MEMBER_CHANGED', { name: '請重新選擇成員' });
+      }
       store.ensureTable('videos');
       const { name, firstUrl, secondUrl, groupName, note } = input;
       const video = {
         id: uuid(),
         eventId,
         name,
+        professionId: profession.job_id,
+        professionName: profession.name,
+        professionColorcode: profession.colorcode,
         firstUrl,
         secondUrl,
         groupName,

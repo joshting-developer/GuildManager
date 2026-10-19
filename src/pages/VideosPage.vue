@@ -218,7 +218,7 @@ onUnmounted(() => {
             <td
               v-for="(value, index) in videoTableRow(video)"
               :key="index"
-              :class="{ 'video-url': index === 1 || index === 2, 'video-note': index === 4 }"
+              :class="{ 'video-url': index === 2 || index === 3, 'video-note': index === 5 }"
             >
               {{ value }}
             </td>
@@ -261,7 +261,7 @@ onUnmounted(() => {
 }
 .videos-table {
   width: 100%;
-  min-width: 760px;
+  min-width: 860px;
   table-layout: fixed;
   border-collapse: collapse;
   font-size: 14px;
@@ -284,11 +284,12 @@ onUnmounted(() => {
 .videos-table th:first-child {
   width: 16%;
 }
-.videos-table th:nth-child(2),
-.videos-table th:nth-child(3) {
+.videos-table th:nth-child(3),
+.videos-table th:nth-child(4) {
   width: 24%;
 }
-.videos-table th:nth-child(4) {
+.videos-table th:nth-child(2),
+.videos-table th:nth-child(5) {
   width: 12%;
 }
 .video-note {

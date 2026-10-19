@@ -286,13 +286,7 @@ export function rpc(operation, args = [], context = {}) {
           if (['updatePlatformSettings', 'previewBattleMemberSync', 'syncBattleMembers'].includes(operation))
             auth.requireRole(context, ['admin']);
           else if (PARTICIPATION.includes(operation)) {
-            const event = catalog.event(args[0], { battle: true });
-            if (
-              ['guild_war', 'dragon_tiger'].includes(event.type) ||
-              operation === 'getEventParticipationMembers'
-            )
-              auth.requireRole(context, ['admin', 'manager', 'member']);
-            if (args[1]?.memberUid) auth.requireRole(context, ['admin', 'manager', 'member']);
+            catalog.event(args[0], { battle: true });
           } else if (
             operation === 'getParticipationMembers' ||
             MEMBER_MANAGEMENT.includes(operation)

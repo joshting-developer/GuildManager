@@ -26,6 +26,7 @@ async function setup() {
   });
   const input = (event, extra = {}) => ({
     name: '空城',
+  professionId: 3,
     firstUrl: 'https://youtu.be/first',
     secondUrl: 'https://www.youtube.com/watch?v=second',
     groupName: '進攻一',
@@ -109,12 +110,9 @@ test('GAS role checks restrict viewing to admin/manager, allow member submission
       assert.equal(cloudResult(f.env.raw('getEventVideos', [event.id], context)).videos.length, 3);
   }
   for (const event of f.events.slice(1))
-    error(f.env.raw('submitEventVideo', [event.id, f.input(event)]), 'AUTH_REQUIRED');
+    assert.ok(f.env.raw('submitEventVideo', [event.id, f.input(event)]).ok);
   cloudResult(f.env.raw('logout', [], f.member));
-  error(
-    f.env.raw('submitEventVideo', [f.events[1].id, f.input(f.events[1])], f.member),
-    'AUTH_REQUIRED',
-  );
+  assert.ok(f.env.raw('submitEventVideo', [f.events[1].id, f.input(f.events[1])], f.member).ok);
   error(f.env.rpc('ensureTable', ['videos'], f.context), 'OPERATION_INVALID');
 });
 
@@ -129,6 +127,9 @@ test('GAS URL validation, stale/deleted/activity events and incomplete writes pr
     { note: 'x'.repeat(501) },
     { firstUrl: 'https://example.com:99999/v' },
     { firstUrl: 'https://example.com\\evil/v' },
+    { professionId: null },
+    { professionId: '3' },
+    { professionId: 999 },
   ])
     error(f.env.raw('submitEventVideo', [event.id, f.input(event, extra)]), 'VIDEO_INVALID');
   const activity = f.call('createEvent', [
@@ -198,4 +199,24 @@ test('GAS videos lazily add the missing sheet on older installations and adapter
   googleRun.getEventVideos = () => failure({ message: '模擬失敗' });
   await assert.rejects(client.getVideos(event.id), /模擬失敗/);
   setGasSession({ user: null });
+});
+
+test('anonymous GAS video submissions validate selected identities and preserve profession snapshots', async () => {
+  const f = await setup();
+  for (const [uid, isInGuild, isInClub] of [['guild', true, true], ['club', false, true], ['outside', false, false]])
+    f.call('addMember', [{ uid, name: '同名', primaryProfessionId: 1, isInGuild, isInClub }]);
+  const before = f.call('getMembers');
+  for (const event of f.events) {
+    const roster = cloudResult(f.env.raw('getEventParticipationMembers', [event.id]));
+    assert.equal(roster.members.length, 2);
+    const input = f.input(event, { name: '同名', memberUid: 'club', professionId: 3 });
+    const saved = cloudResult(f.env.raw('submitEventVideo', [event.id, input]));
+    assert.equal(saved.video.professionId, 3);
+    assert.equal(saved.video.professionName, '碎夢');
+    assert.ok(!('memberUid' in saved.video));
+    assert.deepEqual(cloudResult(f.env.raw('submitEventVideo', [event.id, input])), saved);
+    for (const extra of [{ memberUid: 'missing' }, { memberUid: 'outside' }, { memberUid: 'guild', name: '舊名' }])
+      error(f.env.raw('submitEventVideo', [event.id, f.input(event, { name: '同名', ...extra })]), 'VIDEO_MEMBER_CHANGED');
+  }
+  assert.deepEqual(f.call('getMembers'), before);
 });

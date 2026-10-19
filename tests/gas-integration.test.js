@@ -76,13 +76,13 @@ test('GAS wrappers enforce every role, calendar visibility, CSRF, member access 
   const war = createEvent(env, 'guild_war');
   const dragon = createEvent(env, 'dragon_tiger');
   assert.deepEqual(
-    env.call('getEvents', [], {}).events.map((e) => e.id),
-    [scrim.id],
+    env.call('getEvents', [], {}).events.map((e) => e.id).sort(),
+    [scrim.id, war.id, dragon.id].sort(),
   );
   assert.equal(env.call('getEvents').events.length, 3);
-  assert.equal(env.raw('getEventParticipation', [war.id]).error.code, 'AUTH_REQUIRED');
-  assert.equal(env.raw('getEventParticipation', [dragon.id]).error.code, 'AUTH_REQUIRED');
-  assert.equal(env.raw('getEventParticipationMembers', [scrim.id]).error.code, 'AUTH_REQUIRED');
+  assert.ok(env.raw('getEventParticipation', [war.id]).ok);
+  assert.ok(env.raw('getEventParticipation', [dragon.id]).ok);
+  assert.ok(env.raw('getEventParticipationMembers', [scrim.id]).ok);
   assert.equal(env.raw('getMembers', [], { role: 'admin' }).error.code, 'AUTH_REQUIRED');
   assert.equal(
     env.raw('addMember', [member('0002', '其他')], { sessionToken: env.session.sessionToken }).error
@@ -142,8 +142,8 @@ test('GAS wrappers enforce every role, calendar visibility, CSRF, member access 
   assert.equal(env.raw('getBattleAttachment', [saved.id, 'csv']).error.code, 'AUTH_REQUIRED');
   env.call('setMemberToken', [{ password: 'Changed123', revision: 1 }]);
   assert.equal(env.call('getAuthSession', [], ctx).user, null);
-  assert.equal(env.call('getEvents', [], ctx).events.length, 1);
-  assert.equal(env.raw('getEventParticipation', [war.id], ctx).error.code, 'AUTH_REQUIRED');
+  assert.equal(env.call('getEvents', [], ctx).events.length, 3);
+  assert.ok(env.raw('getEventParticipation', [war.id], ctx).ok);
   const manager = env.call('createManager', [
     { username: 'manager', password: 'manager-password-123' },
   ]).manager;
@@ -344,7 +344,7 @@ test('frontend GAS adapter integrates login, restored session, async events and 
     assert.equal(created.events.length, 1);
     assert.equal((await events.getEvents()).events.length, 1);
     assert.equal((await auth.logout()).user, null);
-    assert.equal((await events.getEvents()).events.length, 0);
+    assert.equal((await events.getEvents()).events.length, 1);
     await assert.rejects(
       events.createEvent({ type: 'guild_war', dates: ['2026-10-05'], requestId: 'unauthorized' }),
       { code: 'AUTH_REQUIRED' },
@@ -391,7 +391,7 @@ test('GAS HTML entry contains only the public storage namespace and private setu
   assert.equal(env.propertyService.getProperty('GM_AUTH_POINTER'), null);
 });
 
-test('expired GAS sessions lose both member-only calendar and protected operations', async () => {
+test('expired GAS sessions retain public calendar and lose protected operations', async () => {
   const env = await fixture();
   const event = createEvent(env, 'guild_war');
   const { createPrivateStore } = await import('../gas/src/storage.js');
@@ -402,10 +402,7 @@ test('expired GAS sessions lose both member-only calendar and protected operatio
   });
   privateStore.save(state);
   assert.equal(env.call('getAuthSession').user, null);
-  assert.deepEqual(env.call('getEvents').events, []);
+  assert.deepEqual(env.call('getEvents').events.map(row => row.id), [event.id]);
   assert.equal(env.raw('getMembers', [], env.context).error.code, 'AUTH_REQUIRED');
-  assert.equal(
-    env.raw('getEventParticipation', [event.id], env.context).error.code,
-    'AUTH_REQUIRED',
-  );
+  assert.ok(env.raw('getEventParticipation', [event.id], env.context).ok);
 });

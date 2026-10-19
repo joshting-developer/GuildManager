@@ -9,7 +9,7 @@ import ParticipationDialog from './ParticipationDialog.vue';
 import EventAttendanceDialog from './EventAttendanceDialog.vue';
 import { LINEUP_TYPES } from '../domain/lineups.js';
 import './events.css';
-import { visibleCalendarEvents, calendarRequiresLogin } from '../domain/calendar-access.js';
+import { visibleCalendarEvents } from '../domain/calendar-access.js';
 import { eventTypeLabel, eventDisplayTitle } from '../domain/event-types.js';
 const props = defineProps({ management: { type: Boolean, default: true } });
 const calendarAuth = inject('calendarAuth', null);
@@ -79,8 +79,6 @@ watch(
     dayDialog.value = false;
     attendanceDialog.value = false;
     selectedDay.value = null;
-    if (selectedEvent.value && calendarRequiresLogin(selectedEvent.value))
-      participationDialog.value = false;
     load();
   },
   { flush: 'sync' },

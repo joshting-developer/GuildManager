@@ -33,6 +33,15 @@ export function createEventVideoRepository(db) {
       "ALTER TABLE event_video_submissions ADD COLUMN group_name TEXT CHECK(group_name IN ('進攻一', '進攻二', '防守團'))",
     );
   }
+  const professionColumns = {
+    profession_id: 'INTEGER REFERENCES professions(job_id)',
+    profession_name: 'TEXT',
+    profession_colorcode: 'TEXT',
+  };
+  for (const [column, type] of Object.entries(professionColumns)) {
+    if (!db.pragma('table_info(event_video_submissions)').some((field) => field.name === column))
+      db.exec(`ALTER TABLE event_video_submissions ADD COLUMN ${column} ${type}`);
+  }
   function checkEvent(id) {
     const event = db
       .prepare('SELECT type, revision, deleted_at FROM scheduled_events WHERE id = ?')
@@ -51,7 +60,8 @@ export function createEventVideoRepository(db) {
     return event;
   }
   const columns = `id, event_id AS eventId, name, first_url AS firstUrl,
-    second_url AS secondUrl, group_name AS groupName, note, created_at AS createdAt`;
+    second_url AS secondUrl, group_name AS groupName, note, created_at AS createdAt,
+    profession_id AS professionId, profession_name AS professionName, profession_colorcode AS professionColorcode`;
   return {
     listEventVideos(eventId) {
       const event = checkEvent(eventId);
@@ -68,7 +78,8 @@ export function createEventVideoRepository(db) {
               `SELECT id, event_id AS eventId, name,
             CASE WHEN round_number = 1 THEN url ELSE '' END AS firstUrl,
             CASE WHEN round_number = 2 THEN url ELSE '' END AS secondUrl,
-            '' AS note, group_name AS groupName, created_at AS createdAt
+            '' AS note, group_name AS groupName, created_at AS createdAt,
+            NULL AS professionId, NULL AS professionName, NULL AS professionColorcode
             FROM event_videos WHERE event_id = ?`,
             )
             .all(eventId),
@@ -94,10 +105,18 @@ export function createEventVideoRepository(db) {
         const event = checkEvent(eventId);
         if (event.revision !== input.eventRevision)
           throw new EventVideoError('場次已修改，請重新載入場次後再送出', 409, 'EVENT_CHANGED');
+        const profession = db.prepare('SELECT job_id, name, colorcode FROM professions WHERE job_id = ?').get(input.professionId);
+        if (!profession)
+          throw new EventVideoError('請選擇有效職業', 422, 'VIDEO_INVALID', { professionId: '職業已失效，請重新載入' });
+        if (input.memberUid) {
+          const member = db.prepare('SELECT name, is_in_guild, is_in_club, removed_at FROM members WHERE uid = ?').get(input.memberUid);
+          if (!member || member.removed_at || member.name !== input.name || !(member.is_in_guild || member.is_in_club))
+            throw new EventVideoError('成員資料已更新，請重新載入後選擇成員', 409, 'VIDEO_MEMBER_CHANGED', { name: '請重新選擇成員' });
+        }
         // A new request always creates a submission, even for identical names and URLs.
         const id = randomUUID();
         db.prepare(
-          'INSERT INTO event_video_submissions (id, event_id, name, first_url, second_url, note, created_at, group_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          'INSERT INTO event_video_submissions (id, event_id, name, first_url, second_url, note, created_at, group_name, profession_id, profession_name, profession_colorcode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         ).run(
           id,
           eventId,
@@ -107,6 +126,9 @@ export function createEventVideoRepository(db) {
           input.note,
           new Date().toISOString(),
           input.groupName,
+          profession.job_id,
+          profession.name,
+          profession.colorcode,
         );
         const video = db
           .prepare(`SELECT ${columns} FROM event_video_submissions WHERE id = ?`)

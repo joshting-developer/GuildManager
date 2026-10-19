@@ -56,12 +56,12 @@ export function createEventVideoClient({
         typeof video.id !== 'string' ||
         !video.id ||
         (input &&
-          ['name', 'firstUrl', 'secondUrl', 'groupName', 'note'].some(
+          ['name', 'professionId', 'firstUrl', 'secondUrl', 'groupName', 'note'].some(
             (field) => video[field] !== input[field],
           ))
       )
         throw new Error('影片資料回應格式不正確，請重試');
-      validateVideoDetails(video, { allowMissingGroup: !input });
+      validateVideoDetails(video, { allowMissingGroup: !input, allowMissingProfession: !input });
     }
     return data;
   }

@@ -59,10 +59,9 @@ function publicRequest(request, repository) {
   } catch {
     throw new AuthError(422, 'INVALID_EVENT', '場次資料格式不正確');
   }
-  const requiresLogin =
-    repository.participationRequiresLogin(eventId) || participation[2] === 'participation-members';
+  const requiresLogin = repository.participationRequiresLogin(eventId);
   request.participationLoginRequired = requiresLogin;
-  // Anonymous scrimmages remain public; any authenticated write still requires CSRF.
+  // All battle calendar operations are public; authenticated writes still require CSRF.
   return !requiresLogin && (!request.auth || request.method === 'GET');
 }
 

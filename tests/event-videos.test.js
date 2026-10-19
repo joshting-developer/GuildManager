@@ -11,6 +11,7 @@ import { createEventVideoClient } from '../src/api/event-videos.js';
 const code = (value) => (error) => error.code === value;
 const video = (event, extra = {}) => ({
   name: '空城',
+  professionId: 3,
   firstUrl: 'https://www.youtube.com/watch?v=example',
   secondUrl: '',
   note: '',
@@ -99,6 +100,9 @@ test('reject malformed links, fields, unavailable events and stale versions with
       { groupName: '進攻團' },
       { eventRevision: '1' },
       { requestId: '' },
+      { professionId: null },
+      { professionId: '3' },
+      { professionId: 999 },
     ])
       assert.throws(
         () => repo.submitEventVideo(event.id, video(event, extra)),
@@ -144,7 +148,7 @@ test('API allows calendar submissions; only admin/manager can read videos, with 
     for (const event of events)
       assert.equal((await request(`/events/${event.id}/videos`)).status, 401);
     for (const event of events.slice(1, 3))
-      assert.equal((await request(`/events/${event.id}/videos`, 'POST', video(event))).status, 401);
+      assert.equal((await request(`/events/${event.id}/videos`, 'POST', video(event))).status, 201);
     for (const role of ['member', 'admin', 'manager']) {
       const login =
         role === 'member'
@@ -189,7 +193,7 @@ test('API allows calendar submissions; only admin/manager can read videos, with 
       await request('/auth/logout', 'POST', {}, headers);
       assert.equal(
         (await request(`/events/${events[1].id}/videos`, 'POST', video(events[1]), headers)).status,
-        401,
+        201,
       );
     }
   } finally {
@@ -216,6 +220,31 @@ test('adapter rejects unsafe saved URLs and malformed replies', async () => {
     fetchImpl: async () => ({ ok: true, json: async () => ({ videos: [] }) }),
   });
   await assert.rejects(broken.getVideos('event'), /格式不正確/);
+});
+
+test('video professions are required snapshots and selected members must still match the current roster', () => {
+  const { repo, events } = setup();
+  try {
+    for (const [uid, isInGuild, isInClub] of [['guild', true, true], ['club', false, true], ['outside', false, false]])
+      repo.addMember({ uid, name: '同名', primaryProfessionId: 1, isInGuild, isInClub });
+    const before = repo.listMembers();
+    for (const event of events.slice(0, 3)) {
+      const input = video(event, { name: '同名', memberUid: 'club', professionId: 3 });
+      const saved = repo.submitEventVideo(event.id, input);
+      assert.equal(saved.video.professionId, 3);
+      assert.equal(saved.video.professionName, '碎夢');
+      assert.equal(saved.video.professionColorcode, repo.listProfessions().professions.find(row => row.job_id === 3).colorcode);
+      assert.ok(!('memberUid' in saved.video));
+      assert.deepEqual(repo.submitEventVideo(event.id, input), saved);
+      assert.throws(() => repo.submitEventVideo(event.id, { ...input, professionId: 1 }), code('REQUEST_CONFLICT'));
+      for (const extra of [{ memberUid: 'missing' }, { memberUid: 'outside' }, { memberUid: 'guild', name: '舊名' }])
+        assert.throws(() => repo.submitEventVideo(event.id, video(event, { name: '同名', ...extra })), code('VIDEO_MEMBER_CHANGED'));
+    }
+    assert.deepEqual(repo.listMembers(), before);
+    repo.updateMember('club', { name: '新名', primaryProfessionId: 1, isInGuild: false, isInClub: false, revision: 1 });
+    assert.throws(() => repo.submitEventVideo(events[0].id, video(events[0], { name: '新名', memberUid: 'club' })), code('VIDEO_MEMBER_CHANGED'));
+    assert.equal(repo.listEventVideos(events[0].id).videos[0].professionName, '碎夢');
+  } finally { repo.close(); }
 });
 
 test('one or both round URLs are saved together and validation never partially saves a submission', () => {
@@ -303,6 +332,7 @@ test('legacy per-round links, groups and retry records survive the additive sche
     assert.equal(old.find((v) => v.id === 'old-2').secondUrl, 'https://example.com/old-2');
     assert.equal(old.find((v) => v.id === 'old-1').groupName, '防守團');
     assert.equal(old.find((v) => v.id === 'preview').groupName, null);
+    assert.ok(old.every(row => row.professionId === null && row.professionName === null));
     repo.submitEventVideo(event.id, video(event));
     assert.equal(repo.listEventVideos(event.id).videos.length, 4);
     const verify = new Database(filename);

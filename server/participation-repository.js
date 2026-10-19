@@ -172,9 +172,7 @@ export function createParticipationRepository(db, { notify = () => {} } = {}) {
     },
     participationRequiresLogin(eventId) {
       checkEvent(eventId);
-      return ['guild_war', 'dragon_tiger'].includes(
-        db.prepare('SELECT type FROM scheduled_events WHERE id = ?').get(eventId).type,
-      );
+      return false;
     },
     listEventParticipationMembers(eventId) {
       checkEvent(eventId);
