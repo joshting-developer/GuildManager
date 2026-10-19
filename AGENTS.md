@@ -6,7 +6,7 @@
 
 - 介面、文件與操作訊息使用繁體中文
 - 視覺參考相鄰專案 `../NSHM_history`, 本專案的具體規則以 [Style.md](Style.md) 為準
-- 已建立 Vuetify 首頁／成員管理／活動安排／戰場排表／戰績上傳／戰績閱覽、Docker 本機環境、SQLite 讀寫 API 與 GAS 單檔編譯流程；v1.0.12 已同步 GAS 並讀回四檔核對。2026/10/19 Webhook 調查唯讀確認正式 Web App 為第 17 版、說明 v1.0.12，後端與已同步備份一致；本機 v1.0.13 尚待同步／發布，見 GASDeployment.md。下方第 3 版或未部署等舊交付紀錄保留作歷史參考。
+- 已建立 Vuetify 首頁／成員管理／活動安排／戰場排表／戰績上傳／戰績閱覽、Docker 本機環境、SQLite 讀寫 API 與 GAS 單檔編譯流程；最新 v1.0.13（來源 783cddd）已同步 GAS 並讀回四檔核對。2026/10/19 Webhook 調查唯讀確認對外 Web App 為第 17 版 v1.0.12；本輪程式同步沒有更新部署，1.0.13 尚待使用者發布，見 GASDeployment.md。下方第 3 版或未部署等舊交付紀錄保留作歷史參考。
 - 使用者已確認本機使用 SQLite, 後期資料來源為 Google 試算表
 - 試算表 ID 已取得, 本機使用帳號密碼登入；正式工作表名稱與 Google 登入待確認, 本機角色為 admin／manager／member, 成員、職業、過去名稱及活動安排欄位已依需求實作於本機
 
@@ -474,7 +474,7 @@ member／manager／admin 均可進入 `#/members`，成員與編外分類、UID�
 
 260 項測試、一般／GAS 編譯通過；Chrome 隔離資料實際確認 48 人排表可保存與重載，模擬缺失空位 UID／空第二場可保存，錯誤指出位置且保留草稿，修正後可重試。新測試 `tests/lineup-empty-person.test.js` 在修正前四項皆失敗，修正後通過。本機輸出 `/private/tmp/guild-lineup-empty-person-tests.log` 與 `/private/tmp/guild-lineup-save-preview/check.mjs`。僅本機提交，尚未 push／同步 GAS／更新 Web App，正式 GAS 尚未套用修正。
 
-## v1.0.12 GAS 同步完成（2026/10/19，最新交付）
+## v1.0.12 GAS 同步完成（2026/10/19，歷史交付）
 
 使用者要求先同步 GAS，並更正「每批新的 GAS 功能／修正同步都應算一個小版本」。本批由 1.0.11 升為 1.0.12，來源 commit `61caa9b`；新版 release note 包含 CSV 人數提醒、公開報名／影片職業、請假者置底及排表儲存修正，1.0.11 恢復已交付成員維護內容。前述本機尚未同步記錄現已完成程式同步，不能沿用為最新交付狀態。
 
@@ -503,3 +503,9 @@ member／manager／admin 均可進入 `#/members`，成員與編外分類、UID�
 使用者自行在編輯器執行既有 testDiscordWebhooks，回報原先疑似權限不足，補授權後 `DISCORD_WEBHOOK_LEAVE：成功（HTTP 204）`；名冊回報未設定或不是 Discord webhook 網址。優先判斷請假失敗與授權有關，測試已證實目前請假 Webhook 可送達，正常請假仍待一筆新的狀態變更確認。相同 requestId 或已請假者再次送出不重複通知，先前保存但未送出的通知不會自動補發；不為測試改正式出勤。
 
 6 項通知測試通過（兩項本機 HTTP 測試需 sandbox 外執行），未改程式、升版、同步 GAS、更新部署、讀取 Webhook 值或由工具送真實 Discord 訊息；僅更新診斷交接。日常送出例外目前會靜默忽略，不能只憑請假成功認定通知已送達。
+
+## v1.0.13 GAS 同步完成（2026/10/19，最新交付）
+
+使用者要求先同步 GAS，來源 `783cddd`，已將本批「member 隱藏移至編外」（38ba886）及「三角色回首頁」（4f38a78）同步。沿用本批既定 1.0.13，不再次升版；package／lockfile／release note 與 GAS 套件一致。`npm run gas:push` 完成編譯、遠端備份、上傳四檔與讀回比對；最新私有備份 `data/gas-backups/2026-10-19T07-28-50-025Z/`。上方尚未同步的 1.0.13 段落為同步前紀錄，本節為最新結果。
+
+本輪未 push Git、更新 Web App 部署、執行 setupGas、修改正式試算表／Script Properties 或傳送 Discord 測試通知。前一步 Webhook 調查確認對外部署為第 17 版 v1.0.12，本輪未改部署；使用者仍需發布既有 Web App 的新版本才能套用 1.0.13。功能沿用已通過的 260 項測試、三角色桌面／手機與最近 6 項通知測試，本輪重新編譯及版本／套件檢查通過。
