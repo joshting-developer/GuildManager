@@ -6,7 +6,7 @@
 
 - 介面、文件與操作訊息使用繁體中文
 - 視覺參考相鄰專案 `../NSHM_history`, 本專案的具體規則以 [Style.md](Style.md) 為準
-- 已建立 Vuetify 首頁／成員管理／活動安排／戰場排表／戰績上傳／戰績閱覽、Docker 本機環境、SQLite 讀寫 API 與 GAS 單檔編譯流程；2026/10/19 來源 687b01b（v1.0.11，成員維護功能 f02e43a 並補上更新紀錄）已推送 origin/main、同步 GAS 並讀回四檔核對，Web App 仍需更新部署；前次查詢為第 3 版，此次未重查，見 GASDeployment.md
+- 已建立 Vuetify 首頁／成員管理／活動安排／戰場排表／戰績上傳／戰績閱覽、Docker 本機環境、SQLite 讀寫 API 與 GAS 單檔編譯流程；2026/10/19 最新來源 61caa9b（v1.0.12，公開報名／影片職業、請假置底、CSV 摘要與排表空人員儲存修正）已同步 GAS 並讀回四檔核對，本批尚未 push origin/main，Web App 仍需使用者更新部署。前次查詢部署為第 3 版，本輪未重查，見 GASDeployment.md；下方未同步紀錄為本次同步前的實作歷史。
 - 使用者已確認本機使用 SQLite, 後期資料來源為 Google 試算表
 - 試算表 ID 已取得, 本機使用帳號密碼登入；正式工作表名稱與 Google 登入待確認, 本機角色為 admin／manager／member, 成員、職業、過去名稱及活動安排欄位已依需求實作於本機
 
@@ -39,6 +39,7 @@
 
 - 發布版本的唯一來源為 `package.json` 的 `version`；`package-lock.json` 根層與根套件的版本需一致。Vite 透過 `__APP_VERSION__` 帶入頁尾，不手改 App.vue 或編譯後 HTML 的版本字樣。
 - 使用者要求交付新版本／同步 GAS 時，同一批尚未發布的功能與修正升版一次；預設沿用既有 `1.0.x` 流程遞增 patch，有明確 major／minor 指示再調整。文件整理、失敗重試或同一版本重新同步不重複升版。
+- 2026/10/19 使用者再次確認：同步 GAS 的新一批功能／修正就算一個新的小版本，必須遞增 patch 並新增相符的 release note；不能沿用上一批「不要重複升版」的指示，把後續新功能持續併入已交付版本。本批由 1.0.11 升為 1.0.12，1.0.11 保留已交付成員維護紀錄。
 - 使用 `npm version patch --no-git-tag-version --ignore-scripts` 同步 package 與 lockfile，避免額外自動 commit／tag；不手改 lockfile 中套件依賴版本。先升版，再執行一般及 GAS 編譯，確認套件與頁尾版本一致。
 - 每次交付新功能、修正或升版，都要同步更新 `src/content/release-notes.json`，供頁尾版號連到的「更新紀錄」頁顯示。最新版本置頂，版本對齊 `package.json`，日期使用台北日期 `YYYY-MM-DD`；以繁體中文摘要及既有「新功能／效能／修正／其他」分類說明使用者可見的改動，不把 commit 訊息或部署成功當成功能說明。
 - 同一版本補充 release note 時更新既有條目，不新增重複版本或再次升版；保留舊版紀錄。提交與 GAS 編譯／同步前，確認目前版本有對應條目且內容涵蓋本次功能與修正；更新紀錄隨前端編譯打包，GAS 同步／Web App 發布仍依使用者授權範圍執行。
@@ -472,3 +473,11 @@ member／manager／admin 均可進入 `#/members`，成員與編外分類、UID�
 共用 `lineup-validation.js` 將空 UID 正規化為 null，沒有任何人員引用的第二場正規化為 null；非空錯誤型態、成員／外援雙身分、重複人員、職業與資格仍檢查。真正人員格式錯誤會指出團別、隊伍、位置、場序，不輸出 UID；不改前端頁面、不可變快照或名冊。1.0.11 更新紀錄已補充，未升版。
 
 260 項測試、一般／GAS 編譯通過；Chrome 隔離資料實際確認 48 人排表可保存與重載，模擬缺失空位 UID／空第二場可保存，錯誤指出位置且保留草稿，修正後可重試。新測試 `tests/lineup-empty-person.test.js` 在修正前四項皆失敗，修正後通過。本機輸出 `/private/tmp/guild-lineup-empty-person-tests.log` 與 `/private/tmp/guild-lineup-save-preview/check.mjs`。僅本機提交，尚未 push／同步 GAS／更新 Web App，正式 GAS 尚未套用修正。
+
+## v1.0.12 GAS 同步完成（2026/10/19，最新交付）
+
+使用者要求先同步 GAS，並更正「每批新的 GAS 功能／修正同步都應算一個小版本」。本批由 1.0.11 升為 1.0.12，來源 commit `61caa9b`；新版 release note 包含 CSV 人數提醒、公開報名／影片職業、請假者置底及排表儲存修正，1.0.11 恢復已交付成員維護內容。前述本機尚未同步記錄現已完成程式同步，不能沿用為最新交付狀態。
+
+`npm run gas:push` 成功編譯、備份、上傳四檔並讀回比對一致；最終備份 `data/gas-backups/2026-10-19T06-57-29-237Z/`，更正版號前中間備份 `data/gas-backups/2026-10-19T06-56-10-090Z/`，均私有不提交。一般／GAS 編譯與版本／更新紀錄核對通過，功能沿用前一輪 260 項測試及隔離瀏覽器驗證。
+
+本輪未 push Git、更新 Web App 部署、執行 setupGas、變更正式試算表或 Script Properties，也未查詢部署版號。使用者仍需更新既有 Web App 的部署版本才會對外生效；同步成功不代表原正式儲存錯誤已完成真實業務驗證。後續新批次同步依發布規則遞增 patch，單純失敗重試／同批重新同步不重複升版。
