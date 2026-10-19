@@ -40,6 +40,8 @@
 - 發布版本的唯一來源為 `package.json` 的 `version`；`package-lock.json` 根層與根套件的版本需一致。Vite 透過 `__APP_VERSION__` 帶入頁尾，不手改 App.vue 或編譯後 HTML 的版本字樣。
 - 使用者要求交付新版本／同步 GAS 時，同一批尚未發布的功能與修正升版一次；預設沿用既有 `1.0.x` 流程遞增 patch，有明確 major／minor 指示再調整。文件整理、失敗重試或同一版本重新同步不重複升版。
 - 使用 `npm version patch --no-git-tag-version --ignore-scripts` 同步 package 與 lockfile，避免額外自動 commit／tag；不手改 lockfile 中套件依賴版本。先升版，再執行一般及 GAS 編譯，確認套件與頁尾版本一致。
+- 每次交付新功能、修正或升版，都要同步更新 `src/content/release-notes.json`，供頁尾版號連到的「更新紀錄」頁顯示。最新版本置頂，版本對齊 `package.json`，日期使用台北日期 `YYYY-MM-DD`；以繁體中文摘要及既有「新功能／效能／修正／其他」分類說明使用者可見的改動，不把 commit 訊息或部署成功當成功能說明。
+- 同一版本補充 release note 時更新既有條目，不新增重複版本或再次升版；保留舊版紀錄。提交與 GAS 編譯／同步前，確認目前版本有對應條目且內容涵蓋本次功能與修正；更新紀錄隨前端編譯打包，GAS 同步／Web App 發布仍依使用者授權範圍執行。
 - 先檢查與提交本次功能、修正及版本檔；文件／規範可獨立提交。只有使用者本輪明確要求才 push 或同步 GAS，遠端資料、憑證、根目錄名單及私有備份不提交。
 - `npm run gas:push` 會編譯、備份遠端、同步四檔、讀回比對；以工具成功結果確認同步完成，記錄來源 commit、平台版本及備份位置。更新 GASDeployment.md 的實際狀態，不把過往版本當成本輪結果。
 - GAS 程式同步與 Web App 發布不同；除非另外明確授權發布，不更新對外部署、不執行 setupGas，也不改正式試算表或 Script Properties。回報需明確區分已 push／已同步程式／已發布。
