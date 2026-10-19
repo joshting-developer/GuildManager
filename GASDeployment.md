@@ -12,6 +12,8 @@
 
 本輪新增 6 項，原 305 項測試未修改，完整 311／311 通過；比較表最後調整後相關 13／13 通過。一般／GAS 編譯、版號／release note／四檔及無外部 JS／CSS 核對通過。隔離編譯後 GAS／實際 localhost 桌面手機已驗證兩表、數值、三／五 tab、14 對 23、排序／分頁、明暗、持鎖讀取、互動零新增 RPC、手動重載及鍵盤焦點。證據見 AGENTS.md 最新交接、`/private/tmp/guild-split-analysis-preview/` 及私有 `data/local-split-analysis-preview/`。沿用尚未同步 1.0.21，不再次升版。
 
+同批另依使用者指示移除個人戰績三顆批次勾選快捷按鈕，保留預選最新十筆、逐筆／本頁／跨頁及走勢；既有個人頁 10 項測試原樣、一般／GAS 編譯及 localhost 桌面手機驗證通過。版本仍為 1.0.21，尚未同步。
+
 先前個人頁驗證：新增 5 項測試，原 300 項未修改，完整 305 項通過。一般／GAS 編譯、版號／release note／四檔／無外部 JS／CSS 核對通過；隔離 Chrome 桌面與手機確認單次載入、前端操作無新增 API、圖表實例重用、持鎖讀取、失敗保留選取、鍵盤與過期回應保護。紀錄見 AGENTS.md 文末與 `/private/tmp/guild-personal-preview/`。
 
 ECharts 6.1.0 採必要模組、圓餅共用單一 Canvas；目前一般網站延遲載入的共享 Canvas／核心模組約 150 KB gzip，圓餅模組約 9 KB、個人走勢模組約 36 KB gzip。GAS 單檔 HTML 約 1.71 MB、gzip 約 493 KB，全部一起打包；首載仍受資料量、Google 延遲與傳輸大小影響，未實測正式秒數。
