@@ -34,9 +34,14 @@ async function memberFlow(client) {
   await assert.rejects(
     client.updateMember(uid, { ...values, name: '衝突名', revision: created.revision }),
   );
-  const moved = (await client.removeMember(uid, changed.revision)).member;
-  assert.equal(moved.isInGuild, false);
-  assert.equal(moved.isInClub, false);
+  await assert.rejects(client.removeMember(uid, changed.revision),
+    (error) => error.code === 'MANAGEMENT_REQUIRED');
+  const membershipChanged = (await client.updateMember(uid, {
+    ...values, name: '新名', primaryProfessionId: 2, secondaryProfessionId: 5,
+    isInClub: false, revision: changed.revision,
+  })).member;
+  assert.equal(membershipChanged.isInGuild, true);
+  assert.equal(membershipChanged.isInClub, false);
   const source = { text: 'UID Name 主職業 副職業\n0001 不覆寫 素問 -\n0002 匯入新成員 龍吟 碎夢' };
   const preview = await client.previewMemberImport(source);
   assert.equal(preview.summary.skipped, 1);
@@ -45,16 +50,16 @@ async function memberFlow(client) {
   const members = (await client.getMembers()).members;
   assert.equal(members.length, 2);
   assert.equal(members.find((row) => row.uid === '0001').name, '新名');
-  assert.equal(members.find((row) => row.uid === '0001').isInGuild, false);
+  assert.equal(members.find((row) => row.uid === '0001').isInGuild, true);
   const restored = (
-    await client.updateMember(uid, { ...values, name: '新名', revision: moved.revision })
+    await client.updateMember(uid, { ...values, name: '新名', revision: membershipChanged.revision })
   ).member;
   assert.equal(restored.isInGuild, true);
   assert.equal(restored.isInClub, true);
   return members;
 }
 
-test('member HTTP session has full roster capabilities with CSRF, revisions and import protections; other management stays restricted', async () => {
+test('member HTTP roster retains editing/import but denies move-to-external; admin/manager retain the action', async () => {
   const repo = createRepository({ filename: ':memory:' });
   const admin = await repo.createAccount({ username: 'admin', password: 'admin-password-123' });
   await repo.setMemberToken(admin.id, { password: 'Member123', revision: 0 });
@@ -93,6 +98,21 @@ test('member HTTP session has full roster capabilities with CSRF, revisions and 
         );
     }
     await memberFlow(createMemberClient({ fetchImpl: fetchMember }));
+    for (const role of ['admin', 'manager']) {
+      if (role === 'manager') await repo.createAccount({ username: role, password: 'manager-password-123' });
+      const privileged = await repo.authenticate({ username: role,
+        password: role === 'admin' ? 'admin-password-123' : 'manager-password-123' });
+      const current = repo.listMembers().members.find((row) => row.uid === '0001');
+      const response = await fetch(base + '/api/members/0001', {
+        method: 'DELETE',
+        headers: { Cookie: `guild_session=${privileged.token}`, 'X-CSRF-Token': csrfToken(privileged.token), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ revision: current.revision }),
+      });
+      assert.equal(response.status, 200, role);
+      const moved = (await response.json()).member;
+      assert.equal(moved.isInGuild, false);
+      assert.equal(moved.isInClub, false);
+    }
     for (const [path, method] of [
       ['/home', 'GET'],
       ['/lineups', 'GET'],
@@ -122,7 +142,7 @@ test('member HTTP session has full roster capabilities with CSRF, revisions and 
   }
 });
 
-test('GAS member RPC adapter supports all roster operations while management roles and session/CSRF checks stay scoped', async () => {
+test('GAS member roster denies removeMember while retaining other roster operations and manager access', async () => {
   const env = await gasRuntime();
   env.setup();
   const admin = cloudResult(
@@ -141,7 +161,7 @@ test('GAS member RPC adapter supports all roster operations while management rol
     ['importMembers', [{}]],
   ]) {
     assert.equal(env.raw(op, args).error.code, 'AUTH_REQUIRED', op);
-    if (!['getMembers', 'previewMemberImport'].includes(op))
+    if (!['getMembers', 'previewMemberImport', 'removeMember'].includes(op))
       assert.equal(
         env.raw(op, args, { sessionToken: session.sessionToken }).error.code,
         'CSRF_INVALID',
@@ -174,6 +194,14 @@ test('GAS member RPC adapter supports all roster operations while management rol
       fetchImpl: () => assert.fail('no HTTP fallback'),
     }),
   );
+  cloudResult(env.raw('createManager', [{ username: 'manager', password: 'manager-password-123' }], adminCtx));
+  const manager = cloudSession(cloudResult(env.raw('login', [{ username: 'manager', password: 'manager-password-123' }])));
+  for (const privileged of [adminCtx, manager]) {
+    const current = cloudResult(env.raw('getMembers', [], privileged)).members.find((row) => row.uid === '0001');
+    const moved = cloudResult(env.raw('removeMember', [current.uid, current.revision], privileged)).member;
+    assert.equal(moved.isInGuild, false);
+    assert.equal(moved.isInClub, false);
+  }
   for (const [op, args] of [
     ['getHomeData', []],
     ['getLineupIndex', []],

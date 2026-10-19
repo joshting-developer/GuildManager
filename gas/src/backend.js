@@ -39,7 +39,6 @@ const MEMBER_MANAGEMENT = [
   'getMembers',
   'addMember',
   'updateMember',
-  'removeMember',
   'previewMemberImport',
   'importMembers',
 ];

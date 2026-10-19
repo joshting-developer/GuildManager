@@ -25,7 +25,7 @@ function memberManagementRequest(request) {
   if (request.path === '/members') return ['GET', 'POST'].includes(request.method);
   if (['/members/import', '/members/import/preview'].includes(request.path))
     return request.method === 'POST';
-  return /^\/members\/[^/]+$/.test(request.path) && ['PATCH', 'DELETE'].includes(request.method);
+  return /^\/members\/[^/]+$/.test(request.path) && request.method === 'PATCH';
 }
 function publicRequest(request, repository) {
   const path = request.path;

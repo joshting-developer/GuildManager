@@ -207,13 +207,14 @@ const moveDialog = ref(false);
 const movingBusy = ref(false);
 const moveError = ref('');
 function openMove(member) {
+  if (!canMaintain.value) return;
   opener = document.activeElement;
   moving.value = member;
   moveError.value = '';
   moveDialog.value = true;
 }
 async function moveToExternal() {
-  if (movingBusy.value) return;
+  if (movingBusy.value || !canMaintain.value) return;
   movingBusy.value = true;
   moveError.value = '';
   notice.value = '';
@@ -524,7 +525,7 @@ function formatDate(value) {
                         @click="openForm(member)"
                         >編輯</v-btn
                       ><v-btn
-                        v-if="tab === 'members'"
+                        v-if="canMaintain && tab === 'members'"
                         color="warning"
                         variant="text"
                         size="small"
