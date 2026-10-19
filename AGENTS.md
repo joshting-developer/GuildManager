@@ -140,6 +140,7 @@ Apps Script 的 `.gs` 檔案共用全域環境, 避免重複命名與載入時�
 
 ## 已確認場次報名／請假規則
 
+- 報名視窗首次／手動重載使用 `GET /api/events/:id/participation-form`／GAS `getEventParticipationForm`，在同一讀取交易回傳原 participation 資料、必要名冊與職業，三種戰鬥均公開。舊端點及回應保留；送出成功後只重讀 participation。GAS 同次組裝重用 responses／registrations 陣列及有效外援名稱 Set，不跨請求快取會變動的報名版本；Script Lock／CSRF／重試規則不變。
 - 約戰／幫戰／龍虎戰均公開可見與操作，未登入亦可報名／請假、選取成員及上傳影片。三種報名的名稱區統一為直接輸入／幫會成員名單（isInGuild）／龍虎戰成員名單（isInClub，含兼屬）三頁，自動帶入主職業且可改，不顯示 UID。狀態只有「報名／請假」，請假不要求職業。
 - 報名視窗的共用摘要只顯示報名人數, 表單／職業統計兩個 tab 均不顯示請假人數；不顯示個別報名者的名稱、職業、備註或狀態清單, 送出成功只顯示「報名成功／請假成功」提示。
 - 報名視窗分成「報名／請假」及「職業統計」兩個 tab, 前者為原表單, 後者列出職業表各職業的本場有效報名人數, 包含 0 人；切換不清除輸入, 請假及舊 none 不計入職業報名統計。
@@ -394,6 +395,7 @@ member／manager／admin 均可進入 `#/members`，成員與編外分類、UID�
 - 請假頻道：成員／外援請假、請假後改回報名、管理者取消請假；一般報名不通知。內容為場次（日期・類型・名稱）、玩家與當場職業、狀態，不含備註。
 - 名冊頻道：新增、實際有變更的修改（含原名稱）、移至編外；CSV 匯入合併為一則摘要。名冊通知含 UID（管理情境）。
 - Webhook 網址屬私密設定：本機環境變數、GAS Script Properties 的 `DISCORD_WEBHOOK_LEAVE`／`DISCORD_WEBHOOK_MEMBER`，未設定即不送，只接受 discord.com／discordapp.com 的 `/api/webhooks/` 網址，紀錄不得包含網址。
+- GAS 已填但無效網址、HTTP 失敗（含 429 重試後最終結果）與傳送例外，僅記錄設定名稱、固定錯誤分類及數字 HTTP 狀態；不輸出網址、Token、例外原文、回應本文或玩家資料。未設定選填頻道維持靜默停用；診斷本身失敗不影響已保存回應。
 - 只在資料成功保存後送出：本機在 SQLite 交易成功後非同步依序發送，GAS 在 script lock 釋放後以 UrlFetchApp 發送；失敗或 429 重試一次後放棄，不影響原操作。相同 requestId 重試、無變更的修改與失敗請求不通知。
 - 訊息關閉 mentions 並跳脫玩家輸入的 markdown。GAS 新增 `script.external_request` 授權範圍，部署者需重新授權；真實 Discord 送達尚待使用者設定 Webhook 後驗證。
 
@@ -540,3 +542,13 @@ member／manager／admin 均可進入 `#/members`，成員與編外分類、UID�
 後續優先建議（尚未實作）：報名視窗首次 load 分為 getEventParticipation／getProfessions／getEventParticipationMembers，職業快取命中後為兩個 RPC；所有 RPC 仍受同一 script lock 保護，Promise.all 無法讓後端同時執行。隔離 30 成員／30 外援初次三個 RPC 分別 8／2／4 次 Sheets getValues，合計 14 次；宜新增整併讀取端點，保留權限、版本及提交後只重讀回應規則，不直接移除一致性鎖。getEventParticipation 另有 responses 三次、registrations 兩次 all() 的記憶體複製／排序，及已取消外援對全部外援 some() 的平方比較，可重用同次讀取陣列並改用有效名稱 Set；store transaction 已快取資料，這些重複 all() 不是每次重新讀 Sheets。量測腳本 `/private/tmp/guild-today-performance-audit.mjs`，不使用正式資料。
 
 CSV 提醒僅增加兩隊摘要檢查，仍受 1 MB／500 玩家上限；影片三團選項只有三筆，不為三筆 find() 加上額外索引。名冊／職業由報名及影片表單共用、職業 transport 快取與排表 responses Map 仍保留。Webhook 在鎖外送出，但失敗無診斷紀錄屬後續可觀測性項目，本輪未修改或送出通知。本輪只本機提交，未 push Git／同步 GAS／更新 Web App，GAS 最新程式仍為 1.0.14。
+
+## 報名／排表與 Webhook 改善完成（2026/10/19，本機 v1.0.15）
+
+使用者授權完成前輪全部改善，要求原有測試維持不變。`03816a0` 新增整併報名讀取與單場活動查詢；`f3fae2a`／`8a37aab` 加入安全通知診斷並保留未設定頻道的靜默停用；`86ab643` 將排表顯示與資格查詢改為可隨名冊／職業／職責更新的 Map／Set。延續前輪尚未同步的 1.0.15，只補同筆 release note，未再升版。
+
+報名首次載入由三個 RPC 改為一個，隔離 30 成員／30 外援的 Sheets getValues 從 14 次降為 7 次，表單資料與原三端點合併結果一致。GAS 回應／外援表各只 all() 一次，保留原版本雜湊及同名外援請假判斷。`GET /api/events/:id`／GAS `getEvent` 公開回傳有效單場安排，影片重載不再抓全部場次；刪除拒絕、一般活動回傳但不能上傳影片，舊 list API 不變。排表索引保持 member／registration 身分區分；封存直接用快照，不套現有名冊／職業／職責。
+
+驗證基準為原 260 項全部通過；本輪只新增兩份測試檔共 5 項，原有測試沒有修改。第一次全跑發現原 admin recovery 測試因未設定選填頻道新增日誌而失敗，已改回原靜默行為，沒有放寬斷言；最終 265 項全部通過。日誌 `/private/tmp/guild-v1015-baseline-tests.log`、`/private/tmp/guild-v1015-final-tests.log`；一般／GAS 編譯及 package／lockfile／release note 版本檢查通過。
+
+隔離 Chrome 桌面／手機驗證一次載入、提交後只重讀回應、三種匿名戰鬥、影片單場重載、失敗／改類型／刪除保留草稿與停止送出；排表驗證副職業／雙場、更新後索引刷新、職責改名／停用及封存舊快照。腳本 `/private/tmp/guild-v1015-frontend/check.mjs`、`/private/tmp/guild-lineup-index-preview/check.mjs` 與既有請假來源回歸腳本。本機／GAS API 測試及通知傳送均使用隔離或模擬環境，不代表真實 Google／Discord 延遲或送達驗證。本輪未 push／同步 GAS／更新部署／修改正式資料，GAS 最新程式仍為 1.0.14；前節「後續尚未實作」為改善前紀錄，以本節為準。

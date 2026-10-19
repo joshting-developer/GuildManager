@@ -126,6 +126,10 @@ GAS 已以試算表分開保存摘要、玩家快照及個人關聯，Drive 保�
 
 App 提供 calendarAuth 的使用者及確認登入狀態；三種戰鬥名稱來源統一為手填／幫會／俱樂部成員。NameSourcePicker 共用分頁／選人介面，ParticipationDialog 一次讀取場次回應、職業與必要名冊，傳給影片表單使用；過期／撤銷後保留公開操作，登入狀態變化重讀但不清草稿。
 
+首次及手動重讀使用 `GET /api/events/:id/participation-form`／GAS `getEventParticipationForm` 一次取得 `{ eventId, revision, responses, registrations, registrationLeaves, members, professions }`；SQLite 使用同一讀取交易，GAS 在既有 script lock／store transaction 內先載入名冊供回應重用。送出成功只查原 participation，舊三個查詢端點與 DTO 保留。GAS 版本雜湊與 DTO 共用本次回應／外援陣列，有效外援名稱 Set 取代逐列互相比較，不跨請求快取。
+
+公開 `GET /api/events/:id`／GAS `getEvent` 回傳單筆有效安排，沿用清單可見資料；刪除／不存在回傳錯誤。影片重載僅查該場並確認仍是三種戰鬥，刷新表單名冊仍走整併端點，失敗保留草稿。排表以 computed Map／Set 索引目前成員、職業、職責及資格，相關來源變更時失效重算，封存顯示仍直接讀不可變快照。
+
 後端先驗證有效單日戰鬥，再開放 GET／POST／PATCH participation、GET participation-members、POST／DELETE registrations 與 POST videos 的匿名操作；登入寫入維持 CSRF。完整名冊、出勤／影片閱覽及管理 API 不因公開場次而放寬。場次選人僅回傳 uid／name／主副職業 ID／所屬狀態，不含舊名、revision 或備註。
 
 名單選人傳送可選 memberUid；同一交易檢查 UID、姓名與目前幫派／俱樂部狀態, 同名仍可指定人員, 過期名單拒絕。不傳 memberUid 時維持原姓名比對, 舊 requestId 的 input_json 不變；新引用包含於重試比對, 不修改名冊或排表快照。GAS 已提供相同選人驗證與角色限制，尚未部署驗證。
@@ -200,7 +204,7 @@ App 對 member 開放 members 路由及導覽，直接連結登入後保留目�
 
 ## Discord 通知
 
-`src/domain/discord-notifications.js` 共用 Webhook 網址檢查、請假狀態轉換判斷與 embed 內容。業務寫入在交易內把通知排入佇列：本機 repository 以 `takeNotifications()` 交給 `server/app.js`，只在呼叫成功後交由 `server/discord-notifier.js` 非同步依序送出；GAS `rpc()` 收集通知並在 script lock 釋放後以 UrlFetchApp 送出。資料保存為準，通知失敗只記錄或略過，不回滾也不影響回應；重試回應不重送。設定見 README「Discord 通知」與 GASDeployment。
+`src/domain/discord-notifications.js` 共用 Webhook 網址檢查、請假狀態轉換判斷與 embed 內容。業務寫入在交易內把通知排入佇列：本機 repository 以 `takeNotifications()` 交給 `server/app.js`，只在呼叫成功後交由 `server/discord-notifier.js` 非同步依序送出；GAS `rpc()` 收集通知並在 script lock 釋放後以 UrlFetchApp 送出。資料保存為準，通知失敗不回滾或影響回應；重試回應不重送。GAS 未設定頻道靜默停用，已填無效網址、HTTP 失敗及傳送例外僅記錄設定名稱、固定分類與最終 HTTP 狀態，不保存網址、例外原文、回應本文或玩家資料；日誌失敗同樣不影響已保存回應。設定見 README「Discord 通知」與 GASDeployment。
 
 ## 團隊戰績分析
 
