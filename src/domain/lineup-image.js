@@ -24,6 +24,11 @@ const PALETTES = {
     background: '#eef2f7', grid: '#c5d2e1', surface: '#ffffff',
     note: '#f5f8fb', text: '#1e2b3d', muted: '#6b7c90', title: '#1e2b3d',
   },
+  // 米黃 export matches the sepia site theme: warm paper with brown title text.
+  sepia: {
+    background: '#f1e9d8', grid: '#d8c9a8', surface: '#fbf6ea',
+    note: '#f4ecda', text: '#3b3225', muted: '#7a6b52', title: '#6b4a14',
+  },
   dark: {
     background: '#121b2a', grid: '#2c4262', surface: '#1b2639',
     note: '#172133', text: '#f0e6cf', muted: '#93a4ba', title: '#e3c27a',
@@ -33,7 +38,7 @@ const PALETTES = {
 // Resolve the same live names and selected professions as the board; archives use snapshots.
 export function lineupImageData({ event, teams, members, professions, duties, snapshots, status, theme = 'light' }) {
   return {
-    theme: theme === 'dark' ? 'dark' : 'light',
+    theme: PALETTES[theme] ? theme : 'light',
     date: event.dates[0],
     title: `${eventTypeLabel(event.type)}${event.title ? ` · ${event.title}` : ''}`,
     status,
@@ -188,7 +193,7 @@ export async function lineupJpeg(data) {
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d');
   if (!context) throw new Error('瀏覽器無法產生圖片, 請換用支援 Canvas 的瀏覽器');
-  const palette = PALETTES[data.theme === 'dark' ? 'dark' : 'light'];
+  const palette = PALETTES[data.theme] || PALETTES.light;
   // One header row like a table: date/status left, title centred, colour legend right.
   const SIDE = 520;
   font(context, TITLE_SIZE, 600);

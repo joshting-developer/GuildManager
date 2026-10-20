@@ -26,6 +26,7 @@ import {
 import { eventTypeLabel, eventDisplayTitle } from '../domain/event-types.js';
 import { lineupPeople, lineupSourceMembers } from '../domain/lineup-sources.js';
 import { lineupImageData, lineupJpeg, lineupImageFilename } from '../domain/lineup-image.js';
+import { battleEventLabel, orderBattleEvents } from '../domain/battle-events.js';
 import LineupBoard from './LineupBoard.vue';
 import DutyList from './DutyList.vue';
 import { createDutyClient } from '../api/duties.js';
@@ -228,7 +229,7 @@ const visibleMembers = computed(() =>
 );
 const eventOptions = computed(() =>
   events.value.map((event) => ({
-    title: `${event.dates[0]} · ${eventTypeLabel(event.type)}${event.title ? ` · ${event.title}` : ''}${event.archived ? '（已封存）' : ''}`,
+    title: `${battleEventLabel(event)}${event.archived ? '（已封存）' : ''}`,
     value: event.id,
   })),
 );
@@ -363,7 +364,8 @@ async function load() {
       memberClient.getProfessions(),
     ]);
     if (disposed) return;
-    events.value = index.events;
+    // Lineups are planned ahead: the nearest session from today is selected first.
+    events.value = orderBattleEvents(index.events, { prefer: 'upcoming' });
     templates.value = index.templates;
     duties.value = tasks.duties;
     members.value = people.members;

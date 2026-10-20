@@ -13,6 +13,7 @@ import {
 import { createBattleRecordClient } from '../api/battle-records.js';
 import { createMemberClient } from '../api/members.js';
 import { eventTypeLabel } from '../domain/event-types.js';
+import { compactStat, isWanColumn, statCell } from '../domain/number-format.js';
 import BattleMetadataDialog from './BattleMetadataDialog.vue';
 import BattleTeamAnalysisDialog from './BattleTeamAnalysisDialog.vue';
 import { analyzeBattleTeamContext } from '../domain/team-battle-analysis.js';
@@ -117,13 +118,24 @@ function tableColumnLabel(label, key) {
     ? `${label}/命`
     : label;
 }
-function tableValueLabel(player, key) {
-  const value = battlePlayerValue(player, key, tableMode.value);
-  return value == null
-    ? '—'
-    : value.toLocaleString('zh-TW', {
-        maximumFractionDigits: tableMode.value === 'per_life' ? 2 : 0,
-      });
+// Units are decided per column over this side's players in the current mode.
+const wanKeys = computed(
+  () =>
+    new Set(
+      BATTLE_TABLE_COLUMNS.slice(2)
+        .map(([, key]) => key)
+        .filter((key) =>
+          isWanColumn(
+            sortedPlayers.value.map((player) => battlePlayerValue(player, key, tableMode.value)),
+          ),
+        ),
+    ),
+);
+function tableCell(player, key) {
+  return statCell(battlePlayerValue(player, key, tableMode.value), {
+    wan: wanKeys.value.has(key),
+    maximumFractionDigits: tableMode.value === 'per_life' ? 2 : 0,
+  });
 }
 function professionColor(name) {
   const canonical = name === '神像' ? '神相' : name;
@@ -189,7 +201,7 @@ onUnmounted(() => {
 <template>
   <section class="page-heading" aria-labelledby="battle-detail-title">
     <div>
-      <p class="eyebrow">GUILD MANAGER <span class="eyebrow-divider">/</span> 戰績閱覽</p>
+      <p class="eyebrow">GUILD MANAGER <span class="eyebrow-divider">/</span> 數據分析</p>
       <h1 id="battle-detail-title">對戰詳情<span class="heading-dot">.</span></h1>
     </div>
     <v-btn variant="outlined" href="#/battle-records" :prepend-icon="mdiArrowLeft">返回清單</v-btn>
@@ -262,7 +274,7 @@ onUnmounted(() => {
             <div class="battle-metric-red">
               <span class="battle-red-text">紅方</span
               ><strong :title="numberLabel(metric.red.value)">{{
-                numberLabel(metric.red.value)
+                compactStat(metric.red.value)
               }}</strong>
             </div>
             <div
@@ -277,12 +289,12 @@ onUnmounted(() => {
             <div class="battle-metric-blue">
               <span class="battle-blue-text">藍方</span
               ><strong :title="numberLabel(metric.blue.value)">{{
-                numberLabel(metric.blue.value)
+                compactStat(metric.blue.value)
               }}</strong>
             </div>
           </div>
           <p class="battle-view-muted">
-            差距 {{ numberLabel(metric.gap) }}<span v-if="metric.partial"> · 部分資料</span>
+            差距 {{ compactStat(metric.gap) }}<span v-if="metric.partial"> · 部分資料</span>
           </p>
         </article>
       </div>
@@ -398,9 +410,13 @@ onUnmounted(() => {
                 v-for="[, key] in BATTLE_TABLE_COLUMNS.slice(2)"
                 :key="key"
                 class="numeric"
-                :class="{ 'battle-sorted-cell': sortKey === key }"
+                :class="{
+                  'battle-sorted-cell': sortKey === key,
+                  'stat-empty': tableCell(player, key).empty,
+                }"
+                :title="tableCell(player, key).title"
               >
-                {{ tableValueLabel(player, key) }}
+                {{ tableCell(player, key).text }}
               </td>
             </tr>
             <tr v-if="!pagePlayers.length">

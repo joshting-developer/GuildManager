@@ -73,7 +73,7 @@ onUnmounted(() => {
     <section class="page-heading" aria-labelledby="battle-records-title">
       <div>
         <p class="eyebrow">GUILD MANAGER <span class="eyebrow-divider">/</span> 戰績紀錄</p>
-        <h1 id="battle-records-title">戰績閱覽<span class="heading-dot">.</span></h1>
+        <h1 id="battle-records-title">數據分析<span class="heading-dot">.</span></h1>
       </div>
       <v-btn variant="outlined" :prepend-icon="mdiRefresh" :disabled="loading" @click="loadRecords"
         >重新載入</v-btn

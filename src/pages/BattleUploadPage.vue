@@ -17,6 +17,8 @@ import {
   battleFilenameDefaults,
 } from '../domain/battle-records.js';
 import { eventTypeLabel } from '../domain/event-types.js';
+import { battleEventLabel, isBattleEvent, orderBattleEvents } from '../domain/battle-events.js';
+import { isWanColumn, statCell } from '../domain/number-format.js';
 import './battle-upload.css';
 import BattleMetadataDialog from './BattleMetadataDialog.vue';
 const props = defineProps({ initialEventId: { type: String, default: null } });
@@ -98,6 +100,16 @@ const previewRecord = computed(() => {
       selectedEvent.value?.type === 'scrimmage' && internalRounds.value[previewRound.value],
   };
 });
+// Units are decided per column over the whole record, so every page of 20 reads the same.
+const previewWanKeys = computed(
+  () =>
+    new Set(
+      BATTLE_COLUMNS.map(([, key]) => key).filter((key) =>
+        isWanColumn((previewRecord.value?.players || []).map((player) => player[key])),
+      ),
+    ),
+);
+const previewCell = (player, key) => statCell(player[key], { wan: previewWanKeys.value.has(key) });
 const previewPlayers = computed(
   () =>
     previewRecord.value?.players.slice((previewPage.value - 1) * 20, previewPage.value * 20) || [],
@@ -118,12 +130,7 @@ watch(previewRound, () => {
   downloadError.value = '';
 });
 const eventOptions = computed(() => [
-  ...events.value
-    .filter((event) => event.type !== 'activity')
-    .map((event) => ({
-      title: `${event.dates[0]} · ${eventTypeLabel(event.type)}${event.title ? ` · ${event.title}` : ''}`,
-      value: event.id,
-    })),
+  ...events.value.map((event) => ({ title: battleEventLabel(event), value: event.id })),
 ]);
 let disposed = false,
   attempt = null,
@@ -284,14 +291,12 @@ async function loadEvents() {
     const result = await eventClient.getEvents();
     if (!Array.isArray(result.events)) throw new Error('場次資料格式不正確, 請重新載入');
     if (!disposed && token === eventsToken) {
-      events.value = result.events;
-      if (
-        !selectedEventId.value &&
-        result.events.some(
-          (event) => event.id === props.initialEventId && event.type !== 'activity',
-        )
-      )
-        selectedEventId.value = props.initialEventId;
+      // Data is uploaded after a battle: today or the latest past session comes first.
+      events.value = orderBattleEvents(result.events.filter(isBattleEvent), { prefer: 'recent' });
+      if (!selectedEventId.value)
+        selectedEventId.value = events.value.some((event) => event.id === props.initialEventId)
+          ? props.initialEventId
+          : events.value[0]?.id || null;
     }
   } catch (cause) {
     if (!disposed && token === eventsToken) eventError.value = `場次清單讀取失敗: ${cause.message}`;
@@ -456,7 +461,7 @@ onUnmounted(() => {
   <section class="page-heading" aria-labelledby="battle-upload-title">
     <div>
       <p class="eyebrow">GUILD MANAGER <span class="eyebrow-divider">/</span> 戰績紀錄</p>
-      <h1 id="battle-upload-title">戰績上傳<span class="heading-dot">.</span></h1>
+      <h1 id="battle-upload-title">上傳數據<span class="heading-dot">.</span></h1>
       <p class="page-subtitle">匯入遊戲戰績, 保存每一次對戰結果。</p>
     </div>
   </section>
@@ -722,7 +727,14 @@ onUnmounted(() => {
                     sideLabel(player.side, previewRecord.isInternal ? null : previewRecord.ourSide)
                   }}
                 </td>
-                <td v-for="[, key] in BATTLE_COLUMNS" :key="key">{{ player[key] ?? '—' }}</td>
+                <td
+                  v-for="[, key] in BATTLE_COLUMNS"
+                  :key="key"
+                  :class="{ 'stat-empty': previewCell(player, key).empty }"
+                  :title="previewCell(player, key).title"
+                >
+                  {{ previewCell(player, key).text }}
+                </td>
               </tr>
             </tbody>
           </table>

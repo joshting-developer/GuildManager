@@ -110,6 +110,8 @@ test('JPG uses separate readable columns and theme while retaining all team head
     assert.ok(texts.some((c) => c.value.includes('有未儲存修改')));
   }
   assert.equal(light.calls[0].color, '#eef2f7');
+  const sepia = await render(fixture('sepia'));
+  assert.equal(sepia.calls[0].color, '#f1e9d8', 'the 米黃 theme exports a matching sepia image');
   assert.equal(dark.calls[0].color, '#121b2a');
   assert.notEqual(light.calls.find((c) => c.value === '示範成員').color, dark.calls.find((c) => c.value === '示範成員').color);
 });

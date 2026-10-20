@@ -6,7 +6,7 @@
   --color-border: #e2e8f0;
   --color-primary: #1d4ed8;
   --shadow-card: 0 8px 30px rgba(15, 23, 42, 0.035);
-  /* Theme tokens: light values here, dark values under [data-theme='dark'] below. */
+  /* Theme tokens: light values here; 米黃 and dark values under [data-theme] below. */
   --color-surface: #ffffff;
   --color-surface-subtle: #f8fafc;
   --color-border-strong: #cbd5e1;
@@ -37,6 +37,41 @@
   color: var(--color-text);
   background: var(--color-page);
   font-synthesis: none;
+}
+:root[data-theme='sepia'] {
+  --color-page: #f1e9d8;
+  --color-muted-surface: #ebe2cd;
+  --color-text: #3b3225;
+  --color-text-muted: #76684f;
+  --color-border: #ddd0b5;
+  --color-primary: #8a5a14;
+  --shadow-card: 0 8px 30px rgba(59, 50, 37, 0.06);
+  --color-surface: #f8f2e4;
+  --color-surface-subtle: #f3ecdc;
+  --color-border-strong: #c9b994;
+  --color-text-secondary: #57493a;
+  --color-text-faint: #a39478;
+  --color-primary-strong: #7a4e10;
+  --color-on-primary: #ffffff;
+  --color-focus: #b7791f;
+  --color-info-surface: #efe3c6;
+  --color-info-border: #e2cf9f;
+  --color-info-border-strong: #c9a55a;
+  --color-danger: #a3302b;
+  --color-danger-surface: #f7e1d6;
+  --color-danger-border: #e8b9a6;
+  --color-success: #2f6b3a;
+  --color-success-surface: #e4ecd2;
+  --color-warning: #8a5a0a;
+  --color-warning-surface: #f6e6bf;
+  --color-warning-border: #e5c98a;
+  --color-orange: #8f4317;
+  --color-orange-surface: #f6e2cf;
+  --color-violet: #5b3f8a;
+  --color-violet-surface: #ece3ef;
+  --color-sky: #2c5f80;
+  --color-sky-surface: #e3e9e3;
+  --color-scrim: rgb(241 233 216 / 85%);
 }
 :root[data-theme='dark'] {
   --color-page: #151e2e;
@@ -110,6 +145,8 @@ p {
   letter-spacing: 0;
 }
 .site-header {
+  /* Header rules below follow the header's own width, so they also adapt to the text-size zoom. */
+  container: site-header / inline-size;
   position: sticky;
   top: 0;
   z-index: 20;
@@ -126,6 +163,7 @@ p {
   gap: 24px;
 }
 .brand {
+  flex-shrink: 0;
   min-width: 0;
   min-height: 44px;
   display: flex;
@@ -183,6 +221,8 @@ p {
 }
 .desktop-nav button {
   position: relative;
+  flex-shrink: 0;
+  white-space: nowrap;
   display: flex;
   gap: 8px;
   align-items: center;
@@ -195,6 +235,28 @@ p {
 .desktop-nav .nav-current {
   color: var(--color-primary);
   font-weight: 700;
+}
+.display-menu {
+  min-width: 200px;
+}
+.display-menu-heading {
+  margin: 8px 16px 2px;
+  color: var(--color-text-faint);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+/* Zero or missing battle stats stay in place but recede behind real values. */
+.stat-empty {
+  color: var(--color-text-faint);
+}
+.mobile-navigation-group {
+  margin: 8px 0 0;
+  padding: 0 8px;
+  color: var(--color-text-faint);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2px;
 }
 .nav-current::after {
   content: '';
@@ -907,6 +969,16 @@ h3 {
 .skip-link:focus {
   top: 12px;
 }
+/* Medium desktops: keep the brand and every tab on one line before the phone menu takes over. */
+@container site-header (max-width: 1320px) {
+  .desktop-nav {
+    gap: 14px;
+  }
+  .desktop-nav button > .v-icon:first-child,
+  .header-actions .environment-tag {
+    display: none;
+  }
+}
 @media (max-width: 1150px) {
   .header-inner {
     gap: 32px;
@@ -932,6 +1004,23 @@ h3 {
   }
   .module-card {
     padding: 20px;
+  }
+}
+@container site-header (max-width: 1100px) {
+  .header-inner {
+    min-height: 56px;
+  }
+  .header-actions .environment-tag,
+  .header-actions .admin-account-button,
+  .header-actions .login-account,
+  .header-actions .desktop-logout {
+    display: none;
+  }
+  .desktop-nav {
+    display: none;
+  }
+  .mobile-menu-button.v-btn {
+    display: inline-flex;
   }
 }
 @media (max-width: 1100px) {
@@ -2029,37 +2118,84 @@ button.seat-person {
   .lineups-page .lineup-alert .v-alert__content {
     font-size: 13px;
   }
+  /* Focus mode is for arranging: larger text and taller rows that are easy on the eyes.
+     Rows are at least 54px (the board scrolls) and grow on tall screens up to 72px. */
+  .lineups-page.lineup-focus-mode {
+    --focus-seat-height: clamp(54px, calc((100dvh - 360px) / 18), 72px);
+  }
   .lineups-page.lineup-focus-mode .lineup-board {
-    gap: 4px;
+    gap: 6px;
   }
   .lineups-page.lineup-focus-mode .lineup-group {
-    padding: 2px 6px;
+    padding: 4px 8px 8px;
   }
   .lineups-page.lineup-focus-mode .lineup-group h2 {
-    font-size: 13px;
-    line-height: 16px;
-    margin-bottom: 2px;
+    font-size: 18px;
+    line-height: 26px;
+    margin-bottom: 4px;
   }
   .lineups-page.lineup-focus-mode .group-capacity {
-    font-size: 11px;
-    line-height: 16px;
+    font-size: 13px;
+    line-height: 26px;
   }
   .lineups-page.lineup-focus-mode .lineup-team-heading,
   .lineups-page.lineup-focus-mode .lineup-team-title {
-    min-height: 20px;
-    line-height: 20px;
-    font-size: 12px;
+    min-height: 36px;
+    line-height: 36px;
+    font-size: 17px;
   }
   .lineups-page.lineup-focus-mode .lineup-team-heading input {
-    min-height: 20px;
+    min-height: 36px;
     padding: 0;
-    line-height: 20px;
-    font-size: 12px;
+    line-height: 36px;
+    font-size: 17px;
   }
   .lineups-page.lineup-focus-mode .seat-columns {
-    padding: 0 4px;
-    font-size: 10px;
-    line-height: 12px;
+    padding: 4px 10px;
+    font-size: 13px;
+    line-height: 18px;
+  }
+  .lineups-page.lineup-focus-mode .lineup-seat,
+  .lineups-page.lineup-focus-mode .seat-person,
+  .lineups-page.lineup-focus-mode .seat-note {
+    min-height: var(--focus-seat-height);
+  }
+  .lineups-page.lineup-focus-mode .seat-person {
+    padding: 6px 10px;
+    gap: 8px;
+  }
+  .lineups-page.lineup-focus-mode .seat-identity {
+    gap: 10px;
+  }
+  .lineups-page.lineup-focus-mode .seat-identity strong {
+    font-size: 19px;
+    line-height: 26px;
+  }
+  .lineups-page.lineup-focus-mode .seat-job {
+    font-size: 16px;
+    gap: 4px;
+  }
+  .lineups-page.lineup-focus-mode .profession-dot {
+    width: 10px;
+    height: 10px;
+    flex-basis: 10px;
+  }
+  .lineups-page.lineup-focus-mode .seat-number {
+    font-size: 14px;
+    width: 16px;
+  }
+  .lineups-page.lineup-focus-mode .empty-seat {
+    font-size: 16px;
+  }
+  .lineups-page.lineup-focus-mode .seat-note {
+    display: flex;
+    align-items: center;
+    padding: 6px 10px;
+    font-size: 16px;
+    line-height: 22px;
+  }
+  .lineups-page.lineup-focus-mode .seat-duty {
+    font-size: 16px;
   }
   .lineups-page.lineup-focus-mode .lineup-members-panel {
     top: 0;
