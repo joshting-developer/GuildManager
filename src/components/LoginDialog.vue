@@ -59,7 +59,7 @@ function submit() {
       <div class="login-heading">
         <div>
           <h2 id="login-title">登入幫會平台</h2>
-          <p>{{ mode === 'member' ? '輸入通行密碼，使用報名與戰績閱覽' : '使用管理者帳號登入' }}</p>
+          <p>{{ mode === 'member' ? '輸入通行密碼，使用報名與數據分析' : '使用管理者帳號登入' }}</p>
         </div>
         <v-btn
           variant="text"

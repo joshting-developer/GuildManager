@@ -1,7 +1,19 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick, provide, watch } from 'vue';
 import { useTheme } from 'vuetify';
-import { VUETIFY_THEMES, applyDocumentTheme, readTheme, saveTheme } from './theme.js';
+import {
+  FONT_SCALES,
+  FONT_SCALE_LABELS,
+  THEMES,
+  THEME_LABELS,
+  VUETIFY_THEMES,
+  applyDocumentTheme,
+  applyFontScale,
+  readFontScale,
+  readTheme,
+  saveFontScale,
+  saveTheme,
+} from './theme.js';
 import {
   mdiSwordCross,
   mdiViewDashboardOutline,
@@ -18,6 +30,11 @@ import {
   mdiHistory,
   mdiWeatherNight,
   mdiWhiteBalanceSunny,
+  mdiChevronDown,
+  mdiTableLarge,
+  mdiBookOpenVariant,
+  mdiFormatSize,
+  mdiCheck,
 } from '@mdi/js';
 import { createAuthClient } from './api/auth.js';
 import { createPlatformSettingsClient } from './api/platform-settings.js';
@@ -44,11 +61,19 @@ import ReleaseNotesPage from './pages/ReleaseNotesPage.vue';
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 const vuetifyTheme = useTheme();
 const colorTheme = ref(readTheme());
-function toggleTheme() {
-  colorTheme.value = colorTheme.value === 'dark' ? 'light' : 'dark';
-  vuetifyTheme.global.name.value = VUETIFY_THEMES[colorTheme.value];
-  applyDocumentTheme(colorTheme.value);
-  saveTheme(colorTheme.value);
+const fontScale = ref(readFontScale());
+// One 顯示 menu picks colour theme and text size directly instead of cycling icon buttons.
+const THEME_ICONS = { light: mdiWhiteBalanceSunny, sepia: mdiBookOpenVariant, dark: mdiWeatherNight };
+function chooseTheme(name) {
+  colorTheme.value = name;
+  vuetifyTheme.global.name.value = VUETIFY_THEMES[name];
+  applyDocumentTheme(name);
+  saveTheme(name);
+}
+function chooseFontScale(name) {
+  fontScale.value = name;
+  applyFontScale(name);
+  saveFontScale(name);
 }
 const appVersion = __APP_VERSION__;
 const authClient = createAuthClient({ source });
@@ -81,18 +106,21 @@ async function loadPlatform() {
     if (!disposed && version === platformLoadVersion) platformError.value = cause.message;
   }
 }
+// Desktop order follows the header; `group: 'battle'` items share the 戰鬥 menu.
 const navigation = [
   { page: 'home', signedIn: true, label: '回首頁', icon: mdiCalendarMonthOutline },
-  { page: 'magament', label: '管理總覽', icon: mdiViewDashboardOutline },
   { page: 'members', signedIn: true, label: '成員清單', icon: mdiAccountGroupOutline },
   { page: 'events', label: '活動安排', icon: mdiCalendarMonthOutline },
-  { page: 'lineups', label: '戰場排表', icon: mdiSwordCross },
-  { page: 'battle-upload', label: '戰績上傳', icon: mdiFileUploadOutline },
+  { page: 'magament', label: '管理總覽', icon: mdiViewDashboardOutline },
+  { page: 'videos', label: '影片閱覽', icon: mdiVideoOutline },
+  { page: 'lineups', label: '戰場排表', icon: mdiTableLarge, group: 'battle' },
+  { page: 'battle-upload', label: '上傳數據', icon: mdiFileUploadOutline, group: 'battle' },
   {
     page: 'battle-records',
     signedIn: true,
-    label: '戰績閱覽',
+    label: '數據分析',
     icon: mdiChartBoxOutline,
+    group: 'battle',
   },
   {
     page: 'admin',
@@ -100,7 +128,6 @@ const navigation = [
     icon: mdiAccountCogOutline,
     adminOnly: true,
   },
-  { page: 'videos', label: '影片閱覽', icon: mdiVideoOutline },
   // Occasional tool: reachable from 管理總覽 and the drawer, keeping the desktop bar on one line.
   { page: 'lottery', label: '抽獎活動', icon: mdiGiftOutline, drawerOnly: true },
   { page: 'release-notes', label: '更新紀錄', icon: mdiHistory, drawerOnly: true },
@@ -142,6 +169,15 @@ const visibleNavigation = computed(() =>
       (!item.adminOnly || user.value?.role === 'admin'),
   ),
 );
+// One 戰鬥 menu for its pages; a single visible battle page (members) stays a plain tab.
+const desktopNavigation = computed(() => {
+  const items = visibleNavigation.value.filter(
+    (item) => !item.adminOnly && !item.drawerOnly,
+  );
+  const battle = items.filter((item) => item.group === 'battle');
+  const plain = items.filter((item) => item.group !== 'battle' || battle.length < 2);
+  return battle.length < 2 ? plain : [...plain, { group: 'battle', label: '戰鬥', items: battle }];
+});
 const authLoading = ref(true);
 const authBusy = ref(false);
 const authError = ref('');
@@ -182,7 +218,8 @@ function currentDetailId() {
 const detailId = ref(currentDetailId());
 const view = ref(currentView());
 // Same pages game hid its petals on: dense editors and the full-screen race.
-const showSnow = computed(() => !['lineups', 'members', 'lottery'].includes(view.value));
+// Moving snow stays on the home calendar only; work pages keep still for the eyes.
+const showSnow = computed(() => view.value === 'home');
 function returnHome() {
   view.value = 'home';
   lineupFocus.value = false;
@@ -210,7 +247,7 @@ function syncView() {
     return;
   }
   if (!memberCanVisit(next) && user.value?.role === 'member') {
-    authNotice.value = 'member 登入可使用行事曆、成員清單與戰績閱覽，其他管理操作需要管理者帳號';
+    authNotice.value = 'member 登入可使用行事曆、成員清單與數據分析，其他管理操作需要管理者帳號';
     returnHome();
     return;
   }
@@ -229,7 +266,7 @@ function navigate(page) {
   const target = navigation.some((item) => item.page === page) ? page : 'home';
   if (target !== 'home' && !user.value) return openLogin(target);
   if (!memberCanVisit(target) && user.value?.role === 'member') {
-    authNotice.value = 'member 登入可使用行事曆、成員清單與戰績閱覽，其他管理操作需要管理者帳號';
+    authNotice.value = 'member 登入可使用行事曆、成員清單與數據分析，其他管理操作需要管理者帳號';
     returnHome();
     return;
   }
@@ -287,7 +324,7 @@ async function restoreSession() {
         openLogin(target, detailId.value);
       }
       if (!memberCanVisit(view.value) && user.value?.role === 'member') {
-        authNotice.value = 'member 登入可使用行事曆、成員清單與戰績閱覽，其他管理操作需要管理者帳號';
+        authNotice.value = 'member 登入可使用行事曆、成員清單與數據分析，其他管理操作需要管理者帳號';
         returnHome();
       }
       if (view.value === 'admin' && user.value && user.value.role !== 'admin') {
@@ -387,9 +424,32 @@ function skipToMain() {
           @home="navigate('home')"
         />
         <nav class="desktop-nav" aria-label="主要導覽">
-          <template v-for="item in visibleNavigation" :key="item.page">
+          <template v-for="item in desktopNavigation" :key="item.page || item.group">
+            <v-menu v-if="item.group" location="bottom start" offset="4">
+              <template #activator="{ props: menu }">
+                <button
+                  type="button"
+                  v-bind="menu"
+                  :class="{ 'nav-current': item.items.some((entry) => entry.page === view) }"
+                >
+                  <v-icon :icon="mdiSwordCross" size="18" />{{ item.label }}
+                  <v-icon :icon="mdiChevronDown" size="16" />
+                </button>
+              </template>
+              <v-list class="nav-menu" density="comfortable" nav>
+                <v-list-item
+                  v-for="entry in item.items"
+                  :key="entry.page"
+                  :prepend-icon="entry.icon"
+                  :title="entry.label"
+                  :active="view === entry.page"
+                  :aria-current="view === entry.page ? 'page' : undefined"
+                  @click="navigate(entry.page)"
+                />
+              </v-list>
+            </v-menu>
             <button
-              v-if="!item.adminOnly && !item.drawerOnly"
+              v-else
               type="button"
               :class="{ 'nav-current': view === item.page }"
               :aria-current="view === item.page ? 'page' : undefined"
@@ -400,14 +460,40 @@ function skipToMain() {
           </template>
         </nav>
         <div class="header-actions">
-          <v-btn
-            class="theme-toggle"
-            variant="text"
-            :icon="colorTheme === 'dark' ? mdiWhiteBalanceSunny : mdiWeatherNight"
-            :aria-label="colorTheme === 'dark' ? '切換為淺色模式' : '切換為深色模式'"
-            :title="colorTheme === 'dark' ? '切換為淺色模式' : '切換為深色模式'"
-            @click="toggleTheme"
-          />
+          <v-menu location="bottom end" offset="4" :close-on-content-click="false">
+            <template #activator="{ props: menu }">
+              <v-btn
+                v-bind="menu"
+                class="display-settings"
+                variant="text"
+                :prepend-icon="THEME_ICONS[colorTheme]"
+                :aria-label="`顯示設定：${THEME_LABELS[colorTheme]}色系、${FONT_SCALE_LABELS[fontScale]}字級`"
+                >顯示</v-btn
+              >
+            </template>
+            <v-list class="nav-menu display-menu" density="comfortable">
+              <p class="display-menu-heading">色系</p>
+              <v-list-item
+                v-for="name in THEMES"
+                :key="name"
+                :prepend-icon="THEME_ICONS[name]"
+                :title="THEME_LABELS[name]"
+                :active="colorTheme === name"
+                :append-icon="colorTheme === name ? mdiCheck : undefined"
+                @click="chooseTheme(name)"
+              />
+              <p class="display-menu-heading">字級</p>
+              <v-list-item
+                v-for="(scale, name) in FONT_SCALES"
+                :key="name"
+                :prepend-icon="mdiFormatSize"
+                :title="`${FONT_SCALE_LABELS[name]}（${Math.round(scale * 100)}%）`"
+                :active="fontScale === name"
+                :append-icon="fontScale === name ? mdiCheck : undefined"
+                @click="chooseFontScale(name)"
+              />
+            </v-list>
+          </v-menu>
           <span class="environment-tag"
             ><span class="status-dot"></span>{{ source === 'gas' ? '雲端環境' : '本機開發' }}</span
           >

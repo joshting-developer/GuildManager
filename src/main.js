@@ -13,7 +13,9 @@ import {
   VTextField,
   VTextarea,
   VSelect,
+  VList,
   VListItem,
+  VMenu,
   VPagination,
   VCheckbox,
   VTabs,
@@ -24,10 +26,17 @@ import { zhHant } from 'vuetify/locale';
 import 'vuetify/styles';
 import './styles.css';
 import App from './App.vue';
-import { VUETIFY_THEMES, applyDocumentTheme, readTheme } from './theme.js';
+import {
+  VUETIFY_THEMES,
+  applyDocumentTheme,
+  applyFontScale,
+  readFontScale,
+  readTheme,
+} from './theme.js';
 
 const initialTheme = readTheme();
 applyDocumentTheme(initialTheme);
+applyFontScale(readFontScale());
 
 const vuetify = createVuetify({
   components: {
@@ -43,7 +52,9 @@ const vuetify = createVuetify({
     VTextField,
     VTextarea,
     VSelect,
+    VList,
     VListItem,
+    VMenu,
     VPagination,
     VCheckbox,
     VTabs,
@@ -62,6 +73,22 @@ const vuetify = createVuetify({
           primary: '#1d4ed8',
           'on-background': '#0f172a',
           'on-surface': '#0f172a',
+        },
+      },
+      // 米黃: warm paper tones with brown accents; low glare for long reading.
+      guildSepia: {
+        dark: false,
+        colors: {
+          background: '#f1e9d8',
+          surface: '#f8f2e4',
+          primary: '#8a5a14',
+          'on-primary': '#ffffff',
+          error: '#a3302b',
+          success: '#2f6b3a',
+          warning: '#8a5a0a',
+          info: '#2c5f80',
+          'on-background': '#3b3225',
+          'on-surface': '#3b3225',
         },
       },
       guildDark: {

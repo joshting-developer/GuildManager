@@ -110,7 +110,7 @@ GAS 已以試算表分開保存摘要、玩家快照及個人關聯，Drive 保�
 
 `src/domain/lineup-image.js` 由當前顯示排表、成員／職業／職責或封存快照建立只含顯示文字的圖片資料；下載時快照 document 的 data-theme，指定 light／dark 調色盤（缺省 light），透過瀏覽器 Canvas 以固定 2000px 邏輯版面及 2.7 倍解析度產生 5400px 寬的 image/jpeg Blob，基準高度 3771px。職業／姓名／職責備註分欄並提高文字比例，不繪製位置小數字或「（副）」；主／副職業仍按排表選擇解析。職業字色保留色相並依背景提升至 3:1（大字），圖例 4.5:1；長姓名／職業先縮小字級維持單行，最小字級仍放不下才換行；儲存格內縮以格線底色形成間隔；等待字型載入，按長文字／雙場內容測量並對齊同團列高。省略重複欄名與多餘留白；短內容將剩餘空間平均分配至資料列，超出基準高度時延長圖片，不縮小／壓扁或裁切內容。下載為本機操作, 不呼叫保存 API、不改草稿／保存狀態、不新增依賴或寫入 Google 試算表；一般／專注模式及手機共用匯出流程。
 
-## 戰績閱覽
+## 數據分析
 
 `BattleRecordsPage.vue` 沿用 getRecords 每頁 20 筆, `BattleRecordDetail.vue` 點開後才透過 getRecord 讀取單筆保存的玩家快照, 不讀可變名冊或活動來重建歷史。App 的 hash 導覽支援 `#/battle-records/:id`, 保留登入後直接連結, 同頁切換詳情以記錄 ID 重建元件並丟棄卸載後的回應；返回清單保留該頁頁碼。
 
@@ -144,17 +144,17 @@ member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admi
 
 ## 個人戰績
 
-成員清單（含編外人員）提供「查看數據」；戰績閱覽中已關聯的人名可開啟 `#/member-records/:uid`，已登入 member／manager／admin 均可使用。UID 只作路由及內部引用，頁面、名稱、標籤與 title 不顯示。未關聯人名保持純文字。
+成員清單（含編外人員）提供「查看數據」；數據分析中已關聯的人名可開啟 `#/member-records/:uid`，已登入 member／manager／admin 均可使用。UID 只作路由及內部引用，頁面、名稱、標籤與 title 不顯示。未關聯人名保持純文字。
 
-戰績上傳的同一交易以當時名冊現在名稱精確比對，包含編外；唯一符合才保存 UID，不以職業、敵我、過去名稱或模糊搜尋推測。同名／未知名稱不關聯。`battle_player_links(record_id, player_index, member_uid)` 使用外鍵、逐列唯一索引及 member_uid 查詢索引，保留不可變的 players_json、原始 CSV、requestId／content_hash；詳情回應在讀取時加入 memberUid。單筆新增與 CSV 匯入共用成員建立流程；新增後依現在名稱精確比對尚未關聯的歷史玩家列，唯一同名才寫入關聯，已歸屬他人的資料不轉移。CSV 先完成整批建立再判斷唯一性，包含既有及同批同名；成員與關聯於同一 SQLite 交易／GAS 提交中保存。既有 UID 匯入仍跳過；改名、移至編外及重啟不觸發回填。原始 CSV、玩家快照與請求雜湊保持不變，戰績重試不重新比對名稱；本機詳情與重試讀取最新關聯，GAS 已保存的重試回應保持原樣。
+上傳數據的同一交易以當時名冊現在名稱精確比對，包含編外；唯一符合才保存 UID，不以職業、敵我、過去名稱或模糊搜尋推測。同名／未知名稱不關聯。`battle_player_links(record_id, player_index, member_uid)` 使用外鍵、逐列唯一索引及 member_uid 查詢索引，保留不可變的 players_json、原始 CSV、requestId／content_hash；詳情回應在讀取時加入 memberUid。單筆新增與 CSV 匯入共用成員建立流程；新增後依現在名稱精確比對尚未關聯的歷史玩家列，唯一同名才寫入關聯，已歸屬他人的資料不轉移。CSV 先完成整批建立再判斷唯一性，包含既有及同批同名；成員與關聯於同一 SQLite 交易／GAS 提交中保存。既有 UID 匯入仍跳過；改名、移至編外及重啟不觸發回填。原始 CSV、玩家快照與請求雜湊保持不變，戰績重試不重新比對名稱；本機詳情與重試讀取最新關聯，GAS 已保存的重試回應保持原樣。
 
 `GET /api/members/:uid/battle-records?page=1&startDate=2026-10-01&endDate=2026-10-31&profession=碎夢` 支援選填的台北起訖日期（含當天、可只填一邊）與當場職業名稱。日期須為有效 YYYY-MM-DD、結束不得早於開始；職業依不可變玩家快照精確篩選，選項涵蓋該成員全部已關聯紀錄。回傳現在名稱／職業、篩選條件、職業選項、全部符合條件參戰的統計，以及每頁 20 筆最新優先明細。包含保存的場次類型、日期、場序、當時姓名／職業、陣營、對手與十二欄數據，點日期可回對戰詳情。無資料、找不到成員、載入／失敗／重試均有提示，直接連結登入後保留目標。
 
 個人統計提供參戰場數、勝／敗／內推或未判定場數、十項合計、每筆平均及一命貢獻。平均僅使用各欄已知數值；一命貢獻使用有該欄數值及重傷的紀錄合計，除以這些紀錄各筆 max(重傷, 1) 的總和；重傷欄仍保留合計。缺值顯示 — 並標示缺少筆數，不當作 0。不依隊名或其他數據推測勝敗，內推及結果未填不計勝敗。同場重複玩家列均保留且場數只計一次；兩邊結果衝突時歸未判定。明細可切總計／一命，資源維持最右。統計涵蓋全部符合篩選條件的紀錄，不受明細分頁影響。套用或清除條件回第一頁，無符合資料明確提示，原有 member／manager／admin 讀取權限不變。GAS `getMemberBattleRecords` 已實作相同分析契約，未部署或寫入正式試算表。
 
-## 成員戰績閱覽權限
+## 成員數據分析權限
 
-已登入 member／manager／admin 可使用戰績清單、對戰詳情、原始 CSV／既有附件下載及個人數據分析。各角色的導覽皆提供「回首頁」返回行事曆，member 另顯示成員清單與戰績閱覽，點左上平台名稱亦可返回，從對戰表格點已關聯人名可開啟個人頁；成員清單開放 member／manager／admin，「移至編外」按鈕及端點僅供 admin／manager，其他管理功能仍只供 admin／manager。共用 member 通行密碼不綁遊戲 UID，因此可查看所有已關聯成員的數據，不限制為本人。匿名不可讀，member 不可上傳／修改戰績、活動、排表或帳號。後端分別放行明確戰績 GET 路徑及成員清單的讀寫路徑／方法，不以 URL 前綴放寬其他管理操作。
+已登入 member／manager／admin 可使用戰績清單、對戰詳情、原始 CSV／既有附件下載及個人數據分析。各角色的導覽皆提供「回首頁」返回行事曆，member 另顯示成員清單與數據分析，點左上平台名稱亦可返回，從對戰表格點已關聯人名可開啟個人頁；成員清單開放 member／manager／admin，「移至編外」按鈕及端點僅供 admin／manager，其他管理功能仍只供 admin／manager。共用 member 通行密碼不綁遊戲 UID，因此可查看所有已關聯成員的數據，不限制為本人。匿名不可讀，member 不可上傳／修改戰績、活動、排表或帳號。後端分別放行明確戰績 GET 路徑及成員清單的讀寫路徑／方法，不以 URL 前綴放寬其他管理操作。
 
 右上登入視窗包含「成員登入」「管理者登入」兩個 tab；前者只填 admin 發行的通行密碼（英數 6–128 字），後者沿用 Manager／Admin 帳號密碼。共用視窗一律預選成員登入，首頁登入後留在行事曆，直接開啟戰績／個人分析或管理連結成功後保留原目標及權限；切換 tab 清除密碼及登入錯誤。
 
@@ -184,7 +184,7 @@ member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admi
 
 ## 已上傳對戰資訊編輯
 
-admin／manager 可由戰績上傳已保存卡片，或戰績閱覽詳情的「編輯對戰資訊」後補雙方名稱、我方及獲勝方。約戰可逐場開啟內推，保存時清除敵我／勝方；幫戰與龍虎戰不可設內推。member 只可閱讀，結果修改後重新讀取個人分析及清單會使用最新值。
+admin／manager 可由上傳數據已保存卡片，或數據分析詳情的「編輯對戰資訊」後補雙方名稱、我方及獲勝方。約戰可逐場開啟內推，保存時清除敵我／勝方；幫戰與龍虎戰不可設內推。member 只可閱讀，結果修改後重新讀取個人分析及清單會使用最新值。
 
 本機 `PATCH /api/battle-records/:id` 與 GAS `updateBattleRecord` 共用欄位驗證，檢查管理角色、CSRF、revision 及 requestId；SQLite 追加 revision（舊資料初值 0）與 battle_metadata_requests，交易保存修改和重試結果。GAS 舊戰績 revision 缺值視為 0，GM_battles 及 GM_requests 沿用既有鎖定與提交標記，不需新增工作表。原 CSV、Drive 檔案、玩家快照及成員連結、日期／類型／場序與原上傳重試資料保留；不重算或覆寫原 content hash。
 
@@ -233,7 +233,7 @@ SQLite `member_maintenance_requests` 保存管理操作結果；`member_uid_revi
 影片團別選項與顯示共用 `VIDEO_GROUP_OPTIONS`／`videoGroupLabel`：進攻團對應既有值進攻一、機動團對應進攻二、防守團不變。上傳選擇、閱覽篩選及表格／CSV 使用同一對應；儲存值、SQLite CHECK、舊影片與 requestId 內容保持相容，不遷移或覆寫資料。
 
 
-## GAS 戰績上傳診斷
+## GAS 上傳數據診斷
 
 `saveBattleRecords` 的未知例外由 `battle-upload-diagnostics.js` 追蹤失敗步驟、固定表別與耗時，RPC 回傳保留 `GAS_ERROR` 並附步驟／類型／診斷碼的訊息。執行紀錄只含固定分類及耗時，不記錄原始錯誤文字、stack、輸入、玩家、檔名、資源 ID 或憑證；原始錯誤只用來選擇固定類型。已知業務／權限錯誤維持原回應；紀錄失敗不改操作結果。
 
@@ -246,3 +246,9 @@ Sheets storage 以可選的同步 run 包裝讀寫、flush 與提交標記，預
 指定 key 的 get／getMany，以及超過 128 個資料列的大表 all，先讀前四欄索引，再依最新版本的相鄰列批次讀 payload_base64；不讀取其他歷史版本的 payload。不超過 128 列的小表 all 保留一次五欄批次讀取，避免多一次雲端往返，但仍只解碼最新版本。同一交易重用索引、已解碼值及不存在的查詢結果，並疊加本交易 put／remove；快取不跨請求。列數每次讀取只取得一次，避免重複 getLastRow。
 
 保留五欄格式、Base64／UTF-8 分段、全部歷史、write lock、flush 及提交標記，不需資料搬移或 setupGas。業務 API 的顯式排序維持原規則，不以內部 Map 枚舉當作業務排序。commits 與前四欄索引仍需掃描；若最新列分散，payload 可能需要多個範圍呼叫，因此效益依資料分布而異，呼叫量比較不等於正式 GAS 秒數。
+
+## 顯示設定、場次選擇與數據格式
+
+`src/theme.js` 管理色系（light／sepia／dark，對應 Vuetify `guild`／`guildSepia`／`guildDark` 與 document 的 data-theme）及字級（normal／large／larger，以 documentElement 的 CSS zoom 套用），兩者各存 localStorage，讀寫失敗回預設。`src/main.js` 掛載前套用，App 頂欄「顯示」選單直接切換。排表 JPG 讀取 data-theme，lineup-image 有對應三色調色盤。
+
+`src/domain/battle-events.js` 提供戰鬥場次篩選、標籤、台北今日與 upcoming／recent 排序；排表用 upcoming，上傳數據與影片閱覽用 recent，預設取排序第一筆。`src/domain/number-format.js` 依整欄是否達 1 萬決定「萬」單位、0／缺值顯示淡色 —，並以 compactStat 將單一總數轉為萬／億；只影響顯示，不改資料與排序。

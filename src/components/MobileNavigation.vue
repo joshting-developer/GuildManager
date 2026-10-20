@@ -41,9 +41,12 @@ function focusClose() {
         />
       </div>
       <nav id="mobile-navigation" class="mobile-navigation-links" aria-label="手機導覽">
+        <template v-for="(item, index) in items" :key="item.page">
+        <p
+          v-if="item.group === 'battle' && items[index - 1]?.group !== 'battle'"
+          class="mobile-navigation-group"
+        >戰鬥</p>
         <v-btn
-          v-for="item in items"
-          :key="item.page"
           variant="text"
           :prepend-icon="item.icon"
           :class="{ 'nav-current': currentPage === item.page }"
@@ -51,6 +54,7 @@ function focusClose() {
           :disabled="busy"
           @click="emit('navigate', item.page)"
         >{{ item.label }}</v-btn>
+        </template>
       </nav>
       <div class="mobile-navigation-footer">
         <p v-if="account" class="mobile-navigation-account">{{ account }}</p>

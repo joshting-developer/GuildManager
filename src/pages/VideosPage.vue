@@ -4,7 +4,8 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { mdiRefresh, mdiDownload } from '@mdi/js';
 import { createEventClient } from '../api/events.js';
 import { createEventVideoClient } from '../api/event-videos.js';
-import { eventDisplayTitle, eventTypeLabel } from '../domain/event-types.js';
+import { eventDisplayTitle } from '../domain/event-types.js';
+import { battleEventLabel, isBattleEvent, orderBattleEvents } from '../domain/battle-events.js';
 import { VIDEO_GROUP_OPTIONS } from '../domain/event-videos.js';
 import { VIDEO_TABLE_HEADERS, videoTableRow, videoTableCsv } from '../domain/video-table-csv.js';
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
@@ -55,7 +56,7 @@ let disposed = false,
 const options = computed(() =>
   events.value.map((event) => ({
     value: event.id,
-    title: `${event.dates[0]} · ${eventTypeLabel(event.type)}${event.title ? ` · ${eventDisplayTitle(event)}` : ''}`,
+    title: battleEventLabel(event),
   })),
 );
 const visibleVideos = computed(() =>
@@ -94,9 +95,8 @@ async function load() {
     const data = await eventClient.getEvents();
     if (disposed || current !== token) return;
     if (!Array.isArray(data.events)) throw new Error('場次資料格式不正確，請重試');
-    events.value = data.events
-      .filter((event) => ['scrimmage', 'guild_war', 'dragon_tiger'].includes(event.type))
-      .sort((a, b) => b.dates[0].localeCompare(a.dates[0]) || a.id.localeCompare(b.id));
+    // Videos are watched after a battle: today or the latest past session comes first.
+    events.value = orderBattleEvents(data.events.filter(isBattleEvent), { prefer: 'recent' });
     if (!events.value.some((event) => event.id === eventId.value)) {
       eventId.value = events.value[0]?.id || null;
       if (eventId.value) return; // The selection watcher loads this event.

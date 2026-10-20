@@ -42,14 +42,14 @@ const modules = [
   },
   {
     id: 'battle-upload',
-    title: '戰績上傳',
+    title: '上傳數據',
     icon: mdiFileUploadOutline,
     color: 'orange',
     description: '匯入戰績 CSV, 保存對戰結果。',
   },
   {
     id: 'battle-records',
-    title: '戰績閱覽',
+    title: '數據分析',
     icon: mdiChartBoxOutline,
     color: 'blue',
     description: '查看對戰統計與排序玩家戰績。',

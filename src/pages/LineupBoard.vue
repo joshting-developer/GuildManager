@@ -170,7 +170,7 @@ function activate(team, index) {
                   ><strong>{{ person(entry)?.name || '找不到成員' }}</strong></span
                 >
                 <span v-else class="empty-seat">{{
-                  selectedUid && !readOnly ? '點此安排' : '尚未安排'
+                  selectedUid && !readOnly ? '點此安排' : '—'
                 }}</span>
               </component>
             </div>
