@@ -206,7 +206,7 @@ onUnmounted(() => {
     >
       <table class="videos-table">
         <caption class="sr-only">
-          本場影片提交紀錄，網址以文字呈現，可選取複製
+          本場影片提交紀錄，點擊網址另開分頁，亦可選取複製
         </caption>
         <thead>
           <tr>
@@ -220,7 +220,15 @@ onUnmounted(() => {
               :key="index"
               :class="{ 'video-url': index === 2 || index === 3, 'video-note': index === 5 }"
             >
-              {{ value }}
+              <a
+                v-if="(index === 2 || index === 3) && value !== '—'"
+                class="video-url-link"
+                :href="value"
+                target="_blank"
+                rel="noopener noreferrer"
+                :aria-label="`開啟 ${video.name} 的第 ${index === 2 ? 1 : 2} 場影片（另開分頁）`"
+              >{{ value }}</a>
+              <template v-else>{{ value }}</template>
             </td>
           </tr>
         </tbody>
@@ -297,6 +305,11 @@ onUnmounted(() => {
 }
 .video-url {
   user-select: text;
+}
+.video-url-link {
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 @media (max-width: 600px) {
   .videos-card {
