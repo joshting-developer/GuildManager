@@ -146,7 +146,7 @@ function activate(team, index) {
                 :tabindex="readOnly ? 0 : undefined"
                 :title="
                   participantKey(entry)
-                    ? `${person(entry)?.name || '找不到人員'}${entry.registrationId ? '（額外報名）' : ''}${person(entry)?.note || person(entry)?.registrationNote ? ` · ${person(entry)?.note || person(entry)?.registrationNote}` : ''}`
+                    ? `${person(entry)?.name || '找不到人員'}${entry.registrationId ? '（本場外援）' : ''}${person(entry)?.note || person(entry)?.registrationNote ? ` · ${person(entry)?.note || person(entry)?.registrationNote}` : ''}`
                     : '尚未安排'
                 "
                 :draggable="!readOnly && Boolean(participantKey(entry))"

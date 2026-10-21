@@ -33,7 +33,7 @@ function setup() {
   return { repo, events, input };
 }
 
-test('three battle types accept guild/club and registered outsiders, reject leave, and recheck templates without mutating history', () => {
+test('three battle types accept guild, club and 編外 members without registering, reject leave, and recheck templates without mutating history', () => {
   const { repo, events, input } = setup();
   try {
     for (const event of events) {
@@ -41,9 +41,9 @@ test('three battle types accept guild/club and registered outsiders, reject leav
       teams[0].slots[0].uid = 'guild';
       teams[0].slots[1].uid = 'club';
       teams[0].slots[2].uid = 'outside';
-      assert.throws(() => repo.confirmLineup(input(event, teams)), code('INELIGIBLE_MEMBER'));
-      repo.saveMemberResponse(event.id, { uid: 'outside', status: 'registered', revision: 0 });
+      // 編外 (outside) can be arranged without registering, like guild and club members.
       const snapshot = repo.confirmLineup(input(event, teams));
+      assert.equal(snapshot.teams[0].slots[2].member.name, 'outside');
       const template = repo.createLineupTemplate({
         teams,
         name: '名單',

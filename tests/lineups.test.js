@@ -142,6 +142,9 @@ test('templates resolve current eligibility and professions, disclose skipped pe
       () => repo.createLineupTemplate({ ...payload, name: '改名' }),
       errorCode('REQUEST_CONFLICT'),
     );
+    // 003 is 編外 and registered only for the scrimmage; 編外 no longer need to register,
+    // so only leave makes a template skip them.
+    repo.saveMemberResponse(events[1].id, { uid: '003', status: 'leave', revision: 0 });
     const guild = repo.applyLineupTemplate(template.id, events[1].id);
     assert.equal(guild.teams[0].slots[0].uid, '001');
     assert.equal(guild.teams[0].slots[0].note, '御拆');
@@ -152,7 +155,11 @@ test('templates resolve current eligibility and professions, disclose skipped pe
     assert.equal(repo.applyLineupTemplate(template.id, events[2].id).teams[0].slots[1].uid, '002');
     assert.equal(repo.applyLineupTemplate(template.id, events[0].id).skipped.length, 0);
     repo.removeMember('001', 1);
-    assert.equal(repo.applyLineupTemplate(template.id, events[1].id).skipped.length, 2);
+    assert.equal(
+      repo.applyLineupTemplate(template.id, events[1].id).skipped.length,
+      1,
+      'moving 001 to 編外 keeps them eligible',
+    );
     const original = repo.getLineupIndex().templates[0];
     assert.deepEqual(original, template);
     const changed = repo.updateEvent(events[0].id, {
@@ -162,6 +169,7 @@ test('templates resolve current eligibility and professions, disclose skipped pe
       revision: 1,
     });
     assert.throws(() => repo.confirmLineup(input(events[0])), errorCode('EVENT_CHANGED'));
+    repo.saveMemberResponse(changed.id, { uid: '001', status: 'leave', revision: 0 });
     assert.throws(() => repo.confirmLineup(input(changed)), errorCode('INELIGIBLE_MEMBER'));
     assert.throws(
       () => repo.applyLineupTemplate('missing', changed.id),
@@ -223,6 +231,8 @@ test('HTTP and adapter cover confirmation, history, template application, failur
       requestId: 'http-template',
     });
     assert.equal((await client.applyTemplate(template.id, events[2].id)).skipped.length, 0);
+    // 編外成員 no longer need to register; being on leave still blocks the lineup.
+    repo.saveMemberResponse(events[1].id, { uid: '003', status: 'leave', revision: 0 });
     await assert.rejects(
       () => client.confirm(input(events[1], '003')),
       errorCode('INELIGIBLE_MEMBER'),
