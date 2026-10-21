@@ -135,18 +135,41 @@ function luminance(rgb) {
 function rgb(hex) {
   return [1, 3, 5].map((start) => parseInt(hex.slice(start, start + 2), 16));
 }
-// Profession and group colours keep their hue; they are only mixed toward white/black
-// until text reaches the requested WCAG ratio (profession and legend text use 4.5:1).
+// Profession and group colours keep their hue: only HSL lightness moves until text reaches
+// 4.5:1. Mixing with white or black instead greyed colours out (神相's steel blue read as grey
+// on dark exports); muted mid tones also get a saturation floor so the hue reads clearly.
+function hsl([r, g, b]) {
+  const [red, green, blue] = [r / 255, g / 255, b / 255];
+  const max = Math.max(red, green, blue), min = Math.min(red, green, blue);
+  const lightness = (max + min) / 2;
+  if (max === min) return [0, 0, lightness];
+  const delta = max - min;
+  const saturation = delta / (1 - Math.abs(2 * lightness - 1));
+  const hue =
+    max === red ? ((green - blue) / delta) % 6 : max === green ? (blue - red) / delta + 2 : (red - green) / delta + 4;
+  return [(hue * 60 + 360) % 360, saturation, lightness];
+}
+function fromHsl([hue, saturation, lightness]) {
+  const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation;
+  const x = chroma * (1 - Math.abs(((hue / 60) % 2) - 1));
+  const m = lightness - chroma / 2;
+  const [r, g, b] =
+    hue < 60 ? [chroma, x, 0] : hue < 120 ? [x, chroma, 0] : hue < 180 ? [0, chroma, x]
+      : hue < 240 ? [0, x, chroma] : hue < 300 ? [x, 0, chroma] : [chroma, 0, x];
+  return [r, g, b].map((channel) => Math.round((channel + m) * 255));
+}
 function readableColor(value, backgroundHex, fallback, ratio = 4.5) {
   if (!/^#[a-f0-9]{6}$/i.test(value || '')) return fallback;
-  const color = rgb(value);
   const background = luminance(rgb(backgroundHex));
-  const target = background < 0.5 ? 255 : 0;
-  for (let step = 0; step <= 20; step++) {
-    const mixed = color.map((channel) => Math.round(channel + (target - channel) * step / 20));
-    const light = luminance(mixed);
+  const [hue, saturation, lightness] = hsl(rgb(value));
+  const vivid = saturation > 0.15 && lightness < 0.6 ? Math.max(saturation, 0.85) : saturation;
+  const lighter = background < 0.5;
+  for (let step = 0; step <= 40; step++) {
+    const level = lighter ? lightness + ((1 - lightness) * step) / 40 : lightness - (lightness * step) / 40;
+    const channels = fromHsl([hue, vivid, level]);
+    const light = luminance(channels);
     if ((Math.max(light, background) + 0.05) / (Math.min(light, background) + 0.05) >= ratio)
-      return '#' + mixed.map((channel) => channel.toString(16).padStart(2, '0')).join('');
+      return '#' + channels.map((channel) => channel.toString(16).padStart(2, '0')).join('');
   }
   return fallback;
 }

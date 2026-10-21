@@ -22,6 +22,7 @@ import {
   placeMember,
   addMemberToSlot,
   slotAssignments,
+  LINEUP_GROUPS,
 } from '../domain/lineups.js';
 import { eventTypeLabel, eventDisplayTitle } from '../domain/event-types.js';
 import { lineupPeople, lineupSourceMembers } from '../domain/lineup-sources.js';
@@ -251,17 +252,38 @@ function seatJobOptions(uid) {
 }
 const seatJobs = computed(() => seatJobOptions(seatUid.value));
 const seatSecondJobs = computed(() => seatJobOptions(seatSecondUid.value));
-const invalidAssignments = computed(
-  () =>
-    teams.value
-      .flatMap((team) => team.slots.flatMap(slotAssignments))
-      .filter(
-        (slot) =>
-          participantKey(slot) &&
-          (!eligibleKeys.value.has(participantKey(slot)) ||
-            !findPerson(participantKey(slot))?.[`${slot.profession}ProfessionId`]),
-      ).length,
+// Each problem names the person, the seat and why, so the warning says who to fix.
+const invalidSeats = computed(() =>
+  teams.value.flatMap((team) => {
+    const group = LINEUP_GROUPS.find((item) => team.id.startsWith(`${item.id}-`));
+    return team.slots.flatMap((slot, index) =>
+      slotAssignments(slot).flatMap((entry, round) => {
+        const key = participantKey(entry);
+        if (!key) return [];
+        const person = findPerson(key);
+        const reason = !eligibleKeys.value.has(key)
+          ? person?.isOnLeave
+            ? '已請假'
+            : person
+              ? '不符合本場資格'
+              : '已不在名單或報名已取消'
+          : !person?.[`${entry.profession}ProfessionId`]
+            ? `沒有設定${entry.profession === 'secondary' ? '副' : '主'}職業`
+            : '';
+        if (!reason) return [];
+        return [
+          {
+            key: `${team.id}-${index}-${round}`,
+            name: person?.name || entry.member?.name || '找不到成員',
+            seat: `${group?.name || ''} ${team.name} 第 ${index + 1} 位${slot.secondRound ? (round ? '（第二場）' : '（第一場）') : ''}`,
+            reason,
+          },
+        ];
+      }),
+    );
+  }),
 );
+const invalidAssignments = computed(() => invalidSeats.value.length);
 const invalidDuties = computed(
   () =>
     teams.value
@@ -972,9 +994,12 @@ onUnmounted(() => {
         variant="tonal"
         class="lineup-alert"
         role="alert"
-        >有
-        {{ invalidAssignments }}
-        位成員的資格或職業不符合本場要求。請編輯位置移除或重新安排，再儲存排表。</v-alert
+        >有 {{ invalidAssignments }} 位成員的資格或職業不符合本場要求，請編輯位置移除或重新安排，再儲存排表：
+        <ul class="lineup-invalid-list">
+          <li v-for="item in invalidSeats" :key="item.key">
+            <strong>{{ item.name }}</strong>（{{ item.seat }}）：{{ item.reason }}
+          </li>
+        </ul></v-alert
       >
       <v-alert
         v-if="skipped.length"
