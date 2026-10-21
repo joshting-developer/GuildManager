@@ -173,6 +173,12 @@ test('jobs read clearly: true-colour pills on light and sepia, contrast-adjusted
       assert.ok(ratio(label.color, color) >= 4.5 || ratio(label.color, color) === Math.max(ratio('#ffffff', color), ratio('#16202e', color)), `${theme} ${person.job}`);
     }
   }
+  // Steel blue (神相) stays clearly blue on dark exports instead of washing out to grey.
+  const data = fixture('dark');
+  Object.assign(data.groups[0].teams[0].rows[0].people[0], { job: '神相', color: '#4682b4' });
+  const { calls } = await render(data);
+  const [r, , b] = [1, 3, 5].map((i) => parseInt(calls.find((c) => c.value === '神相').color.slice(i, i + 2), 16));
+  assert.ok(b - r >= 100, `dark 神相 stays blue (${r}, ${b})`);
 });
 
 test('unavailable Canvas or failed JPG encoding reports errors without modifying the draft', async () => {
