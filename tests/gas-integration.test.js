@@ -407,3 +407,21 @@ test('expired GAS sessions retain public calendar and lose protected operations'
   assert.equal(env.raw('getMembers', [], env.context).error.code, 'AUTH_REQUIRED');
   assert.ok(env.raw('getEventParticipation', [event.id], env.context).ok);
 });
+
+test('GAS lineups accept unregistered 編外 members like guild and club members, but not on leave', async () => {
+  const env = await fixture();
+  env.call('addMember', [{ ...member('0101', '編外甲'), isInGuild: false, isInClub: false }]);
+  env.call('addMember', [{ ...member('0102', '編外乙'), isInGuild: false, isInClub: false }]);
+  const event = createEvent(env, 'guild_war');
+  env.call('saveMemberResponse', [event.id, { uid: '0102', status: 'leave', revision: 0 }]);
+  const teams = emptyLineup();
+  teams[0].slots[0] = { ...teams[0].slots[0], uid: '0101', profession: 'primary' };
+  const input = { teams, eventId: event.id, eventRevision: 1, expectedVersion: 0, requestId: 'external' };
+  const saved = env.call('confirmLineup', [input]).version;
+  assert.equal(saved.teams[0].slots[0].member.name, '編外甲');
+  teams[0].slots[1] = { ...teams[0].slots[1], uid: '0102', profession: 'primary' };
+  assert.equal(
+    env.raw('confirmLineup', [{ ...input, expectedVersion: 1, requestId: 'external-leave' }], env.context).error.code,
+    'INELIGIBLE_MEMBER',
+  );
+});

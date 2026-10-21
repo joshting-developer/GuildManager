@@ -300,13 +300,10 @@ export function createParticipation(store, catalog, { uuid, now, notify = () => 
   };
   function eligible(eventId) {
     const responses = rawResponses(eventId);
-    const members = store.all('members').filter((member) => {
-      const response = responses.find((row) => row.uid === member.uid);
-      return (
-        response?.status !== 'leave' &&
-        (member.isInGuild || member.isInClub || response?.status === 'registered')
-      );
-    });
+    // Roster members (幫會, 俱樂部 and 編外) are eligible unless on leave, as in eligibleMember.
+    const members = store.all('members').filter(
+      (member) => responses.find((row) => row.uid === member.uid)?.status !== 'leave',
+    );
     return { members, registrations: guests(eventId).filter((guest) => guest.active) };
   }
   return { methods, eligible };

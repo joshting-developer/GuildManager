@@ -4,7 +4,7 @@ import { createRepository } from '../server/repository.js';
 import { lineupPeople, lineupSourceMembers } from '../src/domain/lineup-sources.js';
 import { eligibleMember, emptyLineup, participantKey } from '../src/domain/lineups.js';
 
-test('source tabs retain leave at the bottom, hide assigned eligible people, and do not duplicate dual membership', () => {
+test('source tabs retain leave at the bottom, list every 編外成員, keep 本場外援 to guests and do not duplicate dual membership', () => {
   const members = [
     { uid: 'guild-leave', isInGuild: true, isInClub: true },
     { uid: 'guild-ready', isInGuild: true },
@@ -29,9 +29,13 @@ test('source tabs retain leave at the bottom, hide assigned eligible people, and
     const source = (tab) => lineupSourceMembers(people, { type, tab, assigned });
     assert.deepEqual(source('guild').map(participantKey), ['member:guild-ready', 'member:guild-leave']);
     assert.deepEqual(source('club').map(participantKey), ['member:club-ready', 'member:club-leave']);
-    assert.deepEqual(source('extra').map(participantKey), [
-      'member:outside-ready', 'registration:guest-ready', 'member:outside-leave', 'registration:guest-leave',
+    // 編外成員 are listed whether or not they registered (registered first, leave last);
+    // 本場外援 holds only UID-less guests.
+    assert.deepEqual(source('external').map(participantKey), [
+      'member:outside-ready', 'member:outside-none', 'member:outside-leave',
     ]);
+    assert.ok(eligibleMember(people.find((person) => person.uid === 'outside-none'), type), 'unregistered 編外 can be arranged');
+    assert.deepEqual(source('extra').map(participantKey), ['registration:guest-ready', 'registration:guest-leave']);
     assert.equal(source('guild').filter((person) => !person.isOnLeave).length, 1);
     assert.ok(people.filter((person) => person.isOnLeave).every((person) => !eligibleMember(person, type)));
   }

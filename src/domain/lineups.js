@@ -19,11 +19,13 @@ export function emptyLineup() {
     })),
   );
 }
+// Every roster member — 幫會, 俱樂部 and 編外 alike — can be arranged without registering,
+// unless on leave for this battle. 本場外援 (registrationId, no UID) exist only once registered.
 export function eligibleMember(member, type) {
   return (
     LINEUP_TYPES.includes(type) &&
     !member.isOnLeave &&
-    Boolean(member.isInGuild || member.isInClub || member.isRegistered || member.registrationId)
+    Boolean(member.uid || member.isInGuild || member.isInClub || member.registrationId)
   );
 }
 export function participantKey(person) {

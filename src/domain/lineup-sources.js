@@ -39,7 +39,9 @@ export function lineupSourceMembers(people, { type, tab, assigned = new Set() })
           ? person.isInGuild
           : tab === 'club'
             ? person.isInClub && !person.isInGuild
-            : !person.isInGuild && !person.isInClub;
+            : tab === 'external'
+              ? Boolean(person.uid) && !person.isInGuild && !person.isInClub
+              : Boolean(person.registrationId);
       // Leave remains visible even when an older draft still assigns this person.
       return (
         inTab &&
@@ -47,5 +49,10 @@ export function lineupSourceMembers(people, { type, tab, assigned = new Set() })
           (eligibleMember(person, type) && !assigned.has(participantKey(person))))
       );
     })
-    .sort((a, b) => Number(a.isOnLeave) - Number(b.isOnLeave));
+    // 編外成員 who registered for this battle come first; leave always sinks to the bottom.
+    .sort(
+      (a, b) =>
+        Number(a.isOnLeave) - Number(b.isOnLeave) ||
+        (tab === 'external' ? Number(Boolean(b.isRegistered)) - Number(Boolean(a.isRegistered)) : 0),
+    );
 }

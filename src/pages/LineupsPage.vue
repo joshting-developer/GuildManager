@@ -208,8 +208,14 @@ const sourceMembers = computed(() =>
     tab: memberTab.value,
   }),
 );
+const MEMBER_SOURCE_TABS = [
+  { value: 'guild', label: '幫會成員' },
+  { value: 'club', label: '俱樂部成員' },
+  { value: 'external', label: '編外成員' },
+  { value: 'extra', label: '本場外援' },
+];
 const memberTabLabel = computed(
-  () => ({ guild: '幫會成員', club: '俱樂部成員', extra: '額外報名' })[memberTab.value],
+  () => ({ guild: '幫會成員', club: '俱樂部成員', external: '編外成員', extra: '本場外援' })[memberTab.value],
 );
 const availableSourceMembers = computed(() =>
   sourceMembers.value.filter((member) =>
@@ -239,7 +245,7 @@ const eventOptions = computed(() =>
 const slotOptions = computed(() => [
   { title: '空位', value: null },
   ...eligible.value.map((member) => ({
-    title: `${member.name}${member.registrationId ? '（額外報名）' : ''}${assigned.value.has(participantKey(member)) ? '（已安排，可移動或分場）' : ''}`,
+    title: `${member.name}${member.registrationId ? '（本場外援）' : ''}${assigned.value.has(participantKey(member)) ? '（已安排，可移動或分場）' : ''}`,
     value: participantKey(member),
   })),
 ]);
@@ -348,7 +354,9 @@ const qualification = computed(() =>
     ? '幫派內成員；已請假者列於最下方，無法安排。'
     : memberTab.value === 'club'
       ? '僅俱樂部成員；已請假者列於最下方，無法安排。'
-      : '本場額外報名及編外回應；已請假者列於最下方，無法安排。',
+      : memberTab.value === 'external'
+        ? '名冊中的編外成員，不必報名即可安排；本場已報名者排在最前，已請假者列於最下方，無法安排。'
+        : '只報名本場、不在名冊的外援；已請假者列於最下方，無法安排。',
 );
 function mayDiscard(message = '排表有尚未儲存的修改，確定要放棄嗎？') {
   return (
@@ -613,7 +621,7 @@ async function submitRegistration() {
       const member = members.value.find(
         (row) => row.name.toLocaleLowerCase() === input.name.toLocaleLowerCase(),
       );
-      memberTab.value = member?.isInGuild ? 'guild' : member?.isInClub ? 'club' : 'extra';
+      memberTab.value = member?.isInGuild ? 'guild' : member?.isInClub ? 'club' : member ? 'external' : 'extra';
       search.value = '';
       professionId.value = null;
     } catch (cause) {
@@ -1062,7 +1070,7 @@ onUnmounted(() => {
         ><strong>套用時跳過的成員</strong>
         <ul>
           <li v-for="person in skipped" :key="participantKey(person)">
-            {{ person.name }}{{ person.registrationId ? '（額外報名）' : ''
+            {{ person.name }}{{ person.registrationId ? '（本場外援）' : ''
             }}{{ person.round ? ` · 第${person.round === 1 ? '一' : '二'}場` : '' }} —
             {{ person.reason }}
           </li>
@@ -1146,14 +1154,20 @@ onUnmounted(() => {
               />
             </div>
             <p class="lineup-hint">{{ qualification }}</p>
-            <v-tabs
-              v-model="memberTab"
-              class="lineup-member-tabs"
-              density="compact"
-              aria-label="成員來源分類"
-              ><v-tab value="guild">幫會成員</v-tab><v-tab value="club">俱樂部成員</v-tab
-              ><v-tab value="extra">額外報名</v-tab></v-tabs
-            >
+            <!-- Four sources fit a 2×2 grid with full names; tabs would scroll in the narrow sidebar. -->
+            <div class="lineup-source-tabs" role="tablist" aria-label="成員來源分類">
+              <button
+                v-for="tab in MEMBER_SOURCE_TABS"
+                :key="tab.value"
+                type="button"
+                role="tab"
+                :aria-selected="memberTab === tab.value"
+                :class="{ 'is-active': memberTab === tab.value }"
+                @click="memberTab = tab.value"
+              >
+                {{ tab.label }}
+              </button>
+            </div>
             <v-btn
               v-if="memberTab === 'extra'"
               variant="outlined"
@@ -1220,7 +1234,8 @@ onUnmounted(() => {
                 >
                   <span class="lineup-member-main"
                     ><strong>{{ member.name }}</strong
-                    ><small v-if="member.registrationId">額外報名</small
+                    ><small v-if="member.registrationId">本場外援</small
+                    ><small v-else-if="memberTab === 'external' && member.isRegistered" class="lineup-registered-badge">已報名</small
                     ><span v-if="member.isOnLeave" class="lineup-leave-badge">已請假</span></span
                   ><span class="lineup-member-job"
                     ><span
