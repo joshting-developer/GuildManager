@@ -158,7 +158,6 @@ function restoreFocus() {
         <p class="eyebrow">GUILD CALENDAR</p>
         <h2 id="events-title">近期活動</h2>
       </div>
-      <span class="subtle-tag">活動行事曆</span>
     </div>
     <v-alert v-if="!calendarLoading && error" type="error" variant="tonal" role="alert" class="mb-4">
       {{ error }}<v-btn variant="text" @click="load">重新載入</v-btn>

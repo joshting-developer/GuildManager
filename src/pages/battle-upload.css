@@ -113,7 +113,7 @@
 .battle-file-item span {
   display: block;
   color: var(--color-text-muted);
-  font-size: 12px;
+  font-size: 13px;
   margin-top: 4px;
 }
 .battle-upload-card > .battle-muted {
