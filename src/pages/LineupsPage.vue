@@ -21,6 +21,8 @@ import {
   participantReference,
   placeMember,
   addMemberToSlot,
+  removeFromSlot,
+  restoreToSlot,
   slotAssignments,
   LINEUP_GROUPS,
 } from '../domain/lineups.js';
@@ -329,6 +331,7 @@ function selectMember(uid) {
 }
 function assignDuty(id, teamId, index) {
   if (readOnly.value) return;
+  lastRemoval.value = null;
   if (!duties.value.some((duty) => duty.id === id && duty.active)) {
     error.value = '這項職責已停用或不存在，請更新職責清單';
     return;
@@ -408,6 +411,7 @@ async function load() {
   }
 }
 async function loadEvent(id) {
+  lastRemoval.value = null;
   const token = ++operation;
   lineupLoading.value = true;
   error.value = '';
@@ -437,8 +441,55 @@ async function loadEvent(id) {
 async function changeEvent(id) {
   if (id !== eventId.value && mayDiscard()) await loadEvent(id);
 }
+// Removing a seat (✕ or dragging it back to the member list) keeps an undo until the next edit.
+const lastRemoval = ref(null);
+const draggingSeat = ref(false);
+function removeSeat(teamId, index, round) {
+  if (readOnly.value) return;
+  const removed = removeFromSlot(teams.value, teamId, index, round);
+  if (!removed) return;
+  const name = findPerson(removed.key)?.name || '成員';
+  lastRemoval.value = { teamId, index, round, removed, name };
+  error.value = '';
+  skipped.value = [];
+  notice.value = `已移除 ${name}，請儲存排表。`;
+}
+function undoRemoval() {
+  const removal = lastRemoval.value;
+  lastRemoval.value = null;
+  if (!removal) return;
+  if (restoreToSlot(teams.value, removal.teamId, removal.index, removal.round, removal.removed))
+    notice.value = `已復原 ${removal.name}，請儲存排表。`;
+  else {
+    notice.value = '';
+    error.value = `${removal.name} 已安排到其他位置或原位置已有人，無法復原。`;
+  }
+}
+function seatDragOver(event) {
+  if (readOnly.value || !event.dataTransfer.types.includes('application/x-guild-seat')) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'move';
+  draggingSeat.value = true;
+}
+// A seat dropped anywhere else (or a cancelled drag) must not leave the drop zone highlighted.
+function endSeatDrag() {
+  draggingSeat.value = false;
+}
+window.addEventListener('dragend', endSeatDrag);
+onUnmounted(() => window.removeEventListener('dragend', endSeatDrag));
+function seatDrop(event) {
+  draggingSeat.value = false;
+  const raw = event.dataTransfer.getData('application/x-guild-seat');
+  if (!raw || readOnly.value) return;
+  event.preventDefault();
+  try {
+    const { teamId, index, round } = JSON.parse(raw);
+    removeSeat(teamId, index, round);
+  } catch {}
+}
 function place(uid, teamId, index, profession) {
   if (readOnly.value) return false;
+  lastRemoval.value = null;
   if (!eligible.value.some((member) => participantKey(member) === uid)) {
     error.value = '這位成員不符合本場資格，請重新載入成員清單';
     return false;
@@ -608,6 +659,7 @@ function openSeat(teamId, index) {
   openDialog('seat');
 }
 function saveSeat() {
+  lastRemoval.value = null;
   if (seatUid.value && seatUid.value === seatSecondUid.value) {
     dialogError.value = '第一場與第二場請安排不同成員；同一人兩場沿用時，第二場選空位即可。';
     return;
@@ -1039,9 +1091,25 @@ onUnmounted(() => {
       >
       <DataLoading v-if="lineupLoading">正在載入本場排表…</DataLoading>
       <div v-else-if="currentEvent" class="lineup-workspace">
-        <aside class="lineup-members-panel">
+        <aside
+          class="lineup-members-panel"
+          :class="{ 'lineup-drop-remove': draggingSeat }"
+          @dragover="seatDragOver"
+          @dragleave="!$event.currentTarget.contains($event.relatedTarget) && (draggingSeat = false)"
+          @drop="seatDrop"
+        >
+          <p v-if="draggingSeat" class="lineup-drop-hint">放開即從排表移除</p>
           <div v-if="notice" class="lineup-focus-notice" role="status">
             {{ notice }}
+            <v-btn
+              v-if="lastRemoval"
+              size="x-small"
+              variant="text"
+              color="primary"
+              class="lineup-undo"
+              @click="undoRemoval"
+              >復原</v-btn
+            >
           </div>
           <v-tabs
             :model-value="archived ? 'duties' : sidebarTab"
@@ -1220,6 +1288,7 @@ onUnmounted(() => {
           @place="place"
           @assign-duty="assignDuty"
           @edit-seat="openSeat"
+          @remove-seat="removeSeat"
           @rename-team="renameTeam"
         />
       </div>

@@ -96,6 +96,26 @@ export function placeMember(teams, uid, teamId, index, round = 1) {
   setAssignment(target, round, { ...reference, profession: incoming?.profession || 'primary' });
   if (source) setAssignment(source.slot, source.round, displaced);
 }
+// Removing clears one round of a position (duties and notes stay) and returns what was there,
+// so the page can offer undo; restoring only refills that round while it is still empty and the
+// person has not been placed elsewhere in the meantime.
+export function removeFromSlot(teams, teamId, index, round = 1) {
+  const slot = teams.find((team) => team.id === teamId)?.slots[index];
+  const current = slot && assignment(slot, round);
+  const key = participantKey(current);
+  if (!key) return null;
+  const removed = { key, profession: current.profession || 'primary' };
+  setAssignment(slot, round, participantReference(null));
+  return removed;
+}
+export function restoreToSlot(teams, teamId, index, round, removed) {
+  const slot = teams.find((team) => team.id === teamId)?.slots[index];
+  if (!slot || !removed?.key || participantKey(assignment(slot, round))) return false;
+  if (teams.some((team) => team.slots.some((other) => slotAssignments(other).some((person) => participantKey(person) === removed.key))))
+    return false;
+  setAssignment(slot, round, participantReference(removed.key, removed.profession));
+  return true;
+}
 // Dragging adds the next round instead of replacing the person already on this position.
 export function addMemberToSlot(teams, uid, teamId, index) {
   const target = teams.find((team) => team.id === teamId)?.slots[index];

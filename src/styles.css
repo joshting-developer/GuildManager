@@ -242,7 +242,7 @@ p {
 .display-menu-heading {
   margin: 8px 16px 2px;
   color: var(--color-text-faint);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 2px;
 }
@@ -254,7 +254,7 @@ p {
   margin: 8px 0 0;
   padding: 0 8px;
   color: var(--color-text-faint);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 2px;
 }
@@ -279,7 +279,7 @@ p {
   align-items: center;
   gap: 8px;
   padding: 7px 12px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--color-warning);
   background: var(--color-warning-surface);
@@ -451,7 +451,7 @@ section {
   margin-bottom: 28px;
 }
 .eyebrow {
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.6;
   font-weight: 700;
   color: var(--color-text-muted);
@@ -495,7 +495,7 @@ h1 {
 }
 .today-caption {
   color: var(--color-text-muted);
-  font-size: 10px;
+  font-size: 13px;
   letter-spacing: 1.7px;
   font-weight: 700;
 }
@@ -514,7 +514,7 @@ h1 {
   color: var(--color-text-secondary);
   border: 1px solid var(--color-info-border);
   border-radius: 12px;
-  font-size: 12px;
+  font-size: 13px;
   margin-bottom: 24px;
 }
 .preview-message {
@@ -533,7 +533,7 @@ h1 {
 .preview-banner .v-btn {
   flex-shrink: 0;
   color: var(--color-primary);
-  font-size: 12px;
+  font-size: 13px;
 }
 .stats-grid {
   display: grid;
@@ -601,7 +601,7 @@ h1 {
   letter-spacing: 0;
 }
 .stat-note {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--color-text-muted);
 }
 .stat-card .v-skeleton-loader {
@@ -634,7 +634,7 @@ h2 {
   padding: 6px 10px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  font-size: 11px;
+  font-size: 13px;
   color: var(--color-text-muted);
   white-space: nowrap;
 }
@@ -664,7 +664,7 @@ h2 {
 }
 .next-event-copy p {
   color: var(--color-primary);
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 600;
   margin-bottom: 4px;
 }
@@ -677,11 +677,11 @@ h2 {
 .next-event-copy > span {
   display: block;
   margin-top: 2px;
-  font-size: 11px;
+  font-size: 13px;
   color: var(--color-text-muted);
 }
 .next-event .v-btn {
-  font-size: 12px;
+  font-size: 13px;
   flex-shrink: 0;
 }
 .events-toolbar {
@@ -705,7 +705,7 @@ h2 {
   border-radius: 8px;
   color: var(--color-text-muted);
   background: transparent;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
 }
 .filter-group button.active {
@@ -715,7 +715,7 @@ h2 {
 }
 .result-count {
   color: var(--color-text-muted);
-  font-size: 11px;
+  font-size: 13px;
   white-space: nowrap;
 }
 .event-row {
@@ -737,7 +737,7 @@ h2 {
   padding: 5px;
 }
 .date-tile span {
-  font-size: 10px;
+  font-size: 13px;
   color: var(--color-text-muted);
   display: block;
   line-height: 1.7;
@@ -765,7 +765,7 @@ h3 {
   font-weight: 700;
 }
 .event-title .v-chip {
-  font-size: 9px;
+  font-size: 13px;
   height: 22px;
   padding: 0 7px;
 }
@@ -776,7 +776,7 @@ h3 {
   align-items: center;
   gap: 6px;
   color: var(--color-text-muted);
-  font-size: 11px;
+  font-size: 13px;
 }
 .event-copy p > span {
   margin: 0 3px;
@@ -791,7 +791,7 @@ h3 {
   flex-wrap: wrap;
   gap: 6px;
   color: var(--color-text-muted);
-  font-size: 10px;
+  font-size: 13px;
   padding-top: 14px;
   border-top: 1px solid var(--color-border);
 }
@@ -800,7 +800,7 @@ h3 {
 }
 .section-description {
   color: var(--color-text-muted);
-  font-size: 11px;
+  font-size: 13px;
 }
 .modules-grid {
   display: grid;
@@ -835,7 +835,7 @@ h3 {
 }
 .module-card p {
   color: var(--color-text-muted);
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.8;
 }
 .module-status {
@@ -845,7 +845,7 @@ h3 {
   background: var(--color-muted-surface);
   color: var(--color-text-muted);
   border-radius: 5px;
-  font-size: 9px;
+  font-size: 13px;
 }
 .page-footer {
   display: flex;
@@ -855,7 +855,7 @@ h3 {
   margin-top: 32px;
   border-top: 1px solid var(--color-border);
   color: var(--color-text-muted);
-  font-size: 10px;
+  font-size: 13px;
 }
 .footer-version-link {
   background: none;
@@ -870,7 +870,7 @@ h3 {
 }
 .footer-version {
   margin-left: 8px;
-  padding: 1px 6px;
+  padding: 2px 8px;
   border: 1px solid var(--color-border);
   border-radius: 999px;
   font-variant-numeric: tabular-nums;
@@ -898,7 +898,7 @@ h3 {
   margin-bottom: 3px;
 }
 .empty-state p {
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.8;
   color: var(--color-text-muted);
 }
@@ -933,7 +933,7 @@ h3 {
   background: var(--color-muted-surface);
   border-radius: 8px;
   padding: 7px 10px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--color-text-secondary);
 }
 .dialog-body {
@@ -942,7 +942,7 @@ h3 {
   margin: 22px 0;
 }
 .dialog-note {
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.7;
   color: var(--color-text-muted);
   margin-bottom: 24px;
@@ -1079,7 +1079,7 @@ h3 {
   }
   .environment-tag {
     padding: 6px 8px;
-    font-size: 10px;
+    font-size: 13px;
   }
   .page {
     padding: 26px 16px 0;
@@ -1109,7 +1109,7 @@ h3 {
   }
   .today p {
     margin: 0;
-    font-size: 12px;
+    font-size: 13px;
   }
   .preview-banner {
     align-items: flex-start;
@@ -1137,7 +1137,7 @@ h3 {
     border-radius: 16px;
   }
   .stat-label {
-    font-size: 11px;
+    font-size: 13px;
     gap: 5px;
   }
   .stat-label .icon-box {
@@ -1152,11 +1152,11 @@ h3 {
     font-size: 30px;
   }
   .stat-value span {
-    font-size: 11px;
+    font-size: 13px;
     margin-left: 4px;
   }
   .stat-note {
-    font-size: 10px;
+    font-size: 13px;
   }
   .panel {
     padding: 18px;
@@ -1170,11 +1170,11 @@ h3 {
     font-size: 19px;
   }
   .eyebrow {
-    font-size: 10px;
+    font-size: 13px;
     letter-spacing: 1.4px;
   }
   .subtle-tag {
-    font-size: 10px;
+    font-size: 13px;
     padding: 5px 7px;
   }
   .next-event {
@@ -1190,10 +1190,10 @@ h3 {
   }
   .filter-group button {
     padding: 0 10px;
-    font-size: 11px;
+    font-size: 13px;
   }
   .result-count {
-    font-size: 10px;
+    font-size: 13px;
   }
   .event-row {
     gap: 10px;
@@ -1203,11 +1203,11 @@ h3 {
     flex-basis: 44px;
   }
   .event-title h3 {
-    font-size: 12px;
+    font-size: 13px;
   }
   .event-title .v-chip {
     height: 20px;
-    font-size: 9px;
+    font-size: 13px;
   }
   .event-detail.v-btn {
     width: 44px;
@@ -1223,7 +1223,7 @@ h3 {
     right: 14px;
   }
   .module-card p {
-    font-size: 11px;
+    font-size: 13px;
   }
   .page-footer {
     flex-direction: column;
@@ -1326,7 +1326,7 @@ h3 {
 .lineups-page .lineup-member-tabs .v-tab.v-btn {
   min-width: 0;
   padding: 0 4px;
-  font-size: 11px;
+  font-size: 13px;
   letter-spacing: 0;
   flex: 1 1 0;
 }
@@ -1337,7 +1337,7 @@ h3 {
 }
 .lineup-registration-note {
   color: var(--color-text-muted);
-  font-size: 12px;
+  font-size: 13px;
   overflow-wrap: anywhere;
 }
 .lineup-member-heading h2 {
@@ -1412,7 +1412,7 @@ h3 {
   padding: 1px 6px;
   border: 1px solid var(--color-border);
   border-radius: 5px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--color-text-muted);
   background: var(--color-surface);
@@ -1459,7 +1459,7 @@ h3 {
   border: 0;
   border-radius: 4px;
   font: inherit;
-  font-size: 11px;
+  font-size: 13px;
   color: var(--color-text-muted);
   background: transparent;
   cursor: pointer;
@@ -1578,7 +1578,7 @@ h3 {
   justify-content: space-between;
   padding: 8px 10px;
   color: var(--color-text-muted);
-  font-size: 12px;
+  font-size: 13px;
   background: var(--color-surface-subtle);
 }
 .lineup-seat {
@@ -1611,7 +1611,7 @@ button.seat-person:focus-visible {
 }
 .seat-number {
   color: var(--color-text-muted);
-  font-size: 12px;
+  font-size: 13px;
   width: 12px;
   flex-shrink: 0;
 }
@@ -1629,7 +1629,7 @@ button.seat-person:focus-visible {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 12px;
+  font-size: 13px;
   flex-wrap: wrap;
 }
 .seat-job small {
@@ -1638,7 +1638,7 @@ button.seat-person:focus-visible {
 .seat-note {
   border-left: 1px solid var(--color-border);
   padding: 10px 6px;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.6;
   display: flex;
   align-items: center;
@@ -1820,7 +1820,7 @@ button.seat-person:focus-visible {
 }
 .seat-duty {
   display: block;
-  font-size: 12px;
+  font-size: 13px;
   background: var(--color-muted-surface);
   border: 1px solid var(--color-border);
   padding: 2px 4px;
@@ -1987,7 +1987,7 @@ button.seat-person {
     margin-bottom: 4px;
   }
   .lineups-page .group-capacity {
-    font-size: 12px;
+    font-size: 13px;
   }
   .lineups-page .lineup-teams {
     gap: 8px;
@@ -2008,7 +2008,7 @@ button.seat-person {
   }
   .lineups-page .seat-columns {
     padding: 2px 6px;
-    font-size: 11px;
+    font-size: 13px;
     line-height: 16px;
   }
   .lineups-page .lineup-seat {
@@ -2029,7 +2029,7 @@ button.seat-person {
   .lineups-page .seat-job {
     flex-shrink: 0;
     gap: 2px;
-    font-size: 11px;
+    font-size: 13px;
     flex-wrap: nowrap;
   }
   .lineups-page .profession-dot {
@@ -2038,18 +2038,18 @@ button.seat-person {
     flex-basis: 7px;
   }
   .lineups-page .seat-identity strong {
-    font-size: 12px;
+    font-size: 13px;
     line-height: 18px;
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
   }
   .lineups-page .seat-number {
-    font-size: 11px;
+    font-size: 13px;
     width: 10px;
   }
   .lineups-page .empty-seat {
-    font-size: 12px;
+    font-size: 13px;
   }
   .lineups-page .seat-note {
     display: block;
@@ -2058,12 +2058,12 @@ button.seat-person {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    font-size: 12px;
+    font-size: 13px;
     line-height: 20px;
   }
   .lineups-page .seat-duty {
     display: inline;
-    font-size: 12px;
+    font-size: 13px;
     border: 0;
     background: transparent;
     padding: 0;
@@ -2099,7 +2099,7 @@ button.seat-person {
   }
   .lineups-page .lineup-hint {
     margin: 6px 0;
-    font-size: 12px;
+    font-size: 13px;
   }
   .lineups-page .lineup-member {
     min-height: 44px;
@@ -2221,7 +2221,7 @@ button.seat-person {
   color: var(--color-success);
   background: var(--color-success-surface);
   border-radius: 8px;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .seat-people {
@@ -2233,10 +2233,67 @@ button.seat-person {
   flex: 1;
   min-height: 44px;
 }
+/* Filled seats show a ✕ to remove the person on hover/focus; touch screens always show it. */
+.seat-person-wrap {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+.seat-person-wrap > .seat-person {
+  min-width: 0;
+}
+.seat-remove {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.seat-person-wrap:hover .seat-remove,
+.seat-remove:focus-visible {
+  opacity: 1;
+}
+.seat-remove:hover {
+  color: var(--color-danger);
+  border-color: var(--color-danger-border);
+}
+@media (hover: none) {
+  .seat-remove {
+    opacity: 1;
+  }
+}
+/* While a seat is dragged, the member list becomes a drop zone that removes it. */
+.lineup-members-panel.lineup-drop-remove {
+  outline: 2px dashed var(--color-danger);
+  outline-offset: 4px;
+  border-radius: 12px;
+}
+.lineup-drop-hint {
+  margin-bottom: 8px;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--color-danger-surface);
+  color: var(--color-danger);
+  font-size: 13px;
+  text-align: center;
+}
 .seat-round-label {
   flex-shrink: 0;
   color: var(--color-text-muted);
-  font-size: 11px;
+  font-size: 13px;
   white-space: nowrap;
 }
 @media (min-width: 1200px) {
