@@ -19,6 +19,14 @@ const NOTE_SIZE = 22;
 const MIN_TEXT_SIZE = 18;
 const FONT = '"Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif';
 const GROUP_COLORS = { attack: '#ad353e', mobile: '#196e8c', defense: '#197661' };
+// Light and sepia exports use a print palette: each profession gets a colour chosen to read on
+// white and sepia (≥4.5:1) and to stay distinct from the others. Pale site colours (素問 pink,
+// 碎夢 light blue) would otherwise darken into red or into 潮光's blue. Dark exports keep the
+// site colours. Unknown professions fall back to the contrast-adjusted site colour.
+const PRINT_JOB_COLORS = {
+  鐵衣: '#b34d00', 潮光: '#00799e', 碎夢: '#4a6680', 神相: '#1f5bb5', 龍吟: '#1e7d3c',
+  玄機: '#8a6a00', 素問: '#c43c6c', 九靈: '#8a2bc2', 血河: '#a8161b',
+};
 const PALETTES = {
   light: {
     background: '#eef2f7', grid: '#c5d2e1', surface: '#ffffff',
@@ -173,28 +181,6 @@ function readableColor(value, backgroundHex, fallback, ratio = 4.5) {
   }
   return fallback;
 }
-function pillText(fill) {
-  const contrast = (hex) => {
-    const [a, b] = [luminance(rgb(hex)), luminance(rgb(fill))];
-    return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
-  };
-  return contrast('#ffffff') >= contrast('#16202e') ? '#ffffff' : '#16202e';
-}
-function jobPills(context, job, color, centerX, y, palette) {
-  const fill = /^#[a-f0-9]{6}$/i.test(color || '') ? color : palette.muted;
-  font(context, job.size, 500);
-  job.lines.forEach((line, index) => {
-    const width = context.measureText(line).width + job.size * 0.8;
-    const top = y + index * (job.size + 8) - 4;
-    context.fillStyle = fill;
-    if (typeof context.roundRect === 'function') {
-      context.beginPath();
-      context.roundRect(centerX - width / 2, top, width, job.size + 8, (job.size + 8) / 2);
-      context.fill();
-    } else context.fillRect(centerX - width / 2, top, width, job.size + 8);
-  });
-  text(context, job.lines, centerX, y, job.size, pillText(fill), 500, 'center');
-}
 function measureGroup(context, group) {
   const padding = GROUP_PADDING;
   const width = (WIDTH - MARGIN * 2 - padding * 2 - GAP * (group.teams.length - 1)) / group.teams.length;
@@ -208,10 +194,10 @@ function measureGroup(context, group) {
       const people = row.people.map((person) => {
         const name = fit(context, person.name, nameWidth - 24, NAME_SIZE, person.job ? 500 : 400);
         const job = person.job
-          ? fit(context, person.job, jobWidth - 44, JOB_SIZE, 500)
+          ? fit(context, person.job, jobWidth - 20, JOB_SIZE, 500)
           : { size: JOB_SIZE, lines: [] };
         return {
-          ...person, name, job,
+          ...person, name, job, jobName: person.job,
           height: Math.max(name.lines.length * (name.size + 8), job.lines.length * (job.size + 8)) + (person.round ? 22 : 0),
         };
       });
@@ -272,9 +258,7 @@ export async function lineupJpeg(data) {
     font(context, 24, 600);
     legendX -= context.measureText(`■ ${group.name}`).width + 28;
   }
-  // Light and sepia backgrounds would have to darken pale profession colours into mud;
-  // there each job sits on a pill of its true colour instead. Dark exports keep coloured text.
-  const pillJobs = luminance(rgb(palette.surface)) >= 0.5;
+  const printExport = luminance(rgb(palette.surface)) >= 0.5;
   let y = headerHeight;
   for (const group of groups) {
     const groupColor = GROUP_COLORS[group.id];
@@ -303,10 +287,10 @@ export async function lineupJpeg(data) {
           const { name, job } = person;
           const jobY = personY + labelHeight + (bodyHeight - job.lines.length * (job.size + 8) + 8) / 2;
           const nameY = personY + labelHeight + (bodyHeight - name.lines.length * (name.size + 8) + 8) / 2;
-          if (pillJobs) jobPills(context, job, person.color, x + group.jobWidth / 2, jobY, palette);
-          else
-            text(context, job.lines, x + group.jobWidth / 2, jobY, job.size,
-              readableColor(person.color, palette.surface, palette.text), 500, 'center');
+          const jobColor =
+            (printExport && PRINT_JOB_COLORS[person.jobName]) ||
+            readableColor(person.color, palette.surface, palette.text);
+          text(context, job.lines, x + group.jobWidth / 2, jobY, job.size, jobColor, 500, 'center');
           text(context, name.lines, nameX + group.nameWidth / 2, nameY, name.size,
             person.job ? palette.text : palette.muted, person.job ? 500 : 400, 'center');
           personY += person.height;

@@ -147,37 +147,40 @@ test('long names shrink to one line, then wrap completely at the minimum size, g
   }
 });
 
-test('jobs read clearly: true-colour pills on light and sepia, contrast-adjusted coloured text on dark', async () => {
+test('light and sepia exports use the print palette; dark exports keep contrast-adjusted site colours', async () => {
   const lum = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
     .map((v) => v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)
     .reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0);
   const ratio = (a, b) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05);
+  const jobs = {
+    素問: ['#ffb6c1', '#c43c6c'], 龍吟: ['#3cb371', '#1e7d3c'], 碎夢: ['#add8e6', '#4a6680'],
+    潮光: ['#00bfff', '#00799e'], 玄機: ['#f0e68c', '#8a6a00'], 九靈: ['#9932cc', '#8a2bc2'],
+    鐵衣: ['#ff8c00', '#b34d00'], 血河: ['#8b0000', '#a8161b'], 神相: ['#4682b4', '#1f5bb5'],
+  };
+  const surfaces = { light: '#ffffff', sepia: '#fbf6ea', dark: '#1b2639' };
   for (const theme of ['light', 'sepia', 'dark']) {
     const data = fixture(theme);
-    for (const [index, color] of ['#ffb6c1', '#3cb371', '#add8e6', '#00bfff', '#f0e68c', '#9932cc', '#ff8c00', '#8b0000', '#4682b4'].entries()) {
+    for (const [index, [job, [color, print]]] of Object.entries(jobs).entries()) {
       const person = data.groups[0].teams[0].rows[index % 6].people[0];
-      person.job = ['素問', '龍吟', '碎夢', '潮光', '玄機', '九靈', '鐵衣', '血河', '神相'][index];
-      person.color = color;
+      Object.assign(person, { job, color });
       const { calls } = await render(data);
-      const at = calls.findIndex((c) => c.type === 'text' && c.value === person.job);
+      const at = calls.findIndex((c) => c.type === 'text' && c.value === job);
       const label = calls[at];
-      if (theme === 'dark') {
-        assert.ok(ratio(label.color, '#1b2639') >= 4.5, `${theme} ${person.job}`);
-        continue;
-      }
-      // The pill keeps the profession's own colour; its text is black or white, whichever reads.
-      const pill = calls[at - 1];
-      assert.equal(pill.type, 'fill');
-      assert.equal(pill.color, color);
-      assert.ok(pill.x <= label.x - label.width / 2 && pill.x + pill.width >= label.x + label.width / 2);
-      assert.ok(ratio(label.color, color) >= 4.5 || ratio(label.color, color) === Math.max(ratio('#ffffff', color), ratio('#16202e', color)), `${theme} ${person.job}`);
+      assert.ok(ratio(label.color, surfaces[theme]) >= 4.5, `${theme} ${job} ${label.color}`);
+      assert.notEqual(calls[at - 1].color, color, 'no block in the raw profession colour behind the job');
+      if (theme !== 'dark') assert.equal(label.color, print, `${theme} ${job} uses the print palette`);
     }
   }
-  // Steel blue (神相) stays clearly blue on dark exports instead of washing out to grey.
-  const data = fixture('dark');
-  Object.assign(data.groups[0].teams[0].rows[0].people[0], { job: '神相', color: '#4682b4' });
+  // An unknown profession on a light export falls back to the darkened site colour.
+  const data = fixture('light');
+  Object.assign(data.groups[0].teams[0].rows[0].people[0], { job: '新職業', color: '#ffb6c1' });
   const { calls } = await render(data);
-  const [r, , b] = [1, 3, 5].map((i) => parseInt(calls.find((c) => c.value === '神相').color.slice(i, i + 2), 16));
+  assert.ok(ratio(calls.find((c) => c.value === '新職業').color, '#ffffff') >= 4.5);
+  // Steel blue (神相) stays clearly blue on dark exports instead of washing out to grey.
+  const dark = fixture('dark');
+  Object.assign(dark.groups[0].teams[0].rows[0].people[0], { job: '神相', color: '#4682b4' });
+  const darkCalls = (await render(dark)).calls;
+  const [r, , b] = [1, 3, 5].map((i) => parseInt(darkCalls.find((c) => c.value === '神相').color.slice(i, i + 2), 16));
   assert.ok(b - r >= 100, `dark 神相 stays blue (${r}, ${b})`);
 });
 
