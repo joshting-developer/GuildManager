@@ -473,7 +473,7 @@ async function submit() {
   white-space: nowrap;
 }
 .profession-count-list small {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 400;
   color: var(--color-text-muted);
 }

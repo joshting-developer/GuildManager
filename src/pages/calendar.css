@@ -100,7 +100,7 @@
 }
 .calendar-today-label {
   color: var(--color-primary);
-  font-size: 12px;
+  font-size: 13px;
 }
 .calendar-status {
   margin-top: 16px;
@@ -132,7 +132,7 @@
   .calendar-today-label {
     width: 100%;
     text-align: center;
-    font-size: 10px;
+    font-size: 13px;
   }
   .calendar-day time {
     width: 26px;
@@ -196,7 +196,7 @@
   padding: 3px 5px;
   border-radius: 5px;
   margin-top: 3px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--color-violet);
   background: var(--color-violet-surface);
 }
@@ -214,7 +214,7 @@
 }
 .calendar-event-more,
 .calendar-event-count {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--color-text-muted);
 }
 .calendar-event-count {

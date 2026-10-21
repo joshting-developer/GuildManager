@@ -12,7 +12,7 @@ const props = defineProps({
   selectedProfession: String,
   selectedDutyId: String,
 });
-const emit = defineEmits(['place', 'assign-duty', 'edit-seat', 'rename-team']);
+const emit = defineEmits(['place', 'assign-duty', 'edit-seat', 'rename-team', 'remove-seat']);
 const professionsById = computed(() => new Map(props.professions.map((job) => [job.job_id, job])));
 const dutiesById = computed(() => new Map(props.duties.map((duty) => [duty.id, duty])));
 const peopleByKey = computed(() => {
@@ -63,9 +63,11 @@ function drop(event, teamId, index) {
   const profession = event.dataTransfer.getData('application/x-guild-profession');
   if (uid) emit('place', uid, teamId, index, profession || undefined);
 }
-function drag(event, slot) {
+// A seat drag also carries where it came from, so dropping it on the member list removes it.
+function drag(event, slot, teamId, index, round) {
   if (!props.readOnly && participantKey(slot)) {
     event.dataTransfer.setData('application/x-guild-member', participantKey(slot));
+    event.dataTransfer.setData('application/x-guild-seat', JSON.stringify({ teamId, index, round }));
     event.dataTransfer.clearData('application/x-guild-profession');
     event.dataTransfer.effectAllowed = 'move';
   }
@@ -132,9 +134,12 @@ function activate(team, index) {
             @drop.prevent="drop($event, team.id, index)"
           >
             <div class="seat-people">
-              <component
+              <div
                 v-for="(entry, roundIndex) in slotAssignments(slot)"
                 :key="roundIndex"
+                class="seat-person-wrap"
+              >
+              <component
                 :is="readOnly ? 'div' : 'button'"
                 :type="readOnly ? undefined : 'button'"
                 class="seat-person"
@@ -150,7 +155,7 @@ function activate(team, index) {
                     ? undefined
                     : `${group.name} ${team.name} 第 ${index + 1} 位${slot.secondRound ? (roundIndex === 0 ? '第一場' : '第二場') : ''}，${person(entry)?.name || '空位'}${selectedDutyId ? '，分配已選職責' : selectedUid ? '，安排已選成員' : '，編輯位置'}`
                 "
-                @dragstart="drag($event, entry)"
+                @dragstart="drag($event, entry, team.id, index, roundIndex + 1)"
                 @click="activate(team, index)"
               >
                 <span class="seat-number" aria-hidden="true">{{
@@ -173,6 +178,17 @@ function activate(team, index) {
                   selectedUid && !readOnly ? '點此安排' : '—'
                 }}</span>
               </component>
+              <button
+                v-if="!readOnly && participantKey(entry)"
+                type="button"
+                class="seat-remove"
+                :aria-label="`從${group.name} ${team.name} 第 ${index + 1} 位${slot.secondRound ? (roundIndex === 0 ? '第一場' : '第二場') : ''}移除 ${person(entry)?.name || '成員'}`"
+                :title="`移除 ${person(entry)?.name || '成員'}`"
+                @click.stop="emit('remove-seat', team.id, index, roundIndex + 1)"
+              >
+                ✕
+              </button>
+              </div>
             </div>
             <button
               v-if="!readOnly"

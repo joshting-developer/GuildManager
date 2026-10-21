@@ -153,7 +153,7 @@ watch([side, tab, sortKey, sortDirection], () => { page.value = 1; unclassifiedP
 .team-analysis-table th:first-child { min-width: 180px; position: sticky; left: 0; z-index: 1; }
 .team-analysis-player { background: var(--color-surface); text-align: left; font-weight: 400; overflow-wrap: anywhere; max-width: 230px; }
 .team-analysis-player strong { display: block; color: var(--color-text); }
-.team-analysis-player span, .team-analysis-percent { display: block; color: var(--color-text-muted); font-size: 12px; font-weight: 400; line-height: 1.7; }
+.team-analysis-player span, .team-analysis-percent { display: block; color: var(--color-text-muted); font-size: 13px; font-weight: 400; line-height: 1.7; }
 .team-analysis-section-title { font-size: 18px; margin-bottom: 12px; }
 .team-analysis-sort { display: inline-flex; align-items: center; gap: 4px; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; padding: 6px 0; min-height: 44px; }
 .team-analysis-sort + .team-analysis-sort { margin-left: 8px; }

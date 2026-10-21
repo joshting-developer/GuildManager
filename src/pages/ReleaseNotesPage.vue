@@ -78,7 +78,7 @@ const dateLabel = (date) => date.replace(/-/g, '/');
   border-radius: 999px;
   background: var(--color-info-surface);
   color: var(--color-primary);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
 }
 .release-date {
