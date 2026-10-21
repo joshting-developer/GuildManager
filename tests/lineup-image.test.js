@@ -103,7 +103,7 @@ test('JPG uses separate readable columns and theme while retaining all team head
     assert.ok(Math.abs(size(person) - 70.2) < 1e-6);
     assert.match(person.font, /^500 /, 'names use a medium weight, not bold');
     assert.ok(Math.abs(size(job) - 75.6) < 1e-6);
-    assert.match(job.font, /^400 /);
+    assert.match(job.font, /^500 /);
     // Name and job share a vertical centre even though their sizes differ.
     assert.ok(person.x > job.x && Math.abs(person.y + size(person) / 2 - job.y - size(job) / 2) < 1e-6);
     assert.ok(texts.every((c) => c.y >= 0 && c.y + Number(c.font.match(/([\d.]+)px/)[1]) <= canvas.height));
@@ -131,7 +131,7 @@ test('long names shrink to one line, then wrap completely at the minimum size, g
   assert.equal(JSON.stringify(data), original);
   assert.ok(canvas.height > (await render(fixture('dark'))).canvas.height);
   const texts = calls.filter((c) => c.type === 'text');
-  const names = texts.filter((c) => /^500 /.test(c.font) && Math.abs(Number(c.font.match(/([\d.]+)px/)[1]) - 48.6) < 1e-6).map((c) => c.value).join('');
+  const names = texts.filter((c) => /^500 /.test(c.font) && Math.abs(Number(c.font.match(/([\d.]+)px/)[1]) - 48.6) < 1e-6 && c.align === 'center' && !/[職業副（）]/.test(c.value)).map((c) => c.value).join('');
   assert.equal(names, '長姓名測試'.repeat(10 * 2 * 60));
   assert.equal(texts.filter((c) => c.value === '保留換行').length, 60);
   for (const call of texts) {
@@ -147,21 +147,30 @@ test('long names shrink to one line, then wrap completely at the minimum size, g
   }
 });
 
-test('profession text maintains readable contrast in both themes, including light pink and dark red professions', async () => {
+test('jobs read clearly: true-colour pills on light and sepia, contrast-adjusted coloured text on dark', async () => {
   const lum = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
     .map((v) => v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)
     .reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0);
-  for (const theme of ['light', 'dark']) {
+  const ratio = (a, b) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05);
+  for (const theme of ['light', 'sepia', 'dark']) {
     const data = fixture(theme);
     for (const [index, color] of ['#ffb6c1', '#3cb371', '#add8e6', '#00bfff', '#f0e68c', '#9932cc', '#ff8c00', '#8b0000', '#4682b4'].entries()) {
       const person = data.groups[0].teams[0].rows[index % 6].people[0];
       person.job = ['素問', '龍吟', '碎夢', '潮光', '玄機', '九靈', '鐵衣', '血河', '神相'][index];
       person.color = color;
       const { calls } = await render(data);
-      const foreground = lum(calls.find((c) => c.value === person.job).color);
-      const background = lum(theme === 'dark' ? '#1b2639' : '#ffffff');
-      // Profession text is large (76px), so the WCAG large-text ratio of 3:1 applies.
-      assert.ok((Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05) >= 3);
+      const at = calls.findIndex((c) => c.type === 'text' && c.value === person.job);
+      const label = calls[at];
+      if (theme === 'dark') {
+        assert.ok(ratio(label.color, '#1b2639') >= 4.5, `${theme} ${person.job}`);
+        continue;
+      }
+      // The pill keeps the profession's own colour; its text is black or white, whichever reads.
+      const pill = calls[at - 1];
+      assert.equal(pill.type, 'fill');
+      assert.equal(pill.color, color);
+      assert.ok(pill.x <= label.x - label.width / 2 && pill.x + pill.width >= label.x + label.width / 2);
+      assert.ok(ratio(label.color, color) >= 4.5 || ratio(label.color, color) === Math.max(ratio('#ffffff', color), ratio('#16202e', color)), `${theme} ${person.job}`);
     }
   }
 });
