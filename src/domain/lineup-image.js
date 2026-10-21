@@ -136,8 +136,8 @@ function rgb(hex) {
   return [1, 3, 5].map((start) => parseInt(hex.slice(start, start + 2), 16));
 }
 // Profession and group colours keep their hue; they are only mixed toward white/black
-// until text reaches the WCAG ratio: 3:1 for large profession text, 4.5:1 for smaller text.
-function readableColor(value, backgroundHex, fallback, ratio = 3) {
+// until text reaches the requested WCAG ratio (profession and legend text use 4.5:1).
+function readableColor(value, backgroundHex, fallback, ratio = 4.5) {
   if (!/^#[a-f0-9]{6}$/i.test(value || '')) return fallback;
   const color = rgb(value);
   const background = luminance(rgb(backgroundHex));
@@ -149,6 +149,28 @@ function readableColor(value, backgroundHex, fallback, ratio = 3) {
       return '#' + mixed.map((channel) => channel.toString(16).padStart(2, '0')).join('');
   }
   return fallback;
+}
+function pillText(fill) {
+  const contrast = (hex) => {
+    const [a, b] = [luminance(rgb(hex)), luminance(rgb(fill))];
+    return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+  };
+  return contrast('#ffffff') >= contrast('#16202e') ? '#ffffff' : '#16202e';
+}
+function jobPills(context, job, color, centerX, y, palette) {
+  const fill = /^#[a-f0-9]{6}$/i.test(color || '') ? color : palette.muted;
+  font(context, job.size, 500);
+  job.lines.forEach((line, index) => {
+    const width = context.measureText(line).width + job.size * 0.8;
+    const top = y + index * (job.size + 8) - 4;
+    context.fillStyle = fill;
+    if (typeof context.roundRect === 'function') {
+      context.beginPath();
+      context.roundRect(centerX - width / 2, top, width, job.size + 8, (job.size + 8) / 2);
+      context.fill();
+    } else context.fillRect(centerX - width / 2, top, width, job.size + 8);
+  });
+  text(context, job.lines, centerX, y, job.size, pillText(fill), 500, 'center');
 }
 function measureGroup(context, group) {
   const padding = GROUP_PADDING;
@@ -163,7 +185,7 @@ function measureGroup(context, group) {
       const people = row.people.map((person) => {
         const name = fit(context, person.name, nameWidth - 24, NAME_SIZE, person.job ? 500 : 400);
         const job = person.job
-          ? fit(context, person.job, jobWidth - 20, JOB_SIZE, 400)
+          ? fit(context, person.job, jobWidth - 44, JOB_SIZE, 500)
           : { size: JOB_SIZE, lines: [] };
         return {
           ...person, name, job,
@@ -227,6 +249,9 @@ export async function lineupJpeg(data) {
     font(context, 24, 600);
     legendX -= context.measureText(`■ ${group.name}`).width + 28;
   }
+  // Light and sepia backgrounds would have to darken pale profession colours into mud;
+  // there each job sits on a pill of its true colour instead. Dark exports keep coloured text.
+  const pillJobs = luminance(rgb(palette.surface)) >= 0.5;
   let y = headerHeight;
   for (const group of groups) {
     const groupColor = GROUP_COLORS[group.id];
@@ -255,8 +280,10 @@ export async function lineupJpeg(data) {
           const { name, job } = person;
           const jobY = personY + labelHeight + (bodyHeight - job.lines.length * (job.size + 8) + 8) / 2;
           const nameY = personY + labelHeight + (bodyHeight - name.lines.length * (name.size + 8) + 8) / 2;
-          text(context, job.lines, x + group.jobWidth / 2, jobY, job.size,
-            readableColor(person.color, palette.surface, palette.text), 400, 'center');
+          if (pillJobs) jobPills(context, job, person.color, x + group.jobWidth / 2, jobY, palette);
+          else
+            text(context, job.lines, x + group.jobWidth / 2, jobY, job.size,
+              readableColor(person.color, palette.surface, palette.text), 500, 'center');
           text(context, name.lines, nameX + group.nameWidth / 2, nameY, name.size,
             person.job ? palette.text : palette.muted, person.job ? 500 : 400, 'center');
           personY += person.height;
