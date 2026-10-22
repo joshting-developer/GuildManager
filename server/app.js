@@ -11,6 +11,7 @@ import { ParticipationError } from './participation-repository.js';
 import { BattleRecordError } from '../src/domain/battle-records.js';
 import { EventVideoError } from '../src/domain/event-videos.js';
 import { LotteryError } from '../src/domain/lottery.js';
+import { withDefaultLineupEvent } from '../src/domain/lineup-index.js';
 
 export function createApp(repository, { authNow, notifier = null } = {}) {
   const app = express();
@@ -209,8 +210,16 @@ export function createApp(repository, { authNow, notifier = null } = {}) {
       ),
     });
   });
-  app.get('/api/lineups', (_request, response) => {
-    response.set('Cache-Control', 'no-store').json(repository.getLineupIndex());
+  app.get('/api/lineups', (request, response) => {
+    const index = repository.getLineupIndex();
+    response.set('Cache-Control', 'no-store').json(
+      request.query.include === 'default'
+        ? withDefaultLineupEvent(index, {
+            history: (id) => repository.getLineupHistory(id).versions,
+            participation: (id) => repository.getEventParticipation(id),
+          })
+        : index,
+    );
   });
   app.get('/api/duties', (_request, response) => {
     response.set('Cache-Control', 'no-store').json(repository.listDuties());

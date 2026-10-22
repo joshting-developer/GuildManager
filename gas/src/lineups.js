@@ -2,6 +2,7 @@ import { projectReferences } from './member-maintenance.js';
 import { validateLineup } from '../../src/domain/lineup-validation.js';
 import { editableLineup, participantKey } from '../../src/domain/lineups.js';
 import { canonical, fail, revision, retry, text } from './common.js';
+import { withDefaultLineupEvent } from '../../src/domain/lineup-index.js';
 export function createLineups(store, catalog, participation, { uuid, now }) {
   const projected = (kind, value) => projectReferences(store, kind, value.id, value);
   const versions = (eventId) =>
@@ -73,7 +74,7 @@ export function createLineups(store, catalog, participation, { uuid, now }) {
     }));
   }
   return {
-    getLineupIndex() {
+    getLineupIndex([options] = []) {
       const events = catalog
         .liveEvents()
         .filter((value) => ['scrimmage', 'guild_war', 'dragon_tiger'].includes(value.type));
@@ -84,12 +85,17 @@ export function createLineups(store, catalog, participation, { uuid, now }) {
           latest.set(version.eventId, version);
       for (const version of latest.values())
         if (!ids.has(version.eventId)) events.push({ ...version.event, archived: true });
-      return {
+      const index = {
         events: events.sort(
           (a, b) => b.dates[0].localeCompare(a.dates[0]) || a.title.localeCompare(b.title),
         ),
         templates: store.all('templates').map((value) => projectReferences(store, 'template', value.id, value)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
       };
+      if (options?.include !== 'default') return index;
+      return withDefaultLineupEvent(index, {
+        history: (id) => versions(id),
+        participation: (id) => participation.methods.getEventParticipation([id]),
+      });
     },
     getLineupHistory: ([eventId]) => ({ versions: versions(eventId) }),
     confirmLineup([input]) {
