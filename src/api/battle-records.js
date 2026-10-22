@@ -53,6 +53,8 @@ export function createBattleRecordClient({
     saveRecords: (input) => call('saveBattleRecords', '', input, [input]),
     updateRecord: (id, input) =>
       call('updateBattleRecord', `/${encodeURIComponent(id)}`, input, [id, input], 'PATCH'),
+    deleteRecord: (id, revision) =>
+      call('deleteBattleRecord', `/${encodeURIComponent(id)}`, { revision }, [id, revision], 'DELETE'),
     async getAttachment(id, kind) {
       if (!['csv', 'image'].includes(kind)) throw new Error('未知附件類型');
       if (source === 'gas') {

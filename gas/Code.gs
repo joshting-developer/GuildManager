@@ -266,6 +266,10 @@ function updateBattleRecord(id, input, context) {
   return GuildGas.rpc('updateBattleRecord', [id, input], context);
 }
 
+function deleteBattleRecord(id, revision, context) {
+  return GuildGas.rpc('deleteBattleRecord', [id, revision], context);
+}
+
 function saveBattleRecords(input, context) {
   return GuildGas.rpc('saveBattleRecords', [input], context);
 }

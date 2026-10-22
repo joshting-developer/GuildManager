@@ -188,6 +188,8 @@ admin／manager 可由上傳數據已保存卡片，或數據分析詳情的「�
 
 本機 `PATCH /api/battle-records/:id` 與 GAS `updateBattleRecord` 共用欄位驗證，檢查管理角色、CSRF、revision 及 requestId；SQLite 追加 revision（舊資料初值 0）與 battle_metadata_requests，交易保存修改和重試結果。GAS 舊戰績 revision 缺值視為 0，GM_battles 及 GM_requests 沿用既有鎖定與提交標記，不需新增工作表。原 CSV、Drive 檔案、玩家快照及成員連結、日期／類型／場序與原上傳重試資料保留；不重算或覆寫原 content hash。
 
+傳錯的戰績不可覆寫，改由 admin／manager 刪除後重傳（本機 `DELETE /api/battle-records/:id`、GAS `deleteBattleRecord`）。同一交易移除 battles／battle_players／battle_links 及成員參照覆寫，釋放場次與 content hash，讓同場可重新上傳；Drive 檔案與上傳重試紀錄保留。檢查管理角色、CSRF 與 revision，重複刪除為無動作。
+
 編輯視窗每次開啟讀最新資料，儲存成功更新卡片／詳情及快取；失敗保留草稿，衝突須重新載入，相同請求重試不重複修改。兩場各自修改，不清除另一場待上傳 CSV。GAS 套件已生成，本次未同步或發布新部署。
 
 ## member 開放成員管理

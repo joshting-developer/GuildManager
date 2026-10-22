@@ -78,6 +78,7 @@ const WRITES = [
   'createLineupTemplate',
   'saveBattleRecords',
   'updateBattleRecord',
+  'deleteBattleRecord',
   'saveLottery',
   'drawLotteryPrize',
   'resetLottery',

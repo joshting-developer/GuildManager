@@ -117,6 +117,23 @@ export function createBattles(store, catalog, { uuid, now, files, prepareOnly = 
         },
       );
     },
+    // Managers delete a mistaken upload so the round can be uploaded again. The raw CSV and
+    // image stay in the private Drive folder as a backup; an image may be shared by both rounds.
+    deleteBattleRecord([id, expected]) {
+      text(id, '戰績', 64);
+      if (!Number.isSafeInteger(expected) || expected < 0)
+        fail('BATTLE_INVALID', '資料版本不正確，請重新載入');
+      const current = store.get('battles', id);
+      if (!current) return { deleted: true, id };
+      if ((current.revision ?? 0) !== expected)
+        fail('REVISION_CONFLICT', '對戰資訊已更新，請重新載入後再刪除');
+      for (const link of store.all('battle_links').filter((entry) => entry.recordId === id))
+        store.remove('battle_links', `${id}:${link.playerIndex}`);
+      if (store.get('requests', `member-ref:battle:${id}`)) store.remove('requests', `member-ref:battle:${id}`);
+      if (store.get('battle_players', id)) store.remove('battle_players', id);
+      store.remove('battles', id);
+      return { deleted: true, id };
+    },
     getMemberBattleRecords([uid, page = 1, input = {}]) {
       pageNumber(page);
       const filters = validatePersonalBattleFilters(input);
