@@ -49,7 +49,10 @@ const savedDetails = ref({}),
   savedErrors = ref({}),
   downloadBusy = ref(false),
   downloadError = ref('');
-const busy = computed(() => reading.value || saving.value || downloadBusy.value);
+const deleting = ref(false);
+const busy = computed(
+  () => reading.value || saving.value || downloadBusy.value || deleting.value,
+);
 const dirty = computed(() => files.value.length > 0);
 const editingRecordId = ref(null);
 const editDialog = ref(false);
@@ -68,6 +71,33 @@ function onMetadataUpdated(record) {
   else if (previewSlot.value?.saved?.id === record.id) loadSavedRecord(record);
   internalRounds.value[record.roundNumber] = record.isInternal;
   notice.value = '對戰資訊已更新';
+}
+// A mistaken upload is deleted so the same round can be uploaded again.
+async function deleteSaved(record, label) {
+  if (busy.value) return;
+  if (
+    !window.confirm(
+      `確定刪除${label}的戰績？\n${record.redTeam} 對 ${record.blueTeam}\n刪除後個人戰績與統計會一併移除，之後可以重新上傳這一場。`,
+    )
+  )
+    return;
+  error.value = '';
+  notice.value = '';
+  deleting.value = true;
+  try {
+    await client.deleteRecord(record.id, record.revision);
+    if (disposed) return;
+    roundRecords.value = roundRecords.value.filter((item) => item.id !== record.id);
+    delete savedDetails.value[record.id];
+    internalRounds.value[record.roundNumber] = false;
+    notice.value = `已刪除${label}的戰績，可以重新上傳`;
+  } catch (cause) {
+    if (disposed) return;
+    error.value = cause.message;
+    if (cause.code === 'REVISION_CONFLICT') await loadRounds();
+  } finally {
+    deleting.value = false;
+  }
 }
 const selectedEventId = ref(null);
 const selectedEvent = computed(() =>
@@ -543,6 +573,16 @@ onUnmounted(() => {
           :aria-label="`編輯${slot.label}對戰資訊`"
           @click="openMetadata(slot.saved)"
           >編輯對戰資訊</v-btn
+        >
+        <v-btn
+          variant="text"
+          color="error"
+          :prepend-icon="mdiDeleteOutline"
+          :disabled="busy || roundsLoading"
+          :loading="deleting"
+          :aria-label="`刪除${slot.label}戰績`"
+          @click="deleteSaved(slot.saved, slot.label)"
+          >刪除重傳</v-btn
         >
       </template>
       <template v-else>

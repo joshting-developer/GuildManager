@@ -232,6 +232,26 @@ export function createBattleRecordRepository(db, { project = (_kind, _id, value)
         return analyzeBattleTeams(record, analysisLineup(record));
       })();
     },
+    // Managers delete a mistaken upload so the round can be uploaded again. The upload row
+    // (and its image, which may be shared by both rounds) stays for retry receipts.
+    deleteBattleRecord(id, expected) {
+      if (!Number.isSafeInteger(expected) || expected < 0)
+        throw new BattleRecordError('資料版本不正確，請重新載入');
+      return db.transaction(() => {
+        const current = db.prepare('SELECT revision FROM battle_records WHERE id = ?').get(id);
+        if (!current) return { deleted: true, id };
+        if (current.revision !== expected)
+          throw new BattleRecordError(
+            '對戰資訊已更新，請重新載入後再刪除',
+            409,
+            'REVISION_CONFLICT',
+          );
+        db.prepare('DELETE FROM battle_player_links WHERE record_id = ?').run(id);
+        db.prepare("DELETE FROM member_reference_overrides WHERE kind = 'battle' AND record_id = ?").run(id);
+        db.prepare('DELETE FROM battle_records WHERE id = ?').run(id);
+        return { deleted: true, id };
+      })();
+    },
     updateBattleRecord(id, input) {
       return db.transaction(() => {
         const current = get(id);

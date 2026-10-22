@@ -153,6 +153,9 @@ export function createApp(repository, { authNow, notifier = null } = {}) {
   app.patch('/api/battle-records/:id', (request, response) => {
     response.json(repository.updateBattleRecord(request.params.id, request.body));
   });
+  app.delete('/api/battle-records/:id', (request, response) => {
+    response.json(repository.deleteBattleRecord(request.params.id, request.body?.revision));
+  });
   app.get('/api/battle-records/:id/attachments/:kind', (request, response) => {
     const attachment = repository.getBattleAttachment(request.params.id, request.params.kind);
     response.set('X-Content-Type-Options', 'nosniff');

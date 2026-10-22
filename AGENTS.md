@@ -238,6 +238,7 @@ Apps Script 的 `.gs` 檔案共用全域環境, 避免重複命名與載入時�
 - admin／manager 可在已上傳卡片及戰績詳情開啟「編輯對戰資訊」，修改紅／藍方名稱、我方、勝方；約戰可逐場切換內推，幫戰／龍虎戰不可設內推。member 維持唯讀。
 - 內推保存時清除我方／勝方，第一／第二場獨立；切回一般對戰可重新選結果，未知勝方仍顯示結果未填。CSV、玩家快照、成員關聯、活動快照、日期／類型／場序及原上傳防重複雜湊不變；已刪活動或舊未指定場序的戰績仍可修正資訊。
 - `PATCH /api/battle-records/:id`／GAS `updateBattleRecord` 在後端檢查管理角色、CSRF、欄位白名單、revision 及 requestId。SQLite 交易保存資訊及重試結果，GAS 沿用 script lock／提交標記；舊 revision 初值 0，相同請求可安全重試，並行衝突需重載。
+- 傳錯的戰績由 admin／manager 刪除後重傳：本機 `DELETE /api/battle-records/:id`、GAS `deleteBattleRecord([id, revision])`（列入 WRITES）。刪除戰績、玩家快照、成員連結與成員參照覆寫，個人戰績與統計同步移除；Drive 原始 CSV／圖片與上傳重試紀錄保留作備份（圖片可能兩場共用）。紀錄不存在回傳 deleted，revision 不符回 REVISION_CONFLICT。測試見 `tests/battle-delete.test.js`。
 - 視窗每次開啟讀取最新資料，提供載入、失敗／重試、儲存失敗保留草稿及離開提醒；成功更新卡片／詳情與快取，不影響另一場待上傳 CSV，個人分析及清單重讀使用最新結果。
 
 ## Google 試算表資料規則

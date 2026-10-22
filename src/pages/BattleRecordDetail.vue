@@ -9,6 +9,7 @@ import {
   mdiSort,
   mdiChevronUp,
   mdiChevronDown,
+  mdiDeleteOutline,
 } from '@mdi/js';
 import { createBattleRecordClient } from '../api/battle-records.js';
 import { createMemberClient } from '../api/members.js';
@@ -46,6 +47,29 @@ function onMetadataUpdated(updated) {
   if (updated.id !== record.value?.id) return;
   record.value = { ...record.value, ...updated };
   notice.value = '對戰資訊已更新';
+}
+const deleting = ref(false);
+// A mistaken upload is deleted, then the round can be uploaded again from 上傳數據.
+async function deleteRecord() {
+  const current = record.value;
+  if (!current || deleting.value) return;
+  if (
+    !window.confirm(
+      `確定刪除這筆戰績？\n${current.redTeam} 對 ${current.blueTeam}\n刪除後個人戰績與統計會一併移除，之後可以重新上傳這一場。`,
+    )
+  )
+    return;
+  notice.value = '';
+  deleting.value = true;
+  try {
+    await client.deleteRecord(current.id, current.revision);
+    window.location.hash = '#/battle-records';
+  } catch (cause) {
+    window.alert(cause.message);
+    if (cause.code === 'REVISION_CONFLICT') loadRecord();
+  } finally {
+    deleting.value = false;
+  }
 }
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 const client = createBattleRecordClient({ source }),
@@ -218,6 +242,15 @@ onUnmounted(() => {
       <v-btn ref="attackButton" variant="outlined" aria-haspopup="dialog" @click="openTeamAnalysis('attack')">進攻分析</v-btn>
       <v-btn ref="defenseButton" variant="outlined" aria-haspopup="dialog" @click="openTeamAnalysis('defense')">防守分析</v-btn>
       <v-btn v-if="canManage" variant="outlined" @click="editDialog = true">編輯對戰資訊</v-btn>
+      <v-btn
+        v-if="canManage"
+        variant="text"
+        color="error"
+        :prepend-icon="mdiDeleteOutline"
+        :loading="deleting"
+        @click="deleteRecord"
+        >刪除戰績</v-btn
+      >
     </div>
     <BattleTeamAnalysisDialog v-model="teamDialog" :record="record" :mode="analysisMode" :analysis="teamAnalysis.data" :error="teamAnalysis.error" @reload="loadRecord" @closed="restoreTeamFocus" />
     <BattleMetadataDialog
