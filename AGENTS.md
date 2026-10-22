@@ -795,3 +795,7 @@ package／lockfile／release note／編譯版本、影片超連結及 noopener n
 ## 編外成員可直接排表、額外報名改名本場外援（2026/10/21，v1.0.24）
 
 使用者說明部分編外人員固定補位但不一定每場報名，希望缺人時私下詢問後直接排上，不必每場代為報名。`eligibleMember` 改為名冊成員（uid）皆可安排、請假除外；GAS `participation.eligible` 同步放寬；本機確認排表與範本走同一函式。排表來源改為 2×2：幫會成員／俱樂部成員／編外成員／本場外援（「額外報名」全站改名，成員清單的「編外人員」維持）。出席、職業統計與 Discord 通知只看報名／請假，不受影響。更新 4 項舊測試至新規則並新增 GAS 測試；本機實測未報名編外成員可安排並儲存。
+
+## 刪除本場外援（2026/10/22，本機）
+
+使用者要求排表頁可刪掉打錯的本場外援，並「刪除時順便從排表拿掉」。新增 `deleteGuestRegistration`（本機 `DELETE /api/lineups/events/:id/guests/:registrationId`，管理者限定；GAS 列入 WRITES、預設 admin／manager），真正刪除報名列，不留請假、不發通知，重複呼叫回傳 deleted；版本不符本機回 PARTICIPATION_CHANGED、GAS 回 REVISION_CONFLICT（沿用既有取消外援的差異）。前端卡片與位置視窗各有刪除入口，刪除後清除草稿中該外援所有場次。新增 `tests/guest-delete.test.js`。

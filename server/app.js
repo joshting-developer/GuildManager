@@ -199,6 +199,16 @@ export function createApp(repository, { authNow, notifier = null } = {}) {
       .status(201)
       .json({ registration: repository.addGuestRegistration(request.params.id, request.body) });
   });
+  // Management-only (under /api/lineups): permanently removes a 本場外援 registration.
+  app.delete('/api/lineups/events/:id/guests/:registrationId', (request, response) => {
+    response.json(
+      repository.deleteGuestRegistration(
+        request.params.id,
+        request.params.registrationId,
+        request.body?.revision,
+      ),
+    );
+  });
   app.delete('/api/events/:id/registrations/:registrationId', (request, response) => {
     response.json({
       registration: notifying(() =>

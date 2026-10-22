@@ -286,6 +286,17 @@ export function createParticipation(store, catalog, { uuid, now, notify = () => 
         () => createGuest(eventId, input),
       ),
     }),
+    // Managers delete a mistaken 本場外援 outright: no leave record and no Discord notice.
+    deleteGuestRegistration([eventId, id, expected]) {
+      catalog.event(eventId, { battle: true });
+      if (!Number.isSafeInteger(expected) || expected < 0) fail('VALIDATION_ERROR', '資料版本不正確，請重新載入');
+      const old = store.get('registrations', id);
+      if (!old) return { deleted: true, id };
+      if (old.eventId !== eventId) fail('REGISTRATION_NOT_FOUND', '找不到這筆報名');
+      revision(expected, old.revision);
+      store.remove('registrations', id);
+      return { deleted: true, id };
+    },
     cancelGuestRegistration([eventId, id, expected]) {
       catalog.event(eventId, { battle: true });
       const old = store.get('registrations', id);
