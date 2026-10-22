@@ -486,6 +486,22 @@ export function createParticipationRepository(db, { notify = () => {} } = {}) {
         return registration(id);
       })();
     },
+    // Managers delete a mistaken 本場外援 outright: no leave record and no Discord notice.
+    // Saved lineup versions keep their own snapshots; a retry after success is a no-op.
+    deleteGuestRegistration(eventId, id, expectedRevision) {
+      revision(expectedRevision);
+      return db.transaction(() => {
+        checkEvent(eventId);
+        const prior = registration(id);
+        if (!prior) return { deleted: true, id };
+        if (prior.eventId !== eventId)
+          throw new ParticipationError('找不到本場報名', 404, 'REGISTRATION_NOT_FOUND');
+        if (prior.revision !== expectedRevision)
+          throw new ParticipationError('報名已更新，請重新載入', 409, 'PARTICIPATION_CHANGED');
+        db.prepare('DELETE FROM event_registrations WHERE id = ?').run(id);
+        return { deleted: true, id };
+      })();
+    },
     cancelGuestRegistration(eventId, id, expectedRevision) {
       revision(expectedRevision);
       return db.transaction(() => {

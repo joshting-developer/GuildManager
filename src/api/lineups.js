@@ -39,6 +39,16 @@ export function createLineupClient({ source = 'local', fetchImpl = sessionFetch,
     getHistory: (id) =>
       call('getLineupHistory', `/events/${encodeURIComponent(id)}`, 'GET', null, [id]),
     confirm: (input) => call('confirmLineup', '/confirm', 'POST', input),
+    // Permanently removes a 本場外援 registration (managers only).
+    deleteGuest: (eventId, id, revision) =>
+      source === 'gas'
+        ? callGas('deleteGuestRegistration', [eventId, id, revision], googleRun)
+        : call(
+            'deleteGuestRegistration',
+            `/events/${encodeURIComponent(eventId)}/guests/${encodeURIComponent(id)}`,
+            'DELETE',
+            { revision },
+          ),
     createTemplate: (input) => call('createLineupTemplate', '/templates', 'POST', input),
     applyTemplate: (id, eventId) =>
       call(

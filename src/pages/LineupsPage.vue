@@ -258,6 +258,11 @@ function seatJobOptions(uid) {
       : []),
   ];
 }
+// 本場外援 on the seat being edited can be deleted from here, since placed people are
+// hidden from the member list.
+const seatGuestKeys = computed(() =>
+  [seatUid.value, seatSecondUid.value].filter((key) => key?.startsWith('registration:')),
+);
 const seatJobs = computed(() => seatJobOptions(seatUid.value));
 const seatSecondJobs = computed(() => seatJobOptions(seatSecondUid.value));
 // Each problem names the person, the seat and why, so the warning says who to fix.
@@ -455,6 +460,45 @@ function applyEvent(id, data, responses) {
 }
 async function changeEvent(id) {
   if (id !== eventId.value && mayDiscard()) await loadEvent(id);
+}
+// Deleting a 本場外援 removes the registration itself (no leave record, no Discord notice)
+// and takes them off every seat of this draft; the lineup still needs saving.
+async function deleteGuest(key) {
+  if (readOnly.value || !key?.startsWith('registration:')) return;
+  const id = key.slice('registration:'.length);
+  const row = [
+    ...(participation.value.registrations || []),
+    ...(participation.value.registrationLeaves || []),
+  ].find((item) => item.id === id);
+  const name = row?.name || findPerson(key)?.name || '這位外援';
+  if (!row) {
+    error.value = `找不到 ${name} 的報名資料，請更新成員清單後再試。`;
+    return;
+  }
+  if (!window.confirm(`確定刪除「${name}」的本場外援報名？會一併從排表拿掉，刪除後無法復原。`)) return;
+  busy.value = true;
+  error.value = '';
+  try {
+    await client.deleteGuest(eventId.value, id, row.revision);
+    let removedSeats = 0;
+    for (const team of teams.value)
+      team.slots.forEach((slot, index) => {
+        for (const round of [1, 2])
+          if (participantKey(round === 1 ? slot : slot.secondRound) === key && removeFromSlot(teams.value, team.id, index, round))
+            removedSeats += 1;
+      });
+    lastRemoval.value = null;
+    if (selectedUid.value === key) selectedUid.value = '';
+    if (dialog.value === 'seat') dialog.value = null;
+    participation.value = await participationClient.getParticipation(eventId.value);
+    notice.value = removedSeats
+      ? `已刪除 ${name} 的本場外援報名並從排表拿掉，請儲存排表。`
+      : `已刪除 ${name} 的本場外援報名。`;
+  } catch (cause) {
+    error.value = `刪除 ${name} 失敗：${cause.message}`;
+  } finally {
+    busy.value = false;
+  }
 }
 // Removing a seat (✕ or dragging it back to the member list) keeps an undo until the next edit.
 const lastRemoval = ref(null);
@@ -1257,6 +1301,16 @@ onUnmounted(() => {
                     member.registrationNote
                   }}</span>
                 </button>
+                <button
+                  v-if="member.registrationId && !readOnly"
+                  type="button"
+                  class="lineup-guest-delete"
+                  :aria-label="`刪除 ${member.name} 的本場外援報名`"
+                  :title="`刪除 ${member.name} 的本場外援報名`"
+                  @click="deleteGuest(participantKey(member))"
+                >
+                  刪除
+                </button>
                 <div
                   class="lineup-member-professions"
                   role="group"
@@ -1377,6 +1431,18 @@ onUnmounted(() => {
               variant="outlined"
               :disabled="busy"
             />
+            <div v-if="seatGuestKeys.length" class="lineup-seat-guest-actions">
+              <v-btn
+                v-for="key in seatGuestKeys"
+                :key="key"
+                variant="text"
+                color="error"
+                size="small"
+                :disabled="busy"
+                @click="deleteGuest(key)"
+                >刪除本場外援 {{ findPerson(key)?.name || '' }}</v-btn
+              >
+            </div>
             <v-text-field
               v-model="seatNote"
               label="補充備註"

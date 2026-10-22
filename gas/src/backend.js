@@ -72,6 +72,7 @@ const WRITES = [
   'saveMemberResponse',
   'addGuestRegistration',
   'cancelGuestRegistration',
+  'deleteGuestRegistration',
   'confirmLineup',
   'cancelEventLeave',
   'createLineupTemplate',

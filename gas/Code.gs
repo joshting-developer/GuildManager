@@ -206,6 +206,10 @@ function addGuestRegistration(eventId, input, context) {
   return GuildGas.rpc('addGuestRegistration', [eventId, input], context);
 }
 
+function deleteGuestRegistration(eventId, id, revision, context) {
+  return GuildGas.rpc('deleteGuestRegistration', [eventId, id, revision], context);
+}
+
 function cancelGuestRegistration(eventId, id, revision, context) {
   return GuildGas.rpc('cancelGuestRegistration', [eventId, id, revision], context);
 }
