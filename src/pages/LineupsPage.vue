@@ -122,7 +122,9 @@ const dialog = ref(null),
   seatNote = ref(''),
   seatProfession = ref('primary'),
   seatSecondUid = ref(null),
-  seatSecondProfession = ref('primary');
+  seatSecondProfession = ref('primary'),
+  seatAlias = ref(''),
+  seatSecondAlias = ref('');
 const registrationName = ref(''),
   registrationProfessionId = ref(null),
   registrationNote = ref(''),
@@ -168,6 +170,8 @@ const dialogDirty = computed(() =>
           seatSecondProfession.value,
           seatNote.value,
           seatDutyIds.value,
+          seatAlias.value,
+          seatSecondAlias.value,
         ]) !== seatBaseline,
 );
 const latestVersion = computed(() => savedLineup.value?.version || 0);
@@ -707,6 +711,8 @@ function openSeat(teamId, index) {
   seatSecondUid.value = participantKey(slot.secondRound);
   seatSecondProfession.value = slot.secondRound?.profession || 'primary';
   seatDutyIds.value = [...(slot.dutyIds || [])];
+  seatAlias.value = slot.alias || '';
+  seatSecondAlias.value = slot.secondRound?.alias || '';
   seatBaseline = JSON.stringify([
     seatUid.value,
     seatProfession.value,
@@ -714,6 +720,8 @@ function openSeat(teamId, index) {
     seatSecondProfession.value,
     seatNote.value,
     seatDutyIds.value,
+    seatAlias.value,
+    seatSecondAlias.value,
   ]);
   openDialog('seat');
 }
@@ -724,8 +732,12 @@ function saveSeat() {
     return;
   }
   const choices = [
-    { key: seatUid.value, profession: seatProfession.value },
-    { key: seatSecondUid.value, profession: seatSecondProfession.value },
+    { key: seatUid.value, profession: seatProfession.value, alias: seatAlias.value.trim() },
+    {
+      key: seatSecondUid.value,
+      profession: seatSecondProfession.value,
+      alias: seatSecondAlias.value.trim(),
+    },
   ];
   for (const person of choices) {
     if (
@@ -741,9 +753,13 @@ function saveSeat() {
   choices.forEach((person, index) => {
     if (person.key)
       placeMember(teams.value, person.key, seat.value.teamId, seat.value.index, index + 1);
-    const reference = participantReference(person.key, person.key ? person.profession : 'primary');
+    const reference = {
+      ...participantReference(person.key, person.key ? person.profession : 'primary'),
+      ...(person.key && person.alias ? { alias: person.alias } : {}),
+    };
     if (index === 0) {
       delete slot.registrationId;
+      delete slot.alias;
       Object.assign(slot, reference);
     } else slot.secondRound = person.key ? reference : null;
   });
@@ -757,6 +773,7 @@ function saveSeat() {
 function changeSeatUid(uid) {
   seatUid.value = uid;
   seatProfession.value = 'primary';
+  seatAlias.value = '';
 }
 async function refreshMembers() {
   busy.value = true;
@@ -1405,6 +1422,12 @@ onUnmounted(() => {
               label="第一場上場職業"
               variant="outlined"
               :disabled="busy || !seatUid"
+            /><v-text-field
+              v-model="seatAlias"
+              label="第一場小名（選填，排表與下載圖改顯示小名）"
+              maxlength="20"
+              variant="outlined"
+              :disabled="busy || !seatUid"
             /><v-select
               :model-value="seatSecondUid"
               :items="slotOptions"
@@ -1414,11 +1437,18 @@ onUnmounted(() => {
               @update:model-value="
                 seatSecondUid = $event;
                 seatSecondProfession = 'primary';
+                seatSecondAlias = '';
               "
             /><v-select
               v-model="seatSecondProfession"
               :items="seatSecondJobs"
               label="第二場上場職業"
+              variant="outlined"
+              :disabled="busy || !seatSecondUid"
+            /><v-text-field
+              v-model="seatSecondAlias"
+              label="第二場小名（選填）"
+              maxlength="20"
               variant="outlined"
               :disabled="busy || !seatSecondUid"
             /><v-select

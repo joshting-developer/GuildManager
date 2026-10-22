@@ -172,7 +172,10 @@ function activate(team, index) {
                     ></span
                     >{{ job(entry)?.name || '職業未設定'
                     }}<small v-if="entry.profession === 'secondary'">副</small></span
-                  ><strong>{{ person(entry)?.name || '找不到成員' }}</strong></span
+                  ><strong :title="entry.alias ? `小名；本名：${person(entry)?.name || '找不到成員'}` : undefined">{{
+                    entry.alias || person(entry)?.name || '找不到成員'
+                  }}</strong
+                  ><small v-if="entry.alias" class="seat-alias-mark" aria-label="小名">小名</small></span
                 >
                 <span v-else class="empty-seat">{{
                   selectedUid && !readOnly ? '點此安排' : '—'

@@ -1449,6 +1449,12 @@ h3 {
   gap: 4px;
   margin: -8px 0 8px;
 }
+.seat-alias-mark {
+  margin-left: 4px;
+  color: var(--color-text-faint);
+  font-size: 13px;
+  font-weight: 400;
+}
 .lineup-registered-badge {
   color: var(--color-success);
   font-weight: 600;
