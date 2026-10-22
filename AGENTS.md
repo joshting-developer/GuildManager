@@ -799,3 +799,7 @@ package／lockfile／release note／編譯版本、影片超連結及 noopener n
 ## 刪除本場外援（2026/10/22，本機）
 
 使用者要求排表頁可刪掉打錯的本場外援，並「刪除時順便從排表拿掉」。新增 `deleteGuestRegistration`（本機 `DELETE /api/lineups/events/:id/guests/:registrationId`，管理者限定；GAS 列入 WRITES、預設 admin／manager），真正刪除報名列，不留請假、不發通知，重複呼叫回傳 deleted；版本不符本機回 PARTICIPATION_CHANGED、GAS 回 REVISION_CONFLICT（沿用既有取消外援的差異）。前端卡片與位置視窗各有刪除入口，刪除後清除草稿中該外援所有場次。新增 `tests/guest-delete.test.js`。
+
+## 排表小名（2026/10/22，本機）
+
+使用者要求排表可替已安排的人填小名，下載圖只顯示小名。每個位置的第一／第二場各自保存 `alias`（`validateLineup` 驗證最多 20 字、無控制字元，空位不留），`placeMember`／`removeFromSlot`／`restoreToSlot` 讓小名跟著人移動；本機與 GAS 快照照存，`lineupImageData` 以小名取代本名。新增 `tests/lineup-alias.test.js`（驗證、移動、圖片、GAS、SQLite）。

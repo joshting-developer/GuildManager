@@ -48,6 +48,7 @@ export function editableLineup(teams) {
       uid: slot.uid,
       ...(slot.registrationId ? { registrationId: slot.registrationId } : {}),
       profession: slot.profession,
+      ...(slot.alias ? { alias: slot.alias } : {}),
       note: slot.note,
       dutyIds: [...(slot.dutyIds || [])],
       secondRound: slot.secondRound
@@ -57,6 +58,7 @@ export function editableLineup(teams) {
               ? { registrationId: slot.secondRound.registrationId }
               : {}),
             profession: slot.secondRound.profession,
+            ...(slot.secondRound.alias ? { alias: slot.secondRound.alias } : {}),
           }
         : null,
     })),
@@ -68,11 +70,15 @@ export function slotAssignments(slot) {
 function assignment(slot, round) {
   return round === 2 ? slot.secondRound : slot;
 }
+// The nickname belongs to the person on this round, so it is replaced along with them.
 function setAssignment(slot, round, person) {
-  if (round === 2) slot.secondRound = participantKey(person) ? { ...person } : null;
+  const { alias, ...reference } = person || {};
+  const withAlias = alias && participantKey(reference) ? { ...reference, alias } : reference;
+  if (round === 2) slot.secondRound = participantKey(reference) ? withAlias : null;
   else {
     delete slot.registrationId;
-    Object.assign(slot, person);
+    delete slot.alias;
+    Object.assign(slot, withAlias);
   }
 }
 // Explicit editing can swap assignments; duties and notes always stay on the position.
@@ -90,12 +96,16 @@ export function placeMember(teams, uid, teamId, index, round = 1) {
   }
   if (source?.slot === target && source.round === round) return;
   const previous = assignment(target, round);
-  const displaced = participantReference(
-    participantKey(previous),
-    previous?.profession || 'primary',
-  );
+  const displaced = {
+    ...participantReference(participantKey(previous), previous?.profession || 'primary'),
+    alias: previous?.alias,
+  };
   const incoming = assignment(source?.slot || {}, source?.round);
-  setAssignment(target, round, { ...reference, profession: incoming?.profession || 'primary' });
+  setAssignment(target, round, {
+    ...reference,
+    profession: incoming?.profession || 'primary',
+    alias: incoming?.alias,
+  });
   if (source) setAssignment(source.slot, source.round, displaced);
 }
 // Removing clears one round of a position (duties and notes stay) and returns what was there,
@@ -106,7 +116,11 @@ export function removeFromSlot(teams, teamId, index, round = 1) {
   const current = slot && assignment(slot, round);
   const key = participantKey(current);
   if (!key) return null;
-  const removed = { key, profession: current.profession || 'primary' };
+  const removed = {
+    key,
+    profession: current.profession || 'primary',
+    ...(current.alias ? { alias: current.alias } : {}),
+  };
   setAssignment(slot, round, participantReference(null));
   return removed;
 }
@@ -115,7 +129,7 @@ export function restoreToSlot(teams, teamId, index, round, removed) {
   if (!slot || !removed?.key || participantKey(assignment(slot, round))) return false;
   if (teams.some((team) => team.slots.some((other) => slotAssignments(other).some((person) => participantKey(person) === removed.key))))
     return false;
-  setAssignment(slot, round, participantReference(removed.key, removed.profession));
+  setAssignment(slot, round, { ...participantReference(removed.key, removed.profession), alias: removed.alias });
   return true;
 }
 // Dragging adds the next round instead of replacing the person already on this position.

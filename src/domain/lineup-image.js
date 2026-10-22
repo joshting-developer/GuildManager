@@ -70,8 +70,9 @@ export function lineupImageData({ event, teams, members, professions, duties, sn
                   );
               return {
                 round: slot.secondRound ? (index === 0 ? '第一場' : '第二場') : '',
+                // A nickname (小名) replaces the real name on the exported image.
                 name: occupied
-                  ? member?.name || (entry.registrationId ? '報名已取消或不屬於本場' : '找不到成員')
+                  ? entry.alias || member?.name || (entry.registrationId ? '報名已取消或不屬於本場' : '找不到成員')
                   : '—',
                 job: occupied ? job?.name || '職業未設定' : '',
                 color: job?.colorcode || '#64748b',

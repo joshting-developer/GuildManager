@@ -67,10 +67,14 @@ export function validateLineup(teams) {
               );
             seen.add(identity);
           }
+          // A nickname (小名) only labels this lineup; identity, eligibility and stats use UID.
+          const alias =
+            identity && person.alias != null ? lineupText(person.alias, '小名', 20) : '';
           return {
             uid,
             ...(registrationId ? { registrationId } : {}),
             profession: person.profession,
+            ...(alias ? { alias } : {}),
           };
         }
         const first = validateAssignment(slot, 1);
