@@ -391,7 +391,7 @@ async function load() {
   error.value = '';
   try {
     const [index, tasks, people, jobs] = await Promise.all([
-      client.getIndex(),
+      client.getIndex({ include: 'default' }),
       dutyClient.getDuties(),
       memberClient.getMembers(),
       memberClient.getProfessions(),
@@ -406,7 +406,10 @@ async function load() {
     const target = events.value.some((event) => event.id === eventId.value)
       ? eventId.value
       : events.value[0]?.id;
-    if (target) await loadEvent(target);
+    // The index already carries the default battle's data; reuse it instead of a second round.
+    if (target && index.selected?.eventId === target)
+      applyEvent(target, { versions: index.selected.versions }, index.selected.participation);
+    else if (target) await loadEvent(target);
     else {
       eventId.value = null;
       savedLineup.value = null;
@@ -435,16 +438,20 @@ async function loadEvent(id) {
         : participationClient.getParticipation(id),
     ]);
     if (disposed || token !== operation) return;
-    participation.value = responses;
-    eventId.value = id;
-    savedLineup.value = data.versions[0] || null;
-    resetLineup(savedLineup.value?.teams);
-    templateId.value = null;
+    applyEvent(id, data, responses);
   } catch (cause) {
     if (token === operation) error.value = cause.message;
   } finally {
     if (token === operation) lineupLoading.value = false;
   }
+}
+function applyEvent(id, data, responses) {
+  lastRemoval.value = null;
+  participation.value = responses || { responses: [], registrations: [] };
+  eventId.value = id;
+  savedLineup.value = data.versions[0] || null;
+  resetLineup(savedLineup.value?.teams);
+  templateId.value = null;
 }
 async function changeEvent(id) {
   if (id !== eventId.value && mayDiscard()) await loadEvent(id);

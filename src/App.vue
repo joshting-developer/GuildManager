@@ -37,6 +37,7 @@ import {
   mdiCheck,
 } from '@mdi/js';
 import { createAuthClient } from './api/auth.js';
+import { forgetEventList } from './api/events.js';
 import { createPlatformSettingsClient } from './api/platform-settings.js';
 import { createPlatformCache, normalizeCachedPlatform } from './api/platform-cache.js';
 import { setCsrfToken } from './api/session.js';
@@ -279,6 +280,9 @@ function navigate(page) {
   mobileMenu.value = false;
 }
 function applySession(session) {
+  // Event visibility depends on the signed-in role; drop the shared list before watchers reload.
+  if ((user.value?.id ?? null) !== (session.user?.id ?? null) || user.value?.role !== session.user?.role)
+    forgetEventList();
   user.value = session.user;
   clearTimeout(expiryTimer);
   if (session.user)
@@ -289,6 +293,7 @@ function applySession(session) {
 }
 function expireSession() {
   if (!user.value) return;
+  forgetEventList();
   sessionVersion++;
   requestedPage.value = view.value === 'home' ? 'magament' : view.value;
   const recordId = detailId.value;
@@ -371,6 +376,7 @@ async function logout() {
   authError.value = '';
   try {
     await authClient.logout();
+    forgetEventList();
     user.value = null;
     clearTimeout(expiryTimer);
     returnHome();

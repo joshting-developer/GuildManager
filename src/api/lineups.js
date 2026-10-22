@@ -31,7 +31,11 @@ export function createLineupClient({ source = 'local', fetchImpl = sessionFetch,
     return data;
   }
   return {
-    getIndex: () => call('getLineupIndex', ''),
+    // { include: 'default' } also returns the nearest battle's versions and sign-ups.
+    getIndex: (options) =>
+      options
+        ? call('getLineupIndex', `?include=${encodeURIComponent(options.include)}`, 'GET', null, [options])
+        : call('getLineupIndex', ''),
     getHistory: (id) =>
       call('getLineupHistory', `/events/${encodeURIComponent(id)}`, 'GET', null, [id]),
     confirm: (input) => call('confirmLineup', '/confirm', 'POST', input),

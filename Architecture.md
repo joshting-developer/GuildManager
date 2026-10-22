@@ -252,3 +252,7 @@ Sheets storage 以可選的同步 run 包裝讀寫、flush 與提交標記，預
 `src/theme.js` 管理色系（light／sepia／dark，對應 Vuetify `guild`／`guildSepia`／`guildDark` 與 document 的 data-theme）及字級（normal／large／larger，以 documentElement 的 CSS zoom 套用），兩者各存 localStorage，讀寫失敗回預設。`src/main.js` 掛載前套用，App 頂欄「顯示」選單直接切換。排表 JPG 讀取 data-theme，lineup-image 有對應三色調色盤。
 
 `src/domain/battle-events.js` 提供戰鬥場次篩選、標籤、台北今日與 upcoming／recent 排序；排表用 upcoming，上傳數據與影片閱覽用 recent，預設取排序第一筆。`src/domain/number-format.js` 依整欄是否達 1 萬決定「萬」單位、0／缺值顯示淡色 —，並以 compactStat 將單一總數轉為萬／億；只影響顯示，不改資料與排序。
+
+## 載入效能（v1.0.25）
+
+`getLineupIndex` 接受選用 `{ include: 'default' }`（本機 `/api/lineups?include=default`），以 `src/domain/lineup-index.js` 選出今天或之後最近的場次，並附上該場排表版本與報名資料；排表頁初次載入因此只需一輪雲端呼叫。舊呼叫方式（`getLineupIndex(context)`）不變。`src/api/events.js` 的場次清單在同一傳輸方式內共用 60 秒，場次寫入、登入／登出／角色變更及登入過期時清除；首頁行事曆仍等登入確認後才讀取（使用者要求）。

@@ -210,8 +210,10 @@ function cancelGuestRegistration(eventId, id, revision, context) {
   return GuildGas.rpc('cancelGuestRegistration', [eventId, id, revision], context);
 }
 
-function getLineupIndex(context) {
-  return GuildGas.rpc('getLineupIndex', [], context);
+// Older pages call getLineupIndex(context); newer ones pass options first.
+function getLineupIndex(options, context) {
+  if (context === undefined) return GuildGas.rpc('getLineupIndex', [], options);
+  return GuildGas.rpc('getLineupIndex', [options], context);
 }
 
 function getLineupHistory(eventId, context) {
