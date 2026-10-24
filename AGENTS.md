@@ -6,9 +6,9 @@
 
 - 介面、文件與操作訊息使用繁體中文
 - 視覺參考相鄰專案 `../NSHM_history`, 本專案的具體規則以 [Style.md](Style.md) 為準
-- 已建立 Vuetify 首頁／成員管理／活動安排／戰場排表／戰績上傳／戰績閱覽、Docker 本機環境、SQLite 讀寫 API 與 GAS 單檔編譯流程。最新 v1.0.22（同步來源 9eb6f23）導覽／顯示設定、場次預設、數字格式及影片超連結已同步 GAS 並讀回四檔一致，尚未更新 Web App 部署。本輪未查詢或更新部署，實際狀態見 GASDeployment.md 及文末交接。
+- 已建立 Vuetify 首頁／成員管理／活動安排／戰場排表／戰績上傳／戰績閱覽、Docker 本機環境、SQLite 讀寫 API 與 GAS 單檔編譯流程。最新 v1.0.27（同步來源 0e1b375、密碼功能 5a53198）各類密碼最短六位及既有功能已同步 GAS 並讀回四檔一致，尚未更新 Web App 部署。本輪未查詢或更新部署，實際狀態見 GASDeployment.md 及文末交接。
 - 使用者已確認本機使用 SQLite, 後期資料來源為 Google 試算表
-- 本機 package 已準備 v1.0.27：各類密碼最短長度統一為 6 位、上限 128，包含 admin／manager、CLI、GAS 初始及復原；成員通行密碼仍限英數。此批尚未 push／同步 GAS／更新部署；下方 v1.0.22 是目前文件最後記錄的同步狀態，未據此推測後續正式部署。
+- 本機及 GAS 同步程式均為 v1.0.27：各類密碼最短長度統一為 6 位、上限 128，包含 admin／manager、CLI、GAS 初始及復原；成員通行密碼仍限英數。本批已同步並讀回四檔一致，未 push Git／更新 Web App 部署或重設正式密碼；下方舊版待同步說明保留作歷史，以文末最新交接為準。
 - 過往 v1.0.22 同步紀錄：本機及 GAS 當時均為 v1.0.22（導覽／顯示設定、場次預設、數字格式及影片閱覽網址超連結），本批已交付，不重複升版；後續新一批功能交付須遞增 patch。v1.0.21 已交付：個人戰績一次載入、預選最新十筆、勾選總覽及 ECharts 走勢抽屜，移除三顆批次勾選快捷按鈕；進攻／防守分析重用詳情資料，提供數值／占比兩表及互斥配對。保留 v1.0.20 只解碼最新版本與既有唯讀／鎖範圍及多人請假修正；本輪未 push Git／更新部署。正式戰績上傳原始失敗原因仍未確定，見文末交接。
 - 試算表 ID 已取得, 本機使用帳號密碼登入；正式工作表名稱與 Google 登入待確認, 本機角色為 admin／manager／member, 成員、職業、過去名稱及活動安排欄位已依需求實作於本機
 
@@ -815,3 +815,11 @@ package／lockfile／release note／編譯版本、影片超連結及 noopener n
 隔離編譯後 GAS Chrome 驗證 admin／manager 六位可儲存、五位於前端阻擋且未發寫入 RPC、欄位提示及 390px 手機無溢出／無例外；結果／截圖 `/private/tmp/guild-password-six-preview/`。只使用模擬帳號，未改日常本機或正式密碼。README.md、Style.md、Architecture.md、GASDeployment.md 及本檔現行規則已更新。
 
 main 起點 ceac10d／package 1.0.26，新批升為 1.0.27 並寫更新紀錄；本輪只本機提交，未 push／同步 GAS／查詢或更新 Web App 部署、setupGas、修改正式試算表／Script Properties 或發送通知。後續同步本批沿用已準備的 1.0.27，不重複升版；不從舊文件推測正式部署版本。
+
+## v1.0.27 GAS 程式同步（2026/10/24）
+
+使用者本輪要求同步，來源 `0e1b375`（六位密碼功能 `5a53198`），沿用已準備的 **1.0.27**，沒有再次升版。`npm run gas:push` 已重新編譯、備份遠端、同步 Index.html／Code.gs／Backend.gs／appsscript.json，四檔讀回比對一致。私有前後備份 `data/gas-backups/2026-10-24T08-27-36-093Z/` 不提交；同步日誌 `/private/tmp/guild-v1027-gas-sync.log`。
+
+package／lockfile／release note／編譯版號、前後端六位密碼驗證與提示、四檔／無外部 JS／CSS／台北時區核對通過。沿用前輪完整 336 項與隔離桌面／手機驗證；本輪沒有功能修改或重跑整套測試。
+
+**只同步 GAS 程式並本機提交交接，未 push Git、查詢或更新 Web App 部署、setupGas、執行正式密碼復原、修改正式試算表／Script Properties 或發送通知。** 使用者更新既有 Web App 部署後，六位密碼規則才會對線上生效；既有密碼保留。最新同步狀態以本節及 GASDeployment.md 為準，不從歷史文字推測部署版本。
