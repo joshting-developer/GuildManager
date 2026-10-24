@@ -506,7 +506,7 @@ export function resetAdminPassword() {
     if (!password)
       fail(
         'RECOVERY_PASSWORD_REQUIRED',
-        '請先在指令碼屬性設定 RECOVERY_ADMIN_PASSWORD（12–128 字元）',
+        '請先在指令碼屬性設定 RECOVERY_ADMIN_PASSWORD（6–128 字元）',
       );
     const state = privateStore.load();
     const auth = createGasAuth(state, options);

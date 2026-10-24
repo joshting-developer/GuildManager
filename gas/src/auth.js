@@ -36,11 +36,11 @@ export function createGasAuth(
   function password(value, member = false) {
     if (
       typeof value !== 'string' ||
-      (member ? !/^[a-zA-Z0-9]{6,128}$/.test(value) : value.length < 12 || value.length > 128)
+      (member ? !/^[a-zA-Z0-9]{6,128}$/.test(value) : value.length < 6 || value.length > 128)
     )
       fail(
         'INVALID_PASSWORD',
-        member ? '通行密碼須為 6–128 個英文字母或數字' : '密碼長度須為 12–128 個字元',
+        member ? '通行密碼須為 6–128 個英文字母或數字' : '密碼長度須為 6–128 個字元',
       );
     const salt = makeToken().slice(0, 32);
     return { salt, hash: passwordKdf(value, salt), kdf: 'pbkdf2-sha256-600000' };

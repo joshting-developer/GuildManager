@@ -18,9 +18,9 @@ function validateUsername(username) {
   if (typeof username !== 'string' || !/^[a-zA-Z0-9_.-]{3,32}$/.test(username))
     throw new AuthError(422, 'INVALID_ACCOUNT', '帳號請使用 3–32 個英數字、底線、點或減號');
 }
-export async function passwordHash(password, minimum = 12) {
+export async function passwordHash(password, minimum = 6) {
   if (typeof password !== 'string' || password.length < minimum || password.length > 128)
-    throw new AuthError(422, 'INVALID_PASSWORD', '密碼長度須為 12–128 個字元');
+    throw new AuthError(422, 'INVALID_PASSWORD', '密碼長度須為 6–128 個字元');
   const salt = randomBytes(16).toString('hex');
   return { salt, hash: (await scrypt(password, salt, 64)).toString('hex') };
 }

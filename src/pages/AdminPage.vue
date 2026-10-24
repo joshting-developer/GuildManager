@@ -115,7 +115,7 @@ async function load() {
 }
 function checkPassword(value, confirmation, optional = false) {
   if (optional && !value && !confirmation) return '';
-  if (value.length < 12 || value.length > 128) return '密碼長度須為 12–128 個字元';
+  if (value.length < 6 || value.length > 128) return '密碼長度須為 6–128 個字元';
   if (value !== confirmation) return '兩次輸入的新密碼不一致';
   return '';
 }
@@ -380,7 +380,7 @@ onUnmounted(() => {
         />
         <v-text-field
           v-model="password"
-          label="新密碼（12–128 字元）"
+          label="新密碼（6–128 字元）"
           type="password"
           autocomplete="new-password"
           maxlength="128"
@@ -501,7 +501,7 @@ onUnmounted(() => {
         />
         <v-text-field
           v-model="managerPassword"
-          :label="managerId ? '新密碼（留空保留原密碼）' : '密碼（12–128 字元）'"
+          :label="managerId ? '新密碼（留空保留原密碼）' : '密碼（6–128 字元）'"
           type="password"
           autocomplete="new-password"
           maxlength="128"
