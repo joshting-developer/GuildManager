@@ -8,7 +8,8 @@
 - 視覺參考相鄰專案 `../NSHM_history`, 本專案的具體規則以 [Style.md](Style.md) 為準
 - 已建立 Vuetify 首頁／成員管理／活動安排／戰場排表／戰績上傳／戰績閱覽、Docker 本機環境、SQLite 讀寫 API 與 GAS 單檔編譯流程。最新 v1.0.22（同步來源 9eb6f23）導覽／顯示設定、場次預設、數字格式及影片超連結已同步 GAS 並讀回四檔一致，尚未更新 Web App 部署。本輪未查詢或更新部署，實際狀態見 GASDeployment.md 及文末交接。
 - 使用者已確認本機使用 SQLite, 後期資料來源為 Google 試算表
-- 本機及 GAS 最新已同步程式均為 v1.0.22（導覽／顯示設定、場次預設、數字格式及影片閱覽網址超連結），本批已交付，不重複升版；後續新一批功能交付須遞增 patch。v1.0.21 已交付：個人戰績一次載入、預選最新十筆、勾選總覽及 ECharts 走勢抽屜，移除三顆批次勾選快捷按鈕；進攻／防守分析重用詳情資料，提供數值／占比兩表及互斥配對。保留 v1.0.20 只解碼最新版本與既有唯讀／鎖範圍及多人請假修正；本輪未 push Git／更新部署。正式戰績上傳原始失敗原因仍未確定，見文末交接。
+- 本機 package 已準備 v1.0.27：各類密碼最短長度統一為 6 位、上限 128，包含 admin／manager、CLI、GAS 初始及復原；成員通行密碼仍限英數。此批尚未 push／同步 GAS／更新部署；下方 v1.0.22 是目前文件最後記錄的同步狀態，未據此推測後續正式部署。
+- 過往 v1.0.22 同步紀錄：本機及 GAS 當時均為 v1.0.22（導覽／顯示設定、場次預設、數字格式及影片閱覽網址超連結），本批已交付，不重複升版；後續新一批功能交付須遞增 patch。v1.0.21 已交付：個人戰績一次載入、預選最新十筆、勾選總覽及 ECharts 走勢抽屜，移除三顆批次勾選快捷按鈕；進攻／防守分析重用詳情資料，提供數值／占比兩表及互斥配對。保留 v1.0.20 只解碼最新版本與既有唯讀／鎖範圍及多人請假修正；本輪未 push Git／更新部署。正式戰績上傳原始失敗原因仍未確定，見文末交接。
 - 試算表 ID 已取得, 本機使用帳號密碼登入；正式工作表名稱與 Google 登入待確認, 本機角色為 admin／manager／member, 成員、職業、過去名稱及活動安排欄位已依需求實作於本機
 
 成員管理、活動安排建立／修改／刪除、場次報名／請假、戰場排表／範本、戰績 CSV 上傳及戰績閱覽已確認並實作；排表改為直接編輯與儲存, 使用者需要保留配置時手動另存範本；實際出勤及進一步戰績分析仍為後續討論方向
@@ -341,7 +342,7 @@ Apps Script 的 `.gs` 檔案共用全域環境, 避免重複命名與載入時�
 
 ## 共用成員通行密碼
 
-member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admin 在帳號管理設定／修改 6–128 個英文字母或數字的通行密碼（區分大小寫，純數字仍可使用），初次不提供預設值，前導零保留。右上登入預設成員通行密碼；三種戰鬥的行事曆與報名均公開，報名視窗不提供登入表單。`POST /api/auth/member-login` 由後端指定帳號，與管理登入共用限流；`PATCH /api/admin/member-token` 須 admin、CSRF 及 revision。修改密碼撤銷共用 member 全部 session。舊個別 member 資料保留但不能再登入或沿用舊 session；舊新增／改名 member API 停用。admin／manager 密碼維持 12–128 字元。GAS 已生成對應資料功能，尚未部署驗證。
+member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admin 在帳號管理設定／修改 6–128 個英文字母或數字的通行密碼（區分大小寫，純數字仍可使用），初次不提供預設值，前導零保留。右上登入預設成員通行密碼；三種戰鬥的行事曆與報名均公開，報名視窗不提供登入表單。`POST /api/auth/member-login` 由後端指定帳號，與管理登入共用限流；`PATCH /api/admin/member-token` 須 admin、CSRF 及 revision。修改密碼撤銷共用 member 全部 session。舊個別 member 資料保留但不能再登入或沿用舊 session；舊新增／改名 member API 停用。admin／manager 密碼為 6–128 字元；包含 CLI 建帳號、初始設定與編輯器復原，長度不截斷，既有長密碼保留。GAS 已生成對應資料功能，尚未部署驗證。
 
 
 ## 個人戰績
@@ -386,7 +387,7 @@ v1.0.21 個人頁首次／手動重載以 `all=true` 一次讀取該成員全部
 
 已完成全部既有 RPC 的 GAS 來源及單檔打包，初始化／部署見 [GASDeployment.md](GASDeployment.md)。`gas/src/` 使用共享純資料驗證、私有 Properties 登入、追加式 Sheets store、私人 Drive 附件；`gas/Code.gs` 公開白名單 RPC 入口。編輯器選單略過私有 setupGas_，現以 setupGas 作可選取的初始化入口，由 Google Session 檢查非空且相同的 active／effective email；沿用以部署者執行 Web App，一般訪客不可初始化，部署者本人可執行，勿稱為可辨識 editor-only。userinfo.email scope 只用於此檢查，前端沒有初始化功能，不回傳 email；setupGas_ 私有實作保留。`npm run build:gas` 產生 Index.html／Code.gs／Backend.gs／appsscript.json 四檔，全部需同步；勿手改產物。
 
-GAS 管理者無法登入可由部署者在私有屬性填 RECOVERY_ADMIN_PASSWORD（12–128 字元）並從編輯器執行 resetAdminPassword，沿用 Google 身分檢查。script lock 下只重設唯一 admin 雜湊、增加 revision、撤銷其 sessions 並清除此帳號失敗計數；成功後刪除明文，只記錄登入帳號，不記錄密碼／email。不新增或重建帳號、不改 manager／member／試算表／Drive，全站限流仍保留；此操作不在業務 RPC 白名單。不得代使用者讀取或要求貼出復原密碼；未實際雲端登入時不得把沙盒成功說成正式登入已修復。
+GAS 管理者無法登入可由部署者在私有屬性填 RECOVERY_ADMIN_PASSWORD（6–128 字元）並從編輯器執行 resetAdminPassword，沿用 Google 身分檢查。script lock 下只重設唯一 admin 雜湊、增加 revision、撤銷其 sessions 並清除此帳號失敗計數；成功後刪除明文，只記錄登入帳號，不記錄密碼／email。不新增或重建帳號、不改 manager／member／試算表／Drive，全站限流仍保留；此操作不在業務 RPC 白名單。不得代使用者讀取或要求貼出復原密碼；未實際雲端登入時不得把沙盒成功說成正式登入已修復。
 
 業務表使用 GM_ 前綴，保留原 gid=0，不自動遷移 SQLite／本機帳號／示範資料。每類資料分表，以固定 ID、Base64 JSON 分段及提交標記讀取最新有效值；script lock 下先 flush 資料後發布 marker，失敗未提交列不讀取。戰績清單讀摘要、詳情才讀玩家快照。跨 Drive／Sheets 失敗可能保留未引用附件，不自動刪除。初始化只補專用表及九職業／三職責，不覆寫既有帳號或資料。
 
@@ -804,3 +805,13 @@ package／lockfile／release note／編譯版本、影片超連結及 noopener n
 ## 排表小名（2026/10/22，本機）
 
 使用者要求排表可替已安排的人填小名，下載圖只顯示小名。每個位置的第一／第二場各自保存 `alias`（`validateLineup` 驗證最多 20 字、無控制字元，空位不留），`placeMember`／`removeFromSlot`／`restoreToSlot` 讓小名跟著人移動；本機與 GAS 快照照存，`lineupImageData` 以小名取代本名。新增 `tests/lineup-alias.test.js`（驗證、移動、圖片、GAS、SQLite）。
+
+## 各類密碼最短六位（2026/10/24，本機 v1.0.27 待同步）
+
+使用者要求統一密碼長度限制，採最短 6、上限 128，長密碼可繼續使用而不截斷。功能 `5a53198`：本機 passwordHash 預設下限、GAS 共用驗證、admin／manager 建立及修改表單、bootstrap／recovery 與錯誤提示同步調整；member 本來已六位，仍限定英數且保留前導零。CLI 走相同 repository。未重設既有帳號，不變更雜湊、CSRF、角色、revision、限流、撤銷或寫入鎖。
+
+新增 3 項測試，原 333 項未修改；完整 **336／336** 通過（`/private/tmp/guild-password-six-full-tests.log`），涵蓋 5／6／128／129 與型別、建立／登入／留空保留／修改／復原、前導零、member 規則及舊 session 撤銷。初次新復原測試漏設 Session 模擬，補測試環境後通過，產品身分檢查未改。一般／GAS 編譯、1.0.27 package／lockfile／單筆 release note、四檔及無外部 JS／CSS 核對通過。
+
+隔離編譯後 GAS Chrome 驗證 admin／manager 六位可儲存、五位於前端阻擋且未發寫入 RPC、欄位提示及 390px 手機無溢出／無例外；結果／截圖 `/private/tmp/guild-password-six-preview/`。只使用模擬帳號，未改日常本機或正式密碼。README.md、Style.md、Architecture.md、GASDeployment.md 及本檔現行規則已更新。
+
+main 起點 ceac10d／package 1.0.26，新批升為 1.0.27 並寫更新紀錄；本輪只本機提交，未 push／同步 GAS／查詢或更新 Web App 部署、setupGas、修改正式試算表／Script Properties 或發送通知。後續同步本批沿用已準備的 1.0.27，不重複升版；不從舊文件推測正式部署版本。

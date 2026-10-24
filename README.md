@@ -50,7 +50,7 @@ node --input-type=module -e 'import {mkdirSync,writeFileSync} from "node:fs"; im
 docker compose exec -T api node server/create-account.js < data/local-admin.json
 ```
 
-工具從 stdin 讀取帳號 JSON, 帳號為 3–32 個英數字／底線／點／減號, 密碼 12–128 字元。既有帳號拒絕覆寫；其他 manager 可由帳號管理頁建立, CLI 仍可新增帳號。直接使用 Node API 的環境改用 `npm run account:create < data/local-admin.json`, 需使用與 API 相同的 `DATABASE_PATH`。
+工具從 stdin 讀取帳號 JSON, 帳號為 3–32 個英數字／底線／點／減號, 密碼 6–128 字元。既有帳號拒絕覆寫；其他 manager 可由帳號管理頁建立, CLI 仍可新增帳號。直接使用 Node API 的環境改用 `npm run account:create < data/local-admin.json`, 需使用與 API 相同的 `DATABASE_PATH`。
 
 - `auth_accounts` 保存 scrypt 密碼雜湊與獨立 salt, 不保存明文密碼
 - `auth_sessions` 保存 session token 的 SHA-256 雜湊及到期時間；瀏覽器使用 HttpOnly／SameSite=Lax cookie, 不使用 localStorage 保存登入憑證
@@ -419,7 +419,7 @@ SQLite 追加 `battle_uploads`／`battle_records`, `round_number` 記錄場序�
 
 ## 共用成員通行密碼
 
-member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admin 在帳號管理設定／修改 6–128 個英文字母或數字的通行密碼（區分大小寫，純數字仍可使用），初次不提供預設值，前導零保留。右上登入預設成員通行密碼；三種戰鬥的行事曆與報名均公開，報名視窗不提供登入表單。`POST /api/auth/member-login` 由後端指定帳號，與管理登入共用限流；`PATCH /api/admin/member-token` 須 admin、CSRF 及 revision。修改密碼撤銷共用 member 全部 session。舊個別 member 資料保留但不能再登入或沿用舊 session；舊新增／改名 member API 停用。admin／manager 密碼維持 12–128 字元。GAS 已生成對應資料功能，尚未部署驗證。
+member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admin 在帳號管理設定／修改 6–128 個英文字母或數字的通行密碼（區分大小寫，純數字仍可使用），初次不提供預設值，前導零保留。右上登入預設成員通行密碼；三種戰鬥的行事曆與報名均公開，報名視窗不提供登入表單。`POST /api/auth/member-login` 由後端指定帳號，與管理登入共用限流；`PATCH /api/admin/member-token` 須 admin、CSRF 及 revision。修改密碼撤銷共用 member 全部 session。舊個別 member 資料保留但不能再登入或沿用舊 session；舊新增／改名 member API 停用。admin／manager 密碼維持 6–128 字元。GAS 已生成對應資料功能，尚未部署驗證。
 
 
 ## 個人戰績
@@ -451,7 +451,7 @@ admin 可在「帳號管理 → 平台設定」修改左上角「逆水寒」，
 
 同一分頁可上傳／預覽／替換／移除平台圖示，支援 PNG、JPEG、WebP，最多 256 KB。選檔後按「儲存設定」才正式保存並顯示於頂欄；移除後亦需儲存，還原可放棄圖示草稿。未設定時只顯示名稱。本機圖片存 SQLite，GAS 圖片存私人 Google Drive，無需 R2 或公開分享圖片。
 
-GAS 的初始 admin 使用初始化時設定的帳密，須選「管理者登入」；`AUTH_SECRET` 不是登入密碼。無法登入時，可在私有指令碼屬性填 `RECOVERY_ADMIN_PASSWORD`（12–128 字元），由 Google 部署者在編輯器執行 `resetAdminPassword`；成功紀錄顯示實際帳號，之後用新密碼登入。重設只影響 admin 密碼及其舊登入，其他帳號和業務資料保留。詳見 [登入復原步驟](GASDeployment.md#無法登入-admin-時)。
+GAS 的初始 admin 使用初始化時設定的帳密，須選「管理者登入」；`AUTH_SECRET` 不是登入密碼。無法登入時，可在私有指令碼屬性填 `RECOVERY_ADMIN_PASSWORD`（6–128 字元），由 Google 部署者在編輯器執行 `resetAdminPassword`；成功紀錄顯示實際帳號，之後用新密碼登入。重設只影響 admin 密碼及其舊登入，其他帳號和業務資料保留。詳見 [登入復原步驟](GASDeployment.md#無法登入-admin-時)。
 
 成員清單與編外人員可同時篩選主職業及副職業，副職業含「無副職業」；未選時不篩選。職業、所屬與搜尋條件取交集，改條件回第一頁，「清除篩選」同時重設全部條件。
 

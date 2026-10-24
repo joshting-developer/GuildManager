@@ -2,7 +2,15 @@
 
 目前已生成 Vue 單檔頁面與完整 GAS 後端，涵蓋登入／帳號管理、行事曆、成員／匯入／名稱歷史、活動、職責、報名／請假、排表／範本、戰績上傳／下載／閱覽、個人分析及團隊分析。本機 SQLite 環境保留。
 
-## 2026/10/20：v1.0.22 最新已同步狀態
+## 2026/10/24：v1.0.27 本機已準備，尚未同步
+
+本輪 main 起點 ceac10d，package／lockfile 已為 1.0.26；本次新批調整升 patch 一次至 **1.0.27**，更新紀錄置頂。admin／manager 密碼新增、修改、CLI、GAS 初始與編輯器復原統一 6–128 字元；member 仍為 6–128 英數字。保留既有長密碼、雜湊、權限、CSRF、revision、限流及登入撤銷，不重設任何既有密碼或修改正式資料。
+
+功能來源 `5a53198`，新增 3 項邊界／完整流程測試，原 333 項未修改，完整 336／336 通過；一般／GAS 編譯、版號與更新紀錄／四檔／無外部 JS／CSS 核對通過。隔離編譯後 GAS Chrome 驗證 admin／manager 六位保存、五位前端拒絕、桌面／手機版面，證據與限制見 AGENTS.md 文末。本輪沒有執行正式密碼復原或初始化。
+
+本輪僅本機開發及驗證，未 push／同步 GAS／查詢或更新 Web App 部署、setupGas 或修改 Script Properties。同步此批時沿用已準備的 1.0.27，不再次升版；下方 1.0.22 是本文件最後記錄的成功同步，不推測 1.0.23–1.0.26 的正式同步／部署狀態。
+
+## 2026/10/20：v1.0.22 同步狀態（歷史紀錄）
 
 同步來源 **`9eb6f23`**（導覽等 `f76cfbe`、影片超連結 `83c72cc`），沿用已準備的 **1.0.22**，不再次升版。`npm run gas:push` 已重新編譯、備份遠端、同步 Index.html／Code.gs／Backend.gs／appsscript.json，四檔讀回比對一致；私有前後備份 `data/gas-backups/2026-10-20T05-43-31-482Z/` 不提交，同步日誌 `/private/tmp/guild-v1022-gas-sync.log`。package／lockfile／release note／編譯版本、影片連結與新分頁保護、導覽／顯示設定、無外部 JS／CSS／台北時區核對通過。
 
@@ -199,7 +207,7 @@ npm run build:gas
 | `SPREADSHEET_ID` | 測試試算表 ID；正式來源為 `1svNzAG9MxLVkPCaGboo6xj7tIFPJbvujYz0-D49LqgE` |
 | `AUTH_SECRET` | 自行產生的 64 位十六進位私密亂數，用於 token／CSRF，勿貼入 HTML 或 Git |
 | `BOOTSTRAP_ADMIN_USERNAME` | 初次 admin 帳號，3–32 個英數字、底線、點或減號；不得使用 `guild_member` |
-| `BOOTSTRAP_ADMIN_PASSWORD` | 初次 admin 密碼，12–128 個字元；成功初始化會自動刪除此明文屬性 |
+| `BOOTSTRAP_ADMIN_PASSWORD` | 初次 admin 密碼，6–128 個字元；成功初始化會自動刪除此明文屬性 |
 | `GUILD_NAME` | 幫會顯示名稱，選填；未設定顯示「你的幫會」 |
 | `TABLE_PREFIX` | 選填，預設 `GM_`；只能英數字／底線，以英文開頭、最多 20 字元；上線後勿任意更改 |
 | `DRIVE_FOLDER_ID` | 初次可不填，初始化建立新的戰績資料夾並自動保存 ID；若指定既有資料夾，確認僅授權必要管理者 |
@@ -226,7 +234,7 @@ openssl rand -hex 32
 
 首頁預設「成員登入」，初始 admin 請切換「管理者登入」，使用初始化時的 `BOOTSTRAP_ADMIN_USERNAME`／`BOOTSTRAP_ADMIN_PASSWORD`；`AUTH_SECRET` 是簽章金鑰，不是登入密碼。初始密碼成功初始化後已轉為雜湊並刪除明文，重填 `BOOTSTRAP_ADMIN_PASSWORD` 再執行 `setupGas` 不會改已有帳號。
 
-如需重設，於「專案設定 → 指令碼屬性」新增 `RECOVERY_ADMIN_PASSWORD`，填寫 12–128 字元的新密碼並儲存；重新整理編輯器，點選 `Code.gs`，函式選單選 `resetAdminPassword` 後執行。沿用與 `setupGas` 相同的 Google 執行身分檢查，成功紀錄只顯示實際登入帳號，不顯示密碼；回網站重新整理後，使用該帳號與新密碼從「管理者登入」登入。若尚無唯一 admin 會拒絕，請先確認初始化結果。
+如需重設，於「專案設定 → 指令碼屬性」新增 `RECOVERY_ADMIN_PASSWORD`，填寫 6–128 字元的新密碼並儲存；重新整理編輯器，點選 `Code.gs`，函式選單選 `resetAdminPassword` 後執行。沿用與 `setupGas` 相同的 Google 執行身分檢查，成功紀錄只顯示實際登入帳號，不顯示密碼；回網站重新整理後，使用該帳號與新密碼從「管理者登入」登入。若尚無唯一 admin 會拒絕，請先確認初始化結果。
 
 成功會刪除 `RECOVERY_ADMIN_PASSWORD` 明文、增加 admin revision、撤銷 admin sessions 並清除該帳號失敗計數；manager／member 帳號與 sessions、試算表及 Drive 不改。此函式只作部署者復原，不加入網頁或業務 RPC；無法辨識 Google 執行帳號時不做任何變更。若已觸發全站嘗試限制，仍須待該限制到期（5 分鐘）。
 

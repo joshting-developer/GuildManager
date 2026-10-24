@@ -139,7 +139,7 @@ App 提供 calendarAuth 的使用者及確認登入狀態；三種戰鬥名稱�
 
 ## 共用成員通行密碼
 
-member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admin 在帳號管理設定／修改 6–128 個英文字母或數字的通行密碼（區分大小寫，純數字仍可使用），初次不提供預設值，前導零保留。右上登入預設成員通行密碼；三種戰鬥的行事曆與報名均公開，報名視窗不提供登入表單。`POST /api/auth/member-login` 由後端指定帳號，與管理登入共用限流；`PATCH /api/admin/member-token` 須 admin、CSRF 及 revision。修改密碼撤銷共用 member 全部 session。舊個別 member 資料保留但不能再登入或沿用舊 session；舊新增／改名 member API 停用。admin／manager 密碼維持 12–128 字元。GAS 已生成對應資料功能，尚未部署驗證。
+member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admin 在帳號管理設定／修改 6–128 個英文字母或數字的通行密碼（區分大小寫，純數字仍可使用），初次不提供預設值，前導零保留。右上登入預設成員通行密碼；三種戰鬥的行事曆與報名均公開，報名視窗不提供登入表單。`POST /api/auth/member-login` 由後端指定帳號，與管理登入共用限流；`PATCH /api/admin/member-token` 須 admin、CSRF 及 revision。修改密碼撤銷共用 member 全部 session。舊個別 member 資料保留但不能再登入或沿用舊 session；舊新增／改名 member API 停用。admin／manager 密碼為 6–128 字元，CLI 建帳號、GAS 初始與復原沿用相同下限；既有雜湊與長密碼不重設，manager 修改留空保留原密碼。GAS 已生成對應資料功能，尚未部署驗證。
 
 
 ## 個人戰績
