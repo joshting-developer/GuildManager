@@ -116,6 +116,12 @@ npm run build:gas
 
 目前桌面／手機的瀏覽器驗證與手冊截圖使用 Playwright 操作 Chrome，開啟編譯後前端並使用隔離示範資料／模擬 GAS RPC；圖片保存於 `docs/manual-images/`。這些驗證與截圖腳本目前放在臨時目錄，未納入專案的可重跑套件，`npm test` 不包含瀏覽器測試或自動截圖，也沒有正式的 Playwright 設定或圖片比對測試。
 
+## 更新紀錄與定版
+
+更新紀錄由 `src/content/release-notes.json` 靜態編譯進網站及 GAS，線上不讀 GitHub。開發期間把變更累積在唯一置頂的 `version: "Unreleased"`、`date: null` 條目，頁面及頁尾顯示「未發布」；package／lockfile 保持最近正式版本。
+
+使用者要求同步 GAS 時，才在編譯前升一次 patch（`npm version patch --no-git-tag-version --ignore-scripts`），把同一筆 Unreleased 改成正式版號與當天台北日期，核對、提交後執行同步。`gas:push` 不會自動定版；同批重試不再升版。成功同步程式與正式 Web App 發布是不同狀態，操作規則見 [AGENTS.md](AGENTS.md#發布版本與-gas-同步)。
+
 ## GAS 匯入方式
 
 已配置指定指令碼的自動上傳。首次執行 `npm run gas:login` 完成 Google 授權；之後 `npm run gas:push` 自動編譯、備份遠端、上傳四檔並讀回比對。憑證及備份保存在被忽略的 `data/`，不需 Git 遠端。上傳不初始化試算表或發布 Web App，詳細設定見 [自動上傳](GASDeployment.md#本機自動上傳)。

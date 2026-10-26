@@ -8,7 +8,7 @@
 - 視覺參考相鄰專案 `../NSHM_history`, 本專案的具體規則以 [Style.md](Style.md) 為準
 - 已建立 Vuetify 首頁／成員管理／活動安排／戰場排表／戰績上傳／戰績閱覽、Docker 本機環境、SQLite 讀寫 API 與 GAS 單檔編譯流程。最新 v1.0.28（同步來源 06c3532）過期行事曆僅影片、排表按需讀取及來源下拉選單已同步 GAS 並讀回四檔一致，尚未更新 Web App 部署。本輪未查詢或更新部署，實際狀態見 GASDeployment.md 及文末交接。
 - 使用者已確認本機使用 SQLite, 後期資料來源為 Google 試算表
-- GAS 最新同步程式為 v1.0.28（來源 06c3532），本機已準備待同步的 v1.0.29：公開行事曆並行讀取、過期影片精簡表單、公開報名總數與職業統計隱藏。本批尚未同步，不重複升版；未 push Git／更新 Web App 部署。下方舊版待同步說明保留作歷史，以文末最新交接及 GASDeployment.md 為準。
+- GAS 最新同步程式為 v1.0.28（來源 06c3532），本機新改動以 Unreleased 累積：公開行事曆並行讀取、過期影片精簡表單、公開報名總數與職業統計隱藏。本批尚未定版／同步，package／lockfile 保持 1.0.28；未 push Git／更新 Web App 部署。下方舊版待同步說明保留作歷史，以文末最新交接及 GASDeployment.md 為準。
 - 過往 v1.0.22 同步紀錄：本機及 GAS 當時均為 v1.0.22（導覽／顯示設定、場次預設、數字格式及影片閱覽網址超連結），本批已交付，不重複升版；後續新一批功能交付須遞增 patch。v1.0.21 已交付：個人戰績一次載入、預選最新十筆、勾選總覽及 ECharts 走勢抽屜，移除三顆批次勾選快捷按鈕；進攻／防守分析重用詳情資料，提供數值／占比兩表及互斥配對。保留 v1.0.20 只解碼最新版本與既有唯讀／鎖範圍及多人請假修正；本輪未 push Git／更新部署。正式戰績上傳原始失敗原因仍未確定，見文末交接。
 - 試算表 ID 已取得, 本機使用帳號密碼登入；正式工作表名稱與 Google 登入待確認, 本機角色為 admin／manager／member, 成員、職業、過去名稱及活動安排欄位已依需求實作於本機
 
@@ -82,15 +82,18 @@
 
 ## 發布版本與 GAS 同步
 
-- 發布版本的唯一來源為 `package.json` 的 `version`；`package-lock.json` 根層與根套件的版本需一致。Vite 透過 `__APP_VERSION__` 帶入頁尾，不手改 App.vue 或編譯後 HTML 的版本字樣。
-- 使用者要求交付新版本／同步 GAS 時，同一批尚未發布的功能與修正升版一次；預設沿用既有 `1.0.x` 流程遞增 patch，有明確 major／minor 指示再調整。文件整理、失敗重試或同一版本重新同步不重複升版。
-- 2026/10/19 使用者再次確認：同步 GAS 的新一批功能／修正就算一個新的小版本，必須遞增 patch 並新增相符的 release note；不能沿用上一批「不要重複升版」的指示，把後續新功能持續併入已交付版本。本批由 1.0.11 升為 1.0.12，1.0.11 保留已交付成員維護紀錄。
-- 使用 `npm version patch --no-git-tag-version --ignore-scripts` 同步 package 與 lockfile，避免額外自動 commit／tag；不手改 lockfile 中套件依賴版本。先升版，再執行一般及 GAS 編譯，確認套件與頁尾版本一致。
-- 每次交付新功能、修正或升版，都要同步更新 `src/content/release-notes.json`，供頁尾版號連到的「更新紀錄」頁顯示。最新版本置頂，版本對齊 `package.json`，日期使用台北日期 `YYYY-MM-DD`；以繁體中文摘要及既有「新功能／效能／修正／其他」分類說明使用者可見的改動，不把 commit 訊息或部署成功當成功能說明。
-- 同一版本補充 release note 時更新既有條目，不新增重複版本或再次升版；保留舊版紀錄。提交與 GAS 編譯／同步前，確認目前版本有對應條目且內容涵蓋本次功能與修正；更新紀錄隨前端編譯打包，GAS 同步／Web App 發布仍依使用者授權範圍執行。
-- 先檢查與提交本次功能、修正及版本檔；文件／規範可獨立提交。只有使用者本輪明確要求才 push 或同步 GAS，遠端資料、憑證、根目錄名單及私有備份不提交。
-- `npm run gas:push` 會編譯、備份遠端、同步四檔、讀回比對；以工具成功結果確認同步完成，記錄來源 commit、平台版本及備份位置。更新 GASDeployment.md 的實際狀態，不把過往版本當成本輪結果。
-- GAS 程式同步與 Web App 發布不同；除非另外明確授權發布，不更新對外部署、不執行 setupGas，也不改正式試算表或 Script Properties。回報需明確區分已 push／已同步程式／已發布。
+以下為 2026/10/27 使用者最新規則，取代歷史交接中「開發完成就預先升 patch」的做法；GAS 程式同步與 Web App 發布仍分別記錄。
+
+- 更新紀錄由 `ReleaseNotesPage.vue` 靜態匯入 `src/content/release-notes.json`，隨 Vite／GAS 單檔編譯一起交付，不會執行期從 GitHub／GitHub Releases 讀取。修改本機 JSON 不會自動改變已發布網站。
+- 尚未準備同步 GAS 的功能與修正，一律累積到唯一置頂的 `{ "version": "Unreleased", "date": null, ... }`；畫面顯示「未發布／累積中」，不猜未來版號或預填發布日期。已有 Unreleased 時更新同一筆，不建立多筆草稿；保留所有正式歷史紀錄。
+- 平常開發不執行 npm version patch；`package.json` 與 lockfile 保持最近已定版版本。有 Unreleased 時本機／測試編譯的頁尾顯示「未發布」，更新紀錄頁說明最近定版版本，避免把開發內容標成已交付版本。正式版號的唯一來源仍是 package.version，Vite 透過 __APP_VERSION__ 帶入，不手改 App.vue 或編譯產物的數字。
+- 使用者明確要求同步 GAS／交付新版本時，先盤點並整併全部 Unreleased 內容，依最近已確認同步的正式版本與實際交付紀錄決定下一版，預設沿用 1.0.x 遞增 patch；major／minor 依明確指示。於**編譯與上傳前**執行 `npm version patch --no-git-tag-version --ignore-scripts` 同步 package／lockfile，把該 Unreleased 條目改成正式版與當天台北日期 YYYY-MM-DD，保留內容，提交功能／版本檔後再同步；定版後不另外保留空白 Unreleased 條目。
+- 「只有 GAS 同步的新批次才升一次版本」仍適用；未發布內容持續累積，不因每次功能 commit 或文件整理升版。同步失敗、同批重試或已定版未成功上傳時保留原定版與待同步狀態，先檢查實際遠端／交付紀錄，不能再次升 patch；成功同步後的新改動重新建立 Unreleased。
+- 每次功能／修正都更新 Unreleased（或同步前正在定版的同一筆），分類沿用「新功能／效能／修正／其他」，以繁體中文描述使用者可見變化，不把 commit 或部署成功當作功能說明。不要預先把未同步內容塞進已交付正式版，也不要因升版改動 lockfile 的套件依賴版本。
+- 開發提交／測試編譯可包含 Unreleased；同步前必須核對沒有 Unreleased、package／lockfile／正式 release note／編譯頁尾版本相符且正式條目唯一。定版與上傳之間有改動就補同一版，不重複升版。尚未成功同步時不得記成已交付；Web App 部署狀態不得由 package 或更新紀錄推測。
+- 先檢查與提交本次功能、修正及版本檔；文件／規範可獨立提交。本機步驟 commit 沿用既有授權；只有使用者本輪明確要求才 push Git 或同步 GAS，憑證、遠端備份及私有資料不提交。
+- `npm run gas:push` 會編譯、備份遠端、同步四檔並讀回比對，本身**不會自動把 Unreleased 定版或升版**；執行者須先完成上述定版步驟。成功後記錄來源 commit、正式版號與備份，更新 GASDeployment.md 實際狀態。
+- GAS 程式同步與 Web App 發布不同；除非另外明確授權發布，不更新對外部署、不執行 setupGas，也不改正式試算表或 Script Properties。回報分清「已同步程式／已發布／尚未交付」。
 
 ## 技術方向
 
@@ -884,3 +887,15 @@ package／lockfile／唯一 release note／編譯頁尾版本、排表四個新�
 隔離編譯後 GAS Chrome 驗證：慢登入完成前行事曆已可瀏覽，登入失敗仍顯示，確認後不重載；三種過期場次只讀影片表單；公開總數及職業統計隱藏、管理保留真實報名／請假計數；正常請假與影片成功，重新載入保留草稿並以新 revision 送出，過期場次改到未來自動補讀報名資料，關閉後舊回應忽略，跨午夜保留草稿且零新增請求，桌面／390px 手機明暗無例外／橫向溢出。證據 `/private/tmp/guild-calendar-fast-preview/`，腳本 `/private/tmp/guild-calendar-fast-browser.mjs`。只使用隔離資料，不測寫正式平台。
 
 main 起點 2a8db2c，功能來源 `5605a72`。已交付 1.0.28 後的新批升 patch 一次為 **1.0.29**，補同版 release note。只本機提交，未 push Git／同步 GAS／查詢或更新 Web App 部署、setupGas、修改正式資料／Properties 或發送通知；最新同步仍為 1.0.28。後續同步本批沿用 1.0.29，不重複升版。現行常態規則已同步本檔效能與報名段、Architecture.md、Style.md、GASConcurrency.md。
+
+## 更新紀錄改為 Unreleased 累積（2026/10/27）
+
+使用者確認更新紀錄隨前端編譯進 GAS，不讀 GitHub，要求未交付內容持續累積、同步 GAS 時才給真實版號。本檔「發布版本與 GAS 同步」已改為常態規則，優先於前節與歷史的預先升版流程；這是本專案規則，沒有修改跨專案 shared skill。功能來源 `fe7cd4b`。
+
+先前本機預備的 1.0.29 尚未同步，該條目改為唯一置頂 Unreleased／date=null，原公開行事曆／影片／計數功能說明完整保留，正式 1.0.28 及以下歷史逐筆相等。package／lockfile 回到最近已同步的 1.0.28，沒有重寫 Git 歷史。App 頁尾有 Unreleased 時顯示「未發布」；更新紀錄卡顯示未發布／累積中／尚未定版、不加 v 或 time，舊版仍有版號日期，最近正式版標「最近定版」。移除 ReleaseNotesPage 原先錯誤宣稱 release tool 自動產生紀錄的註解，實際上目前是靜態 JSON 與執行者依規則定版。
+
+日後未同步變更只補這筆 Unreleased，不先升 patch；使用者要求同步時，在編譯前升版、把此筆轉成正式版與台北日期、檢查提交後同步。同批失敗重試保留已定版待同步版本，不再次升版；成功同步與 Web App 發布分別記錄。gas:push 本身沒有自動定版功能，執行前須完成上述步驟。不得把 package／更新紀錄當作線上部署狀態。
+
+一般／GAS 編譯、唯一 Unreleased／date=null、正式歷史及原待發布功能未變、package／lockfile 1.0.28 核對通過；隔離 Chrome 桌面／390px 深色手機驗證未發布標示、空日期不渲染、舊版日期及最近定版徽章、頁尾、無溢出／例外，內容沒有額外 RPC 或 GitHub 讀取。證據 `/private/tmp/guild-unreleased-preview/`，編譯日誌 `/private/tmp/guild-unreleased-build.log`、`/private/tmp/guild-unreleased-gas-build.log`。本次是狀態／呈現與規範調整，沿用前輪 347 項業務結果、不重跑業務測試或新增複述模板的測試。
+
+main 起點 ac43774。只本機提交，未 push／同步 GAS／查詢或更新 Web App 部署、setupGas、正式資料／Properties／通知。最新成功同步仍為 1.0.28，當前未發布功能不能標為已交付 1.0.29；後續同步依最新規則定版。

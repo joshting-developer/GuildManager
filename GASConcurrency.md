@@ -238,6 +238,6 @@
 
 四個新讀取 RPC 已盤點完整依賴並列入 READ_ONLY，保留 admin／manager 檢查。單次交易共用 commits 與名冊／職業，getLineupEditor 不讀 templates，getLineupSources 不讀 lineup_versions／templates。隔離 GAS 驗證寫入持鎖仍能讀，Sheets／Properties／Drive／通知內容不變。confirmLineup、createLineupTemplate 及刪除外援等寫入的版本／資格／requestId 與鎖維持原規則，未因減少讀取而移除保存時重新驗證。
 
-## v1.0.29 公開行事曆並行與影片精簡表單（本機待同步）
+## Unreleased 公開行事曆並行與影片精簡表單（本機待定版／同步）
 
 getEvents 本來就是公開 READ_ONLY，本次只解除公開前端等待 auth 的順序；管理行事曆與寫入檢查維持原狀。新增 getEventVideoForm 已盤點依賴、列入 PARTICIPATION 與 READ_ONLY，同次只讀 events／必要 members／professions 與 commits 快照，沒有 ensureTable、put／remove、Drive、通知或 auth 狀態寫入；匿名／member 沿用三種有效單日戰鬥範圍，不開放影片閱覽。隔離持寫入鎖驗證可讀且資料／Properties／Drive／通知保持不變。submitParticipation／submitEventVideo 原版本、身分／CSRF、requestId 及提交鎖不改。
