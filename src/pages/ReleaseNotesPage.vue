@@ -1,12 +1,13 @@
 <script setup>
-// Release notes are bundled with the build (src/content/release-notes.json); the local
-// release tool adds an entry from the commits since the previous tag on each release.
+// Notes ship inside the build; pending changes stay in Unreleased until GAS delivery.
 import notes from '../content/release-notes.json';
 
 const currentVersion = __APP_VERSION__;
+const hasUnreleased = notes.some((release) => release.version === 'Unreleased');
 const SECTION_ORDER = ['新功能', '效能', '修正', '其他'];
 const releases = notes.map((release) => ({
   ...release,
+  unreleased: release.version === 'Unreleased',
   groups: Object.entries(release.sections || {})
     .filter(([, items]) => items.length)
     .sort(([a], [b]) => SECTION_ORDER.indexOf(a) - SECTION_ORDER.indexOf(b)),
@@ -20,7 +21,8 @@ const dateLabel = (date) => date.replace(/-/g, '/');
       <p class="eyebrow">GUILD MANAGER <span class="eyebrow-divider">/</span> 版本</p>
       <h1 id="release-notes-title">更新紀錄<span class="heading-dot">.</span></h1>
       <p class="page-subtitle">
-        每次發布的改動摘要。目前版本 <strong>v{{ currentVersion }}</strong>
+        {{ hasUnreleased ? '目前包含未發布改動。最近定版' : '每次發布的改動摘要。目前版本' }}
+        <strong>v{{ currentVersion }}</strong>
       </p>
     </div>
   </section>
@@ -29,12 +31,14 @@ const dateLabel = (date) => date.replace(/-/g, '/');
     <li v-for="release in releases" :key="release.version">
       <v-card
         class="release-card"
-        :class="{ 'release-current': release.version === currentVersion }"
+        :class="{ 'release-current': release.unreleased || (!hasUnreleased && release.version === currentVersion) }"
       >
         <div class="release-head">
-          <h2>v{{ release.version }}</h2>
-          <span v-if="release.version === currentVersion" class="release-badge">目前版本</span>
-          <time class="release-date" :datetime="release.date">{{ dateLabel(release.date) }}</time>
+          <h2>{{ release.unreleased ? '未發布' : `v${release.version}` }}</h2>
+          <span v-if="release.unreleased" class="release-badge">累積中</span>
+          <span v-else-if="release.version === currentVersion" class="release-badge">{{ hasUnreleased ? '最近定版' : '目前版本' }}</span>
+          <span v-if="release.unreleased" class="release-date">尚未定版</span>
+          <time v-else class="release-date" :datetime="release.date">{{ dateLabel(release.date) }}</time>
         </div>
         <p v-if="release.summary" class="release-summary">{{ release.summary }}</p>
         <section v-for="[title, items] in release.groups" :key="title" class="release-group">

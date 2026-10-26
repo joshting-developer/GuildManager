@@ -1,6 +1,6 @@
 {
   "name": "guild-manager",
-  "version": "1.0.29",
+  "version": "1.0.28",
   "private": true,
   "type": "module",
   "engines": {

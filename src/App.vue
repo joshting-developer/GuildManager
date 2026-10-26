@@ -58,6 +58,7 @@ import MemberBattleRecordsPage from './pages/MemberBattleRecordsPage.vue';
 import VideosPage from './pages/VideosPage.vue';
 import LotteryPage from './pages/lottery/LotteryPage.vue';
 import ReleaseNotesPage from './pages/ReleaseNotesPage.vue';
+import releaseNotes from './content/release-notes.json';
 
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 const vuetifyTheme = useTheme();
@@ -77,6 +78,8 @@ function chooseFontScale(name) {
   saveFontScale(name);
 }
 const appVersion = __APP_VERSION__;
+const versionLabel = releaseNotes.some((release) => release.version === 'Unreleased')
+  ? '未發布' : `v${appVersion}`;
 const authClient = createAuthClient({ source });
 const platformClient = createPlatformSettingsClient({ source });
 const platformCache = createPlatformCache({ source, namespace: globalThis.__GUILD_GAS_KEY__ });
@@ -617,8 +620,8 @@ function skipToMain() {
             title="查看更新紀錄"
             @click="navigate('release-notes')"
           >
-            v{{ appVersion }}</button
-          ><span v-else class="footer-version">v{{ appVersion }}</span></span
+            {{ versionLabel }}</button
+          ><span v-else class="footer-version">{{ versionLabel }}</span></span
         ><span>每一次集結，都有跡可循。</span>
       </footer>
     </main>
