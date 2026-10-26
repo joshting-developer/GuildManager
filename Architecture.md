@@ -137,9 +137,13 @@ GAS 已以試算表分開保存摘要、玩家快照及個人關聯，Drive 保�
 
 ## 公開報名登入與選人
 
-App 提供 calendarAuth 的使用者及確認登入狀態；三種戰鬥名稱來源統一為手填／幫會／俱樂部成員。NameSourcePicker 共用分頁／選人介面，ParticipationDialog 一次讀取場次回應、職業與必要名冊，傳給影片表單使用；過期／撤銷後保留公開操作，登入狀態變化重讀但不清草稿。
+公開 MonthCalendar 的 getEvents 與 App.restoreSession 並行，不因登入完成或失敗重載同一份公開活動；目前 visibleCalendarEvents 對所有角色相同，管理模式仍等待登入且清除身分切換的舊結果。沿用 60 秒事件清單快取及寫入／登入登出失效，不改 protected 頁或 CSRF／送出驗證。公開總人數及職業統計隱藏，管理行事曆的出勤計數保留；今日／未來仍保留身分與 expectedParticipant 所需回應，不以隱藏 UI 宣稱取消 API 資料。
 
-首次及手動重讀使用 `GET /api/events/:id/participation-form`／GAS `getEventParticipationForm` 一次取得 `{ eventId, revision, responses, registrations, registrationLeaves, members, professions }`；SQLite 使用同一讀取交易，GAS 在既有 script lock／store transaction 內先載入名冊供回應重用。送出成功只查原 participation，舊三個查詢端點與 DTO 保留。GAS 版本雜湊與 DTO 共用本次回應／外援陣列，有效外援名稱 Set 取代逐列互相比較，不跨請求快取。
+GET /api/events/:id/video-form／GAS getEventVideoForm 於同一 SQLite 讀取交易／GAS commits 快照回 `{ event, eventId, members, professions }`，必要名冊欄位沿用既有 participation-members。三種有效單日戰鬥公開，不讀 responses／registrations／requests／videos 或 Drive，也不取寫入鎖或跨請求快取。過期入口與一般手動重載使用它；回傳最新事件更新上層並同步 VideoUploadForm 本地 revision，草稿保留。過期場次改至未來後補載正常 participation-form；跨午夜直接重用已載名冊，不增加 RPC。原影片內錯誤重試仍可先 getEvent 再刷新表單，舊 API 與所有寫入檢查保留。
+
+App 提供 calendarAuth 的使用者及確認登入狀態；三種戰鬥名稱來源統一為手填／幫會／俱樂部成員。NameSourcePicker 共用分頁／選人介面，ParticipationDialog 今日／未來一次讀取場次回應、職業與必要名冊；過期影片改為獨立精簡表單，名冊／職業傳給影片表單使用；過期／撤銷後保留公開操作，登入狀態變化重讀但不清草稿。
+
+今日／未來的報名視窗首次及手動重讀使用 `GET /api/events/:id/participation-form`／GAS `getEventParticipationForm` 一次取得 `{ eventId, revision, responses, registrations, registrationLeaves, members, professions }`；SQLite 使用同一讀取交易，GAS 在唯讀 commits 快照內先載入名冊供回應重用。送出成功只查原 participation，舊三個查詢端點與 DTO 保留。GAS 版本雜湊與 DTO 共用本次回應／外援陣列，有效外援名稱 Set 取代逐列互相比較，不跨請求快取。
 
 公開 `GET /api/events/:id`／GAS `getEvent` 回傳單筆有效安排，沿用清單可見資料；刪除／不存在回傳錯誤。影片重載僅查該場並確認仍是三種戰鬥，刷新表單名冊仍走整併端點，失敗保留草稿。排表以 computed Map／Set 索引目前成員、職業、職責及資格，相關來源變更時失效重算，封存顯示仍直接讀不可變快照。
 

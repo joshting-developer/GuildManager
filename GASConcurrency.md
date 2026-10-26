@@ -81,13 +81,14 @@
 | `addDuty` | duties | duties | 寫；同名檢查與新增 |
 | `updateDuty` | duties | duties | 寫；revision 與同名檢查 |
 
-### 報名、請假及出勤（9 個）
+### 報名、請假及出勤（10 個）
 
 | RPC | 業務讀取 | 業務寫入 | 建議 |
 | --- | --- | --- | --- |
 | `getEventParticipation` | events、responses、registrations、members、professions | 無 | 讀；同次已提交快照 |
 | `getEventParticipationForm` | events、responses、registrations、members、professions | 無 | 讀；表單整併讀取仍保留 |
 | `getEventParticipationMembers` | events、members | 無 | 讀 |
+| `getEventVideoForm` | events、members、professions | 無 | READ_ONLY；公開單日戰鬥，不讀 responses／registrations／requests／videos／Drive |
 | `getEventAttendance` | events、responses、registrations、members、professions | 無 | 讀；維持管理者限制 |
 | `submitParticipation` | events、responses、registrations、members、professions、requests | responses 或 registrations，加 requests | 寫；改進整場版本造成的跨人成員衝突，仍保護同一人的更新 |
 | `saveMemberResponse` | events、members、responses、professions | responses | 寫；相容入口已使用個人回應 revision |
@@ -236,3 +237,7 @@
 ## v1.0.28 排表按需讀取（已同步 GAS、尚未更新部署）
 
 四個新讀取 RPC 已盤點完整依賴並列入 READ_ONLY，保留 admin／manager 檢查。單次交易共用 commits 與名冊／職業，getLineupEditor 不讀 templates，getLineupSources 不讀 lineup_versions／templates。隔離 GAS 驗證寫入持鎖仍能讀，Sheets／Properties／Drive／通知內容不變。confirmLineup、createLineupTemplate 及刪除外援等寫入的版本／資格／requestId 與鎖維持原規則，未因減少讀取而移除保存時重新驗證。
+
+## v1.0.29 公開行事曆並行與影片精簡表單（本機待同步）
+
+getEvents 本來就是公開 READ_ONLY，本次只解除公開前端等待 auth 的順序；管理行事曆與寫入檢查維持原狀。新增 getEventVideoForm 已盤點依賴、列入 PARTICIPATION 與 READ_ONLY，同次只讀 events／必要 members／professions 與 commits 快照，沒有 ensureTable、put／remove、Drive、通知或 auth 狀態寫入；匿名／member 沿用三種有效單日戰鬥範圍，不開放影片閱覽。隔離持寫入鎖驗證可讀且資料／Properties／Drive／通知保持不變。submitParticipation／submitEventVideo 原版本、身分／CSRF、requestId 及提交鎖不改。
