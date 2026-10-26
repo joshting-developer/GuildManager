@@ -14,6 +14,11 @@ export function taipeiToday(now = new Date()) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(now);
 }
 
+export function isPastBattleEvent(event, today = taipeiToday()) {
+  return isBattleEvent(event) && Array.isArray(event.dates) && event.dates.length > 0 &&
+    event.dates.every(date => typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date) && date < today);
+}
+
 function weekday(date) {
   const [year, month, day] = date.split('-').map(Number);
   return WEEKDAYS[new Date(Date.UTC(year, month - 1, day)).getUTCDay()];

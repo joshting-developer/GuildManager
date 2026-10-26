@@ -6,7 +6,9 @@ import { eventDisplayTitle, eventTypeLabel } from '../domain/event-types.js';
 import VideoUploadForm from './VideoUploadForm.vue';
 import NameSourcePicker from './NameSourcePicker.vue';
 import { participationTarget } from '../domain/participation-target.js';
-const props = defineProps({ modelValue: Boolean, event: { type: Object, required: true } });
+import { isPastBattleEvent, taipeiToday } from '../domain/battle-events.js';
+const props = defineProps({ modelValue: Boolean, event: { type: Object, required: true }, today: { type: String, default: () => taipeiToday() } });
+const pastEvent = computed(() => isPastBattleEvent(props.event, props.today));
 const emit = defineEmits(['update:modelValue', 'closed', 'event-refreshed']);
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 const client = createParticipationClient({ source, onBusyRetry: () => { retrying.value = true; } });
@@ -30,6 +32,9 @@ const loading = ref(true),
   error = ref(''),
   notice = ref('');
 const tab = ref('form');
+watch(pastEvent, past => {
+  if (past) tab.value = 'videos';
+});
 const videoForm = ref(null),
   videoBusy = ref(false),
   videoDirty = ref(false),
@@ -162,7 +167,7 @@ watch(
   (open) => {
     if (open) {
       notice.value = '';
-      tab.value = 'form';
+      tab.value = pastEvent.value ? 'videos' : 'form';
       status.value = 'registered';
       nameSource.value = 'manual';
       loading.value = false;
@@ -191,6 +196,10 @@ function close() {
   }
 }
 async function submit() {
+  if (isPastBattleEvent(props.event)) {
+    tab.value = 'videos';
+    return;
+  }
   if (busy.value || loading.value || authLoading.value) return;
   error.value = '';
   notice.value = '';
@@ -279,9 +288,10 @@ async function submit() {
         loadError
       }}</v-alert>
       <div v-show="!authLoading && !loading && !loadError">
-        <p class="participation-count">報名 {{ registeredCount }} 人</p>
-        <v-tabs v-model="tab" color="primary" aria-label="場次報名資訊">
+        <p v-if="!pastEvent" class="participation-count">報名 {{ registeredCount }} 人</p>
+        <v-tabs v-model="tab" color="primary" aria-label="場次參與資訊">
           <v-tab
+            v-if="!pastEvent"
             id="participation-form-tab"
             value="form"
             aria-controls="participation-form-panel"
@@ -289,6 +299,7 @@ async function submit() {
             >報名／請假</v-tab
           >
           <v-tab
+            v-if="!pastEvent"
             id="participation-professions-tab"
             value="professions"
             aria-controls="participation-professions-panel"
@@ -304,6 +315,7 @@ async function submit() {
           >
         </v-tabs>
         <section
+          v-if="!pastEvent"
           v-show="tab === 'form'"
           id="participation-form-panel"
           role="tabpanel"
@@ -361,6 +373,7 @@ async function submit() {
           </form>
         </section>
         <section
+          v-if="!pastEvent"
           v-show="tab === 'professions'"
           id="participation-professions-panel"
           role="tabpanel"

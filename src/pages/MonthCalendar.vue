@@ -11,7 +11,17 @@ import { LINEUP_TYPES } from '../domain/lineups.js';
 import './events.css';
 import { visibleCalendarEvents } from '../domain/calendar-access.js';
 import { eventTypeLabel, eventDisplayTitle } from '../domain/event-types.js';
+import { isPastBattleEvent, taipeiToday } from '../domain/battle-events.js';
 const props = defineProps({ management: { type: Boolean, default: true } });
+const today = ref(taipeiToday());
+let dayTimer;
+function refreshToday() {
+  const now = new Date();
+  today.value = taipeiToday(now);
+  clearTimeout(dayTimer);
+  const nextMidnight = Date.parse(`${today.value}T00:00:00+08:00`) + 86400000;
+  dayTimer = setTimeout(refreshToday, Math.max(100, nextMidnight - now.getTime() + 50));
+}
 const calendarAuth = inject('calendarAuth', null);
 const openBattleUpload = inject('openBattleUpload', null);
 const selectedEvent = ref(null);
@@ -69,7 +79,12 @@ async function load() {
     if (currentToken === loadToken) loading.value = false;
   }
 }
-onMounted(load);
+onMounted(() => {
+  refreshToday();
+  window.addEventListener('focus', refreshToday);
+  document.addEventListener('visibilitychange', refreshToday);
+  load();
+});
 watch(
   [() => calendarAuth?.user.value?.id, () => calendarAuth?.user.value?.role, () => calendarAuth?.loading.value],
   () => {
@@ -85,6 +100,7 @@ watch(
 );
 function openDay(day) {
   if (calendarLoading.value || error.value) return;
+  refreshToday();
   opener = document.activeElement;
   selectedDay.value = day;
   dayDialog.value = true;
@@ -126,6 +142,9 @@ watch(
   { flush: 'sync' },
 );
 onUnmounted(() => {
+  clearTimeout(dayTimer);
+  window.removeEventListener('focus', refreshToday);
+  document.removeEventListener('visibilitychange', refreshToday);
   participationToken++;
   loadToken++;
 });
@@ -204,6 +223,7 @@ function restoreFocus() {
     :key="selectedEvent.id"
     v-model="participationDialog"
     :event="selectedEvent"
+    :today="today"
     @closed="restoreFocus"
     @event-refreshed="refreshSelectedEvent"
   />
@@ -272,13 +292,13 @@ function restoreFocus() {
             v-if="!management && LINEUP_TYPES.includes(event.type)"
             variant="tonal"
             color="primary"
-            :aria-label="`${eventDisplayTitle(event)} ${selectedDay.date} 報名／請假／影片`"
+            :aria-label="`${eventDisplayTitle(event)} ${selectedDay.date} ${isPastBattleEvent(event, today) ? '影片上傳' : '報名／請假／影片'}`"
             @click="
               selectedEvent = event;
               dayDialog = false;
               participationDialog = true;
             "
-            >報名／請假／影片</v-btn
+            >{{ isPastBattleEvent(event, today) ? '影片上傳' : '報名／請假／影片' }}</v-btn
           >
         </li>
       </ul>
