@@ -1,6 +1,7 @@
 import { callGas } from './gas.js';
 import { sessionFetch } from './session.js';
 import { validateVideoDetails } from '../domain/event-videos.js';
+import { isBattleEvent } from '../domain/battle-events.js';
 
 export function createEventVideoClient({
   source = 'local',
@@ -8,18 +9,13 @@ export function createEventVideoClient({
   googleRun,
 } = {}) {
   if (!['local', 'gas'].includes(source)) throw new Error('未知的資料來源設定');
-  async function call(eventId, input) {
+  async function request(operation, path, args, input) {
     if (source === 'gas') {
-      const data = await callGas(
-        input ? 'submitEventVideo' : 'getEventVideos',
-        input ? [eventId, input] : [eventId],
-        googleRun,
-      );
-      return validateResponse(data, eventId, input);
+      return callGas(operation, args, googleRun);
     }
     let response;
     try {
-      response = await fetchImpl(`/api/events/${encodeURIComponent(eventId)}/videos`, {
+      response = await fetchImpl(path, {
         method: input ? 'POST' : 'GET',
         ...(input
           ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) }
@@ -40,6 +36,11 @@ export function createEventVideoClient({
       error.fields = data.error?.fields || {};
       throw error;
     }
+    return data;
+  }
+  async function call(eventId, input) {
+    const data = await request(input ? 'submitEventVideo' : 'getEventVideos',
+      `/api/events/${encodeURIComponent(eventId)}/videos`, input ? [eventId, input] : [eventId], input);
     return validateResponse(data, eventId, input);
   }
   function validateResponse(data, eventId, input) {
@@ -66,6 +67,16 @@ export function createEventVideoClient({
     return data;
   }
   return {
+    async getBrowser(eventId = null) {
+      const data = await request('getVideoBrowser',
+        `/api/videos/browser${eventId ? `?eventId=${encodeURIComponent(eventId)}` : ''}`, [eventId]);
+      if (!Array.isArray(data?.events) || !data.events.every(isBattleEvent) ||
+        (data.events.length === 0 ? data.selected !== null :
+          !data.selected || !data.events.some(event => event.id === data.selected.eventId)))
+        throw new Error('影片閱覽資料回應格式不正確，請重試');
+      if (data.selected) validateResponse(data.selected, data.selected.eventId);
+      return data;
+    },
     getVideos: (eventId) => call(eventId),
     submitVideo: (eventId, input) => call(eventId, input),
   };

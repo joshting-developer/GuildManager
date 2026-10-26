@@ -183,6 +183,9 @@ export function createApp(repository, { authNow, notifier = null } = {}) {
   app.patch('/api/events/:id/attendance', (request, response) => {
     response.json(notifying(() => repository.cancelEventLeave(request.params.id, request.body)));
   });
+  app.get('/api/videos/browser', (request, response) => {
+    response.json(repository.getVideoBrowser(request.query.eventId));
+  });
   app.get('/api/events/:id/videos', (request, response) => {
     response.json(repository.listEventVideos(request.params.id));
   });

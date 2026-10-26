@@ -95,9 +95,9 @@ const READ_ONLY = [
   'getEventAttendance', 'getLineupIndex', 'getLineupHistory', 'applyLineupTemplate',
   'getLineupEditor', 'getLineupEvent', 'getLineupTemplates', 'getLineupSources',
   'getBattleRecords', 'getBattleRecord', 'getBattleTeamAnalysis', 'getMemberBattleRecords',
-  'getBattleAttachment', 'previewBattleMemberSync', 'getEventVideos', 'getLottery',
+  'getBattleAttachment', 'previewBattleMemberSync', 'getEventVideos', 'getVideoBrowser', 'getLottery',
 ];
-const LAZY_TABLE_READS = ['getEventVideos', 'getLottery'];
+const LAZY_TABLE_READS = ['getEventVideos', 'getVideoBrowser', 'getLottery'];
 function environment(notify = () => {}) {
   const properties = PropertiesService.getScriptProperties();
   const options = {

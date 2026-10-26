@@ -1,5 +1,6 @@
 import { EventVideoError, validateVideoSubmission } from '../../src/domain/event-videos.js';
 import { canonical, fail, hash } from './common.js';
+import { videoBrowserSelection } from '../../src/domain/video-browser.js';
 
 export function createVideos(store, catalog, { uuid, now }) {
   function checkEvent(eventId) {
@@ -7,7 +8,11 @@ export function createVideos(store, catalog, { uuid, now }) {
     if (event.dates.length !== 1) fail('EVENT_UNAVAILABLE', '影片需要單日戰鬥場次');
     return event;
   }
-  return {
+  const methods = {
+    getVideoBrowser([preferredId = null] = []) {
+      const { events, eventId } = videoBrowserSelection(catalog.liveEvents(), preferredId);
+      return { events, selected: eventId ? methods.getEventVideos([eventId]) : null };
+    },
     getEventVideos([eventId]) {
       const event = checkEvent(eventId);
       store.ensureTable('videos');
@@ -62,4 +67,5 @@ export function createVideos(store, catalog, { uuid, now }) {
       return result;
     },
   };
+  return methods;
 }

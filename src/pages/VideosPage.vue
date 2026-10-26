@@ -1,19 +1,17 @@
 <script setup>
 import DataLoading from '../components/DataLoading.vue';
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, shallowRef } from 'vue';
 import { mdiRefresh, mdiDownload } from '@mdi/js';
-import { createEventClient } from '../api/events.js';
 import { createEventVideoClient } from '../api/event-videos.js';
 import { eventDisplayTitle } from '../domain/event-types.js';
-import { battleEventLabel, isBattleEvent, orderBattleEvents } from '../domain/battle-events.js';
+import { battleEventLabel } from '../domain/battle-events.js';
 import { VIDEO_GROUP_OPTIONS } from '../domain/event-videos.js';
 import { VIDEO_TABLE_HEADERS, videoTableRow, videoTableCsv } from '../domain/video-table-csv.js';
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
-const eventClient = createEventClient({ source });
 const videoClient = createEventVideoClient({ source });
-const events = ref([]),
+const events = shallowRef([]),
   eventId = ref(null),
-  videos = ref([]);
+  videos = shallowRef([]);
 const group = ref(null),
   search = ref('');
 const loading = ref(true),
@@ -59,23 +57,23 @@ const options = computed(() =>
     title: battleEventLabel(event),
   })),
 );
-const visibleVideos = computed(() =>
-  videos.value.filter(
-    (video) =>
-      (!group.value || video.groupName === group.value) &&
-      video.name.toLocaleLowerCase().includes((search.value || '').trim().toLocaleLowerCase()),
-  ),
-);
-async function loadVideos() {
+const visibleVideos = computed(() => {
+  const needle = (search.value || '').trim().toLocaleLowerCase();
+  if (!group.value && !needle) return videos.value;
+  return videos.value.filter((video) =>
+    (!group.value || video.groupName === group.value) &&
+    (!needle || video.name.toLocaleLowerCase().includes(needle)),
+  );
+});
+async function loadVideos(id) {
   const current = ++token;
   videos.value = [];
   error.value = '';
   exportError.value = '';
-  if (!eventId.value) {
+  if (!id) {
     loading.value = false;
     return;
   }
-  const id = eventId.value;
   loading.value = true;
   try {
     const result = await videoClient.getVideos(id);
@@ -90,29 +88,32 @@ async function load() {
   const current = ++token;
   loading.value = true;
   error.value = '';
+  exportError.value = '';
   videos.value = [];
   try {
-    const data = await eventClient.getEvents();
+    const data = await videoClient.getBrowser(eventId.value);
     if (disposed || current !== token) return;
-    if (!Array.isArray(data.events)) throw new Error('場次資料格式不正確，請重試');
-    // Videos are watched after a battle: today or the latest past session comes first.
-    events.value = orderBattleEvents(data.events.filter(isBattleEvent), { prefer: 'recent' });
-    if (!events.value.some((event) => event.id === eventId.value)) {
-      eventId.value = events.value[0]?.id || null;
-      if (eventId.value) return; // The selection watcher loads this event.
+    events.value = data.events;
+    const selectedId = data.selected?.eventId || null;
+    if (selectedId !== eventId.value) {
+      group.value = null;
+      search.value = '';
     }
-    await loadVideos();
+    eventId.value = selectedId;
+    videos.value = data.selected?.videos || [];
   } catch (cause) {
     if (!disposed && current === token) error.value = cause.message;
   } finally {
     if (!disposed && current === token) loading.value = false;
   }
 }
-watch(eventId, () => {
+function changeEvent(id) {
+  if (id === eventId.value) return;
+  eventId.value = id;
   group.value = null;
   search.value = '';
-  loadVideos();
-});
+  loadVideos(id);
+}
 onMounted(load);
 onUnmounted(() => {
   disposed = true;
@@ -137,7 +138,8 @@ onUnmounted(() => {
   </section>
   <v-card class="videos-card">
     <v-select
-      v-model="eventId"
+      :model-value="eventId"
+      @update:model-value="changeEvent"
       :items="options"
       label="戰鬥場次"
       variant="outlined"

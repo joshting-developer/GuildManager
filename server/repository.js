@@ -1,5 +1,6 @@
 import { lineupEditorEventId } from '../src/domain/lineup-index.js';
 import { LineupError } from '../src/domain/lineup-validation.js';
+import { videoBrowserSelection } from '../src/domain/video-browser.js';
 import { createMemberReferences, createMemberMaintenance } from './member-maintenance.js';
 import Database from 'better-sqlite3';
 import { createPlatformSettingsRepository } from './platform-settings-repository.js';
@@ -263,6 +264,12 @@ export function createRepository({ filename, authNow }) {
         return { ...current,
           participation: current.event.archived ? null : repository.getEventParticipation(eventId),
           ...(includeCatalogs ? repository.getLineupCatalogs() : {}) };
+      })();
+    },
+    getVideoBrowser(preferredId = null) {
+      return db.transaction(() => {
+        const { events, eventId } = videoBrowserSelection(repository.listEvents().events, preferredId);
+        return { events, selected: eventId ? repository.listEventVideos(eventId) : null };
       })();
     },
     getEventVideoForm(eventId) {

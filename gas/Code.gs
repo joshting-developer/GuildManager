@@ -302,6 +302,10 @@ function getEventVideos(eventId, context) {
   return GuildGas.rpc('getEventVideos', [eventId], context);
 }
 
+function getVideoBrowser(eventId, context) {
+  return GuildGas.rpc('getVideoBrowser', [eventId], context);
+}
+
 function submitEventVideo(eventId, input, context) {
   return GuildGas.rpc('submitEventVideo', [eventId, input], context);
 }
