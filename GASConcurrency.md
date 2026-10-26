@@ -233,6 +233,6 @@
 
 2026/10/20 來源 `f33db9c` 已同步 v1.0.21、四檔讀回一致；未查詢或更新 Web App 部署，實際備份與交付狀態見 [GASDeployment.md](GASDeployment.md)。
 
-## v1.0.28 排表按需讀取（本機待同步）
+## v1.0.28 排表按需讀取（已同步 GAS、尚未更新部署）
 
 四個新讀取 RPC 已盤點完整依賴並列入 READ_ONLY，保留 admin／manager 檢查。單次交易共用 commits 與名冊／職業，getLineupEditor 不讀 templates，getLineupSources 不讀 lineup_versions／templates。隔離 GAS 驗證寫入持鎖仍能讀，Sheets／Properties／Drive／通知內容不變。confirmLineup、createLineupTemplate 及刪除外援等寫入的版本／資格／requestId 與鎖維持原規則，未因減少讀取而移除保存時重新驗證。
