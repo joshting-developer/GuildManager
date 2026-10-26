@@ -220,6 +220,22 @@ function getLineupIndex(options, context) {
   return GuildGas.rpc('getLineupIndex', [options], context);
 }
 
+function getLineupEditor(eventId, context) {
+  return GuildGas.rpc('getLineupEditor', [eventId], context);
+}
+
+function getLineupEvent(eventId, includeCatalogs, context) {
+  return GuildGas.rpc('getLineupEvent', [eventId, includeCatalogs], context);
+}
+
+function getLineupTemplates(context) {
+  return GuildGas.rpc('getLineupTemplates', [], context);
+}
+
+function getLineupSources(eventId, context) {
+  return GuildGas.rpc('getLineupSources', [eventId], context);
+}
+
 function getLineupHistory(eventId, context) {
   return GuildGas.rpc('getLineupHistory', [eventId], context);
 }

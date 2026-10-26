@@ -91,6 +91,7 @@ const READ_ONLY = [
   'getMemberMaintenance', 'getEvents', 'getEvent', 'getDuties',
   'getEventParticipation', 'getEventParticipationForm', 'getEventParticipationMembers',
   'getEventAttendance', 'getLineupIndex', 'getLineupHistory', 'applyLineupTemplate',
+  'getLineupEditor', 'getLineupEvent', 'getLineupTemplates', 'getLineupSources',
   'getBattleRecords', 'getBattleRecord', 'getBattleTeamAnalysis', 'getMemberBattleRecords',
   'getBattleAttachment', 'previewBattleMemberSync', 'getEventVideos', 'getLottery',
 ];

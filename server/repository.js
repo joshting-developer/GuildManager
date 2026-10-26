@@ -1,3 +1,5 @@
+import { lineupEditorEventId } from '../src/domain/lineup-index.js';
+import { LineupError } from '../src/domain/lineup-validation.js';
 import { createMemberReferences, createMemberMaintenance } from './member-maintenance.js';
 import Database from 'better-sqlite3';
 import { createPlatformSettingsRepository } from './platform-settings-repository.js';
@@ -235,6 +237,34 @@ export function createRepository({ filename, authNow }) {
     ...createMemberMaintenance(db, { getMember, updateMember: (...args) => repository.updateMember(...args), references }),
     ...createPlatformSettingsRepository(db),
     ...createLotteryRepository(db),
+    getLineupEditor(preferredId = null) {
+      return db.transaction(() => {
+        const events = repository.getLineupEvents();
+        const eventId = lineupEditorEventId(events, preferredId);
+        return { events, ...repository.getLineupCatalogs(),
+          selected: eventId ? { eventId, ...repository.getLineupEvent(eventId) } : null };
+      })();
+    },
+    getLineupCatalogs() {
+      return { ...repository.listMembers(), ...repository.listProfessions(), ...repository.listDuties() };
+    },
+    getLineupSources(eventId) {
+      return db.transaction(() => {
+        const { event } = repository.getEvent(eventId);
+        if (!['scrimmage', 'guild_war', 'dragon_tiger'].includes(event.type) || event.dates.length !== 1)
+          throw new LineupError('這場安排已無法排表，請重新載入', 409, 'EVENT_UNAVAILABLE');
+        return { event, ...repository.getLineupCatalogs(), participation: repository.getEventParticipation(eventId) };
+      })();
+    },
+    getLineupEvent(eventId, includeCatalogs = false) {
+      if (typeof includeCatalogs !== 'boolean') throw new LineupError('排表讀取選項格式不正確');
+      return db.transaction(() => {
+        const current = repository.getLineupCurrent(eventId);
+        return { ...current,
+          participation: current.event.archived ? null : repository.getEventParticipation(eventId),
+          ...(includeCatalogs ? repository.getLineupCatalogs() : {}) };
+      })();
+    },
     getEventParticipationForm(eventId) {
       return db.transaction(() => ({
         ...repository.listEventParticipationMembers(eventId),

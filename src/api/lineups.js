@@ -36,6 +36,12 @@ export function createLineupClient({ source = 'local', fetchImpl = sessionFetch,
       options
         ? call('getLineupIndex', `?include=${encodeURIComponent(options.include)}`, 'GET', null, [options])
         : call('getLineupIndex', ''),
+    getEditor: (eventId = null) => call('getLineupEditor',
+      `/editor${eventId ? `?eventId=${encodeURIComponent(eventId)}` : ''}`, 'GET', null, [eventId]),
+    getEvent: (id, { includeCatalogs = false } = {}) => call('getLineupEvent',
+      `/events/${encodeURIComponent(id)}/current?includeCatalogs=${includeCatalogs}`, 'GET', null, [id, includeCatalogs]),
+    getTemplates: () => call('getLineupTemplates', '/templates'),
+    getSources: (id) => call('getLineupSources', `/events/${encodeURIComponent(id)}/sources`, 'GET', null, [id]),
     getHistory: (id) =>
       call('getLineupHistory', `/events/${encodeURIComponent(id)}`, 'GET', null, [id]),
     confirm: (input) => call('confirmLineup', '/confirm', 'POST', input),

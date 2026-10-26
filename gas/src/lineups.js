@@ -2,7 +2,7 @@ import { projectReferences } from './member-maintenance.js';
 import { validateLineup } from '../../src/domain/lineup-validation.js';
 import { editableLineup, participantKey } from '../../src/domain/lineups.js';
 import { canonical, fail, revision, retry, text } from './common.js';
-import { withDefaultLineupEvent } from '../../src/domain/lineup-index.js';
+import { withDefaultLineupEvent, lineupEditorEventId } from '../../src/domain/lineup-index.js';
 export function createLineups(store, catalog, participation, { uuid, now }) {
   const projected = (kind, value) => projectReferences(store, kind, value.id, value);
   const versions = (eventId) =>
@@ -11,6 +11,37 @@ export function createLineups(store, catalog, participation, { uuid, now }) {
       .filter((version) => version.eventId === eventId)
       .sort((a, b) => b.version - a.version)
       .map((value) => projectReferences(store, 'lineup', value.id, value));
+  function latestVersion(eventId, records = store.all('lineup_versions')) {
+    let latest = null;
+    for (const value of records)
+      if (value.eventId === eventId && (!latest || value.version > latest.version)) latest = value;
+    return latest ? projected('lineup', latest) : null;
+  }
+  function lineupEvents(records = store.all('lineup_versions')) {
+    const events = catalog.liveEvents().filter(value => ['scrimmage', 'guild_war', 'dragon_tiger'].includes(value.type));
+    const ids = new Set(events.map(value => value.id)), latest = new Map();
+    for (const value of records)
+      if (!latest.has(value.eventId) || latest.get(value.eventId).version < value.version) latest.set(value.eventId, value);
+    for (const value of latest.values())
+      if (!ids.has(value.eventId)) events.push({ ...value.event, archived: true });
+    return events.sort((a, b) => b.dates[0].localeCompare(a.dates[0]) || a.title.localeCompare(b.title));
+  }
+  function catalogs() {
+    return { ...catalog.methods.getMembers(), ...catalog.methods.getProfessions(), ...catalog.methods.getDuties() };
+  }
+  function currentEvent(eventId, includeCatalogs = false, records) {
+    eventId = text(eventId, '場次', 128);
+    if (!eventId || typeof includeCatalogs !== 'boolean') fail('LINEUP_INVALID', '排表讀取選項格式不正確');
+    const latest = latestVersion(eventId, records);
+    const live = store.get('events', eventId);
+    const current = live && !live.deletedAt && ['scrimmage', 'guild_war', 'dragon_tiger'].includes(live.type)
+      ? event(eventId) : latest ? { ...latest.event, archived: true } : null;
+    if (!current) fail('EVENT_UNAVAILABLE', '這場安排已無法排表，請重新載入');
+    const sources = includeCatalogs ? catalogs() : {};
+    return { event: current, versions: latest ? [latest] : [],
+      participation: current.archived ? null : participation.methods.getEventParticipation([eventId]),
+      ...sources };
+  }
   function event(id) {
     const current = catalog.event(id, { battle: true });
     if (current.dates.length !== 1) fail('EVENT_UNAVAILABLE', '排表需要單日戰鬥場次');
@@ -75,27 +106,31 @@ export function createLineups(store, catalog, participation, { uuid, now }) {
   }
   return {
     getLineupIndex([options] = []) {
-      const events = catalog
-        .liveEvents()
-        .filter((value) => ['scrimmage', 'guild_war', 'dragon_tiger'].includes(value.type));
-      const ids = new Set(events.map((value) => value.id));
-      const latest = new Map();
-      for (const version of store.all('lineup_versions'))
-        if (!latest.has(version.eventId) || latest.get(version.eventId).version < version.version)
-          latest.set(version.eventId, version);
-      for (const version of latest.values())
-        if (!ids.has(version.eventId)) events.push({ ...version.event, archived: true });
       const index = {
-        events: events.sort(
-          (a, b) => b.dates[0].localeCompare(a.dates[0]) || a.title.localeCompare(b.title),
-        ),
-        templates: store.all('templates').map((value) => projectReferences(store, 'template', value.id, value)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+        events: lineupEvents(),
+        templates: store.all('templates').map(value => projected('template', value)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
       };
       if (options?.include !== 'default') return index;
       return withDefaultLineupEvent(index, {
         history: (id) => versions(id),
         participation: (id) => participation.methods.getEventParticipation([id]),
       });
+    },
+    getLineupEditor([preferredId] = []) {
+      const records = store.all('lineup_versions');
+      const events = lineupEvents(records);
+      const eventId = lineupEditorEventId(events, preferredId);
+      return { events, ...catalogs(),
+        selected: eventId ? { eventId, ...currentEvent(eventId, false, records) } : null };
+    },
+    getLineupEvent: ([eventId, includeCatalogs = false]) => currentEvent(eventId, includeCatalogs),
+    getLineupSources([eventId]) {
+      const current = event(text(eventId, '場次', 128));
+      return { event: current, ...catalogs(), participation: participation.methods.getEventParticipation([eventId]) };
+    },
+    getLineupTemplates() {
+      return { templates: store.all('templates').map(({ id, name, createdAt }) => ({ id, name, createdAt }))
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)) };
     },
     getLineupHistory: ([eventId]) => ({ versions: versions(eventId) }),
     confirmLineup([input]) {

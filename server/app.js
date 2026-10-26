@@ -223,6 +223,20 @@ export function createApp(repository, { authNow, notifier = null } = {}) {
       ),
     });
   });
+  app.get('/api/lineups/editor', (request, response) => {
+    response.set('Cache-Control', 'no-store').json(repository.getLineupEditor(request.query.eventId));
+  });
+  app.get('/api/lineups/templates', (_request, response) => {
+    response.set('Cache-Control', 'no-store').json(repository.getLineupTemplates());
+  });
+  app.get('/api/lineups/events/:id/current', (request, response) => {
+    const value = request.query.includeCatalogs;
+    const includeCatalogs = value === undefined || value === 'false' ? false : value === 'true' ? true : value;
+    response.set('Cache-Control', 'no-store').json(repository.getLineupEvent(request.params.id, includeCatalogs));
+  });
+  app.get('/api/lineups/events/:id/sources', (request, response) => {
+    response.set('Cache-Control', 'no-store').json(repository.getLineupSources(request.params.id));
+  });
   app.get('/api/lineups', (request, response) => {
     const index = repository.getLineupIndex();
     response.set('Cache-Control', 'no-store').json(

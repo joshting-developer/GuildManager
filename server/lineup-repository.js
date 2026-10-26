@@ -167,29 +167,41 @@ export function createLineupRepository(db, { project = (_kind, _id, value) => va
     };
   }
   const repository = {
+    getLineupEvents() {
+      const events = db.prepare(
+        "SELECT id FROM scheduled_events WHERE deleted_at IS NULL AND type IN ('scrimmage', 'guild_war', 'dragon_tiger')",
+      ).all().map(row => event(row.id));
+      const live = new Set(events.map(value => value.id));
+      const archived = db.prepare(
+        `SELECT event_id, snapshot_json FROM lineup_versions v
+        WHERE version = (SELECT MAX(version) FROM lineup_versions WHERE event_id = v.event_id)
+        AND NOT EXISTS (SELECT 1 FROM scheduled_events e WHERE e.id = v.event_id AND e.deleted_at IS NULL
+          AND e.type IN ('scrimmage', 'guild_war', 'dragon_tiger')) ORDER BY created_at DESC`,
+      ).all().filter(row => !live.has(row.event_id))
+        .map(row => ({ ...JSON.parse(row.snapshot_json).event, archived: true }));
+      return [...events, ...archived].sort(
+        (a, b) => b.dates[0].localeCompare(a.dates[0]) || a.title.localeCompare(b.title),
+      );
+    },
+    getLineupTemplates() {
+      return { templates: db.prepare(
+        'SELECT id, name, created_at AS createdAt FROM lineup_templates ORDER BY created_at DESC, rowid DESC',
+      ).all() };
+    },
+    getLineupCurrent(eventId) {
+      eventId = text(eventId, '場次', 128, true);
+      const row = db.prepare('SELECT * FROM lineup_versions WHERE event_id = ? ORDER BY version DESC LIMIT 1').get(eventId);
+      const latest = row ? version(row) : null;
+      const live = db.prepare('SELECT type, deleted_at AS deletedAt FROM scheduled_events WHERE id = ?').get(eventId);
+      const currentEvent = live && !live.deletedAt && LINEUP_TYPES.includes(live.type)
+        ? event(eventId) : latest ? { ...latest.event, archived: true } : null;
+      if (!currentEvent) throw new LineupError('這場安排已無法排表，請重新載入', 409, 'EVENT_UNAVAILABLE');
+      return { event: currentEvent, versions: latest ? [latest] : [] };
+    },
     getLineupIndex() {
-      const events = db
-        .prepare(
-          "SELECT id FROM scheduled_events WHERE deleted_at IS NULL AND type IN ('scrimmage', 'guild_war', 'dragon_tiger')",
-        )
-        .all()
-        .map((row) => event(row.id));
-      const live = new Set(events.map((e) => e.id));
-      const archived = db
-        .prepare(
-          `SELECT v.* FROM lineup_versions v WHERE version = (SELECT MAX(version) FROM lineup_versions WHERE event_id = v.event_id) ORDER BY created_at DESC`,
-        )
-        .all()
-        .filter((v) => !live.has(v.event_id))
-        .map((v) => ({ ...version(v).event, archived: true }));
       return {
-        events: [...events, ...archived].sort(
-          (a, b) => b.dates[0].localeCompare(a.dates[0]) || a.title.localeCompare(b.title),
-        ),
-        templates: db
-          .prepare('SELECT * FROM lineup_templates ORDER BY created_at DESC, rowid DESC')
-          .all()
-          .map(template),
+        events: repository.getLineupEvents(),
+        templates: db.prepare('SELECT * FROM lineup_templates ORDER BY created_at DESC, rowid DESC').all().map(template),
       };
     },
     getLineupHistory(eventId) {

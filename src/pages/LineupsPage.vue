@@ -32,7 +32,6 @@ import { lineupImageData, lineupJpeg, lineupImageFilename } from '../domain/line
 import { battleEventLabel, orderBattleEvents } from '../domain/battle-events.js';
 import LineupBoard from './LineupBoard.vue';
 import DutyList from './DutyList.vue';
-import { createDutyClient } from '../api/duties.js';
 import { createParticipationClient } from '../api/participation.js';
 
 const emit = defineEmits(['focus-changed']);
@@ -55,7 +54,6 @@ function setFocusMode(value) {
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 const client = createLineupClient({ source });
 const memberClient = createMemberClient({ source });
-const dutyClient = createDutyClient({ source });
 const participationClient = createParticipationClient({ source });
 const participation = ref({ responses: [], registrations: [] });
 const memberTab = ref('guild');
@@ -78,6 +76,8 @@ const events = ref([]),
   members = ref([]),
   professions = ref([]),
   savedLineup = ref(null);
+const templatesLoading = ref(false), templatesLoaded = ref(false), templateError = ref('');
+let templateLoadToken = 0;
 const eventId = ref(null),
   templateId = ref(null);
 const teams = ref(emptyLineup()),
@@ -396,39 +396,35 @@ function resetLineup(data) {
 }
 async function load() {
   if (!mayDiscard()) return;
+  const token = ++operation;
+  templateLoadToken++;
+  templates.value = [];
+  templatesLoaded.value = templatesLoading.value = false;
+  templateError.value = '';
   loading.value = true;
+  lineupLoading.value = false;
   error.value = '';
   try {
-    const [index, tasks, people, jobs] = await Promise.all([
-      client.getIndex({ include: 'default' }),
-      dutyClient.getDuties(),
-      memberClient.getMembers(),
-      memberClient.getProfessions(),
-    ]);
-    if (disposed) return;
-    // Lineups are planned ahead: the nearest session from today is selected first.
-    events.value = orderBattleEvents(index.events, { prefer: 'upcoming' });
-    templates.value = index.templates;
-    duties.value = tasks.duties;
-    members.value = people.members;
-    professions.value = jobs.professions;
-    const target = events.value.some((event) => event.id === eventId.value)
-      ? eventId.value
-      : events.value[0]?.id;
-    // The index already carries the default battle's data; reuse it instead of a second round.
-    if (target && index.selected?.eventId === target)
-      applyEvent(target, { versions: index.selected.versions }, index.selected.participation);
-    else if (target) await loadEvent(target);
+    const data = await client.getEditor(eventId.value);
+    if (disposed || token !== operation) return;
+    events.value = orderBattleEvents(data.events, { prefer: 'upcoming' });
+    updateCatalogs(data);
+    if (data.selected) applyEvent(data.selected.eventId, data.selected, data.selected.participation);
     else {
       eventId.value = null;
       savedLineup.value = null;
       resetLineup();
     }
   } catch (cause) {
-    error.value = cause.message;
+    if (!disposed && token === operation) error.value = cause.message;
   } finally {
-    loading.value = false;
+    if (!disposed && token === operation) loading.value = false;
   }
+}
+function updateCatalogs(data) {
+  duties.value = data.duties;
+  members.value = data.members;
+  professions.value = data.professions;
 }
 async function loadEvent(id) {
   lastRemoval.value = null;
@@ -439,28 +435,42 @@ async function loadEvent(id) {
   skipped.value = [];
   skippedDuties.value = [];
   try {
-    const target = events.value.find((event) => event.id === id);
-    const [data, responses] = await Promise.all([
-      client.getHistory(id),
-      target?.archived
-        ? Promise.resolve({ responses: [], registrations: [] })
-        : participationClient.getParticipation(id),
-    ]);
+    const data = await client.getEvent(id);
     if (disposed || token !== operation) return;
-    applyEvent(id, data, responses);
+    applyEvent(id, data, data.participation);
   } catch (cause) {
-    if (token === operation) error.value = cause.message;
+    if (!disposed && token === operation) error.value = cause.message;
   } finally {
-    if (token === operation) lineupLoading.value = false;
+    if (!disposed && token === operation) lineupLoading.value = false;
   }
 }
 function applyEvent(id, data, responses) {
   lastRemoval.value = null;
+  notice.value = '';
+  skipped.value = [];
+  skippedDuties.value = [];
   participation.value = responses || { responses: [], registrations: [] };
+  if (data.event) events.value = events.value.map(event => event.id === id ? data.event : event);
   eventId.value = id;
   savedLineup.value = data.versions[0] || null;
   resetLineup(savedLineup.value?.teams);
   templateId.value = null;
+}
+async function loadTemplates(open = true) {
+  if (!open || templatesLoaded.value || templatesLoading.value) return;
+  const token = ++templateLoadToken;
+  templatesLoading.value = true;
+  templateError.value = '';
+  try {
+    const data = await client.getTemplates();
+    if (disposed || token !== templateLoadToken) return;
+    templates.value = data.templates;
+    templatesLoaded.value = true;
+  } catch (cause) {
+    if (!disposed && token === templateLoadToken) templateError.value = cause.message;
+  } finally {
+    if (!disposed && token === templateLoadToken) templatesLoading.value = false;
+  }
 }
 async function changeEvent(id) {
   if (id !== eventId.value && mayDiscard()) await loadEvent(id);
@@ -780,16 +790,11 @@ async function refreshMembers() {
   membersLoading.value = true;
   error.value = '';
   try {
-    const [people, jobs, tasks, responses] = await Promise.all([
-      memberClient.getMembers(),
-      memberClient.getProfessions(),
-      dutyClient.getDuties(),
-      participationClient.getParticipation(eventId.value),
-    ]);
-    participation.value = responses;
-    duties.value = tasks.duties;
-    members.value = people.members;
-    professions.value = jobs.professions;
+    const data = await client.getSources(eventId.value);
+    if (disposed) return;
+    participation.value = data.participation || { responses: [], registrations: [] };
+    updateCatalogs(data);
+    events.value = events.value.map(event => event.id === data.event.id ? data.event : event);
     notice.value = '成員清單已更新，目前的排表仍保留。';
   } catch (cause) {
     error.value = cause.message;
@@ -852,8 +857,10 @@ async function saveTemplate() {
     const data = await client.createTemplate({ ...payload, requestId: templateAttempt.requestId });
     if (!data.template?.id || !Array.isArray(data.template?.teams))
       throw new Error('範本回應格式不正確，請重試以確認結果');
+    templateLoadToken++;
+    templatesLoading.value = false;
     if (!templates.value.some((template) => template.id === data.template.id))
-      templates.value.unshift(data.template);
+      templates.value.unshift({ id: data.template.id, name: data.template.name, createdAt: data.template.createdAt });
     templateId.value = data.template.id;
     dialog.value = null;
     notice.value = `已儲存範本「${data.template.name}」，其他場次可重複套用。`;
@@ -873,16 +880,10 @@ async function applyTemplate() {
   error.value = '';
   try {
     const data = await client.applyTemplate(templateId.value, eventId.value);
-    const [people, jobs, tasks, responses] = await Promise.all([
-      memberClient.getMembers(),
-      memberClient.getProfessions(),
-      dutyClient.getDuties(),
-      participationClient.getParticipation(eventId.value),
-    ]);
-    participation.value = responses;
-    duties.value = tasks.duties;
-    members.value = people.members;
-    professions.value = jobs.professions;
+    const current = await client.getSources(eventId.value);
+    if (disposed) return;
+    participation.value = current.participation || { responses: [], registrations: [] };
+    updateCatalogs(current);
     teams.value = data.teams;
     selectedUid.value = '';
     selectedDutyId.value = '';
@@ -948,6 +949,7 @@ onUnmounted(() => {
   }
   disposed = true;
   operation++;
+  templateLoadToken++;
   unregisterGuard?.();
   window.removeEventListener('beforeunload', beforeUnload);
 });
@@ -1071,11 +1073,15 @@ onUnmounted(() => {
             v-model="templateId"
             :items="templates.map((template) => ({ title: template.name, value: template.id }))"
             label="名單範本"
+            :loading="templatesLoading"
+            :error-messages="templateError"
+            :no-data-text="templatesLoading ? '正在載入範本…' : templatesLoaded ? '尚無範本，先另存一份名單' : '開啟後載入範本'"
+            @update:menu="loadTemplates"
             density="compact"
-            placeholder="尚無範本，先另存一份名單"
+            placeholder="選擇範本時載入清單"
             clearable
             variant="outlined"
-            hide-details
+            hide-details="auto"
             :disabled="busy || catalogBusy || lineupLoading || archived"
           /><v-btn
             variant="outlined"
@@ -1083,6 +1089,7 @@ onUnmounted(() => {
             @click="applyTemplate"
             >套用範本</v-btn
           >
+          <v-btn v-if="templateError" variant="text" :disabled="templatesLoading" @click="loadTemplates()">重試範本清單</v-btn>
         </div>
         <div class="lineup-toolbar-bottom">
           <div>
