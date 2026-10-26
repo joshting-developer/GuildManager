@@ -12,6 +12,8 @@
 
 新增 5 項回歸測試，原 338 項原樣，完整 **343／343** 通過（`/private/tmp/guild-lineup-read-full-tests.log`）。模擬 20 版排表／8 份範本時，首載 Sheets getValues 17→9 次，JSON 字串長度 152996→7161；不是 UTF-8 位元組量或正式秒數。一般／GAS 編譯與版號／四檔／無外部 JS／CSS 通過；隔離 Chrome 驗證一次首載／換場、範本重試／舊回應忽略、套用保存、來源更新保留草稿、重載保留場次、桌面／手機與明暗，證據 `/private/tmp/guild-lineup-read-preview/`。新規則已補 AGENTS.md／Architecture.md／GASConcurrency.md／Style.md。
 
+同版追加排表「成員來源」下拉選單（`506ac57`）：取代窄側欄 2×2 四顆來源按鈕，控制項至少 44px 高，分類／搜尋／職業篩選／請假置底／代為報名／草稿沿用原前端狀態，不新增 RPC 或資料寫入與鎖。來源／排表相關既有 12 項測試原樣通過，一般／GAS 編譯完成。操作與版面證據見 AGENTS.md 最新交接。
+
 新批升 patch 一次到 **1.0.28**，本輪未 push／同步 GAS／查詢或更新 Web App 部署、setupGas 或更動正式資料／Properties。後續同步此批沿用 1.0.28；最新成功同步仍為下方 1.0.27。
 
 ## 2026/10/24：v1.0.27 最新已同步狀態
