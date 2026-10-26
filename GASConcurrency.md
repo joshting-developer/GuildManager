@@ -95,10 +95,14 @@
 | `cancelGuestRegistration` | events、registrations、professions | registrations | 寫；該筆報名 revision |
 | `cancelEventLeave` | events、responses、registrations、members、professions | responses 或 registrations | 寫；只取消仍符合指定版本的請假 |
 
-### 戰場排表與範本（5 個）
+### 戰場排表與範本（9 個）
 
 | RPC | 業務讀取 | 業務寫入 | 建議 |
 | --- | --- | --- | --- |
+| `getLineupEditor` | events、lineup_versions、requests、members、professions、duties、responses、registrations | 無 | 純讀；一次首載、不讀 templates |
+| `getLineupEvent` | events、lineup_versions、requests、responses、registrations、professions、相關 members；includeCatalogs 時全名冊與 duties | 無 | 純讀；最新一筆，封存不讀參與 |
+| `getLineupSources` | events、members、professions、duties、responses、registrations | 無 | 純讀；不讀排表版本與範本，草稿保留 |
+| `getLineupTemplates` | templates | 無 | 純讀；只有三欄摘要，不讀 requests／不投影成員引用 |
 | `getLineupIndex` | events、lineup_versions、templates、requests | 無 | 讀；requests 包含 UID 維護的引用覆寫 |
 | `getLineupHistory` | lineup_versions、requests | 無 | 讀 |
 | `applyLineupTemplate` | events、templates、requests、members、responses、registrations、duties | 無 | 讀；只是產生草稿，沒有保存排表 |
@@ -228,3 +232,7 @@
 詳情選填 includeTeamContext，在既有 READ_ONLY 快照內讀最後儲存排表與成員引用投影，只返回實際玩家的最小對應；不擴充鎖白名單、不新增表、put／remove 或 Drive 作業。後續團隊合計、比例、配對、排序與圖表在前端進行，開啟或互動不再次查詢 team-analysis。顯式重新載入詳情才重讀。編譯後 GAS 已驗證其他寫入持鎖時可讀，資料／Properties／Drive／通知均未變，舊 API／wrapper 與匿名拒絕維持相容。初次讀取仍有 Sheets／排表成本，未量測正式 Google 秒數。
 
 2026/10/20 來源 `f33db9c` 已同步 v1.0.21、四檔讀回一致；未查詢或更新 Web App 部署，實際備份與交付狀態見 [GASDeployment.md](GASDeployment.md)。
+
+## v1.0.28 排表按需讀取（本機待同步）
+
+四個新讀取 RPC 已盤點完整依賴並列入 READ_ONLY，保留 admin／manager 檢查。單次交易共用 commits 與名冊／職業，getLineupEditor 不讀 templates，getLineupSources 不讀 lineup_versions／templates。隔離 GAS 驗證寫入持鎖仍能讀，Sheets／Properties／Drive／通知內容不變。confirmLineup、createLineupTemplate 及刪除外援等寫入的版本／資格／requestId 與鎖維持原規則，未因減少讀取而移除保存時重新驗證。

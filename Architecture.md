@@ -64,9 +64,22 @@ GAS 資料函式與 Sheets store 已生成，使用 mock Google 服務及編譯 
 
 儲存重新讀取本場有效報名與請假, 將額外報名姓名、職業、ID／場次及原報名備註嵌入不可變快照。跨場套用範本不複製額外報名, 不符合或取消者留空並提示。取消／請假不修改已保存版本。前端更新來源保留目前排表並標示無效人員, 不默默刪掉排表。
 
-排表介面每場直接編輯最後保存的名單, 儲存後繼續編輯, 手動另存範本保留或復用配置。沒有工作區／歷史版本選單或儲存確認視窗。底層沿用既有 getLineupHistory／confirmLineup 契約, 前端只採最新一筆；lineup_versions 保留相容快照及 expectedVersion／eventRevision／requestId 並行與重試保護, 不做刪除或資料搬移。刪除／改類型的場次只顯示最新快照且封存唯讀, 可另存範本。
+排表介面每場直接編輯最後保存的名單, 儲存後繼續編輯, 手動另存範本保留或復用配置。沒有工作區／歷史版本選單或儲存確認視窗。前端以 getLineupEditor／getLineupEvent 讀最新一筆，既有 getLineupHistory／confirmLineup 契約保留相容；lineup_versions 保留相容快照及 expectedVersion／eventRevision／requestId 並行與重試保護, 不做刪除或資料搬移。刪除／改類型的場次只顯示最新快照且封存唯讀, 可另存範本。
 
 GAS 已提供對應工作表、應用程式角色驗證、script lock、重試及提交日誌；登入未與遊戲 UID 綁定，仍不作本人操作驗證。本機仍限 loopback，尚未實作 Google OAuth 或驗證正式公開部署。
+
+## 排表按需讀取（v1.0.28，本機待同步）
+
+| 介面 | 資料與時機 |
+| --- | --- |
+| GET /api/lineups/editor?eventId=…／getLineupEditor | 首載或顯式重載；同一 SQLite 讀取交易／GAS commits 快照回傳 events、members、professions、duties、selected（eventId、event、versions 最多一筆、participation）。有效選定場次優先，否則取台北今天起最近一場；不讀 templates。 |
+| GET /api/lineups/events/:id/current／getLineupEvent | 換場一次回傳最新排表與本場參與；封存 participation=null，回傳最新事件 revision／archived 狀態。選填 includeCatalogs boolean 可附名冊職業職責；一般換場不重載這些來源。 |
+| GET /api/lineups/events/:id/sources／getLineupSources | 更新名單或套用範本後重讀現況，一次回傳有效戰鬥事件、名冊職業職責及 participation；不讀 lineup_versions／templates，不清除前端草稿或擅自更新 expectedVersion。 |
+| GET /api/lineups/templates／getLineupTemplates | 首次開範本選單才讀 id／name／createdAt 清單；沒有 teams、成員引用或 UID 投影。完整配置仍由原 applyLineupTemplate 按需讀取與資格檢查。 |
+
+新端點維持 admin／manager 權限，匿名／member 拒絕，GAS 明確列入 READ_ONLY，無 Drive／通知／Properties 寫入或業務寫入鎖。前端範本清單只在當頁重用，顯式重載清除，失敗不快取且可重試；換場／卸載丟棄過期回應，另存成功也阻止較早清單回應蓋掉新項目。不新增表或索引記錄、不搬移或改寫既有快照／重試資料，舊 index／history 保持格式與全量資料。
+
+SQLite 以索引 ORDER BY version DESC LIMIT 1 查本場最新，只讀封存場次的事件快照、範本摘要只選三欄。GAS 現有五欄索引不含 eventId／業務 version，仍須 store.all(lineup_versions) 讀取快照後選最新，沒有消除歷史掃描／payload 解碼；本次只投影／傳回選定的最新一筆，首載免讀模板、同次重用名冊與職業並減少 RPC。GAS 範本摘要仍需讀該表 JSON，只有完整配置傳輸與投影延後；不可將模擬讀取下降解讀為已實測正式秒數。
 
 ## 登入介面與平台差異
 
