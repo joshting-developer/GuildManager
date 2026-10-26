@@ -258,3 +258,9 @@ Sheets storage 以可選的同步 run 包裝讀寫、flush 與提交標記，預
 ## 載入效能（v1.0.25）
 
 `getLineupIndex` 接受選用 `{ include: 'default' }`（本機 `/api/lineups?include=default`），以 `src/domain/lineup-index.js` 選出今天或之後最近的場次，並附上該場排表版本與報名資料；排表頁初次載入因此只需一輪雲端呼叫。舊呼叫方式（`getLineupIndex(context)`）不變。`src/api/events.js` 的場次清單在同一傳輸方式內共用 60 秒，場次寫入、登入／登出／角色變更及登入過期時清除；首頁行事曆仍等登入確認後才讀取（使用者要求）。
+
+## 行事曆過期戰鬥入口（v1.0.28）
+
+前端 isPastBattleEvent 依既有 YYYY-MM-DD 日期與 Asia/Taipei 的今天比較，僅日期早於今天的戰鬥場次隱藏報名／請假與職業統計、報名人數，改以影片上傳為入口及預選 tab；今天及未來仍提供原功能，一般活動不變。MonthCalendar 以本地午夜 timer 與 focus／visibilitychange 更新 today，傳入 ParticipationDialog；提交前也以當下台北日期擋下已過期的舊表單。卸載清理 timer／事件，日期更新不呼叫 API、不寫資料或占寫入鎖。
+
+影片保留原 getEventParticipationForm 的名冊與職業整併讀取，開啟仍只需原本一次 RPC，沒有新增伺服器時鐘或第二份資料請求。影片表單不因跨日重新掛載或清除草稿。這是首頁操作入口的前端規則，後端報名／請假 API 權限、版本、requestId 與資料契約不變，不能視為新增伺服器截止限制。
