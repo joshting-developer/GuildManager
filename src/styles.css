@@ -1319,38 +1319,11 @@ h3 {
   justify-content: space-between;
   gap: 8px;
 }
-.lineup-source-tabs {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px;
-  margin-bottom: 8px;
+.lineup-source-select .v-field {
+  min-height: 44px;
 }
-.lineup-source-tabs button {
-  min-height: 32px;
-  padding: 4px;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: var(--color-surface);
-  color: var(--color-text-muted);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.lineup-source-tabs button.is-active {
-  border-color: var(--color-primary);
-  background: var(--color-info-surface);
-  color: var(--color-primary);
-}
-.lineup-member-tabs {
-  max-width: 100%;
-  --v-tabs-height: 36px;
-}
-.lineups-page .lineup-member-tabs .v-tab.v-btn {
-  min-width: 0;
-  padding: 0 4px;
-  font-size: 13px;
-  letter-spacing: 0;
-  flex: 1 1 0;
+.lineup-source-select + .v-btn {
+  margin-top: 8px;
 }
 .lineup-members-panel > .v-tabs .v-tab.v-btn {
   min-width: 0;

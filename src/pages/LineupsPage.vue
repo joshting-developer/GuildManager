@@ -212,7 +212,7 @@ const sourceMembers = computed(() =>
     tab: memberTab.value,
   }),
 );
-const MEMBER_SOURCE_TABS = [
+const MEMBER_SOURCE_OPTIONS = [
   { value: 'guild', label: '幫會成員' },
   { value: 'club', label: '俱樂部成員' },
   { value: 'external', label: '編外成員' },
@@ -1229,20 +1229,18 @@ onUnmounted(() => {
               />
             </div>
             <p class="lineup-hint">{{ qualification }}</p>
-            <!-- Four sources fit a 2×2 grid with full names; tabs would scroll in the narrow sidebar. -->
-            <div class="lineup-source-tabs" role="tablist" aria-label="成員來源分類">
-              <button
-                v-for="tab in MEMBER_SOURCE_TABS"
-                :key="tab.value"
-                type="button"
-                role="tab"
-                :aria-selected="memberTab === tab.value"
-                :class="{ 'is-active': memberTab === tab.value }"
-                @click="memberTab = tab.value"
-              >
-                {{ tab.label }}
-              </button>
-            </div>
+            <v-select
+              v-model="memberTab"
+              class="lineup-source-select"
+              :items="MEMBER_SOURCE_OPTIONS"
+              item-title="label"
+              item-value="value"
+              label="成員來源"
+              density="compact"
+              variant="outlined"
+              hide-details
+              :disabled="busy"
+            />
             <v-btn
               v-if="memberTab === 'extra'"
               variant="outlined"
