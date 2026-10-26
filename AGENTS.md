@@ -8,7 +8,7 @@
 - 視覺參考相鄰專案 `../NSHM_history`, 本專案的具體規則以 [Style.md](Style.md) 為準
 - 已建立 Vuetify 首頁／成員管理／活動安排／戰場排表／戰績上傳／戰績閱覽、Docker 本機環境、SQLite 讀寫 API 與 GAS 單檔編譯流程。最新 v1.0.28（同步來源 06c3532）過期行事曆僅影片、排表按需讀取及來源下拉選單已同步 GAS 並讀回四檔一致，尚未更新 Web App 部署。本輪未查詢或更新部署，實際狀態見 GASDeployment.md 及文末交接。
 - 使用者已確認本機使用 SQLite, 後期資料來源為 Google 試算表
-- GAS 最新同步程式為 v1.0.28（來源 06c3532），本機新改動以 Unreleased 累積：公開行事曆並行讀取、過期影片精簡表單、公開報名總數與職業統計隱藏。本批尚未定版／同步，package／lockfile 保持 1.0.28；未 push Git／更新 Web App 部署。下方舊版待同步說明保留作歷史，以文末最新交接及 GASDeployment.md 為準。
+- GAS 最新同步程式為 v1.0.28（來源 06c3532），本機新改動以 Unreleased 累積：公開行事曆並行讀取、過期影片精簡表單、公開報名總數與職業統計隱藏、影片閱覽首載整併。本批尚未定版／同步，package／lockfile 保持 1.0.28；未 push Git／更新 Web App 部署。下方舊版待同步說明保留作歷史，以文末最新交接及 GASDeployment.md 為準。
 - 過往 v1.0.22 同步紀錄：本機及 GAS 當時均為 v1.0.22（導覽／顯示設定、場次預設、數字格式及影片閱覽網址超連結），本批已交付，不重複升版；後續新一批功能交付須遞增 patch。v1.0.21 已交付：個人戰績一次載入、預選最新十筆、勾選總覽及 ECharts 走勢抽屜，移除三顆批次勾選快捷按鈕；進攻／防守分析重用詳情資料，提供數值／占比兩表及互斥配對。保留 v1.0.20 只解碼最新版本與既有唯讀／鎖範圍及多人請假修正；本輪未 push Git／更新部署。正式戰績上傳原始失敗原因仍未確定，見文末交接。
 - 試算表 ID 已取得, 本機使用帳號密碼登入；正式工作表名稱與 Google 登入待確認, 本機角色為 admin／manager／member, 成員、職業、過去名稱及活動安排欄位已依需求實作於本機
 
@@ -36,6 +36,7 @@
 - 分析需排表／身分對應且詳情尚未包含時，後端在同次已授權讀取帶最小必要對應，再由前端重用原始快照計算；不傳整份私人排表、不複製計算用不到的伺服器摘要，保留舊 API 契約及顯式重載的新鮮度。
 - 版本快照若每次另存不同 ID，storage 的「只解碼每 ID 最新提交」不會自動只取最後一份業務快照；介面只用最新一版時，repository 先選最新版再投影／回傳。範本等次要清單延後首次操作載入摘要，完整配置只在實際套用讀取；來源更新不得順便重載用不到的歷史或範本。
 - 公開資料若各角色可見範圍相同，可與登入確認並行載入／呈現；只在該公開介面解除等待，不取消管理入口的登入門檻或送出時 CSRF／身分／版本驗證。資料用途縮小時提供精簡讀取且保留舊 API，不為隱藏統計而移除報名身分辨識與併發所需的回應版本。
+- 整併讀取已包含初始選項與詳情時，套用結果不得因 v-model／watch 再觸發同一筆查詢；可用明確的使用者選擇事件區分載入與互動。顯式重新載入若承諾最新清單，不能無意沿用一般導覽的短期快取；讀取範圍、快取熱／冷差異需記錄。
 - 只讀目前成員／場次／紀錄需要的內容；摘要與大型詳情分開，詳情按需載入。保存成功只更新受影響資料，避免重載整份名冊或全頁；顯式重新載入應取得最新資料，換人／換場／卸載須丟棄過期回應。
 - 可重用同次交易的索引、解碼值、查無結果與中間集合；職業等低變動資料可共用同 transport 的進行中／成功請求，失敗後允許重試。跨請求或瀏覽器快取必須定義來源／權限範圍、失效及登出處理；不得把變動的報名版本、revision 或授權結果當作長期可信快取。快取失敗不阻止正常操作。
 
@@ -422,11 +423,13 @@ admin 在帳號管理的「平台設定」分頁修改品牌名稱，預設「�
 - 一次保存一筆雙場提交，同名、相同網址可多次新增，不合併或覆寫；僅相同 requestId 重試不重複寫入，本機整筆使用 SQLite 交易，GAS 使用追加式提交標記。
 - 切換外層分頁／重新載入保留草稿，成功清除表單、失敗保留，關閉有未送出資料先確認。
 - 三種戰鬥皆可匿名送出影片；有效登入修改仍檢查 CSRF。職業由後端驗證並保存當時名稱／色彩，選單成員驗證目前姓名及所屬狀態；手動填名／選人不作本人認證，舊影片職業顯示「未記錄」，不回填推測值。
+- 影片閱覽首載／重新載入使用 getVideoBrowser／GET /api/videos/browser?eventId=，同一唯讀快照帶戰鬥清單及選定本場影片，一次 RPC；有效優先場次保留，否則沿用台北今天或最近過去、其次未來的排序。換場沿用 getEventVideos，一次本場讀取；新舊 API、排序、職業快照、超連結與 CSV 不變。
+- 閱覽資料為當頁不可變 shallowRef，只有顯式重載／換場取新資料，不跨請求快取影片。重載保留仍有效的場次／搜尋／團別，失效場次回退並重設篩選；離頁／過期回應丟棄。搜尋只正規化一次，空白且未選團別直接重用原陣列。GAS 仍須掃 events／videos 最新已提交 payload 後篩選，沒有新增 eventId 索引或免除歷史掃描；正常不取寫入鎖，缺 videos 表才沿既有權限重驗／鎖內補建。
 - `#/videos` 與清單 API 只供 admin／manager，member 可提交但不能查看。選場次後使用角色名稱／職業／第一場連結／第二場連結／團別／備註六欄表格，提供團別篩選及名稱搜尋。
 - 閱覽第一／第二場網址以完整可複製超連結呈現，另開分頁且設 noopener noreferrer，沿用 http／https 驗證，缺值為 — 不建立連結；不另設直接前往按鈕或內嵌播放器。表格容器在手機橫向捲動，提供載入／空資料／錯誤與重試，切換場次拒絕過期回應。
 - 追加 `event_video_submissions` 保存雙場／團別／備註及職業快照，沿用 `event_video_requests` 防重試；舊 `event_videos`／團別／重試資料保留並整合，不按同名合併，未知團別或職業不猜測。
 - 檢查 eventRevision，過期需重新載入後送出；刪除或改為一般活動停止讀寫但保留資料，不提供修改／刪除影片。
-- 本機及 GAS 共用影片表單、閱覽與 CSV 匯出。GAS adapter 使用 getEventVideos／submitEventVideo RPC，不執行 HTTP fallback；GM_videos 保存提交，GM_requests 保存重試結果，script lock 與提交標記確保兩者同次生效。已初始化的舊專案於首次有效使用時補建 GM_videos，不覆寫原表或遷移本機資料。
+- 本機及 GAS 共用影片表單、閱覽與 CSV 匯出。GAS adapter 使用 getVideoBrowser／getEventVideos／submitEventVideo RPC，不執行 HTTP fallback；GM_videos 保存提交，GM_requests 保存重試結果，script lock 與提交標記確保兩者同次生效。已初始化的舊專案於首次有效使用時補建 GM_videos，不覆寫原表或遷移本機資料。
 
 影片閱覽提供「匯出 CSV」，依目前團別／名稱篩選與表格順序輸出六欄（含職業），不讀取其他場次。UTF-8 BOM 保留中文，備註換行及引號正確轉義，公式字首以文字保存；載入、錯誤或無符合資料時停用匯出，失敗可重試。
 
@@ -899,3 +902,17 @@ main 起點 2a8db2c，功能來源 `5605a72`。已交付 1.0.28 後的新批升 
 一般／GAS 編譯、唯一 Unreleased／date=null、正式歷史及原待發布功能未變、package／lockfile 1.0.28 核對通過；隔離 Chrome 桌面／390px 深色手機驗證未發布標示、空日期不渲染、舊版日期及最近定版徽章、頁尾、無溢出／例外，內容沒有額外 RPC 或 GitHub 讀取。證據 `/private/tmp/guild-unreleased-preview/`，編譯日誌 `/private/tmp/guild-unreleased-build.log`、`/private/tmp/guild-unreleased-gas-build.log`。本次是狀態／呈現與規範調整，沿用前輪 347 項業務結果、不重跑業務測試或新增複述模板的測試。
 
 main 起點 ac43774。只本機提交，未 push／同步 GAS／查詢或更新 Web App 部署、setupGas、正式資料／Properties／通知。最新成功同步仍為 1.0.28，當前未發布功能不能標為已交付 1.0.29；後續同步依最新規則定版。
+
+## 影片閱覽首載整併（2026/10/27，Unreleased）
+
+使用者反映影片少但進頁仍卡。排查程式為先 getEvents、再由 eventId watch 呼叫 getEventVideos，冷載兩輪 RPC 與分開 auth／commits／事件讀取；影片只是文字連結，不是播放器負載。顯式重載原本也可能命中活動 60 秒快取。功能來源 `e39429c`。
+
+新增管理者 getVideoBrowser／GET /api/videos/browser?eventId=，同一 SQLite 讀取交易／GAS commits 快照取得戰鬥清單與原 DTO 的選定本場影片；有效優先場次保留，否則沿用 prefer=recent（台北今天／最近過去、再未來），空事件不讀 videos。首載／重載一次、換場仍是原 getEventVideos 一次；移除選擇 watcher，改顯式使用者事件避免套用首載結果後再次查詢。shallowRef 保存不可變快照，搜尋正規化一次，未篩選直接重用陣列；重載保留有效場次與篩選，失效才回退，失敗可重試，離頁不套用舊回應。CSV、網址超連結、職業／團別／舊缺值、排序與提交契約保留。
+
+GAS 新方法加入 READ_ONLY／LAZY_TABLE_READS，admin／manager 限制不變；正常不取寫入鎖、只讀 events／videos／commits，不讀 Drive、名冊、報名、排表、戰績或通知。缺 videos 才沿既有鎖內角色重驗／初始化，匿名與 member 不會建立表。沒有新表／eventId 索引／schema 或歷史搬移。GAS 仍讀 all(events)／all(videos) 的最新已提交 payload 後篩選，不宣稱免除歷史掃描；原活動快取熱時已可一次 RPC，本次主要節省冷載往返並確保顯式重載的新鮮度。
+
+新增 `tests/video-browser.test.js` 5 項，原 347 項未修改，完整 **352／352** 通過（`/private/tmp/guild-video-browser-full-tests.log`）；相關既有影片／CSV 14 項亦原樣通過。涵蓋新舊結果與 CSV、空／未來／指定場次／刪除回退、新清單、HTTP／GAS adapter、錯誤 DTO、匿名／member 拒絕、manager 可讀、持寫入鎖唯讀無副作用及缺表初始化。隔離冷載 getValues 7→4 次，不是正式秒數。新增測試起初省略 GAS wrapper 的 null 場次占位導致 context 被當成參數，修正測試呼叫後通過，未放寬驗權。
+
+隔離編譯後 GAS Chrome 證據 `/private/tmp/guild-video-browser-preview/`：冷首載 getVideoBrowser 一次且無分開 getEvents／getEventVideos；篩選零 RPC、CSV 與超連結屬性；重載取得新增資料且保留選擇／搜尋／團別；錯誤重試、換場一次、離頁舊回應忽略、空狀態與深色手機無溢出／例外。手機浮層測試等待動畫完成可點選後再操作，未改產品以迎合測試。一般／GAS 編譯、唯一 Unreleased／package 1.0.28／四檔／無外部 JS、CSS／時區核對通過。
+
+main 起點 2096128，本批累積到同一 Unreleased，package／lockfile 保持最近定版 1.0.28；不預先升版。只本機提交，未 push／同步 GAS／查詢或更新 Web App 部署、setupGas、正式資料／Properties 或通知。常態載入規則與影片契約已同步本檔效能／影片段、Architecture.md、GASConcurrency.md、Style.md，交付見 GASDeployment.md。

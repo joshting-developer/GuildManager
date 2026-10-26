@@ -126,11 +126,12 @@
 | `updateBattleRecord` | battles、requests | battles、requests | 寫；該筆對戰資訊 revision |
 | `syncBattleMembers` | members、name_history、battles、battle_players、battle_links、requests | battle_links、requests | 寫；預覽 fingerprint 與新增關聯同次保護 |
 
-### 影片與抽獎（6 個）
+### 影片與抽獎（7 個）
 
 | RPC | 業務讀取 | 業務寫入 | 建議 |
 | --- | --- | --- | --- |
-| `getEventVideos` | events、videos | videos 缺表時會建立表及表頭 | 先移除／隔離延遲建表，之後可作純讀取 |
+| `getVideoBrowser` | events、videos（有選定場次時） | videos 缺表時鎖內重驗權限後建立 | READ_ONLY／admin、manager；同一 commits，首載與重載整併 |
+| `getEventVideos` | events、videos | videos 缺表時鎖內重驗權限後建立 | READ_ONLY；換場只讀本場回應，無 Drive |
 | `submitEventVideo` | events、requests、professions、members（選人時） | videos、requests；可能建表 | 寫；同一請求只保存一次，重驗場次與成員 |
 | `getLottery` | lottery | lottery 缺表時會建立表及表頭 | 先移除／隔離延遲建表，之後可作純讀取 |
 | `saveLottery` | lottery | lottery；可能建表 | 寫；整份抽獎盤及 revision |
@@ -241,3 +242,7 @@
 ## Unreleased 公開行事曆並行與影片精簡表單（本機待定版／同步）
 
 getEvents 本來就是公開 READ_ONLY，本次只解除公開前端等待 auth 的順序；管理行事曆與寫入檢查維持原狀。新增 getEventVideoForm 已盤點依賴、列入 PARTICIPATION 與 READ_ONLY，同次只讀 events／必要 members／professions 與 commits 快照，沒有 ensureTable、put／remove、Drive、通知或 auth 狀態寫入；匿名／member 沿用三種有效單日戰鬥範圍，不開放影片閱覽。隔離持寫入鎖驗證可讀且資料／Properties／Drive／通知保持不變。submitParticipation／submitEventVideo 原版本、身分／CSRF、requestId 及提交鎖不改。
+
+## Unreleased 影片閱覽整併首載
+
+getVideoBrowser 已盤點依賴並加入 READ_ONLY 與 LAZY_TABLE_READS，預設管理者驗權保留。正常唯讀只用 events／videos／commits，同次重用事件與 commits，不讀旁表或 Drive／通知，不修改登入狀態或取寫入鎖；沒有場次時不碰 videos。缺表才於既有 locked execute 內重驗角色並初始化，匿名／member 不能藉此建表。隔離持寫入鎖純讀與缺表角色保護已驗證。submitEventVideo 的版本／CSRF／requestId、共用寫入鎖與其他功能不變。

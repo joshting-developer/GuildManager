@@ -14,6 +14,10 @@
 
 本輪另完成未發布狀態的顯示與流程調整（`fe7cd4b`）：更新紀錄頁不渲染草稿日期，頁尾顯示「未發布」，正式歷史保留；一般／GAS 編譯與隔離 Chrome 桌面／手機明暗通過，證據 `/private/tmp/guild-unreleased-preview/`。沒有功能資料讀寫或新內容請求，未重新執行前輪 347 項業務測試；目前 build 是 Unreleased 測試包，不是已定版的同步來源。
 
+本批另包含影片閱覽首載／重載整併（功能來源 `e39429c`）：新增管理者 getVideoBrowser／GET /api/videos/browser，同一快照回戰鬥清單與選定場次影片；冷載由兩次 RPC 改一次，換場保留原 getEventVideos 一次，顯式重載不再命中舊事件快取，保留有效選擇與篩選。GAS 正常唯讀，只有缺 videos 表時沿既有鎖內重驗權限補建；沒有 schema、歷史或寫入規則改動。仍須掃 events／videos，原清單快取熱時也可能只有一次 RPC，不宣稱所有場景同幅加速。
+
+新增 5 項回歸，原 347 項未修改，完整 **352／352** 通過（`/private/tmp/guild-video-browser-full-tests.log`），一般／GAS 編譯通過。隔離冷載 Sheets getValues 7→4；正式 Google 秒數未量測。Chrome 驗證一次首載、換場、重載最新清單與保留篩選、錯誤重試、離頁舊回應忽略、空清單、搜尋／團別零 RPC、CSV／超連結與手機明暗，證據 `/private/tmp/guild-video-browser-preview/`。影片功能及版本流程持續累積 Unreleased，package／lockfile 仍 1.0.28；本輪未同步或部署。
+
 ## 2026/10/27：v1.0.28 最新已同步狀態
 
 同步來源 **`06c3532`**（排表按需讀取 `d433aa6`、來源選單 `506ac57`、過期行事曆 `912328a`），沿用已準備的 **1.0.28**，沒有再次升版。`npm run gas:push` 重新編譯、備份遠端、同步 Index.html／Code.gs／Backend.gs／appsscript.json，四檔讀回比對一致；私有前後備份 `data/gas-backups/2026-10-26T16-20-18-864Z/` 不提交，同步日誌 `/private/tmp/guild-v1028-gas-sync.log`。

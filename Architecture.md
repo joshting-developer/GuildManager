@@ -281,3 +281,11 @@ Sheets storage 以可選的同步 run 包裝讀寫、flush 與提交標記，預
 前端 isPastBattleEvent 依既有 YYYY-MM-DD 日期與 Asia/Taipei 的今天比較，僅日期早於今天的戰鬥場次隱藏報名／請假與職業統計、報名人數，改以影片上傳為入口及預選 tab；今天及未來仍提供原功能，一般活動不變。MonthCalendar 以本地午夜 timer 與 focus／visibilitychange 更新 today，傳入 ParticipationDialog；提交前也以當下台北日期擋下已過期的舊表單。卸載清理 timer／事件，日期更新不呼叫 API、不寫資料或占寫入鎖。
 
 影片保留原 getEventParticipationForm 的名冊與職業整併讀取，開啟仍只需原本一次 RPC，沒有新增伺服器時鐘或第二份資料請求。影片表單不因跨日重新掛載或清除草稿。這是首頁操作入口的前端規則，後端報名／請假 API 權限、版本、requestId 與資料契約不變，不能視為新增伺服器截止限制。
+
+## 影片閱覽整併首載（Unreleased）
+
+GET /api/videos/browser?eventId=…／GAS getVideoBrowser(preferredId) 只供 admin／manager，回 `{ events, selected }`，selected 是原 getEventVideos 的 `{ eventId, eventRevision, videos }` 或空清單時的 null。同一 SQLite 讀取交易／GAS commits 快照先取有效戰鬥清單，依原影片頁 prefer=recent 與台北今天排序；有效 preferredId 優先，否則今天或最近過去、再未來。selected 不存在時不讀影片表。前端首載／顯式重載一次取得，不再 getEvents 後由 watcher 呼叫 getEventVideos，換場仍用原端點一次，舊 DTO 與提交契約保留。
+
+新方法在 READ_ONLY，缺 videos 表沿 getEventVideos 原有 LAZY_TABLE_READS 於鎖內重驗權限補建；正常只讀 events／videos／commits，不讀 Drive、名冊、報名、排表或戰績。匿名／member 拒絕，submitEventVideo、CSRF、eventRevision、requestId、儲存格式及歷史不變。
+
+顯式重載不使用導覽用 60 秒事件快取，保留有效場次與篩選，失效才回退。當頁事件與影片用 shallowRef 承接不可變快照，篩選不寫後端、不跨請求快取影片，資料失敗可重試，換場／卸載用 operation token 丟棄舊回應。固定 GAS 往返成本比少量影片的前端篩選更值得優先處理；原事件快取熱時已可只用一次 RPC，因此不宣稱所有進頁都少一次。GAS 仍須 all(events)／all(videos) 後篩選，沒有消除索引或歷史掃描／解碼，不新增 schema 或 eventId 索引。
