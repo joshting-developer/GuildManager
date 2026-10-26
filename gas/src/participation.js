@@ -249,6 +249,12 @@ export function createParticipation(store, catalog, { uuid, now, notify = () => 
           .map(guestDto),
       };
     },
+    getEventVideoForm([eventId]) {
+      const event = catalog.event(eventId, { battle: true });
+      if (event.dates.length !== 1) fail('EVENT_UNAVAILABLE', '影片需要單日戰鬥場次');
+      return { ...catalog.methods.getEvent([eventId]),
+        ...methods.getEventParticipationMembers([eventId]), ...catalog.methods.getProfessions() };
+    },
     getEventParticipationForm([eventId]) {
       // Warm the complete roster first so participation does not fetch members again.
       const roster = methods.getEventParticipationMembers([eventId]);

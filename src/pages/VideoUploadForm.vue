@@ -29,6 +29,10 @@ const busy = ref(false),
 let attempt = null;
 let disposed = false,
   reloadToken = 0;
+watch(() => props.event, (event) => {
+  eventRevision.value = event.revision;
+  reloadError.value = '';
+});
 watch(nameSource, () => {
   selectedMemberUid.value = null;
   draft.value.name = '';

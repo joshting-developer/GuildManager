@@ -265,6 +265,13 @@ export function createRepository({ filename, authNow }) {
           ...(includeCatalogs ? repository.getLineupCatalogs() : {}) };
       })();
     },
+    getEventVideoForm(eventId) {
+      return db.transaction(() => ({
+        ...repository.getEvent(eventId),
+        ...repository.listEventParticipationMembers(eventId),
+        ...repository.listProfessions(),
+      }))();
+    },
     getEventParticipationForm(eventId) {
       return db.transaction(() => ({
         ...repository.listEventParticipationMembers(eventId),

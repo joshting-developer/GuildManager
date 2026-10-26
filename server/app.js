@@ -174,6 +174,9 @@ export function createApp(repository, { authNow, notifier = null } = {}) {
   app.get('/api/events/:id/participation-form', (request, response) => {
     response.json(repository.getEventParticipationForm(request.params.id));
   });
+  app.get('/api/events/:id/video-form', (request, response) => {
+    response.json(repository.getEventVideoForm(request.params.id));
+  });
   app.get('/api/events/:id/attendance', (request, response) => {
     response.json(repository.getEventAttendance(request.params.id));
   });

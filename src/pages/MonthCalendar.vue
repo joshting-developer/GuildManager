@@ -52,7 +52,7 @@ let participationToken = 0;
 const events = ref([]);
 const visibleEvents = computed(() => visibleCalendarEvents(events.value, calendarAuth?.user.value));
 const loading = ref(true);
-const calendarLoading = computed(() => loading.value || !!calendarAuth?.loading.value);
+const calendarLoading = computed(() => loading.value || (props.management && !!calendarAuth?.loading.value));
 const error = ref('');
 const dayDialog = ref(false);
 const selectedDay = ref(null);
@@ -62,7 +62,7 @@ const notice = ref('');
 let opener;
 let loadToken = 0;
 async function load() {
-  if (calendarAuth?.loading.value) return;
+  if (props.management && calendarAuth?.loading.value) return;
   const currentToken = ++loadToken;
   loading.value = true;
   error.value = '';
@@ -88,6 +88,8 @@ onMounted(() => {
 watch(
   [() => calendarAuth?.user.value?.id, () => calendarAuth?.user.value?.role, () => calendarAuth?.loading.value],
   () => {
+    // Public events are identical for every role; auth restoration must not restart this read.
+    if (!props.management) return;
     loadToken++;
     loading.value = true;
     events.value = [];
@@ -191,7 +193,7 @@ function restoreFocus() {
         @create-date="openCreate"
       />
       <div v-if="calendarLoading" class="calendar-loading-overlay">
-        <DataLoading>{{ calendarAuth?.loading.value ? '正在確認登入狀態…' : '正在載入行事曆…' }}</DataLoading>
+        <DataLoading>{{ management && calendarAuth?.loading.value ? '正在確認登入狀態…' : '正在載入行事曆…' }}</DataLoading>
       </div>
     </div>
     <div class="event-notices" aria-live="polite">
@@ -224,6 +226,7 @@ function restoreFocus() {
     v-model="participationDialog"
     :event="selectedEvent"
     :today="today"
+    :show-counts="management"
     @closed="restoreFocus"
     @event-refreshed="refreshSelectedEvent"
   />

@@ -194,6 +194,10 @@ function getEventParticipationForm(eventId, context) {
   return GuildGas.rpc('getEventParticipationForm', [eventId], context);
 }
 
+function getEventVideoForm(eventId, context) {
+  return GuildGas.rpc('getEventVideoForm', [eventId], context);
+}
+
 function submitParticipation(eventId, input, context) {
   return GuildGas.rpc('submitParticipation', [eventId, input], context);
 }

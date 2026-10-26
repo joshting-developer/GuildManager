@@ -7,7 +7,7 @@ import VideoUploadForm from './VideoUploadForm.vue';
 import NameSourcePicker from './NameSourcePicker.vue';
 import { participationTarget } from '../domain/participation-target.js';
 import { isPastBattleEvent, taipeiToday } from '../domain/battle-events.js';
-const props = defineProps({ modelValue: Boolean, event: { type: Object, required: true }, today: { type: String, default: () => taipeiToday() } });
+const props = defineProps({ modelValue: Boolean, event: { type: Object, required: true }, today: { type: String, default: () => taipeiToday() }, showCounts: Boolean });
 const pastEvent = computed(() => isPastBattleEvent(props.event, props.today));
 const emit = defineEmits(['update:modelValue', 'closed', 'event-refreshed']);
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
@@ -34,6 +34,7 @@ const loading = ref(true),
 const tab = ref('form');
 watch(pastEvent, past => {
   if (past) tab.value = 'videos';
+  else if (props.modelValue) load();
 });
 const videoForm = ref(null),
   videoBusy = ref(false),
@@ -41,7 +42,8 @@ const videoForm = ref(null),
   videoSession = ref(0);
 const anyBusy = computed(() => busy.value || videoBusy.value);
 function reload() {
-  if (videoForm.value) videoForm.value.reloadEvent();
+  if (pastEvent.value) load();
+  else if (videoForm.value) videoForm.value.reloadEvent();
   else load();
 }
 function refreshVideoEvent(event) {
@@ -94,34 +96,41 @@ function resetForm() {
 // reused so the dialog makes one backend call instead of three (each GAS call ≈ 2 s).
 async function load({ participationOnly = false } = {}) {
   if (authLoading.value) return;
-  const reuse = participationOnly && professions.value.length > 0;
+  const videoOnly = pastEvent.value;
+  const reuse = !videoOnly && participationOnly && professions.value.length > 0;
   const currentToken = ++token;
   loading.value = true;
   loadError.value = '';
   error.value = '';
   try {
-    const participation = reuse
-      ? await client.getParticipation(props.event.id)
-      : await client.getForm(props.event.id);
+    const participation = videoOnly
+      ? await client.getVideoForm(props.event.id)
+      : reuse ? await client.getParticipation(props.event.id) : await client.getForm(props.event.id);
     const jobs = { professions: reuse ? professions.value : participation.professions };
     const roster = { members: reuse ? members.value : participation.members };
     if (disposed || currentToken !== token) return;
     if (
       participation.eventId !== props.event.id ||
-      typeof participation.revision !== 'string' ||
-      !Array.isArray(participation.responses) ||
-      !Array.isArray(participation.registrations) ||
-      !Array.isArray(participation.registrationLeaves) ||
+      (videoOnly
+        ? participation.event?.id !== props.event.id ||
+          !['scrimmage', 'guild_war', 'dragon_tiger'].includes(participation.event?.type) ||
+          participation.event?.dates?.length !== 1 ||
+          !Number.isSafeInteger(participation.event?.revision)
+        : typeof participation.revision !== 'string' ||
+          !Array.isArray(participation.responses) ||
+          !Array.isArray(participation.registrations) ||
+          !Array.isArray(participation.registrationLeaves)) ||
       !Array.isArray(jobs.professions) ||
       !Array.isArray(roster.members)
     )
       throw new Error('資料格式不正確, 請重新載入');
     professions.value = jobs.professions;
-    responses.value = participation.responses;
-    registrations.value = participation.registrations;
-    registrationLeaves.value = participation.registrationLeaves;
-    revision.value = participation.revision;
+    responses.value = videoOnly ? [] : participation.responses;
+    registrations.value = videoOnly ? [] : participation.registrations;
+    registrationLeaves.value = videoOnly ? [] : participation.registrationLeaves;
+    revision.value = videoOnly ? '' : participation.revision;
     members.value = roster.members;
+    if (videoOnly) emit('event-refreshed', participation.event);
     if (
       selectedMemberUid.value &&
       (!selectedMember.value ||
@@ -283,12 +292,12 @@ async function submit() {
         >
       </div>
       <DataLoading v-if="authLoading">正在確認登入狀態…</DataLoading>
-      <DataLoading v-else-if="loading">正在載入本場報名資料…</DataLoading>
+      <DataLoading v-else-if="loading">{{ pastEvent ? '正在載入影片表單…' : '正在載入本場報名資料…' }}</DataLoading>
       <v-alert v-else-if="loadError" type="error" variant="tonal" role="alert">{{
         loadError
       }}</v-alert>
       <div v-show="!authLoading && !loading && !loadError">
-        <p v-if="!pastEvent" class="participation-count">報名 {{ registeredCount }} 人</p>
+        <p v-if="showCounts && !pastEvent" class="participation-count">報名 {{ registeredCount }} 人</p>
         <v-tabs v-model="tab" color="primary" aria-label="場次參與資訊">
           <v-tab
             v-if="!pastEvent"
@@ -299,7 +308,7 @@ async function submit() {
             >報名／請假</v-tab
           >
           <v-tab
-            v-if="!pastEvent"
+            v-if="showCounts && !pastEvent"
             id="participation-professions-tab"
             value="professions"
             aria-controls="participation-professions-panel"
@@ -373,7 +382,7 @@ async function submit() {
           </form>
         </section>
         <section
-          v-if="!pastEvent"
+          v-if="showCounts && !pastEvent"
           v-show="tab === 'professions'"
           id="participation-professions-panel"
           role="tabpanel"

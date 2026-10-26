@@ -24,6 +24,8 @@ export function createParticipationClient({
           ? 'participation-members'
           : operation === 'getEventParticipationForm'
             ? 'participation-form'
+          : operation === 'getEventVideoForm'
+            ? 'video-form'
           : operation === 'addGuestRegistration'
             ? 'registrations'
             : 'participation';
@@ -57,6 +59,7 @@ export function createParticipationClient({
     getParticipation: (eventId) => call('getEventParticipation', eventId),
     getMembers: (eventId) => call('getEventParticipationMembers', eventId),
     getForm: (eventId) => call('getEventParticipationForm', eventId),
+    getVideoForm: (eventId) => call('getEventVideoForm', eventId),
     submitParticipation: (eventId, input) => call('submitParticipation', eventId, 'POST', input),
     saveResponse: (eventId, input) => call('saveMemberResponse', eventId, 'PATCH', input),
     registerGuest: (eventId, input) => call('addGuestRegistration', eventId, 'POST', input),
