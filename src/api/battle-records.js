@@ -46,6 +46,7 @@ export function createBattleRecordClient({
         undefined,
         [page, eventId],
       ),
+    getMetadata: (id) => call('getBattleMetadata', `/${encodeURIComponent(id)}/metadata`, undefined, [id]),
     getRecord: (id, options) => call('getBattleRecord',
       `/${encodeURIComponent(id)}${options ? `?${new URLSearchParams(options)}` : ''}`,
       undefined, options ? [id, options] : [id]),

@@ -1,5 +1,13 @@
 import { BattleRecordError } from './battle-records.js';
 
+// Editing needs a fresh revision, without player snapshots or attachment references.
+export function battleEditingMetadata(record) {
+  const { id, type, playedAt, roundNumber, redTeam, blueTeam, winner, ourSide, isInternal } = record;
+  return { id, type, playedAt, roundNumber: roundNumber ?? null, redTeam, blueTeam,
+    winner: winner ?? null, ourSide: ourSide ?? null, isInternal: Boolean(isInternal),
+    revision: record.revision ?? 0 };
+}
+
 // Only match labels and results may change; uploaded player data stays intact.
 export function validateBattleMetadata(input, type) {
   if (!input || typeof input !== 'object' || Array.isArray(input))

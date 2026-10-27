@@ -37,7 +37,7 @@ async function load() {
   record.value = null;
   attempt = null;
   try {
-    const result = await client.getRecord(props.recordId);
+    const result = await client.getMetadata(props.recordId);
     if (current !== token || !props.modelValue) return;
     if (result.record?.id !== props.recordId || !Number.isSafeInteger(result.record.revision))
       throw new Error('對戰資訊格式不正確，請重新載入');

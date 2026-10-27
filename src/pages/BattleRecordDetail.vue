@@ -30,6 +30,7 @@ import {
 } from '../domain/battle-statistics.js';
 
 const props = defineProps({ recordId: { type: String, required: true } });
+const emit = defineEmits(['metadata-updated', 'deleted']);
 const auth = inject('calendarAuth', null);
 const canManage = computed(() => ['admin', 'manager'].includes(auth?.user.value?.role));
 const editDialog = ref(false);
@@ -46,6 +47,7 @@ const notice = ref('');
 function onMetadataUpdated(updated) {
   if (updated.id !== record.value?.id) return;
   record.value = { ...record.value, ...updated };
+  emit('metadata-updated', updated);
   notice.value = '對戰資訊已更新';
 }
 const deleting = ref(false);
@@ -63,6 +65,7 @@ async function deleteRecord() {
   deleting.value = true;
   try {
     await client.deleteRecord(current.id, current.revision);
+    emit('deleted', current.id);
     window.location.hash = '#/battle-records';
   } catch (cause) {
     window.alert(cause.message);

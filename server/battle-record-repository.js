@@ -9,7 +9,7 @@ import { summarizePersonalBattles } from '../src/domain/personal-battle-statisti
 import { analyzeBattleTeams, battleTeamContext, includeBattleTeamContext } from '../src/domain/team-battle-analysis.js';
 import { uniqueNewMemberNames } from '../src/domain/battle-member-links.js';
 import { planBattleMemberSync, publicBattleSyncPlan, validateBattleSyncInput } from '../src/domain/battle-member-sync.js';
-import { validateBattleMetadata } from '../src/domain/battle-metadata.js';
+import { battleEditingMetadata, validateBattleMetadata } from '../src/domain/battle-metadata.js';
 import {
   validatePersonalBattleFilters,
   filterPersonalBattles,
@@ -217,6 +217,14 @@ export function createBattleRecordRepository(db, { project = (_kind, _id, value)
           return record;
         });
       return { records, total, page, pageSize: 20 };
+    },
+    getBattleMetadata(id) {
+      const row = db.prepare(`SELECT id, battle_type AS type, played_at AS playedAt,
+        round_number AS roundNumber, red_team AS redTeam, blue_team AS blueTeam,
+        winner, our_side AS ourSide, is_internal AS isInternal, revision
+        FROM battle_records WHERE id=?`).get(id);
+      if (!row) throw new BattleRecordError('找不到這筆戰績', 404, 'BATTLE_NOT_FOUND');
+      return battleEditingMetadata(row);
     },
     getBattleRecord(id, options = {}) {
       const withContext = includeBattleTeamContext(options);

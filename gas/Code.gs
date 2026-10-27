@@ -270,6 +270,10 @@ function getBattleRecord(id, options, context) {
   return GuildGas.rpc('getBattleRecord', [id, options === undefined ? {} : options], context);
 }
 
+function getBattleMetadata(id, context) {
+  return GuildGas.rpc('getBattleMetadata', [id], context);
+}
+
 function getBattleTeamAnalysis(id, context) {
   return GuildGas.rpc('getBattleTeamAnalysis', [id], context);
 }

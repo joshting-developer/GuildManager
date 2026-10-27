@@ -141,6 +141,9 @@ export function createApp(repository, { authNow, notifier = null } = {}) {
   app.post('/api/battle-records', (request, response) => {
     response.status(201).json(repository.saveBattleRecords(request.body));
   });
+  app.get('/api/battle-records/:id/metadata', (request, response) => {
+    response.set('Cache-Control', 'no-store').json({ record: repository.getBattleMetadata(request.params.id) });
+  });
   app.get('/api/battle-records/:id', (request, response) => {
     response.json({ record: repository.getBattleRecord(request.params.id, {
       includeTeamContext: request.query.includeTeamContext === undefined || request.query.includeTeamContext === 'false'

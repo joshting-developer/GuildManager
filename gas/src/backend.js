@@ -94,7 +94,7 @@ const READ_ONLY = [
   'getEventVideoForm',
   'getEventAttendance', 'getLineupIndex', 'getLineupHistory', 'applyLineupTemplate',
   'getLineupEditor', 'getLineupEvent', 'getLineupTemplates', 'getLineupSources',
-  'getBattleRecords', 'getBattleRecord', 'getBattleTeamAnalysis', 'getMemberBattleRecords',
+  'getBattleRecords', 'getBattleRecord', 'getBattleMetadata', 'getBattleTeamAnalysis', 'getMemberBattleRecords',
   'getBattleAttachment', 'previewBattleMemberSync', 'getEventVideos', 'getVideoBrowser', 'getLottery',
 ];
 const LAZY_TABLE_READS = ['getEventVideos', 'getVideoBrowser', 'getLottery'];

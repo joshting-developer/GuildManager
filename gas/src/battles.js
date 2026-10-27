@@ -6,7 +6,7 @@ import {
 } from '../../src/domain/battle-records.js';
 import { summarizePersonalBattles } from '../../src/domain/personal-battle-statistics.js';
 import { analyzeBattleTeams, battleTeamContext, includeBattleTeamContext } from '../../src/domain/team-battle-analysis.js';
-import { validateBattleMetadata } from '../../src/domain/battle-metadata.js';
+import { battleEditingMetadata, validateBattleMetadata } from '../../src/domain/battle-metadata.js';
 import {
   validatePersonalBattleFilters,
   filterPersonalBattles,
@@ -90,6 +90,9 @@ export function createBattles(store, catalog, { uuid, now, files, prepareOnly = 
         page,
         pageSize: 20,
       };
+    },
+    getBattleMetadata([id]) {
+      return { record: battleEditingMetadata(get(id)) };
     },
     getBattleRecord([id, options = {}]) {
       const withContext = includeBattleTeamContext(options);

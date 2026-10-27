@@ -25,35 +25,75 @@ const pageCount = computed(() => Math.ceil(total.value / pageSize.value));
 let disposed = false,
   loadToken = 0,
   lastRecordId = null;
+let needsRefresh = false;
+
+function invalidatePendingList() {
+  if (!loading.value) return;
+  loadToken++;
+  loading.value = false;
+  needsRefresh = true;
+}
+function onMetadataUpdated(updated) {
+  invalidatePendingList();
+  records.value = records.value.map(record => record.id === updated.id ? { ...record, ...updated } : record);
+}
+function onDeleted(id) {
+  invalidatePendingList();
+  records.value = records.value.filter(record => record.id !== id);
+  total.value = Math.max(0, total.value - 1);
+  needsRefresh = true;
+}
+function changePage(value) {
+  page.value = value;
+  loadRecords();
+}
 
 async function loadRecords() {
   const token = ++loadToken;
   loading.value = true;
   error.value = '';
   try {
-    const data = await client.getRecords(page.value);
-    if (disposed || token !== loadToken) return;
-    if (!Array.isArray(data.records) || !Number.isSafeInteger(data.total) || !data.pageSize)
-      throw new Error('戰績清單格式不正確, 請重新載入');
-    records.value = data.records;
-    total.value = data.total;
-    pageSize.value = data.pageSize;
-    loaded.value = true;
+    // A deletion can remove the last page. Refetch the remaining last page once;
+    // concurrent further changes are handled by the normal retry control.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const data = await client.getRecords(page.value);
+      if (disposed || token !== loadToken) return;
+      if (!Array.isArray(data.records) || !Number.isSafeInteger(data.total) || data.total < 0 ||
+          !Number.isSafeInteger(data.pageSize) || data.pageSize < 1)
+        throw new Error('戰績清單格式不正確, 請重新載入');
+      const lastPage = Math.max(1, Math.ceil(data.total / data.pageSize));
+      if (page.value > lastPage) {
+        page.value = lastPage;
+        if (attempt === 1) throw new Error('戰績清單已變動，請重新載入');
+        continue;
+      }
+      records.value = data.records;
+      total.value = data.total;
+      pageSize.value = data.pageSize;
+      loaded.value = true;
+      needsRefresh = false;
+      break;
+    }
   } catch (cause) {
     if (!disposed && token === loadToken) error.value = cause.message;
   } finally {
     if (!disposed && token === loadToken) loading.value = false;
   }
 }
-watch(page, loadRecords);
 watch(
   () => props.recordId,
   async (id, previous) => {
     if (id) lastRecordId = id;
-    else if (!loaded.value) loadRecords();
-    else if (previous) {
+    else {
+      if (!loaded.value || needsRefresh) {
+        page.value = Math.min(page.value, Math.max(1, pageCount.value));
+        await loadRecords();
+      }
+      if (!previous || disposed || props.recordId) return;
       await nextTick();
-      document.getElementById(`battle-link-${lastRecordId}`)?.focus({ preventScroll: true });
+      (document.getElementById(`battle-link-${lastRecordId}`) ||
+        document.querySelector('.battle-match-link') ||
+        document.getElementById('battle-records-title'))?.focus({ preventScroll: true });
     }
   },
 );
@@ -68,12 +108,13 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <BattleRecordDetail v-if="recordId" :key="recordId" :record-id="recordId" />
+  <BattleRecordDetail v-if="recordId" :key="recordId" :record-id="recordId"
+    @metadata-updated="onMetadataUpdated" @deleted="onDeleted" />
   <template v-else>
     <section class="page-heading" aria-labelledby="battle-records-title">
       <div>
         <p class="eyebrow">GUILD MANAGER <span class="eyebrow-divider">/</span> 戰績紀錄</p>
-        <h1 id="battle-records-title">數據分析<span class="heading-dot">.</span></h1>
+        <h1 id="battle-records-title" tabindex="-1">數據分析<span class="heading-dot">.</span></h1>
       </div>
       <v-btn variant="outlined" :prepend-icon="mdiRefresh" :disabled="loading" @click="loadRecords"
         >重新載入</v-btn
@@ -154,7 +195,8 @@ onUnmounted(() => {
         </div>
         <v-pagination
           v-if="pageCount > 1"
-          v-model="page"
+          :model-value="page"
+          @update:model-value="changePage"
           :length="pageCount"
           :total-visible="5"
           aria-label="戰績清單分頁"
