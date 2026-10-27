@@ -29,6 +29,8 @@
 
 以下是已驗證優化的常態要求；新增功能、修改及 review 都需檢查，不能只留在版本交接。計畫記錄本次的讀寫範圍、預期請求次數、快取生命週期及鎖需求；不適用的策略由實作證據說明取捨，不為套用規則擴張使用者需求或重構無關功能。細節見 [Architecture.md](Architecture.md#gas-最新已提交版本讀取v1020)、[GASConcurrency.md](GASConcurrency.md#v1019-實作結果已同步-gas尚未更新部署) 及 [Style.md](Style.md)。歷史盤點與舊版待辦不是目前實作要求；交付狀態以 [GASDeployment.md](GASDeployment.md) 最新狀態為準。
 
+2026/10/27 的官方文件、開發者實務與後續可行性研究見 [GASPerformanceSurvey.md](GASPerformanceSurvey.md)。其中 batchGet、最新排表目錄、通知 outbox 等是待量測／待選定的提案，不是已實作或可直接套用的現行規則；採用後須另補驗證與協議。
+
 ### 資料載入與快取
 
 - 優先減少 GAS／Sheets 往返，再評估 CPU 計算；同一表單需要且須一致的名冊、職業與回應，在同次讀取交易組裝並重用，避免各元件重複 RPC 或逐筆查詢。
