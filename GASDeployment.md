@@ -4,6 +4,10 @@
 
 ## 2026/10/27：Unreleased 本機累積，尚未定版／同步
 
+本批追加對戰編輯精簡讀取及返回清單一致性（功能來源 `54e198f`）：新增管理者 getBattleMetadata／GET /api/battle-records/:id/metadata，只讀必要欄位及最新 revision；GAS 正常唯讀、不取寫入鎖。編輯成功直接更新清單對應列，刪除後刷新並校正末頁；純查看返回沿用快取，舊讀取不能覆蓋成功修改。詳情分團對應及分析零新增 RPC 保留。
+
+新增 3 項回歸，原 352 項未修改，完整 **355／355** 通過（`/private/tmp/guild-detail-full-tests.log`）；一般／GAS 編譯及版本／唯一 Unreleased／四檔／無外部 JS、CSS／台北時區通過。隔離編輯讀取 Sheets getValues 6→3 次，未量測正式 Google 秒數。Chrome 驗證編輯最新 revision、同步清單零新增 RPC、刪除失敗／清單重試／末頁、同時編輯衝突保留草稿、延遲清單／視窗回應忽略、焦點、分析及手機深色版面，證據 `/private/tmp/guild-detail-preview/`。仍保持 package／lockfile 1.0.28，未同步 GAS 或更新部署。
+
 公開首頁 getEvents 與登入確認並行，登入完成／失敗不重載或遮住相同公開活動；管理行事曆仍等待登入。公開視窗隱藏報名總人數及職業統計，管理行事曆的人數／出勤閱覽保留。過期影片入口與手動重載使用新增 getEventVideoForm／GET /api/events/:id/video-form，一次唯讀取得最新場次、必要名冊與職業，不讀報名回應／外援／影片／requests／Drive；保留草稿及場次版本、CSRF、資格與 requestId。日期移到未來時補讀正常報名資料。功能來源 `5605a72`。
 
 原 343 項測試未修改，新增 4 項精簡表單回歸，完整 **347／347** 通過（`/private/tmp/guild-calendar-fast-full-tests.log`）；一般／GAS 編譯、版本／lockfile／唯一 release note／四檔／無外部 JS、CSS／台北時區核對通過。隔離案例 Sheets getValues 由完整表單 7→精簡 5 次，只反映測試資料讀取次數；未量測正式 Google 秒數。

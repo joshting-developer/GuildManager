@@ -8,7 +8,7 @@
 - 視覺參考相鄰專案 `../NSHM_history`, 本專案的具體規則以 [Style.md](Style.md) 為準
 - 已建立 Vuetify 首頁／成員管理／活動安排／戰場排表／戰績上傳／戰績閱覽、Docker 本機環境、SQLite 讀寫 API 與 GAS 單檔編譯流程。最新 v1.0.28（同步來源 06c3532）過期行事曆僅影片、排表按需讀取及來源下拉選單已同步 GAS 並讀回四檔一致，尚未更新 Web App 部署。本輪未查詢或更新部署，實際狀態見 GASDeployment.md 及文末交接。
 - 使用者已確認本機使用 SQLite, 後期資料來源為 Google 試算表
-- GAS 最新同步程式為 v1.0.28（來源 06c3532），本機新改動以 Unreleased 累積：公開行事曆並行讀取、過期影片精簡表單、公開報名總數與職業統計隱藏、影片閱覽首載整併。本批尚未定版／同步，package／lockfile 保持 1.0.28；未 push Git／更新 Web App 部署。下方舊版待同步說明保留作歷史，以文末最新交接及 GASDeployment.md 為準。
+- GAS 最新同步程式為 v1.0.28（來源 06c3532），本機新改動以 Unreleased 累積：公開行事曆並行讀取、過期影片精簡表單、公開報名總數與職業統計隱藏、影片閱覽首載整併、對戰編輯精簡讀取及返回清單更新。本批尚未定版／同步，package／lockfile 保持 1.0.28；未 push Git／更新 Web App 部署。下方舊版待同步說明保留作歷史，以文末最新交接及 GASDeployment.md 為準。
 - 過往 v1.0.22 同步紀錄：本機及 GAS 當時均為 v1.0.22（導覽／顯示設定、場次預設、數字格式及影片閱覽網址超連結），本批已交付，不重複升版；後續新一批功能交付須遞增 patch。v1.0.21 已交付：個人戰績一次載入、預選最新十筆、勾選總覽及 ECharts 走勢抽屜，移除三顆批次勾選快捷按鈕；進攻／防守分析重用詳情資料，提供數值／占比兩表及互斥配對。保留 v1.0.20 只解碼最新版本與既有唯讀／鎖範圍及多人請假修正；本輪未 push Git／更新部署。正式戰績上傳原始失敗原因仍未確定，見文末交接。
 - 試算表 ID 已取得, 本機使用帳號密碼登入；正式工作表名稱與 Google 登入待確認, 本機角色為 admin／manager／member, 成員、職業、過去名稱及活動安排欄位已依需求實作於本機
 
@@ -38,6 +38,7 @@
 - 公開資料若各角色可見範圍相同，可與登入確認並行載入／呈現；只在該公開介面解除等待，不取消管理入口的登入門檻或送出時 CSRF／身分／版本驗證。資料用途縮小時提供精簡讀取且保留舊 API，不為隱藏統計而移除報名身分辨識與併發所需的回應版本。
 - 整併讀取已包含初始選項與詳情時，套用結果不得因 v-model／watch 再觸發同一筆查詢；可用明確的使用者選擇事件區分載入與互動。顯式重新載入若承諾最新清單，不能無意沿用一般導覽的短期快取；讀取範圍、快取熱／冷差異需記錄。
 - 只讀目前成員／場次／紀錄需要的內容；摘要與大型詳情分開，詳情按需載入。保存成功只更新受影響資料，避免重載整份名冊或全頁；顯式重新載入應取得最新資料，換人／換場／卸載須丟棄過期回應。
+- 清單與詳情共用當頁快取時，編輯成功須以已驗證回應更新對應列，刪除須使清單失效並補齊分頁／校正末頁；純查看返回仍可重用。變更成功須淘汰較早的進行中清單讀取，避免舊回應蓋回新資料，並恢復仍存在的入口或合理備用焦點。只編輯摘要時可另提供最新 revision 的精簡唯讀，不為省讀取沿用舊 revision。
 - 可重用同次交易的索引、解碼值、查無結果與中間集合；職業等低變動資料可共用同 transport 的進行中／成功請求，失敗後允許重試。跨請求或瀏覽器快取必須定義來源／權限範圍、失效及登出處理；不得把變動的報名版本、revision 或授權結果當作長期可信快取。快取失敗不阻止正常操作。
 
 ### Sheets 儲存與查找
@@ -916,3 +917,18 @@ GAS 新方法加入 READ_ONLY／LAZY_TABLE_READS，admin／manager 限制不變�
 隔離編譯後 GAS Chrome 證據 `/private/tmp/guild-video-browser-preview/`：冷首載 getVideoBrowser 一次且無分開 getEvents／getEventVideos；篩選零 RPC、CSV 與超連結屬性；重載取得新增資料且保留選擇／搜尋／團別；錯誤重試、換場一次、離頁舊回應忽略、空狀態與深色手機無溢出／例外。手機浮層測試等待動畫完成可點選後再操作，未改產品以迎合測試。一般／GAS 編譯、唯一 Unreleased／package 1.0.28／四檔／無外部 JS、CSS／時區核對通過。
 
 main 起點 2096128，本批累積到同一 Unreleased，package／lockfile 保持最近定版 1.0.28；不預先升版。只本機提交，未 push／同步 GAS／查詢或更新 Web App 部署、setupGas、正式資料／Properties 或通知。常態載入規則與影片契約已同步本檔效能／影片段、Architecture.md、GASConcurrency.md、Style.md，交付見 GASDeployment.md。
+
+
+## 2026/10/27 交接：對戰編輯精簡讀取與返回清單（Unreleased）
+
+使用者同意修正對戰詳情 review 中的編輯多讀與返回清單過期；保留詳情同次帶最小分團對應、前端分析不額外呼叫 API。功能提交 `54e198f`，main 起點 `0bb7d76`。
+
+新增管理者 getBattleMetadata／GET /api/battle-records/:id/metadata，回編輯欄位、日期／場次與最新 revision，不帶玩家、附件、事件快照或排表。SQLite 明確選欄，GAS 只讀指定 battles 及 commits／登入驗證，加入 READ_ONLY，不取業務寫入鎖或讀 players／links／排表／requests／Drive。舊 battles 內嵌 payload 仍整筆解碼，沒有改 schema、刪歷史或消除索引掃描。舊 API、角色、CSRF、revision、requestId、寫入鎖不變。
+
+編輯視窗每次開啟／重載使用新讀取；成功以原寫入回應更新詳情與快取清單，返回不額外讀清單；純查看返回亦重用。刪除後清單失效，返回刷新該頁及處理末頁消失；伺服器總數另已變動時最多再讀一次有效頁。成功變更淘汰較早進行中的清單回應，失敗提供重試，返回原入口／第一筆／空清單標題焦點。
+
+新增 tests/battle-metadata-read.test.js 3 項，原 352 項未修改，完整 **355／355** 通過（/private/tmp/guild-detail-full-tests.log）。相關既有與新增共 14 項通過；新增讀取測試另重跑 3 項通過（/private/tmp/guild-detail-metadata-tests.log），將診斷計數固定在該次讀取，沒有修改斷言或產品行為。隔離 getValues 完整詳情 6→編輯必要欄位 3 次，只是測試資料往返次數，不是正式 Google 耗時。一般及 GAS 編譯、package／lockfile 1.0.28、唯一 Unreleased、四檔／無外部 JS、CSS／台北時區通過。
+
+隔離編譯後 GAS Chrome 證據 /private/tmp/guild-detail-preview/，腳本 /private/tmp/guild-detail-browser.mjs：純返回與儲存後返回零額外清單 RPC、最新 revision、刪除失敗保留詳情、刷新失敗重試、末頁最後一筆刪除單次重讀、焦點返回、關閉後舊 metadata 忽略、同時編輯衝突保留草稿及重載後成功、延遲清單不蓋新值、進攻分析無額外 API，桌面淺色／390px 手機深色無橫向溢出及頁面例外。測試工具初次未處理原生確認框的 CDP 非請求回應，修正工具後驗證通過，沒有調整產品配合測試。
+
+常態快取／版本規則已補本檔，契約與讀寫範圍同步 Architecture.md／GASConcurrency.md，介面同步 Style.md，交付狀態見 GASDeployment.md。持續累積唯一 Unreleased，不升版；只本機提交，未 push／同步 GAS／查詢或更新 Web App 部署、setupGas、正式資料／Properties 或通知。最新成功同步仍為 v1.0.28（06c3532）。

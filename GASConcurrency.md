@@ -112,11 +112,12 @@
 
 瀏覽器下載 JPG、切換主題、前端搜尋／排序、編輯尚未保存的排表都不取得 GAS 鎖。
 
-### 戰績、分析及歷史關聯（9 個）
+### 戰績、分析及歷史關聯（10 個）
 
 | RPC | 業務讀取 | 業務寫入 | 建議 |
 | --- | --- | --- | --- |
 | `getBattleRecords` | battles | 無 | 讀 |
+| `getBattleMetadata` | battles（指定 ID）及 commits 快照、登入驗證 | 無 | READ_ONLY／admin、manager；只回編輯欄位、日期／場次與最新 revision，不讀玩家／關聯／排表／Drive，不取業務寫入鎖 |
 | `getBattleRecord` | battles、battle_players、battle_links、requests；includeTeamContext 時追加 lineup_versions | 無 | 讀；同次快照帶最小分團對應，不讀 Drive／不占寫入鎖 |
 | `getBattleTeamAnalysis` | battles、battle_players、battle_links、lineup_versions、requests | 無 | 讀；分析計算不需持寫入鎖 |
 | `getMemberBattleRecords` | members、professions、battles、battle_players、battle_links | 無 | 讀；摘要與明細使用同次快照 |
