@@ -4,6 +4,7 @@ import { VCardText, VCardActions, VSpacer } from 'vuetify/components';
 import DataLoading from '../components/DataLoading.vue';
 import { battleDateLabel, battleRoundLabel, sortBattlePlayers } from '../domain/battle-statistics.js';
 import { ATTACK_ANALYSIS_METRICS, DEFENSE_ANALYSIS_METRICS, defenseComparisonGroups } from '../domain/team-battle-analysis.js';
+import { ANALYSIS_ASSIGNMENT_OPTIONS, applyAnalysisAssignments } from '../domain/analysis-assignments.js';
 
 const TeamComparisonCharts = defineAsyncComponent({ loader: () => import('../components/TeamComparisonCharts.vue'), loadingComponent: DataLoading, delay: 0 });
 const props = defineProps({ modelValue: Boolean, record: { type: Object, required: true },
@@ -15,7 +16,10 @@ const firstPair = ref(['defense1', 'defense2']);
 const sortKey = ref(null), sortDirection = ref('desc');
 const unclassifiedSort = ref(null), unclassifiedDirection = ref('asc');
 const comparisonTables = [{ key: 'value', label: '數值' }, { key: 'wholePercent', label: '占全場％' }];
-const data = computed(() => props.analysis);
+const assignments = ref({});
+const assignmentOptions = [{ title: '保持未分類', value: null }, ...ANALYSIS_ASSIGNMENT_OPTIONS];
+const data = computed(() => applyAnalysisAssignments(props.analysis, assignments.value));
+const manualCount = computed(() => Object.keys(assignments.value).length);
 const current = computed(() => data.value?.sides[side.value]);
 const groups = computed(() => current.value?.groups.filter(group => group.attack === (props.mode === 'attack')) || []);
 const group = computed(() => groups.value.find(item => item.id === tab.value));
@@ -28,7 +32,8 @@ const sortedRows = computed(() => sortKey.value ? sortBattlePlayers(rows.value.m
 })), side.value, sortKey.value, sortDirection.value) : rows.value);
 const pageRows = computed(() => sortedRows.value.slice((page.value - 1) * 20, page.value * 20));
 const unclassified = computed(() => current.value?.unclassified || []);
-const sortedUnclassified = computed(() => unclassifiedSort.value ? sortBattlePlayers(unclassified.value.map(row => ({ ...row, side: side.value, player: row.name })), side.value, unclassifiedSort.value, unclassifiedDirection.value) : unclassified.value);
+const assignmentCandidates = computed(() => props.analysis?.sides[side.value].unclassified || []);
+const sortedUnclassified = computed(() => unclassifiedSort.value ? sortBattlePlayers(assignmentCandidates.value.map(row => ({ ...row, side: side.value, player: row.name })), side.value, unclassifiedSort.value, unclassifiedDirection.value) : assignmentCandidates.value);
 const unclassifiedRows = computed(() => sortedUnclassified.value.slice((unclassifiedPage.value - 1) * 20, unclassifiedPage.value * 20));
 const sideOptions = computed(() => [
   { title: `紅方 · ${props.record.redTeam}`, value: 'red' },
@@ -48,6 +53,15 @@ function sortUnclassified(key) {
   unclassifiedSort.value = key;
   unclassifiedPage.value = 1;
 }
+function assignPlayer(playerIndex, target) {
+  if (!assignmentCandidates.value.some(row => row.playerIndex === playerIndex) ||
+      (target !== null && !ANALYSIS_ASSIGNMENT_OPTIONS.some(item => item.value === target))) return;
+  const next = { ...assignments.value };
+  if (target === null) delete next[playerIndex];
+  else next[playerIndex] = target;
+  assignments.value = next;
+}
+watch(() => props.analysis, () => { assignments.value = {}; unclassifiedPage.value = 1; });
 const unclassifiedAriaSort = key => unclassifiedSort.value === key ? (unclassifiedDirection.value === 'asc' ? 'ascending' : 'descending') : 'none';
 const ariaSort = key => sortKey.value === key ? (sortDirection.value === 'asc' ? 'ascending' : 'descending') : 'none';
 const sortLabel = (label, key) => `${label}，${sortKey.value === key ? (sortDirection.value === 'asc' ? '目前升冪，點擊降冪' : '目前降冪，點擊升冪') : '點擊排序'}`;
@@ -74,6 +88,7 @@ watch([side, tab, sortKey, sortDirection], () => { page.value = 1; unclassifiedP
         <template v-else>
           <v-alert v-if="data.unavailable" type="info" variant="tonal" class="mb-4">{{ data.unavailable }}</v-alert>
           <p v-else class="battle-view-muted mb-4">依詳情載入時的最後儲存排表分團（{{ battleDateLabel(data.lineup.savedAt) }}）。排表另有更新時，請重新載入詳情。</p>
+          <p class="battle-view-muted mb-4" role="status">臨時分隊 {{ manualCount }} 人，僅供這次分析；進攻／防守共用，重新載入詳情或離開頁面後清除。</p>
           <div class="team-analysis-controls">
             <v-select v-model="side" :items="sideOptions" label="分析陣營" hide-details />
             <p class="battle-view-muted">團內％＝個人數值 ÷ 所屬團總值；全場％＝個人數值 ÷ 同陣營全部玩家合計（含未歸類）。</p>
@@ -81,6 +96,7 @@ watch([side, tab, sortKey, sortDirection], () => { page.value = 1; unclassifiedP
           <v-tabs v-model="tab" color="primary" :aria-label="mode === 'attack' ? '進攻分析分頁' : '防守分析分頁'" class="my-4">
             <v-tab :id="`${id}-comparison-tab`" value="comparison" :aria-controls="`${id}-comparison-panel`">{{ mode === 'attack' ? '團比較' : '團分析' }}</v-tab>
             <v-tab v-for="item in groups" :id="`${id}-${item.id}-tab`" :key="item.id" :value="item.id" :aria-controls="`${id}-${item.id}-panel`">{{ item.name }}{{ mode === 'attack' ? '個人明細' : '' }}（{{ item.rows.length }}）</v-tab>
+            <v-tab :id="`${id}-assignments-tab`" value="assignments" :aria-controls="`${id}-assignments-panel`">未分類設定</v-tab>
           </v-tabs>
           <div :id="`${id}-${tab}-panel`" role="tabpanel" :aria-labelledby="`${id}-${tab}-tab`">
             <template v-if="tab === 'comparison'">
@@ -107,13 +123,37 @@ watch([side, tab, sortKey, sortDirection], () => { page.value = 1; unclassifiedP
                 <h3 class="team-analysis-section-title">{{ mode === 'attack' ? '兩團指標占比' : '配對指標占比' }}</h3>
                 <TeamComparisonCharts v-if="modelValue" :groups="comparedGroups" :metrics="metrics" />
               </template>
-              <details v-if="unclassified.length" class="team-unclassified mt-4">
-                <summary>未歸類（{{ unclassified.length }} 人）：查看原因</summary>
-                <p class="battle-view-muted">未歸類仍列入同陣營全場分母，不填入任何團或隊。</p>
-                <div class="battle-view-scroll" tabindex="0" aria-label="未歸類玩家與原因"><table class="battle-view-table"><thead><tr><th scope="col" :aria-sort="unclassifiedAriaSort(unclassifiedSort === 'profession' ? 'profession' : 'player')"><button v-for="[label, key] in [['姓名', 'player'], ['職業', 'profession']]" :key="key" type="button" class="team-analysis-sort" :aria-label="`按${label}排序未歸類玩家`" @click="sortUnclassified(key)">{{ label }} {{ unclassifiedSort === key ? (unclassifiedDirection === 'asc' ? '↑' : '↓') : '↕' }}</button></th><th scope="col" :aria-sort="unclassifiedAriaSort('reason')"><button type="button" class="team-analysis-sort" aria-label="按原因排序未歸類玩家" @click="sortUnclassified('reason')">原因 {{ unclassifiedSort === 'reason' ? (unclassifiedDirection === 'asc' ? '↑' : '↓') : '↕' }}</button></th></tr></thead><tbody><tr v-for="row in unclassifiedRows" :key="row.playerIndex"><th scope="row">{{ row.name }}<span class="team-analysis-percent">{{ row.profession }}</span></th><td>{{ row.reason }}</td></tr></tbody></table></div>
-                <v-pagination v-if="unclassified.length > 20" v-model="unclassifiedPage" :length="Math.ceil(unclassified.length / 20)" :total-visible="4" aria-label="未歸類玩家分頁" />
-              </details>
+              <p v-if="assignmentCandidates.length" class="battle-view-muted mt-4">目前仍有 {{ unclassified.length }} 位未分類玩家，包含在全場分母；可至「未分類設定」指定臨時團／隊。</p>
             </template>
+            <section v-else-if="tab === 'assignments'" aria-label="未分類玩家臨時分隊">
+              <div class="team-assignment-heading">
+                <h3 class="team-analysis-section-title">未分類設定</h3>
+                <v-btn variant="text" :disabled="!manualCount" @click="assignments = {}">清除全部臨時分隊</v-btn>
+              </div>
+              <p class="battle-view-muted mb-4">僅列原本未分類的玩家。選擇後立即更新比較表、個人明細與圖表，不修改排表或戰績；選「保持未分類」可還原。已指定的人仍留在這裡供調整。</p>
+              <p v-if="!assignmentCandidates.length" class="battle-view-state" role="status">本陣營沒有需要設定的未分類玩家。</p>
+              <template v-else>
+                <p class="battle-view-muted mb-3">本陣營原未分類 {{ assignmentCandidates.length }} 人 · 尚未指定 {{ unclassified.length }} 人</p>
+                <div class="battle-view-scroll" tabindex="0" aria-label="未分類玩家與臨時團隊設定，可橫向捲動">
+                  <table class="battle-view-table team-assignment-table">
+                    <caption class="sr-only">原未分類玩家、原因及臨時團隊</caption>
+                    <thead><tr>
+                      <th scope="col" :aria-sort="unclassifiedAriaSort(unclassifiedSort === 'profession' ? 'profession' : 'player')"><button v-for="[label, key] in [['姓名', 'player'], ['職業', 'profession']]" :key="key" type="button" class="team-analysis-sort" :aria-label="`按${label}排序未歸類玩家`" @click="sortUnclassified(key)">{{ label }} {{ unclassifiedSort === key ? (unclassifiedDirection === 'asc' ? '↑' : '↓') : '↕' }}</button></th>
+                      <th scope="col" :aria-sort="unclassifiedAriaSort('reason')"><button type="button" class="team-analysis-sort" aria-label="按原因排序未歸類玩家" @click="sortUnclassified('reason')">原未分類原因 {{ unclassifiedSort === 'reason' ? (unclassifiedDirection === 'asc' ? '↑' : '↓') : '↕' }}</button></th>
+                      <th scope="col">臨時團／隊</th>
+                    </tr></thead>
+                    <tbody><tr v-for="row in unclassifiedRows" :key="row.playerIndex">
+                      <th scope="row">{{ row.name }}<span class="team-analysis-percent">{{ row.profession }}</span></th>
+                      <td>{{ row.reason }}</td>
+                      <td><v-select :model-value="assignments[row.playerIndex] || null" :items="assignmentOptions"
+                        :label="`${row.name} 的臨時團／隊`" variant="outlined" hide-details
+                        @update:model-value="assignPlayer(row.playerIndex, $event)" /></td>
+                    </tr></tbody>
+                  </table>
+                </div>
+                <v-pagination v-if="assignmentCandidates.length > 20" v-model="unclassifiedPage" :length="Math.ceil(assignmentCandidates.length / 20)" :total-visible="4" aria-label="未歸類玩家分頁" />
+              </template>
+            </section>
             <template v-else-if="group">
               <p class="battle-view-muted mb-4">{{ group.name }} {{ rows.length }} 人 · 本陣營 {{ current.count }} 人</p>
               <p v-if="!rows.length" class="battle-view-state">本團沒有對應到本場戰績的玩家。</p>
@@ -158,6 +198,11 @@ watch([side, tab, sortKey, sortDirection], () => { page.value = 1; unclassifiedP
 .team-analysis-sort { display: inline-flex; align-items: center; gap: 4px; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; padding: 6px 0; min-height: 44px; }
 .team-analysis-sort + .team-analysis-sort { margin-left: 8px; }
 .team-analysis-sort span { color: var(--color-primary); }
+.team-assignment-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.team-assignment-heading h3 { margin: 0; }
+.team-assignment-table { min-width: 740px; }
+.team-assignment-table th:first-child { min-width: 170px; }
+.team-assignment-table td:last-child { min-width: 250px; }
 .team-analysis-summary th:first-child { background: var(--color-muted-surface); }
 .team-analysis-actions { justify-content: flex-end; border-top: 1px solid var(--color-border); padding: 16px 24px; }
 @media (max-width: 767px) {
@@ -170,5 +215,4 @@ watch([side, tab, sortKey, sortDirection], () => { page.value = 1; unclassifiedP
 .defense-pair-controls { border: 1px solid var(--color-border); border-radius: 12px; padding: 16px; margin-bottom: 24px; }
 .defense-pair-controls label { display: inline-flex; align-items: center; gap: 8px; margin-right: 20px; min-height: 44px; }
 .defense-pair-controls input { width: 22px; height: 22px; }
-.team-unclassified summary { cursor: pointer; padding: 12px 0; }
 </style>
