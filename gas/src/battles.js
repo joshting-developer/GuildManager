@@ -7,6 +7,7 @@ import {
 import { summarizePersonalBattles } from '../../src/domain/personal-battle-statistics.js';
 import { analyzeBattleTeams, battleTeamContext, includeBattleTeamContext } from '../../src/domain/team-battle-analysis.js';
 import { battleEditingMetadata, validateBattleMetadata } from '../../src/domain/battle-metadata.js';
+import { validateBattleAttributions, applyBattleAttributions } from '../../src/domain/battle-attributions.js';
 import {
   validatePersonalBattleFilters,
   filterPersonalBattles,
@@ -78,6 +79,12 @@ export function createBattles(store, catalog, { uuid, now, files, prepareOnly = 
     return { name, mimeType: input.mimeType, base64: input.base64 };
   }
   return {
+    getBattleUploadRoster() {
+      const professions = new Map(store.all('professions').map(value => [value.job_id, value.name]));
+      return { members: store.all('members').map(({ uid, name, revision, isInGuild, isInClub, primaryProfessionId }) => ({
+        uid, name, revision, isInGuild: Boolean(isInGuild), isInClub: Boolean(isInClub), profession: professions.get(primaryProfessionId) || '未記錄',
+      })).sort((a, b) => a.name.localeCompare(b.name) || a.uid.localeCompare(b.uid)) };
+    },
     getBattleRecords([page = 1, eventId = null]) {
       pageNumber(page);
       if (eventId !== null) text(eventId, '場次', 64);
@@ -217,6 +224,7 @@ export function createBattles(store, catalog, { uuid, now, files, prepareOnly = 
         )
           fail('BATTLE_INVALID', '約戰與幫戰只能第一／第二場，龍虎戰只有一場且需關聯活動');
         const parsed = parseBattleCsv(record.csvText);
+        const attributions = validateBattleAttributions(record.attributions, parsed.players);
         return {
           eventId,
           roundNumber,
@@ -230,6 +238,7 @@ export function createBattles(store, catalog, { uuid, now, files, prepareOnly = 
           filename,
           csvText: record.csvText,
           players: parsed.players,
+          ...(attributions.length ? { attributions } : {}),
         };
       });
       return retry(
@@ -267,7 +276,7 @@ export function createBattles(store, catalog, { uuid, now, files, prepareOnly = 
                 fail('BATTLE_ROUND_EXISTS', '這一場已有戰績，請查看已上傳資料');
               rounds.add(key);
             }
-            const { csvText, filename, ...content } = record,
+            const { csvText, filename, attributions, ...content } = record,
               contentHash = hash(canonical(content));
             if (
               contents.has(contentHash) ||
@@ -277,33 +286,39 @@ export function createBattles(store, catalog, { uuid, now, files, prepareOnly = 
             contents.add(contentHash);
             return { record, event, contentHash };
           });
+          const members = prepareOnly && !records.some(record => record.attributions?.length)
+            ? [] : store.all('members');
+          const byUid = new Map(members.map(member => [member.uid, member]));
+          for (const value of prepared)
+            value.attribution = applyBattleAttributions(value.record.players, value.record.attributions || [], byUid);
           if (prepareOnly) return {
             csvFiles: prepared.map(({ record }) => ({ name: record.filename, csv: record.csvText })),
             image: attachment,
             records,
           };
           const names = new Map();
-          for (const member of store.all('members')) {
+          for (const member of members) {
             if (!names.has(member.name)) names.set(member.name, []);
             names.get(member.name).push(member.uid);
           }
           const imageFileId = attachment ? files.createBase64(attachment) : null;
-          const saved = prepared.map(({ record, event, contentHash }) => {
+          const saved = prepared.map(({ record, event, contentHash, attribution }) => {
             const id = uuid(),
               csvFileId = files.createCsv(record.filename, record.csvText);
-            const players = record.players.map((player, index) => {
+            const players = attribution.players.map((player, index) => {
               const matches = names.get(player.player) || [];
-              if (matches.length === 1) {
+              const targetUid = attribution.targets.get(index)?.uid || (matches.length === 1 ? matches[0] : null);
+              if (targetUid) {
                 store.put('battle_links', `${id}:${index}`, {
                   recordId: id,
                   playerIndex: index,
-                  memberUid: matches[0],
+                  memberUid: targetUid,
                 });
-                return { ...player, memberUid: matches[0] };
+                return { ...player, memberUid: targetUid };
               }
               return player;
             });
-            const { csvText, players: rawPlayers, ...value } = record;
+            const { csvText, players: rawPlayers, attributions, ...value } = record;
             const saved = {
               ...value,
               id,

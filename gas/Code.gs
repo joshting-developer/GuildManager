@@ -260,6 +260,10 @@ function getBattleRecords(page, eventId, context) {
   return GuildGas.rpc('getBattleRecords', [page, eventId], context);
 }
 
+function getBattleUploadRoster(context) {
+  return GuildGas.rpc('getBattleUploadRoster', [], context);
+}
+
 function getBattleRecord(id, options, context) {
   // Older clients pass their session as the second argument.
   if (context === undefined && options && typeof options === 'object' &&

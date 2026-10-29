@@ -39,6 +39,23 @@ export function createBattleRecordClient({
     return data;
   }
   return {
+    async getUploadRoster() {
+      let data;
+      if (source === 'gas') data = await callGas('getBattleUploadRoster', [], googleRun);
+      else {
+        let response;
+        try { response = await fetchImpl('/api/battle-upload/roster'); }
+        catch { throw new Error('名冊讀取失敗，請確認連線後重試'); }
+        try { data = await response.json(); }
+        catch { throw new Error('名冊格式不正確，請重試'); }
+        if (!response.ok) throw Object.assign(new Error(data.error?.message || '名冊讀取失敗，請重試'), { code: data.error?.code });
+      }
+      if (!Array.isArray(data?.members) || data.members.some(member => !member || typeof member.uid !== 'string' ||
+          !member.uid || typeof member.name !== 'string' || !Number.isSafeInteger(member.revision) || member.revision < 1 ||
+          typeof member.isInGuild !== 'boolean' || typeof member.isInClub !== 'boolean' || typeof member.profession !== 'string'))
+        throw new Error('名冊格式不正確，請重試');
+      return data;
+    },
     getRecords: (page = 1, eventId = null) =>
       call(
         'getBattleRecords',

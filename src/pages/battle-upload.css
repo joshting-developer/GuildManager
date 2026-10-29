@@ -209,9 +209,12 @@
   min-width: 1050px;
   font-variant-numeric: tabular-nums;
 }
-.battle-player-table td:nth-child(n + 4) {
+.battle-player-table td:nth-child(n + 5) {
   text-align: right;
 }
+.battle-attribution-name { min-width: 200px; }
+.battle-attribution-name .v-btn { display: flex; min-height: 44px; }
+.battle-roster-status { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
 .battle-data-downloads {
   display: flex;
   gap: 12px;

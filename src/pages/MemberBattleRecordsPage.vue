@@ -1,5 +1,6 @@
 <script setup>
 import DataLoading from '../components/DataLoading.vue';
+import { battlePlayerName } from '../domain/battle-attributions.js';
 import { ref, shallowRef, computed, watch, onUnmounted, defineAsyncComponent } from 'vue';
 import { mdiClose, mdiChartLine } from '@mdi/js';
 import { createMemberClient } from '../api/members.js';
@@ -299,7 +300,7 @@ onUnmounted(() => { disposed = true; version++; });
                 {{ entry.player.side === 'red' ? '紅方' : '藍方' }} · {{ resultLabel(entry) }}
                 <p class="battle-view-muted">{{ entry.redTeam }} 對 {{ entry.blueTeam }}</p>
               </td>
-              <td>{{ entry.player.player }}</td>
+              <td>{{ battlePlayerName(entry.player) }}<p v-if="entry.player.creditedName" class="battle-view-muted">原角色：{{ entry.player.player }}</p></td>
               <td>{{ entry.player.profession }}</td>
               <td v-for="[, key] in BATTLE_TABLE_COLUMNS.slice(2).filter(([, key]) => key !== 'resource')" :key="key" class="numeric">
                 {{ numberLabel(battlePlayerValue(entry.player, key, tableMode)) }}

@@ -10,6 +10,7 @@ import { analyzeBattleTeams, battleTeamContext, includeBattleTeamContext } from 
 import { uniqueNewMemberNames } from '../src/domain/battle-member-links.js';
 import { planBattleMemberSync, publicBattleSyncPlan, validateBattleSyncInput } from '../src/domain/battle-member-sync.js';
 import { battleEditingMetadata, validateBattleMetadata } from '../src/domain/battle-metadata.js';
+import { validateBattleAttributions, applyBattleAttributions } from '../src/domain/battle-attributions.js';
 import {
   validatePersonalBattleFilters,
   filterPersonalBattles,
@@ -175,6 +176,12 @@ export function createBattleRecordRepository(db, { project = (_kind, _id, value)
     return row ? { ...project('lineup', row.id, JSON.parse(row.snapshot_json)), createdAt: row.created_at } : null;
   }
   return {
+    getBattleUploadRoster() {
+      return { members: db.prepare(`SELECT m.uid, m.name, m.revision,
+        m.is_in_guild AS isInGuild, m.is_in_club AS isInClub, COALESCE(p.name, '未記錄') AS profession
+        FROM members m LEFT JOIN professions p ON p.job_id=m.primary_profession_id ORDER BY m.name, m.uid`)
+        .all().map(member => ({ ...member, isInGuild: Boolean(member.isInGuild), isInClub: Boolean(member.isInClub) })) };
+    },
     previewBattleMemberSync() {
       return db.transaction(() => {
         const plan = syncPlan();
@@ -405,6 +412,7 @@ export function createBattleRecordRepository(db, { project = (_kind, _id, value)
         )
           throw new BattleRecordError('約戰與幫戰只能第一場／第二場, 龍虎戰只有一場且需關聯活動');
         const parsed = parseBattleCsv(record.csvText);
+        const attributions = validateBattleAttributions(record.attributions, parsed.players);
         return {
           eventId: record.eventId || null,
           type: record.type,
@@ -415,6 +423,7 @@ export function createBattleRecordRepository(db, { project = (_kind, _id, value)
           filename,
           csvText: record.csvText,
           players: parsed.players,
+          ...(attributions.length ? { attributions } : {}),
           ...(record.roundNumber !== undefined ? { roundNumber: record.roundNumber } : {}),
           ...(record.ourSide ? { ourSide: record.ourSide } : {}),
           ...(record.isInternal ? { isInternal: true } : {}),
@@ -489,7 +498,7 @@ export function createBattleRecordRepository(db, { project = (_kind, _id, value)
                 'BATTLE_ROUND_EXISTS',
               );
           }
-          const { filename, csvText, ...content } = record;
+          const { filename, csvText, attributions, ...content } = record;
           const contentHash = hash(JSON.stringify(content));
           if (db.prepare('SELECT id FROM battle_records WHERE content_hash=?').get(contentHash))
             throw new BattleRecordError(
@@ -501,6 +510,14 @@ export function createBattleRecordRepository(db, { project = (_kind, _id, value)
         });
         if (new Set(prepared.map((row) => row.contentHash)).size !== prepared.length)
           throw new BattleRecordError('本次有重複的戰績, 請移除重複 CSV');
+        const members = db.prepare('SELECT uid, name, revision FROM members').all();
+        const byUid = new Map(members.map(member => [member.uid, member])), byName = new Map();
+        for (const member of members) {
+          if (!byName.has(member.name)) byName.set(member.name, []);
+          byName.get(member.name).push(member.uid);
+        }
+        for (const value of prepared)
+          value.attribution = applyBattleAttributions(value.record.players, value.record.attributions || [], byUid);
         const uploadId = randomUUID(),
           now = new Date().toISOString();
         db.prepare(
@@ -515,7 +532,7 @@ export function createBattleRecordRepository(db, { project = (_kind, _id, value)
           now,
         );
         const ids = [];
-        for (const { record, event, contentHash } of prepared) {
+        for (const { record, event, contentHash, attribution } of prepared) {
           const id = randomUUID();
           ids.push(id);
           db.prepare(
@@ -532,20 +549,20 @@ export function createBattleRecordRepository(db, { project = (_kind, _id, value)
             record.winner,
             record.filename,
             record.csvText,
-            JSON.stringify(record.players),
+            JSON.stringify(attribution.players),
             contentHash,
             now,
             record.roundNumber ?? null,
             record.ourSide ?? null,
             record.isInternal ? 1 : 0,
           );
-          const findMember = db.prepare('SELECT uid FROM members WHERE name = ?');
           const insertLink = db.prepare(
             'INSERT INTO battle_player_links (record_id, player_index, member_uid) VALUES (?, ?, ?)',
           );
           record.players.forEach((player, index) => {
-            const matches = findMember.all(player.player);
-            if (matches.length === 1) insertLink.run(id, index, matches[0].uid);
+            const target = attribution.targets.get(index);
+            const matches = byName.get(player.player) || [];
+            if (target || matches.length === 1) insertLink.run(id, index, target?.uid || matches[0]);
           });
         }
         return { records: ids.map(get) };

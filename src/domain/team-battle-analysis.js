@@ -1,4 +1,5 @@
 import { BattleRecordError } from './battle-records.js';
+import { battlePlayerName } from './battle-attributions.js';
 
 export const TEAM_ANALYSIS_GROUPS = [
   { id: 'attack1', name: '進攻1', teams: ['attack-1', 'attack-2', 'attack-3'], attack: true },
@@ -121,7 +122,7 @@ function summarizeMatches(record, lineup, unavailable, matched, groups) {
     const entries = matched.filter((row) => row.player.side === side);
     const whole = totals(entries.map((row) => row.player));
     const publicRow = (entry, groupTotals) => ({
-      playerIndex: entry.playerIndex, name: entry.player.player, profession: entry.player.profession,
+      playerIndex: entry.playerIndex, name: battlePlayerName(entry.player), profession: entry.player.profession,
       teamName: entry.assignment?.teamName || null,
       reason: entry.assignment ? null : entry.reason,
       metrics: Object.fromEntries(keys.map((key) => {

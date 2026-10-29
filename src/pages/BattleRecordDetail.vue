@@ -1,5 +1,6 @@
 <script setup>
 import DataLoading from '../components/DataLoading.vue';
+import { battlePlayerName } from '../domain/battle-attributions.js';
 import { computed, inject, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue';
 import {
   mdiArrowLeft,
@@ -428,10 +429,11 @@ onUnmounted(() => {
                 <a
                   v-if="player.memberUid"
                   :href="`#/member-records/${encodeURIComponent(player.memberUid)}`"
-                  :aria-label="`查看 ${player.player} 的個人戰績`"
-                  >{{ player.player }}</a
+                  :aria-label="`查看 ${battlePlayerName(player)} 的個人戰績`"
+                  >{{ battlePlayerName(player) }}</a
                 >
-                <span v-else>{{ player.player || '—' }}</span>
+                <span v-else>{{ battlePlayerName(player) }}</span>
+                <p v-if="player.creditedName" class="battle-view-muted">原角色：{{ player.player }}</p>
               </td>
               <td>
                 <span class="battle-profession-cell"

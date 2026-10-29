@@ -1,12 +1,13 @@
 <script setup>
 import DataLoading from '../components/DataLoading.vue';
-import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, inject, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue';
 import { VSwitch } from 'vuetify/components';
 import {
   mdiFileUploadOutline,
   mdiFileDelimitedOutline,
   mdiDeleteOutline,
   mdiDownload,
+  mdiPencilOutline,
 } from '@mdi/js';
 import { createBattleRecordClient } from '../api/battle-records.js';
 import { createEventClient } from '../api/events.js';
@@ -21,6 +22,8 @@ import { battleEventLabel, isBattleEvent, orderBattleEvents } from '../domain/ba
 import { isWanColumn, statCell } from '../domain/number-format.js';
 import './battle-upload.css';
 import BattleMetadataDialog from './BattleMetadataDialog.vue';
+import BattleAttributionDialog from './BattleAttributionDialog.vue';
+import { memberAffiliation, battlePlayerName, battlePlayerMember, battleRosterIndex } from '../domain/battle-attributions.js';
 const props = defineProps({ initialEventId: { type: String, default: null } });
 
 const source = import.meta.env.VITE_DATA_SOURCE || 'local';
@@ -28,6 +31,38 @@ const client = createBattleRecordClient({ source }),
   eventClient = createEventClient({ source });
 const csvInputs = {};
 const files = ref([]);
+const roster = shallowRef([]), rosterLoading = ref(true), rosterError = ref('');
+const rosterIndex = computed(() => battleRosterIndex(roster.value));
+const attributionDrafts = ref({}), editingPlayer = shallowRef(null);
+const fileKey = file => `${file.roundNumber}:${file.id}`;
+let rosterToken = 0;
+async function loadRoster() {
+  const current = ++rosterToken;
+  rosterLoading.value = true;
+  rosterError.value = '';
+  try {
+    const result = await client.getUploadRoster();
+    if (!disposed && current === rosterToken) roster.value = result.members;
+  } catch (cause) {
+    if (!disposed && current === rosterToken) rosterError.value = cause.message;
+  } finally {
+    if (!disposed && current === rosterToken) rosterLoading.value = false;
+  }
+}
+function editAttribution(row) {
+  if (busy.value || rosterLoading.value || rosterError.value || !previewSlot.value?.file || previewSlot.value.saved) return;
+  const key = fileKey(previewSlot.value.file);
+  editingPlayer.value = { ...row, key };
+}
+function applyAttribution(member) {
+  const editing = editingPlayer.value;
+  if (!editing || busy.value || !files.value.some(file => fileKey(file) === editing.key)) return;
+  const values = { ...(attributionDrafts.value[editing.key] || {}) };
+  if (member) values[editing.playerIndex] = { playerIndex: editing.playerIndex, sourcePlayer: editing.player.player,
+    sourceSide: editing.player.side, memberUid: member.uid, memberName: member.name, memberRevision: member.revision };
+  else delete values[editing.playerIndex];
+  attributionDrafts.value[editing.key] = values;
+}
 const internalRounds = ref({ 1: false, 2: false });
 const reading = ref(false),
   saving = ref(false),
@@ -144,6 +179,27 @@ const previewPlayers = computed(
   () =>
     previewRecord.value?.players.slice((previewPage.value - 1) * 20, previewPage.value * 20) || [],
 );
+const previewAttributions = computed(() => previewSlot.value?.file && !previewSlot.value.saved
+  ? attributionDrafts.value[fileKey(previewSlot.value.file)] || {} : {});
+const previewPeople = computed(() => previewPlayers.value.map((player, index) => {
+  const playerIndex = (previewPage.value - 1) * 20 + index;
+  const attribution = previewAttributions.value[playerIndex];
+  const member = battlePlayerMember(player, attribution, rosterIndex.value);
+  const requiresReview = attribution && (!member || member.name !== attribution.memberName || member.revision !== attribution.memberRevision);
+  return { player, playerIndex, attribution, name: attribution?.memberName || battlePlayerName(player),
+    affiliation: rosterLoading.value ? '辨識中' : rosterError.value ? '未確認' : requiresReview ? '歸屬待確認' : memberAffiliation(member),
+    ambiguous: !attribution && !player.memberUid && (rosterIndex.value.byName.get(player.player)?.length || 0) > 1 };
+}));
+const duplicateAttributions = computed(() => {
+  if (rosterLoading.value || rosterError.value || previewSlot.value?.saved) return false;
+  const seen = new Set();
+  for (const [index, player] of (previewRecord.value?.players || []).entries()) {
+    const member = battlePlayerMember(player, previewAttributions.value[index], rosterIndex.value);
+    if (member && seen.has(member.uid)) return true;
+    if (member) seen.add(member.uid);
+  }
+  return false;
+});
 watch(
   () => [previewRound.value, previewRecord.value],
   () => {
@@ -190,6 +246,7 @@ function sideLabel(side, ourSide) {
   return ourSide ? `${label}（${side === ourSide ? '我方' : '敵方'}）` : label;
 }
 function removeFile(id) {
+  for (const file of files.value.filter(file => file.id === id)) delete attributionDrafts.value[fileKey(file)];
   files.value = files.value.filter((file) => file.id !== id);
   fileError.value = '';
   error.value = '';
@@ -202,6 +259,8 @@ function changeEvent(value) {
   )
     return;
   files.value = [];
+  attributionDrafts.value = {};
+  editingPlayer.value = null;
   attempt = null;
   fileError.value = '';
   error.value = '';
@@ -290,6 +349,8 @@ async function addFiles(incoming, roundNumber) {
           winner: null,
           ourSide: null,
         };
+        for (const previous of files.value.filter(file => file.roundNumber === roundNumber))
+          delete attributionDrafts.value[fileKey(previous)];
         files.value = [...files.value.filter((file) => file.roundNumber !== roundNumber), row].sort(
           (a, b) => a.roundNumber - b.roundNumber,
         );
@@ -365,7 +426,7 @@ async function submit(roundNumber = null) {
   try {
     const input = {
       records: pendingFiles.map(
-        ({ filename, csvText, roundNumber, redTeam, blueTeam, winner, ourSide }) => ({
+        ({ id, filename, csvText, roundNumber, redTeam, blueTeam, winner, ourSide }) => ({
           filename,
           csvText,
           datetime: selectedEvent.value.dates[0],
@@ -383,6 +444,8 @@ async function submit(roundNumber = null) {
           isInternal: selectedEvent.value.type === 'scrimmage' && internalRounds.value[roundNumber],
           type: selectedEvent.value.type,
           eventId: selectedEvent.value.id,
+          ...(Object.keys(attributionDrafts.value[`${roundNumber}:${id}`] || {}).length
+            ? { attributions: Object.values(attributionDrafts.value[`${roundNumber}:${id}`]).sort((a, b) => a.playerIndex - b.playerIndex) } : {}),
         }),
       ),
       image: null,
@@ -403,6 +466,7 @@ async function submit(roundNumber = null) {
     files.value = files.value.filter(
       (file) => !pendingFiles.some((pending) => pending.roundNumber === file.roundNumber),
     );
+    for (const file of pendingFiles) delete attributionDrafts.value[fileKey(file)];
     attempt = null;
     fileError.value = '';
     notice.value = `上傳成功, 已保存 ${result.records.length} 筆戰績`;
@@ -478,9 +542,11 @@ async function download(record, kind) {
 onMounted(() => {
   window.addEventListener('beforeunload', leaveWarning);
   loadEvents();
+  loadRoster();
 });
 onUnmounted(() => {
   disposed = true;
+  rosterToken++;
   roundsToken++;
   unregisterGuard?.();
   window.removeEventListener('beforeunload', leaveWarning);
@@ -735,6 +801,18 @@ onUnmounted(() => {
         >
       </v-alert>
       <template v-else-if="previewRecord">
+        <p v-if="rosterLoading" class="battle-muted" role="status">正在背景載入名冊，戰績預覽仍可使用…</p>
+        <v-alert v-else-if="rosterError" type="warning" variant="tonal" role="alert" class="mb-4">
+          名冊未確認：{{ rosterError }}。可繼續預覽或依原角色上傳。
+          <v-btn variant="text" :disabled="busy" @click="loadRoster">重試名冊</v-btn>
+        </v-alert>
+        <div v-else class="battle-roster-status">
+          <span class="battle-muted">身分依目前名冊辨識；未匹配不代表外援。</span>
+          <v-btn variant="text" :disabled="busy" @click="loadRoster">重新載入名冊</v-btn>
+        </div>
+        <v-alert v-if="duplicateAttributions" type="warning" variant="tonal" class="mb-4">
+          有成員對應本場多列數據，會逐列計入且不合併；請確認數據歸屬。
+        </v-alert>
         <div class="battle-preview-summary">
           <strong>{{ previewRecord.filename }}</strong>
           <p>{{ previewRecord.redTeam }} 對 {{ previewRecord.blueTeam }}</p>
@@ -756,24 +834,33 @@ onUnmounted(() => {
             </caption>
             <thead>
               <tr>
+                <th scope="col">身分</th>
                 <th scope="col">陣營</th>
                 <th v-for="[label, key] in BATTLE_COLUMNS" :key="key" scope="col">{{ label }}</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="(player, index) in previewPlayers" :key="index">
+              <tr v-for="row in previewPeople" :key="row.playerIndex">
+                <td><v-chip size="small" variant="tonal" :color="row.affiliation.startsWith('幫會') || row.affiliation === '俱樂部' ? 'primary' : undefined">{{ row.ambiguous && !rosterLoading && !rosterError ? '同名待確認' : row.affiliation }}</v-chip></td>
                 <td>
                   {{
-                    sideLabel(player.side, previewRecord.isInternal ? null : previewRecord.ourSide)
+                    sideLabel(row.player.side, previewRecord.isInternal ? null : previewRecord.ourSide)
                   }}
                 </td>
                 <td
                   v-for="[, key] in BATTLE_COLUMNS"
                   :key="key"
-                  :class="{ 'stat-empty': previewCell(player, key).empty }"
-                  :title="previewCell(player, key).title"
+                  :class="{ 'stat-empty': key !== 'player' && previewCell(row.player, key).empty, 'battle-attribution-name': key === 'player' }"
+                  :title="key !== 'player' ? previewCell(row.player, key).title : undefined"
                 >
-                  {{ previewCell(player, key).text }}
+                  <template v-if="key === 'player'">
+                    <span>{{ row.name }}</span>
+                    <p v-if="row.attribution || row.player.creditedName" class="battle-muted">原角色：{{ row.player.player }}</p>
+                    <v-btn v-if="!previewSlot.saved" variant="text" size="small" :prepend-icon="mdiPencilOutline"
+                      :disabled="busy || rosterLoading || !!rosterError" :aria-label="`調整 ${row.player.player} 的數據歸屬`"
+                      @click="editAttribution(row)">調整歸屬</v-btn>
+                  </template>
+                  <template v-else>{{ previewCell(row.player, key).text }}</template>
                 </td>
               </tr>
             </tbody>
@@ -840,4 +927,7 @@ onUnmounted(() => {
       >
     </div>
   </div>
+  <BattleAttributionDialog v-if="editingPlayer" :key="`${editingPlayer.key}:${editingPlayer.playerIndex}`"
+    :player="editingPlayer.player" :attribution="editingPlayer.attribution" :members="roster"
+    @apply="applyAttribution" @close="editingPlayer = null" />
 </template>
