@@ -84,7 +84,7 @@ export function summarizeBattle(players) {
 }
 
 export function battlePlayerValue(player, key, mode = 'total') {
-  const value = player[key] ?? null;
+  const value = (key === 'player' ? player.creditedName || player.player : player[key]) ?? null;
   if (mode !== 'per_life' || ['player', 'profession', 'seriousInjury'].includes(key)) return value;
   // An unknown injury count cannot provide a denominator; zero uses one as in NSHM_history.
   if (value == null || !Number.isFinite(player.seriousInjury)) return null;

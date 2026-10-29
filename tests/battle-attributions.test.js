@@ -6,6 +6,7 @@ import { createBattleRecordClient } from '../src/api/battle-records.js';
 import { fixtureCsv, gasRuntime, cloudResult, cloudSession } from './helpers/gas-runtime.js';
 import { authenticatedFetch } from './helpers/authenticated-fetch.js';
 import { parseBattleCsv } from '../src/domain/battle-records.js';
+import { battlePlayerValue, sortBattlePlayers } from '../src/domain/battle-statistics.js';
 import { memberAffiliation, battleRosterIndex, battlePlayerMember, validateBattleAttributions, applyBattleAttributions } from '../src/domain/battle-attributions.js';
 
 const A = { uid: 'A', name: '實際操作A', primaryProfessionId: 3, isInGuild: true, isInClub: false };
@@ -59,6 +60,13 @@ test('shared attribution validation and classification keep current-name matchin
   assert.equal(memberAffiliation(null), '未匹配');
   assert.equal(battlePlayerMember({ player: A.name }, null, index), null);
   assert.equal(battlePlayerMember(players[0], attribution(), index).uid, A.uid);
+  const renamed = { ...players[0], player: 'Z-account', creditedName: 'A-operator' };
+  const ordinary = { ...players[0], player: 'M-operator' };
+  assert.equal(battlePlayerValue(renamed, 'player', 'per_life'), 'A-operator');
+  assert.deepEqual(sortBattlePlayers([ordinary, renamed], 'red', 'player', 'asc'), [renamed, ordinary]);
+  assert.deepEqual(sortBattlePlayers([ordinary, renamed], 'red', 'player', 'desc'), [ordinary, renamed]);
+  assert.equal(battlePlayerValue({ side: 'red' }, 'player'), null);
+  assert.equal(renamed.player, 'Z-account');
   assert.deepEqual(validateBattleAttributions(undefined, players), []);
   for (const value of [null, {}, [attribution(), attribution()], [attribution({ playerIndex: -1 })],
     [attribution({ playerIndex: 999 })], [attribution({ sourceSide: 'blue' })], [attribution({ sourcePlayer: '偽造角色' })],
