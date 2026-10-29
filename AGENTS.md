@@ -6,10 +6,10 @@
 
 - 介面、文件與操作訊息使用繁體中文
 - 視覺參考相鄰專案 `../NSHM_history`, 本專案的具體規則以 [Style.md](Style.md) 為準
-- 已建立 Vuetify 首頁／成員管理／活動安排／戰場排表／戰績上傳／戰績閱覽、Docker 本機環境、SQLite 讀寫 API 與 GAS 單檔編譯流程。最新 v1.0.29（同步來源 c17d701）已於2026/10/29同步 GAS 並讀回四檔一致，包含行事曆／影片／對戰讀取改善、影片職業更正、上傳前數據歸屬及分析臨時分隊；尚未更新 Web App 部署。本輪未查詢或更新部署，實際狀態見 GASDeployment.md 及文末交接。
+- 已建立 Vuetify 首頁／成員管理／活動安排／戰場排表／戰績上傳／戰績閱覽、Docker 本機環境、SQLite 讀寫 API 與 GAS 單檔編譯流程。最新 v1.0.30（同步來源 5ddb9d7）已於2026/10/30同步 GAS 並讀回四檔一致，修正member戰鬥選單，沿用1.0.29的讀取改善、影片職業更正、數據歸屬及分析臨時分隊；尚未更新 Web App 部署。本輪未查詢或更新部署，實際狀態見 GASDeployment.md 及文末交接。
 - 使用者已確認本機使用 SQLite, 後期資料來源為 Google 試算表
-- GAS 最新同步程式為 v1.0.29（來源 c17d701），本批原 Unreleased 已整併定版，package／lockfile／正式更新紀錄為1.0.29，日期2026-10-29，沒有空白Unreleased。未 push Git／更新 Web App 部署；後續新改動再建立唯一Unreleased。Discord頻道輪詢與後台設定仍僅審查方案，未實作／安裝排程／修改正式設定。下方舊版待同步說明保留作歷史，以文末最新交接及 GASDeployment.md 為準。
-- 2026/10/30 本機修正以唯一Unreleased累積：member桌面保留戰鬥下拉且僅數據分析，修正單一戰鬥入口分組渲染失敗；刪除／編輯戰績仍限管理者並已驗證。package／lockfile仍1.0.29，尚未同步本次修正，正式GAS最新狀態以上列c17d701與GASDeployment.md為準。
+- GAS 最新同步程式為 v1.0.30（來源 5ddb9d7），本批原 Unreleased 已定版，package／lockfile／正式更新紀錄為1.0.30，日期2026-10-30，沒有空白Unreleased。未 push Git／更新 Web App 部署；後續新改動再建立唯一Unreleased。Discord頻道輪詢與後台設定仍僅審查方案，未實作／安裝排程／修改正式設定。下方舊版待同步說明保留作歷史，以文末最新交接及 GASDeployment.md 為準。
+- 2026/10/30 member桌面保留戰鬥下拉且僅數據分析（功能9f84741），已包含於1.0.30程式同步；排表／上傳對member隱藏，刪除／編輯戰績仍限管理者並已驗證。實際WebApp部署版本未查詢，不能把程式同步視為已對外發布。
 - 過往 v1.0.22 同步紀錄：本機及 GAS 當時均為 v1.0.22（導覽／顯示設定、場次預設、數字格式及影片閱覽網址超連結），本批已交付，不重複升版；後續新一批功能交付須遞增 patch。v1.0.21 已交付：個人戰績一次載入、預選最新十筆、勾選總覽及 ECharts 走勢抽屜，移除三顆批次勾選快捷按鈕；進攻／防守分析重用詳情資料，提供數值／占比兩表及互斥配對。保留 v1.0.20 只解碼最新版本與既有唯讀／鎖範圍及多人請假修正；本輪未 push Git／更新部署。正式戰績上傳原始失敗原因仍未確定，見文末交接。
 - 試算表 ID 已取得, 本機使用帳號密碼登入；正式工作表名稱與 Google 登入待確認, 本機角色為 admin／manager／member, 成員、職業、過去名稱及活動安排欄位已依需求實作於本機
 
@@ -1016,3 +1016,16 @@ VideoProfessionDialog 首次開啟才讀共用職業選項，不改原影片首�
 一般／GAS編譯及package／lockfile1.0.29、唯一Unreleased／date=null、四檔／單檔／台北時區通過。隔離Chrome /private/tmp/guild-member-battle-menu-preview/ 確認member桌面戰鬥可展開且只數據分析、清單／詳情／進攻分析可用、編輯／刪除按鈕不存在、直接GAS呼叫被拒且Sheets／Properties／檔案／通知不變；手機深色同分類且兩管理入口隱藏、admin三入口與管理按鈕保留、匿名無戰鬥入口。修正後無Runtime或console error，舊編譯錯誤僅用作重現對照。
 
 本次新Unreleased不升版，package仍1.0.29，尚未push／同步GAS／更新WebApp部署，不接正式資料／通知。Style與本檔常態規則已更新，GASDeployment記本機待交付；最新已同步仍c17d701／1.0.29。原Architecture的NodeToGAS入口與所有私有檔保留、不提交。
+
+
+## 2026/10/30 交接：v1.0.30 已同步 GAS，尚未更新 Web App 部署
+
+使用者要求同步GAS，main起點5f05c0e。先唯讀下載遠端至私有 data/gas-inspections/2026-10-30-pre-v1030-sync/，四檔與最近1.0.29備份相同，無其他未整合變更；唯一Unreleased一次patch定版 **1.0.30／2026-10-30**，版本提交 **5ddb9d7**。package／lockfile同步，依賴與release note歷史／修正內容均未改動，無空白Unreleased。
+
+功能9f84741：member桌面戰鬥群組只顯示數據分析，隱藏排表／上傳，修正單一戰鬥入口缺items的渲染問題；手機同角色分類。詳情刪除／編輯仍沿admin／manager限定，不擴大member權限。沿用本批已通過的9項回歸與多角色桌面／手機Chrome證據，同步當輪僅版本及交付文件，不重跑業務測試。
+
+一般／GAS編譯與正式條目／package／lockfile／四檔／單檔／台北時區通過。隔離Chrome確認頁尾與當前release v1.0.30／2026-10-30、drafts=false、無頁面例外，證據 /private/tmp/guild-v1030-release-preview/；測試固定時鐘原先超過fixture session有效期，改與fixture同一時鐘重跑成功，沒有修改產品登入規則。編譯日誌 /private/tmp/guild-v1030-build.log、guild-v1030-gas-build.log。
+
+`npm run gas:push` 已重新編譯、備份遠端、同步並讀回四檔一致，同步日誌 **/private/tmp/guild-v1030-gas-sync.log**，私有備份 **data/gas-backups/2026-10-29T16-35-34-488Z/**（檔名UTC時間，台北同步日期10/30）不提交。同步後另核對本機after快照與build四檔、正式版號／日期一致。
+
+只同步程式，未push Git、查詢或更新WebApp部署、setupGas、正式Sheets／Script Properties讀寫、通知或trigger，亦未量測Google正式耗時。使用者更新既有WebApp部署後線上才套用此修正。原Architecture.md的NodeToGAS入口與私有檔／plans保留，不納入本次提交。

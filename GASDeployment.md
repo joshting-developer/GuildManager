@@ -2,6 +2,18 @@
 
 目前已生成 Vue 單檔頁面與完整 GAS 後端，涵蓋登入／帳號管理、行事曆、成員／匯入／名稱歷史、活動、職責、報名／請假、排表／範本、戰績上傳／下載／閱覽、個人分析及團隊分析。本機 SQLite 環境保留。
 
+## 2026/10/30：v1.0.30 最新已同步狀態
+
+同步來源 **5ddb9d7**（功能9f84741），由1.0.29將本批唯一Unreleased一次定版為 **1.0.30／2026-10-30**；package／lockfile／正式更新紀錄一致，保留原修正內容與全部歷史、未改依賴。同步前唯讀遠端與最近1.0.29備份四檔相同，無未整合修改。
+
+本版修正member「戰鬥」選單，可展開且僅數據分析；隱藏排表／上傳，詳情刪除／編輯仍限管理者。下方的本機Unreleased描述保留為定版前歷史，本批現已完成程式同步。Discord Poller與後台設定仍未實作／啟用。
+
+一般及GAS編譯、正式版號／日期／條目唯一、四檔／單檔／時區通過；隔離Chrome /private/tmp/guild-v1030-release-preview/ 確認頁尾及當前release為v1.0.30／2026-10-30且無草稿。沿用本批9項與多角色桌面／手機驗證，本輪未改功能或重跑業務測試。編譯日誌 /private/tmp/guild-v1030-build.log、guild-v1030-gas-build.log。
+
+`npm run gas:push` 成功備份、同步Index.html／Code.gs／Backend.gs／appsscript.json並讀回一致，另再次核對四檔與版號／日期；日誌 **/private/tmp/guild-v1030-gas-sync.log**，私有前後備份 **data/gas-backups/2026-10-29T16-35-34-488Z/**（UTC檔名，台北同步日10/30）不提交，預檢 data/gas-inspections/2026-10-30-pre-v1030-sync/。
+
+**只同步GAS程式，未push Git、查詢或更新WebApp部署、setupGas、操作正式試算表／Script Properties、通知或安裝排程。使用者更新既有WebApp部署後，線上才套用v1.0.30。** 未量測Google正式耗時。
+
 ## 2026/10/30：成員戰鬥選單修正，本機Unreleased待同步
 
 功能9f84741：member桌面保留戰鬥選單且只顯示數據分析，排表／上傳隱藏；修正單一可見戰鬥入口缺少群組items造成渲染失敗。手機原戰鬥分類與角色過濾保持。詳情編輯／刪除沿原admin／manager限定，member不顯示且後端拒絕，沒有新API或業務鎖。
