@@ -173,14 +173,14 @@ const visibleNavigation = computed(() =>
       (!item.adminOnly || user.value?.role === 'admin'),
   ),
 );
-// One 戰鬥 menu for its pages; a single visible battle page (members) stays a plain tab.
+// Keep the 戰鬥 group even when the current role only has one visible entry.
 const desktopNavigation = computed(() => {
   const items = visibleNavigation.value.filter(
     (item) => !item.adminOnly && !item.drawerOnly,
   );
   const battle = items.filter((item) => item.group === 'battle');
-  const plain = items.filter((item) => item.group !== 'battle' || battle.length < 2);
-  return battle.length < 2 ? plain : [...plain, { group: 'battle', label: '戰鬥', items: battle }];
+  const plain = items.filter((item) => item.group !== 'battle');
+  return battle.length ? [...plain, { group: 'battle', label: '戰鬥', items: battle }] : plain;
 });
 const authLoading = ref(true);
 const authBusy = ref(false);

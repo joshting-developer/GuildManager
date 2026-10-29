@@ -98,6 +98,8 @@ test('signed-in member can read battles, attachments and personal analysis; memb
         assert.equal((await request(path, 'GET', undefined, headers)).status, 403, path);
       for (const [path, method, body] of [
         ['/battle-records', 'POST', { ...upload, requestId: 'blocked' }],
+        [`/battle-records/${record.id}`, 'DELETE', { revision: record.revision }],
+        [`/battle-records/${record.id}`, 'PATCH', { revision: record.revision, requestId: 'blocked-edit', redTeam: '不應更改' }],
         [
           '/events',
           'POST',
@@ -108,6 +110,7 @@ test('signed-in member can read battles, attachments and personal analysis; memb
       ])
         assert.equal((await request(path, method, body, headers)).status, 403, `${method} ${path}`);
       assert.equal(repo.listBattleRecords().total, 1);
+      assert.equal(repo.getBattleRecord(record.id).redTeam, '我方');
       assert.equal(repo.listMembers().members[0].name, '城');
       await repo.setMemberToken(admin.id, { password: 'NewPass123', revision: 1 });
       for (const path of reads)
