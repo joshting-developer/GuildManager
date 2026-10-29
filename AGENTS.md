@@ -9,6 +9,7 @@
 - 已建立 Vuetify 首頁／成員管理／活動安排／戰場排表／戰績上傳／戰績閱覽、Docker 本機環境、SQLite 讀寫 API 與 GAS 單檔編譯流程。最新 v1.0.29（同步來源 c17d701）已於2026/10/29同步 GAS 並讀回四檔一致，包含行事曆／影片／對戰讀取改善、影片職業更正、上傳前數據歸屬及分析臨時分隊；尚未更新 Web App 部署。本輪未查詢或更新部署，實際狀態見 GASDeployment.md 及文末交接。
 - 使用者已確認本機使用 SQLite, 後期資料來源為 Google 試算表
 - GAS 最新同步程式為 v1.0.29（來源 c17d701），本批原 Unreleased 已整併定版，package／lockfile／正式更新紀錄為1.0.29，日期2026-10-29，沒有空白Unreleased。未 push Git／更新 Web App 部署；後續新改動再建立唯一Unreleased。Discord頻道輪詢與後台設定仍僅審查方案，未實作／安裝排程／修改正式設定。下方舊版待同步說明保留作歷史，以文末最新交接及 GASDeployment.md 為準。
+- 2026/10/30 本機修正以唯一Unreleased累積：member桌面保留戰鬥下拉且僅數據分析，修正單一戰鬥入口分組渲染失敗；刪除／編輯戰績仍限管理者並已驗證。package／lockfile仍1.0.29，尚未同步本次修正，正式GAS最新狀態以上列c17d701與GASDeployment.md為準。
 - 過往 v1.0.22 同步紀錄：本機及 GAS 當時均為 v1.0.22（導覽／顯示設定、場次預設、數字格式及影片閱覽網址超連結），本批已交付，不重複升版；後續新一批功能交付須遞增 patch。v1.0.21 已交付：個人戰績一次載入、預選最新十筆、勾選總覽及 ECharts 走勢抽屜，移除三顆批次勾選快捷按鈕；進攻／防守分析重用詳情資料，提供數值／占比兩表及互斥配對。保留 v1.0.20 只解碼最新版本與既有唯讀／鎖範圍及多人請假修正；本輪未 push Git／更新部署。正式戰績上傳原始失敗原因仍未確定，見文末交接。
 - 試算表 ID 已取得, 本機使用帳號密碼登入；正式工作表名稱與 Google 登入待確認, 本機角色為 admin／manager／member, 成員、職業、過去名稱及活動安排欄位已依需求實作於本機
 
@@ -391,6 +392,8 @@ v1.0.21 個人頁首次／手動重載以 `all=true` 一次讀取該成員全部
 ## 成員戰績閱覽權限
 
 已登入 member／manager／admin 可使用戰績清單、對戰詳情、原始 CSV／既有附件下載及個人數據分析。各角色的導覽皆提供「回首頁」返回行事曆，member 另顯示成員清單與戰績閱覽，點左上平台名稱亦可返回，從對戰表格點已關聯人名可開啟個人頁；成員清單開放 member／manager／admin，「移至編外」按鈕及端點僅供 admin／manager，其他管理功能仍只供 admin／manager。共用 member 通行密碼不綁遊戲 UID，因此可查看所有已關聯成員的數據，不限制為本人。匿名不可讀，member 不可上傳／修改戰績、活動、排表或帳號。後端分別放行明確戰績 GET 路徑及成員清單的讀寫路徑／方法，不以 URL 前綴放寬其他管理操作。
+
+桌面不論可見戰鬥入口幾個都保留「戰鬥」群組，使用已依角色過濾的items；member只見數據分析，admin／manager保留戰場排表／上傳數據／數據分析。手機同樣以戰鬥小標分類且隱藏member管理入口。不要將仍帶group標記的單一入口當作普通項目，避免選單模板誤讀不存在的items。詳情「編輯對戰資訊／刪除戰績」只供admin／manager，member不顯示且後端拒絕直接呼叫，成功可讀不代表可修改／刪除。
 
 右上登入視窗包含「成員登入」「管理者登入」兩個 tab；前者只填 admin 發行的通行密碼（英數 6–128 字），後者沿用 Manager／Admin 帳號密碼。共用視窗一律預選成員登入，首頁登入後留在行事曆，直接開啟戰績／個人分析或管理連結成功後保留原目標及權限；切換 tab 清除密碼及登入錯誤。
 
@@ -1002,3 +1005,14 @@ VideoProfessionDialog 首次開啟才讀共用職業選項，不改原影片首�
 `npm run gas:push` 重新編譯、備份遠端、同步 Index.html／Code.gs／Backend.gs／appsscript.json 並讀回四檔一致；同步日誌 **/private/tmp/guild-v1029-gas-sync.log**，私有前後備份 **data/gas-backups/2026-10-29T15-53-21-216Z/** 不提交。同步後再次核對四檔與1.0.29／正式日期一致。
 
 本輪只同步GAS程式，未push Git、查詢或更新WebApp部署、執行setupGas、讀寫正式試算表／Script Properties、發通知或安裝排程，也未量測Google正式耗時。使用者更新既有WebApp部署後，線上才套用本批新功能。原Architecture.md的NodeToGAS入口修改與私有檔／plans保留、不納入本次提交。
+
+
+## 2026/10/30 交接：成員戰鬥選單與戰績管理權限（Unreleased）
+
+使用者確認要member顯示「戰鬥」選單，僅保留數據分析，隱藏排表／上傳，並要求不能刪除戰績。main起點378b0eb，功能9f84741。原導覽單一戰鬥項目平鋪時仍帶group卻缺items，模板讀items.some導致member戰鬥入口渲染失敗；隔離舊編譯重現入口缺失與一則console error。現在一律以已過濾資料建立戰鬥群組，member只有數據分析；手機原分組及角色過濾沿用。沒有新增API、快取、業務寫入或鎖。
+
+現有詳情canManage原已只允admin／manager，member的編輯／刪除按鈕維持隱藏；Node／GAS寫入授權未放寬。既有member-analysis-access補上帶有效CSRF直接DELETE／PATCH仍403、紀錄與名稱保持斷言，保留其他預期；加既有attack-defense／battle-delete共 **9／9** 通過（/private/tmp/guild-member-battle-menu-tests.log），GAS原刪除測試亦驗證member被拒。未新增抄實作的導航測試，改用實際UI驗證。
+
+一般／GAS編譯及package／lockfile1.0.29、唯一Unreleased／date=null、四檔／單檔／台北時區通過。隔離Chrome /private/tmp/guild-member-battle-menu-preview/ 確認member桌面戰鬥可展開且只數據分析、清單／詳情／進攻分析可用、編輯／刪除按鈕不存在、直接GAS呼叫被拒且Sheets／Properties／檔案／通知不變；手機深色同分類且兩管理入口隱藏、admin三入口與管理按鈕保留、匿名無戰鬥入口。修正後無Runtime或console error，舊編譯錯誤僅用作重現對照。
+
+本次新Unreleased不升版，package仍1.0.29，尚未push／同步GAS／更新WebApp部署，不接正式資料／通知。Style與本檔常態規則已更新，GASDeployment記本機待交付；最新已同步仍c17d701／1.0.29。原Architecture的NodeToGAS入口與所有私有檔保留、不提交。
