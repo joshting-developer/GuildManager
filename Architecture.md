@@ -295,3 +295,13 @@ GET /api/videos/browser?eventId=…／GAS getVideoBrowser(preferredId) 只供 ad
 GET /api/battle-records/:id/metadata／GAS getBattleMetadata(id) 限 admin／manager，回 `{ record }`，只含 id、type、playedAt、roundNumber、redTeam、blueTeam、winner、ourSide、isInternal、revision。編輯視窗每次開啟／重載都讀最新版本，不跨請求快取；SQLite 明確選取必要欄位，不解析 CSV／players_json 或投影成員關聯。GAS 依同次 commits 快照 get(battles,id)，加入 READ_ONLY，保留登入檢查，不讀 battle_players／battle_links／lineup_versions／requests／Drive 或取得寫入鎖。既有內嵌玩家的舊 battles payload 仍須整筆解碼；此優化不更動格式或消除索引／歷史掃描。
 
 寫入仍用原 updateBattleRecord 的 revision、CSRF 與 requestId。成功回應更新詳情及當頁快取清單的對應列，返回時不新增清單 RPC；單純查看返回亦重用。成功刪除標記清單失效，返回時只刷新清單頁，依剩餘總數先校正已知末頁；若伺服器回應顯示頁碼另已失效，最多再讀一次有效末頁，持續變動則提示重試。變更會淘汰先前進行中的清單回應，卸載／換頁 token 及讀取失敗重試保留。返回聚焦原對戰，已刪則回第一筆或空清單標題。詳情 includeTeamContext、進攻／防守分析的零新增 RPC 與舊 getBattleRecord／getBattleTeamAnalysis 契約維持現況。
+
+## 影片職業更正（Unreleased）
+
+PATCH /api/events/:eventId/videos/:videoId/profession／GAS updateEventVideoProfession(eventId,videoId,input)，只供 admin／manager，input 僅 professionId／revision／requestId，回 `{ video }`。職業驗證共用 validateVideoProfessionUpdate，單筆影片 revision 與場次歸屬／可用性、有效職業在寫入交易內核對；不以場次 revision 阻止另一筆影片更正。只更新 professionId／professionName／professionColorcode 及 revision，保留名稱、網址、團別、備註、createdAt 與其他場次／名冊／排表。
+
+SQLite 為 event_video_submissions 追加 revision=0，另建 event_video_profession_requests 保存編輯指紋與結果；舊 event_videos 七欄及舊列不改，用 event_video_profession_overrides 保存人工更正並於清單 LEFT JOIN。初始化只補欄／表，沒有自動猜測職業或修改原提交 receipts。GAS 舊缺 revision 視0，在既有 videos／requests 表追加版本，沿 commits／flush；新 RPC 加 WRITES，不加入公開白名單或 READ_ONLY，保留 CSRF 與 Script Lock。讀取範圍是 events、指定 videos、professions、requests 與共用 commits／登入；未新增 GAS 表或 Drive／通知。
+
+原 submit receipts 保留；相同編輯 requestId 重試回傳原成功結果，與新增影片 receipts 分開，並納入 eventId／videoId／professionId／revision 指紋，不能用同 ID 改內容。新清單／新提交 DTO 加 revision，舊無值讀取相容0，原欄位與 CSV 六欄不變。
+
+VideoProfessionDialog 首次掛載才讀同 transport 的共用職業快取，未更動影片頁首載 RPC；重試失敗選項不黏住。草稿與版本不跨請求快取；正常送出一次修改，成功回應替換該列，原篩選與排序不變，不整頁重讀。衝突由明確操作重讀本場 getEventVideos 更新版本，保留已選更正供確認；失敗保留草稿，相同內容用相同 requestId。視窗卸載／關閉淘汰過期回應，儲存中不能重複送出或關閉，取消先確認未儲存變更，焦點回入口。詳見 Style.md／GASConcurrency.md，尚未同步或部署。

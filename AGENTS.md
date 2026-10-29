@@ -8,7 +8,7 @@
 - 視覺參考相鄰專案 `../NSHM_history`, 本專案的具體規則以 [Style.md](Style.md) 為準
 - 已建立 Vuetify 首頁／成員管理／活動安排／戰場排表／戰績上傳／戰績閱覽、Docker 本機環境、SQLite 讀寫 API 與 GAS 單檔編譯流程。最新 v1.0.28（同步來源 06c3532）過期行事曆僅影片、排表按需讀取及來源下拉選單已同步 GAS 並讀回四檔一致，尚未更新 Web App 部署。本輪未查詢或更新部署，實際狀態見 GASDeployment.md 及文末交接。
 - 使用者已確認本機使用 SQLite, 後期資料來源為 Google 試算表
-- GAS 最新同步程式為 v1.0.28（來源 06c3532），本機新改動以 Unreleased 累積：公開行事曆並行讀取、過期影片精簡表單、公開報名總數與職業統計隱藏、影片閱覽首載整併、對戰編輯精簡讀取及返回清單更新。本批尚未定版／同步，package／lockfile 保持 1.0.28；未 push Git／更新 Web App 部署。下方舊版待同步說明保留作歷史，以文末最新交接及 GASDeployment.md 為準。
+- GAS 最新同步程式為 v1.0.28（來源 06c3532），本機新改動以 Unreleased 累積：公開行事曆並行讀取、過期影片精簡表單、公開報名總數與職業統計隱藏、影片閱覽首載整併、對戰編輯精簡讀取及返回清單更新、影片職業更正。本批尚未定版／同步，package／lockfile 保持 1.0.28；未 push Git／更新 Web App 部署。下方舊版待同步說明保留作歷史，以文末最新交接及 GASDeployment.md 為準。
 - 過往 v1.0.22 同步紀錄：本機及 GAS 當時均為 v1.0.22（導覽／顯示設定、場次預設、數字格式及影片閱覽網址超連結），本批已交付，不重複升版；後續新一批功能交付須遞增 patch。v1.0.21 已交付：個人戰績一次載入、預選最新十筆、勾選總覽及 ECharts 走勢抽屜，移除三顆批次勾選快捷按鈕；進攻／防守分析重用詳情資料，提供數值／占比兩表及互斥配對。保留 v1.0.20 只解碼最新版本與既有唯讀／鎖範圍及多人請假修正；本輪未 push Git／更新部署。正式戰績上傳原始失敗原因仍未確定，見文末交接。
 - 試算表 ID 已取得, 本機使用帳號密碼登入；正式工作表名稱與 Google 登入待確認, 本機角色為 admin／manager／member, 成員、職業、過去名稱及活動安排欄位已依需求實作於本機
 
@@ -428,10 +428,11 @@ admin 在帳號管理的「平台設定」分頁修改品牌名稱，預設「�
 - 三種戰鬥皆可匿名送出影片；有效登入修改仍檢查 CSRF。職業由後端驗證並保存當時名稱／色彩，選單成員驗證目前姓名及所屬狀態；手動填名／選人不作本人認證，舊影片職業顯示「未記錄」，不回填推測值。
 - 影片閱覽首載／重新載入使用 getVideoBrowser／GET /api/videos/browser?eventId=，同一唯讀快照帶戰鬥清單及選定本場影片，一次 RPC；有效優先場次保留，否則沿用台北今天或最近過去、其次未來的排序。換場沿用 getEventVideos，一次本場讀取；新舊 API、排序、職業快照、超連結與 CSV 不變。
 - 閱覽資料為當頁不可變 shallowRef，只有顯式重載／換場取新資料，不跨請求快取影片。重載保留仍有效的場次／搜尋／團別，失效場次回退並重設篩選；離頁／過期回應丟棄。搜尋只正規化一次，空白且未選團別直接重用原陣列。GAS 仍須掃 events／videos 最新已提交 payload 後篩選，沒有新增 eventId 索引或免除歷史掃描；正常不取寫入鎖，缺 videos 表才沿既有權限重驗／鎖內補建。
-- `#/videos` 與清單 API 只供 admin／manager，member 可提交但不能查看。選場次後使用角色名稱／職業／第一場連結／第二場連結／團別／備註六欄表格，提供團別篩選及名稱搜尋。
+- 影片閱覽每列可由 admin／manager「修改職業」，PATCH /api/events/:eventId/videos/:videoId/profession／GAS updateEventVideoProfession，只接受 professionId／revision／requestId。職業名稱與色彩更新為選項快照，其他欄位／名冊／報名／排表不改；舊缺職業可人工補正，缺 revision 視0。單筆版本與安全重試均在原寫入保護內，未登入／member 不可修改，有效登入檢查 CSRF。選項首次開視窗讀共用職業 API；成功以回應替換當頁一列、不新增重載，CSV反映新值。衝突保留選擇並提供本場重新載入取得新版本，關閉／卸載忽略過期回應。
+- `#/videos` 與清單 API 只供 admin／manager，member 可提交但不能查看。選場次後使用角色名稱／職業／第一場連結／第二場連結／團別／備註與操作欄，提供團別篩選及名稱搜尋；CSV維持六欄。
 - 閱覽第一／第二場網址以完整可複製超連結呈現，另開分頁且設 noopener noreferrer，沿用 http／https 驗證，缺值為 — 不建立連結；不另設直接前往按鈕或內嵌播放器。表格容器在手機橫向捲動，提供載入／空資料／錯誤與重試，切換場次拒絕過期回應。
 - 追加 `event_video_submissions` 保存雙場／團別／備註及職業快照，沿用 `event_video_requests` 防重試；舊 `event_videos`／團別／重試資料保留並整合，不按同名合併，未知團別或職業不猜測。
-- 檢查 eventRevision，過期需重新載入後送出；刪除或改為一般活動停止讀寫但保留資料，不提供修改／刪除影片。
+- 新影片提交檢查 eventRevision，過期需重新載入後送出；刪除或改為一般活動停止讀寫但保留資料。閱覽只提供上述職業更正，不提供其他內容修改或刪除影片。
 - 本機及 GAS 共用影片表單、閱覽與 CSV 匯出。GAS adapter 使用 getVideoBrowser／getEventVideos／submitEventVideo RPC，不執行 HTTP fallback；GM_videos 保存提交，GM_requests 保存重試結果，script lock 與提交標記確保兩者同次生效。已初始化的舊專案於首次有效使用時補建 GM_videos，不覆寫原表或遷移本機資料。
 
 影片閱覽提供「匯出 CSV」，依目前團別／名稱篩選與表格順序輸出六欄（含職業），不讀取其他場次。UTF-8 BOM 保留中文，備註換行及引號正確轉義，公式字首以文字保存；載入、錯誤或無符合資料時停用匯出，失敗可重試。
@@ -934,3 +935,20 @@ main 起點 2096128，本批累積到同一 Unreleased，package／lockfile 保�
 隔離編譯後 GAS Chrome 證據 /private/tmp/guild-detail-preview/，腳本 /private/tmp/guild-detail-browser.mjs：純返回與儲存後返回零額外清單 RPC、最新 revision、刪除失敗保留詳情、刷新失敗重試、末頁最後一筆刪除單次重讀、焦點返回、關閉後舊 metadata 忽略、同時編輯衝突保留草稿及重載後成功、延遲清單不蓋新值、進攻分析無額外 API，桌面淺色／390px 手機深色無橫向溢出及頁面例外。測試工具初次未處理原生確認框的 CDP 非請求回應，修正工具後驗證通過，沒有調整產品配合測試。
 
 常態快取／版本規則已補本檔，契約與讀寫範圍同步 Architecture.md／GASConcurrency.md，介面同步 Style.md，交付狀態見 GASDeployment.md。持續累積唯一 Unreleased，不升版；只本機提交，未 push／同步 GAS／查詢或更新 Web App 部署、setupGas、正式資料／Properties 或通知。最新成功同步仍為 v1.0.28（06c3532）。
+
+
+## 2026/10/29 交接：影片閱覽更正職業（Unreleased）
+
+使用者要求影片送出後可在閱覽更正選錯的職業。功能提交 33b5ce3，main 起點 e161500；開始時 Architecture.md 的 NodeToGAS 入口已有未提交變更，本輪保留該段，不將使用者既有段落納入本次提交。
+
+新 updateEventVideoProfession／PATCH /api/events/:eventId/videos/:videoId/profession 限 admin／manager，input professionId／revision／requestId，由共用 validator 拒絕其他欄位。SQLite／GAS 都在原寫入交易保護內核對場次可用性、影片歸屬、單筆 revision、有效職業及 retry 指紋；相同成功重試回原結果，跨影片／場次／內容共用 requestId 拒絕。只更新職業ID／名稱／色彩及 revision，不改名稱、雙場URL、團別、備註、上傳時間、名冊、報名或排表；原影片上傳 receipts 重播不覆蓋更正。
+
+新提交／清單加 revision，舊缺值相容0，未知職業仍顯示未記錄、不猜測。SQLite 只為 event_video_submissions 加 revision，新增 event_video_profession_requests 與 legacy 專用 event_video_profession_overrides；event_videos 七欄及舊列不改，LEFT JOIN 人工更正。GAS 只在既有 videos／requests 追加版本，無新表或正式初始化，WRITES／Script Lock／CSRF／commits／flush 保留；只讀 events、指定 videos、professions、requests 與共用登入／commits，無 Drive／名冊／報名／通知。
+
+VideoProfessionDialog 首次開啟才讀共用職業選項，不改原影片首載請求數；正常修改一次RPC並以回應替換該列，保留場次與篩選，CSV仍六欄且顯示新值。衝突保留已選職業，停用送出並以明確按鈕重讀本場最新 revision；重載後供確認。一般錯誤保留草稿，同內容沿同requestId，取消有草稿先確認，儲存中不可重複送出／關閉，完成焦點回原列；關閉／卸載丟棄過期選項與寫入回應。
+
+新增 tests/video-profession-edit.test.js 5項：三種戰鬥及重啟、同名不同影片、職業／其他欄位保留、版本與requestId、失敗回滾／提交標記、legacy缺職業、HTTP／GAS管理角色及CSRF／持鎖BUSY、讀寫範圍與adapter。原355項未改，完整360／360（/private/tmp/guild-video-profession-full-tests.log），相關24項通過（/private/tmp/guild-video-profession-targeted.log）。最初擴充legacy表導致舊七欄插入測試失敗，已改成獨立覆寫表保留相容；新測試的已刪其他場次fixture也已修正，未改舊預期或放寬權限。一般／GAS編譯、package／lockfile 1.0.28、唯一Unreleased、四檔／新RPC／無外部JS、CSS／時區核對通過。
+
+隔離Chrome腳本 /private/tmp/guild-video-profession-browser.mjs，證據 /private/tmp/guild-video-profession-preview/：選項延遲讀取與失敗重試／重開快取、提交回應遺失後同requestId只保存一次、成功零額外清單RPC與CSV六欄、同人並行衝突保留選擇與重載成功、legacy人工更正、取消不寫、提交防重複、焦點、桌面淺色／390px深色無頁面溢出或例外、離頁舊回應忽略。測試工具已處理下拉動畫／長選單內捲動後才點可見職業，未更動產品配合測試。
+
+協議同步 Architecture.md，鎖依賴 GASConcurrency.md，介面 Style.md，交付 GASDeployment.md；release note累積同一Unreleased，不升版、不push／同步GAS／更新部署，不讀寫正式資料或Properties、不發通知，也未量測Google正式秒數。最新成功同步仍v1.0.28（06c3532）。

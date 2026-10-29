@@ -2,6 +2,14 @@
 
 目前已生成 Vue 單檔頁面與完整 GAS 後端，涵蓋登入／帳號管理、行事曆、成員／匯入／名稱歷史、活動、職責、報名／請假、排表／範本、戰績上傳／下載／閱覽、個人分析及團隊分析。本機 SQLite 環境保留。
 
+## 2026/10/29：影片職業更正已完成，持續累積 Unreleased
+
+功能來源 `33b5ce3`：影片閱覽每列提供「修改職業」，限 admin／manager，首次開啟才讀共用職業選項；成功以寫入回應更新一列與 CSV，不新增整頁讀取。新增 updateEventVideoProfession／PATCH /api/events/:eventId/videos/:videoId/profession，單筆 revision／CSRF／requestId 保護，本機 SQLite 與 GAS 均保存職業名稱／色彩快照，其他影片內容不改。GAS 新 RPC 在 WRITES，沿原 Script Lock、commits／flush，不新增工作表、通知或 Drive 操作；本機 legacy 七欄保持原狀，以獨立更正表合併讀取。
+
+新增 5 項回歸，原 355 項未修改，完整 **360／360** 通過（`/private/tmp/guild-video-profession-full-tests.log`），影片相關 24 項通過。一般／GAS 編譯、package／lockfile 1.0.28、唯一 Unreleased、四檔／新 RPC／無外部 JS、CSS／台北時區通過。隔離 Chrome 驗證選項失敗重試／快取、回應遺失保留草稿並沿同 requestId、單列更新與 CSV 六欄、衝突保留草稿後重載成功、legacy 人工更正、取消／儲存防重複、焦點、手機深色及離頁過期回應；證據 `/private/tmp/guild-video-profession-preview/`。
+
+只本機提交，尚未定版／push／同步 GAS／查詢或更新 Web App 部署；正式試算表／Script Properties／通知未動，沒有量測正式 Google 耗時。下方最新成功同步仍為 v1.0.28（06c3532），不可把這次編譯或測試當作已交付。
+
 ## 2026/10/27：Unreleased 本機累積，尚未定版／同步
 
 本批追加對戰編輯精簡讀取及返回清單一致性（功能來源 `54e198f`）：新增管理者 getBattleMetadata／GET /api/battle-records/:id/metadata，只讀必要欄位及最新 revision；GAS 正常唯讀、不取寫入鎖。編輯成功直接更新清單對應列，刪除後刷新並校正末頁；純查看返回沿用快取，舊讀取不能覆蓋成功修改。詳情分團對應及分析零新增 RPC 保留。

@@ -127,13 +127,14 @@
 | `updateBattleRecord` | battles、requests | battles、requests | 寫；該筆對戰資訊 revision |
 | `syncBattleMembers` | members、name_history、battles、battle_players、battle_links、requests | battle_links、requests | 寫；預覽 fingerprint 與新增關聯同次保護 |
 
-### 影片與抽獎（7 個）
+### 影片與抽獎（8 個）
 
 | RPC | 業務讀取 | 業務寫入 | 建議 |
 | --- | --- | --- | --- |
 | `getVideoBrowser` | events、videos（有選定場次時） | videos 缺表時鎖內重驗權限後建立 | READ_ONLY／admin、manager；同一 commits，首載與重載整併 |
 | `getEventVideos` | events、videos | videos 缺表時鎖內重驗權限後建立 | READ_ONLY；換場只讀本場回應，無 Drive |
 | `submitEventVideo` | events、requests、professions、members（選人時） | videos、requests；可能建表 | 寫；同一請求只保存一次，重驗場次與成員 |
+| `updateEventVideoProfession` | events、videos 指定 ID、professions、requests；共用 commits／登入驗證 | videos、requests | WRITES／admin、manager／CSRF；單筆 revision、場次歸屬及有效職業在 Script Lock 內檢查，同一 requestId 回應原子保存；不讀 Drive／名冊／報名，不發通知 |
 | `getLottery` | lottery | lottery 缺表時會建立表及表頭 | 先移除／隔離延遲建表，之後可作純讀取 |
 | `saveLottery` | lottery | lottery；可能建表 | 寫；整份抽獎盤及 revision |
 | `drawLotteryPrize` | lottery | lottery；可能建表 | 寫；抽籤與扣除剩餘人選必須互斥 |
