@@ -262,3 +262,8 @@ getVideoBrowser 已盤點依賴並加入 READ_ONLY 與 LAZY_TABLE_READS，預設
 CSV 解析仍在鎖外，只有明確指定歸屬才在 prepare 讀一次名冊先驗證；舊未指定 prepare 不增加讀取。私人附件在鎖外建立後，最終取得既有 Script Lock 才重讀來源與重驗成員，不能把早先版本當作提交依據；隔離測試在 Drive 建檔期間修改成員，最終拒絕且無業務提交。全批驗證後才寫，雙場一筆失效全批拒絕，commits 失敗不可見，同 requestId 重試不重複提交。未引用檔案保留原復原限制，不擅自清理。
 
 歸屬納入 requestId 指紋、排除 CSV contentHash；未指定自動匹配重用最終名冊索引。沒有新寫入鎖／表、逐列 RPC 或通知，不延伸到已上傳歷史更正。完整協議見 Architecture.md；尚未同步，正式延遲未量測。
+
+
+## Unreleased 分析未分類玩家臨時分隊
+
+本功能僅在前端以既有詳情快照計算與保存臨時團隊，設定、清除、跨頁、切進攻／防守或陣營都不新增RPC，不讀寫Sheets／Properties／Drive／通知，不增加或取得任何鎖。原getBattleRecord含最小teamContext的管理／成員讀取與READ_ONLY規則不變，手動重新載入仍是原詳情讀取一次，臨時指定隨新快照清除。不得把前端臨時分組視為已保存排表、成員身分或後端授權依據。

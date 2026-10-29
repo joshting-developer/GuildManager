@@ -318,3 +318,14 @@ GET /api/battle-upload/roster／GAS getBattleUploadRoster() 限 admin／manager�
 歸屬參與原 requestId 指紋，內容變更同 ID 拒絕；contentHash 排除 attributions，避免以換歸屬重複匯入。SQLite 一次讀名冊建索引，在同交易重驗全部記錄後寫快照／links／receipts。GAS 鎖外 prepare 在有手動歸屬時先讀名冊驗證，未指定時不增加 prepare 名冊讀取；獨立 Drive 建檔後，最終 Script Lock 內重新讀名冊／驗權及原唯一性、場次版本、requestId，再一起提交快照／links／requests／commits，保留 flush。最終衝突不提交業務資料，鎖外未引用檔保留原復原策略。
 
 前端草稿獨立於解析快照，key 為 roundNumber＋file.id，列用原 playerIndex，不用分頁位置；調整不使預覽回第一頁。僅待上傳可調整，搜尋視窗按需掛載；跨頁／雙場保留，換場／檔案替換清除，普通失敗保留，名冊更新後失效的指定標示待確認並重新套用。選人與清除零 RPC，和原上傳同一請求保存，不新增逐列 API、資料表或永久別名。既有歷史更正不在此範圍。
+
+
+## 分析未分類玩家臨時分隊（Unreleased）
+
+新增前端專用 src/domain/analysis-assignments.js，applyAnalysisAssignments(analysis, assignments) 以原analyzeBattleTeamContext結果為基礎，只接受原unclassified列與既有六個團隊ID。key為該戰績原playerIndex，來源已全域唯一，不依姓名、UID或目前分頁位置；每列只有一個目標，保留紅藍分開，不修改玩家／teamContext／原analysis。沒有指定或只有無效／自動分組列的指定時直接回原來源，不複製資料。
+
+有指定時只重建受影響陣營與團：將原未分類列加入指定組，依原列序排列，以未捨入的metrics.value重算合計、missing、團內％與占全場％；全場totals與count沿原值，分母不變。缺值不補零、部分分母／零分母沿原比例規則。防守配對與圓餅重用現有函式。輸出列帶temporary與團名（臨時），保留原來源警示／lineup資料；無排表也只在使用者明確選擇後分隊，不改後端自動判定。
+
+BattleTeamAnalysisDialog在當頁保存一份assignments，進攻／防守共用且各提供最後一頁未分類設定；原候選資料始終從props.analysis取得，已指定列不會消失。computed只依來源和assignments重建統計，設定頁排序／分頁與分析tab分開，選隊保留頁碼；每頁最多20個選單。選單限定保持未分類／進攻團／機動團／防守1–4，可逐列還原或全清除。圖表只在可見比較頁掛載，設定頁不繪製。
+
+關閉／重開、切模式及切陣營保留記憶體內指定，詳情新快照時清除，詳情載入期間既有元件卸載也清除；換紀錄／離頁同樣失效。不保存瀏覽器持久儲存、URL或後端。設定／分類／排序／清除零RPC；僅原明確重新載入詳情才走既有getBattleRecord。SQLite／GAS／READ_ONLY／CSRF／鎖與舊分析API完全沿用，沒有新增讀寫或表，不需要資料搬移。
