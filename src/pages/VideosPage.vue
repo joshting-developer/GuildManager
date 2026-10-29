@@ -1,7 +1,8 @@
 <script setup>
 import DataLoading from '../components/DataLoading.vue';
 import { computed, onMounted, onUnmounted, ref, shallowRef } from 'vue';
-import { mdiRefresh, mdiDownload } from '@mdi/js';
+import { mdiRefresh, mdiDownload, mdiPencilOutline } from '@mdi/js';
+import VideoProfessionDialog from './VideoProfessionDialog.vue';
 import { createEventVideoClient } from '../api/event-videos.js';
 import { eventDisplayTitle } from '../domain/event-types.js';
 import { battleEventLabel } from '../domain/battle-events.js';
@@ -18,6 +19,18 @@ const loading = ref(true),
   error = ref(''),
   exportError = ref('');
 const downloads = new Map();
+const editingVideo = shallowRef(null), notice = ref('');
+function onProfessionUpdated(video) {
+  if (disposed || eventId.value !== video.eventId) return;
+  token++;
+  videos.value = videos.value.map(item => item.id === video.id ? video : item);
+  notice.value = `${video.name} 的影片職業已更新`;
+}
+function onVideosRefreshed(result) {
+  if (disposed || eventId.value !== result.eventId) return;
+  token++;
+  videos.value = result.videos;
+}
 function exportCsv() {
   if (loading.value || error.value || !visibleVideos.value.length) return;
   exportError.value = '';
@@ -70,6 +83,7 @@ async function loadVideos(id) {
   videos.value = [];
   error.value = '';
   exportError.value = '';
+  notice.value = '';
   if (!id) {
     loading.value = false;
     return;
@@ -89,6 +103,7 @@ async function load() {
   loading.value = true;
   error.value = '';
   exportError.value = '';
+  notice.value = '';
   videos.value = [];
   try {
     const data = await videoClient.getBrowser(eventId.value);
@@ -189,6 +204,7 @@ onUnmounted(() => {
         hide-details
       />
     </div>
+    <v-alert v-if="notice" type="success" variant="tonal" role="status" class="mb-4">{{ notice }}</v-alert>
     <v-alert v-if="exportError" type="error" variant="tonal" role="alert" class="mb-4">{{
       exportError
     }}</v-alert>
@@ -213,6 +229,7 @@ onUnmounted(() => {
         <thead>
           <tr>
             <th v-for="header in VIDEO_TABLE_HEADERS" :key="header" scope="col">{{ header }}</th>
+            <th scope="col">操作</th>
           </tr>
         </thead>
         <tbody>
@@ -232,11 +249,17 @@ onUnmounted(() => {
               >{{ value }}</a>
               <template v-else>{{ value }}</template>
             </td>
+            <td>
+              <v-btn variant="text" :prepend-icon="mdiPencilOutline" :aria-label="`修改 ${video.name} 的影片職業`"
+                @click="editingVideo = video">修改職業</v-btn>
+            </td>
           </tr>
         </tbody>
       </table>
     </div>
   </v-card>
+  <VideoProfessionDialog v-if="editingVideo" :key="editingVideo.id" :video="editingVideo"
+    @close="editingVideo = null" @updated="onProfessionUpdated" @refreshed="onVideosRefreshed" />
 </template>
 
 <style scoped>
@@ -271,7 +294,7 @@ onUnmounted(() => {
 }
 .videos-table {
   width: 100%;
-  min-width: 860px;
+  min-width: 1020px;
   table-layout: fixed;
   border-collapse: collapse;
   font-size: 14px;
@@ -296,12 +319,13 @@ onUnmounted(() => {
 }
 .videos-table th:nth-child(3),
 .videos-table th:nth-child(4) {
-  width: 24%;
+  width: 20%;
 }
 .videos-table th:nth-child(2),
 .videos-table th:nth-child(5) {
-  width: 12%;
+  width: 10%;
 }
+.videos-table th:last-child { width: 140px; }
 .video-note {
   white-space: pre-wrap;
 }

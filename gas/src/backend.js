@@ -74,6 +74,7 @@ const WRITES = [
   'addGuestRegistration',
   'cancelGuestRegistration',
   'deleteGuestRegistration',
+  'updateEventVideoProfession',
   'confirmLineup',
   'cancelEventLeave',
   'createLineupTemplate',

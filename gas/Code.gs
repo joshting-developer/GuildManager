@@ -314,6 +314,10 @@ function submitEventVideo(eventId, input, context) {
   return GuildGas.rpc('submitEventVideo', [eventId, input], context);
 }
 
+function updateEventVideoProfession(eventId, videoId, input, context) {
+  return GuildGas.rpc('updateEventVideoProfession', [eventId, videoId, input], context);
+}
+
 function getLottery(context) {
   return GuildGas.rpc('getLottery', [], context);
 }

@@ -1,6 +1,6 @@
 import { callGas } from './gas.js';
 import { sessionFetch } from './session.js';
-import { validateVideoDetails } from '../domain/event-videos.js';
+import { validateVideoDetails, validateVideoProfessionUpdate } from '../domain/event-videos.js';
 import { isBattleEvent } from '../domain/battle-events.js';
 
 export function createEventVideoClient({
@@ -9,14 +9,14 @@ export function createEventVideoClient({
   googleRun,
 } = {}) {
   if (!['local', 'gas'].includes(source)) throw new Error('未知的資料來源設定');
-  async function request(operation, path, args, input) {
+  async function request(operation, path, args, input, method = input ? 'POST' : 'GET') {
     if (source === 'gas') {
       return callGas(operation, args, googleRun);
     }
     let response;
     try {
       response = await fetchImpl(path, {
-        method: input ? 'POST' : 'GET',
+        method,
         ...(input
           ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) }
           : {}),
@@ -63,6 +63,8 @@ export function createEventVideoClient({
       )
         throw new Error('影片資料回應格式不正確，請重試');
       validateVideoDetails(video, { allowMissingGroup: !input, allowMissingProfession: !input });
+      if (video.revision !== undefined && (!Number.isSafeInteger(video.revision) || video.revision < 0))
+        throw new Error('影片版本格式不正確，請重新載入');
     }
     return data;
   }
@@ -79,5 +81,17 @@ export function createEventVideoClient({
     },
     getVideos: (eventId) => call(eventId),
     submitVideo: (eventId, input) => call(eventId, input),
+    async updateProfession(eventId, videoId, input) {
+      const values = validateVideoProfessionUpdate(eventId, videoId, input);
+      const data = await request('updateEventVideoProfession',
+        `/api/events/${encodeURIComponent(eventId)}/videos/${encodeURIComponent(videoId)}/profession`,
+        [eventId, videoId, values], values, 'PATCH');
+      if (!data?.video || data.video.eventId !== eventId || data.video.id !== videoId || data.video.professionId !== values.professionId ||
+          data.video.revision !== values.revision + 1 || typeof data.video.professionName !== 'string' ||
+          !data.video.professionName || typeof data.video.professionColorcode !== 'string')
+        throw new Error('職業修改回應格式不正確，請重新載入確認');
+      validateVideoDetails(data.video, { allowMissingGroup: true });
+      return data;
+    },
   };
 }

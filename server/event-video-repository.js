@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { EventVideoError, validateVideoSubmission } from '../src/domain/event-videos.js';
+import { EventVideoError, validateVideoSubmission, validateVideoProfessionUpdate } from '../src/domain/event-videos.js';
 
 export function createEventVideoRepository(db) {
   db.exec(`
@@ -24,6 +24,15 @@ export function createEventVideoRepository(db) {
       request_id TEXT PRIMARY KEY, event_id TEXT NOT NULL REFERENCES scheduled_events(id),
       input_json TEXT NOT NULL, result_json TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS event_video_profession_requests (
+      request_id TEXT PRIMARY KEY, input_json TEXT NOT NULL, result_json TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS event_video_profession_overrides (
+      video_id TEXT PRIMARY KEY REFERENCES event_videos(id),
+      profession_id INTEGER NOT NULL REFERENCES professions(job_id),
+      profession_name TEXT NOT NULL, profession_colorcode TEXT NOT NULL,
+      revision INTEGER NOT NULL CHECK(revision >= 1)
+    );
   `);
   if (
     !db.pragma('table_info(event_video_submissions)').some((column) => column.name === 'group_name')
@@ -37,6 +46,7 @@ export function createEventVideoRepository(db) {
     profession_id: 'INTEGER REFERENCES professions(job_id)',
     profession_name: 'TEXT',
     profession_colorcode: 'TEXT',
+    revision: 'INTEGER NOT NULL DEFAULT 0 CHECK(revision >= 0)',
   };
   for (const [column, type] of Object.entries(professionColumns)) {
     if (!db.pragma('table_info(event_video_submissions)').some((field) => field.name === column))
@@ -61,8 +71,54 @@ export function createEventVideoRepository(db) {
   }
   const columns = `id, event_id AS eventId, name, first_url AS firstUrl,
     second_url AS secondUrl, group_name AS groupName, note, created_at AS createdAt,
-    profession_id AS professionId, profession_name AS professionName, profession_colorcode AS professionColorcode`;
+    profession_id AS professionId, profession_name AS professionName, profession_colorcode AS professionColorcode, revision`;
+  const legacyColumns = `v.id, v.event_id AS eventId, v.name,
+    CASE WHEN v.round_number = 1 THEN v.url ELSE '' END AS firstUrl,
+    CASE WHEN v.round_number = 2 THEN v.url ELSE '' END AS secondUrl,
+    '' AS note, v.group_name AS groupName, v.created_at AS createdAt,
+    p.profession_id AS professionId, p.profession_name AS professionName,
+    p.profession_colorcode AS professionColorcode, COALESCE(p.revision, 0) AS revision`;
+  const legacyFrom = 'event_videos v LEFT JOIN event_video_profession_overrides p ON p.video_id=v.id';
   return {
+    updateEventVideoProfession(eventId, videoId, rawInput) {
+      const input = validateVideoProfessionUpdate(eventId, videoId, rawInput);
+      const encoded = JSON.stringify({ eventId, videoId, ...input });
+      return db.transaction(() => {
+        const previous = db.prepare('SELECT * FROM event_video_profession_requests WHERE request_id=?').get(input.requestId);
+        if (previous) {
+          if (previous.input_json !== encoded)
+            throw new EventVideoError('這次操作識別碼已用於其他內容，請重新操作', 409, 'REQUEST_CONFLICT');
+          return JSON.parse(previous.result_json);
+        }
+        checkEvent(eventId);
+        let legacy = false;
+        let current = db.prepare(`SELECT ${columns} FROM event_video_submissions WHERE id=? AND event_id=?`).get(videoId, eventId);
+        if (!current) {
+          legacy = true;
+          current = db.prepare(`SELECT ${legacyColumns} FROM ${legacyFrom} WHERE v.id=? AND v.event_id=?`).get(videoId, eventId);
+        }
+        if (!current) throw new EventVideoError('找不到這筆影片，請重新載入', 404, 'VIDEO_NOT_FOUND');
+        if (current.revision !== input.revision)
+          throw new EventVideoError('這筆影片已更新，請重新載入後確認職業再儲存', 409, 'REVISION_CONFLICT');
+        const profession = db.prepare('SELECT job_id, name, colorcode FROM professions WHERE job_id=?').get(input.professionId);
+        if (!profession)
+          throw new EventVideoError('請選擇有效職業', 422, 'VIDEO_INVALID', { professionId: '職業已失效，請重新載入' });
+        if (legacy) {
+          // Keep the original seven-column legacy table and link rows intact.
+          db.prepare(`INSERT INTO event_video_profession_overrides VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(video_id) DO UPDATE SET profession_id=excluded.profession_id,
+            profession_name=excluded.profession_name, profession_colorcode=excluded.profession_colorcode, revision=excluded.revision`)
+            .run(videoId, profession.job_id, profession.name, profession.colorcode, input.revision + 1);
+        } else {
+          db.prepare('UPDATE event_video_submissions SET profession_id=?, profession_name=?, profession_colorcode=?, revision=revision+1 WHERE id=? AND event_id=?')
+            .run(profession.job_id, profession.name, profession.colorcode, videoId, eventId);
+        }
+        const result = { video: { ...current, professionId: profession.job_id, professionName: profession.name,
+          professionColorcode: profession.colorcode, revision: input.revision + 1 } };
+        db.prepare('INSERT INTO event_video_profession_requests VALUES (?, ?, ?)').run(input.requestId, encoded, JSON.stringify(result));
+        return result;
+      })();
+    },
     listEventVideos(eventId) {
       const event = checkEvent(eventId);
       return {
@@ -75,12 +131,7 @@ export function createEventVideoRepository(db) {
           // Keep legacy links and group labels without merging separate submissions by name.
           ...db
             .prepare(
-              `SELECT id, event_id AS eventId, name,
-            CASE WHEN round_number = 1 THEN url ELSE '' END AS firstUrl,
-            CASE WHEN round_number = 2 THEN url ELSE '' END AS secondUrl,
-            '' AS note, group_name AS groupName, created_at AS createdAt,
-            NULL AS professionId, NULL AS professionName, NULL AS professionColorcode
-            FROM event_videos WHERE event_id = ?`,
+              `SELECT ${legacyColumns} FROM ${legacyFrom} WHERE v.event_id = ?`,
             )
             .all(eventId),
         ].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id)),

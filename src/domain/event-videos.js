@@ -83,3 +83,18 @@ export function validateVideoSubmission(input) {
   const memberUid = input.memberUid === undefined ? null : text(input.memberUid, '成員資料', 64, 'name');
   return { ...details, requestId, eventRevision: input.eventRevision, ...(memberUid ? { memberUid } : {}) };
 }
+
+export function validateVideoProfessionUpdate(eventId, videoId, input) {
+  text(eventId, '場次', 128, 'eventId');
+  text(videoId, '影片', 128, 'videoId');
+  if (!input || typeof input !== 'object' || Array.isArray(input) ||
+      Object.keys(input).some(key => !['professionId', 'revision', 'requestId'].includes(key)))
+    throw new EventVideoError('只能修改這筆影片的職業');
+  if (!Number.isSafeInteger(input.professionId) || input.professionId < 1)
+    throw new EventVideoError('請選擇有效職業', 422, 'VIDEO_INVALID', { professionId: '請選擇職業' });
+  if (!Number.isSafeInteger(input.revision) || input.revision < 0)
+    throw new EventVideoError('影片版本不正確，請重新載入');
+  if (typeof input.requestId !== 'string' || !/^[a-zA-Z0-9_-]{1,64}$/.test(input.requestId))
+    throw new EventVideoError('缺少有效的操作識別碼，請重新操作');
+  return { professionId: input.professionId, revision: input.revision, requestId: input.requestId };
+}

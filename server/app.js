@@ -195,6 +195,9 @@ export function createApp(repository, { authNow, notifier = null } = {}) {
   app.post('/api/events/:id/videos', (request, response) => {
     response.status(201).json(repository.submitEventVideo(request.params.id, request.body));
   });
+  app.patch('/api/events/:id/videos/:videoId/profession', (request, response) => {
+    response.json(repository.updateEventVideoProfession(request.params.id, request.params.videoId, request.body));
+  });
   app.get('/api/events/:id/participation-members', (request, response) => {
     response.json(repository.listEventParticipationMembers(request.params.id));
   });
