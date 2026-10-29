@@ -248,3 +248,17 @@ getEvents 本來就是公開 READ_ONLY，本次只解除公開前端等待 auth 
 ## Unreleased 影片閱覽整併首載
 
 getVideoBrowser 已盤點依賴並加入 READ_ONLY 與 LAZY_TABLE_READS，預設管理者驗權保留。正常唯讀只用 events／videos／commits，同次重用事件與 commits，不讀旁表或 Drive／通知，不修改登入狀態或取寫入鎖；沒有場次時不碰 videos。缺表才於既有 locked execute 內重驗角色並初始化，匿名／member 不能藉此建表。隔離持寫入鎖純讀與缺表角色保護已驗證。submitEventVideo 的版本／CSRF／requestId、共用寫入鎖與其他功能不變。
+
+
+## Unreleased 上傳前成員身分與數據歸屬
+
+| 方法 | 業務讀取 | 業務寫入與保護 |
+| --- | --- | --- |
+| getBattleUploadRoster（新增） | members、professions、commits 與穩定登入狀態 | admin／manager、READ_ONLY；無 put／remove／建表／Drive／通知，不取業務寫入鎖 |
+| saveBattleRecords（擴充） | 原 requests／events／battles 與 members；手動歸屬重驗來源角色／陣營／索引、成員姓名／revision | 原 battle_players／battle_links／battles／requests／commits 同最終 Script Lock 提交；保留角色／CSRF／場次版本／唯一性／flush |
+
+名冊背景讀一次，頁面內分類／搜尋／換頁／雙場不重讀；顯式重載不快取，失敗／過期回應不蓋草稿。純讀已驗證可在其他寫入持鎖時成功，且只碰 members／professions／commits，Sheets／Properties／檔案／通知不變；匿名與 member 不放行。
+
+CSV 解析仍在鎖外，只有明確指定歸屬才在 prepare 讀一次名冊先驗證；舊未指定 prepare 不增加讀取。私人附件在鎖外建立後，最終取得既有 Script Lock 才重讀來源與重驗成員，不能把早先版本當作提交依據；隔離測試在 Drive 建檔期間修改成員，最終拒絕且無業務提交。全批驗證後才寫，雙場一筆失效全批拒絕，commits 失敗不可見，同 requestId 重試不重複提交。未引用檔案保留原復原限制，不擅自清理。
+
+歸屬納入 requestId 指紋、排除 CSV contentHash；未指定自動匹配重用最終名冊索引。沒有新寫入鎖／表、逐列 RPC 或通知，不延伸到已上傳歷史更正。完整協議見 Architecture.md；尚未同步，正式延遲未量測。

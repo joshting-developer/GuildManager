@@ -2,6 +2,14 @@
 
 目前已生成 Vue 單檔頁面與完整 GAS 後端，涵蓋登入／帳號管理、行事曆、成員／匯入／名稱歷史、活動、職責、報名／請假、排表／範本、戰績上傳／下載／閱覽、個人分析及團隊分析。本機 SQLite 環境保留。
 
+## 2026/10/29：上傳前身分與數據歸屬已完成，持續累積 Unreleased
+
+功能來源 `60a0d79`、姓名排序補強 `49a8043`：上傳數據進頁背景一次 getBattleUploadRoster／GET /api/battle-upload/roster，以精簡名冊標示幫會／俱樂部／兼屬／編外及未匹配；待上傳可搜尋指定實際操作成員。A 操作 B 時個人戰績計入 A，保留原角色、CSV、數字／職業／陣營；跨頁／雙場各自草稿，失敗保留、同名／重複歸屬警示。歷史不提供更正入口。Node／GAS 同次上傳寫 links／歸屬名稱快照，最終交易重驗來源與成員版本，沿原 CSRF／requestId／重複識別／Script Lock／commits；名冊新 RPC 管理者 READ_ONLY，不取業務寫入鎖，無新表或通知。
+
+原 360 項測試未改，新增五項，完整 **365／365**（/private/tmp/guild-attribution-full-tests.log）；最後 no-store／prepare 快徑調整後五項再通過，歸屬姓名排序補強後相關 **33／33** 再通過（/private/tmp/guild-attribution-final-regression.log）。一般／GAS 編譯及 package／lockfile 1.0.28、唯一 Unreleased／四檔／新 RPC／單檔／台北時區通過。隔離 Chrome /private/tmp/guild-attribution-preview/ 驗證背景慢／失敗重試、跨頁雙場、名冊變動、回應遺失同 ID 不重複、個人歸屬與原 CSV、清除回自動、歷史唯讀、離頁過期回應、桌面淺色／手機深色；無頁面例外。
+
+本輪只本機提交，尚未定版／push／同步 GAS／查詢或更新 Web App 部署；未讀寫正式資料／Properties 或發送通知，也未量測 Google 正式秒數。最新成功同步仍 **v1.0.28（06c3532）**；本次編譯是 Unreleased 測試包，不代表已交付。
+
 ## 2026/10/29：影片職業更正已完成，持續累積 Unreleased
 
 功能來源 `33b5ce3`：影片閱覽每列提供「修改職業」，限 admin／manager，首次開啟才讀共用職業選項；成功以寫入回應更新一列與 CSV，不新增整頁讀取。新增 updateEventVideoProfession／PATCH /api/events/:eventId/videos/:videoId/profession，單筆 revision／CSRF／requestId 保護，本機 SQLite 與 GAS 均保存職業名稱／色彩快照，其他影片內容不改。GAS 新 RPC 在 WRITES，沿原 Script Lock、commits／flush，不新增工作表、通知或 Drive 操作；本機 legacy 七欄保持原狀，以獨立更正表合併讀取。

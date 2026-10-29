@@ -163,7 +163,7 @@ member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admi
 
 成員清單（含編外人員）提供「查看數據」；數據分析中已關聯的人名可開啟 `#/member-records/:uid`，已登入 member／manager／admin 均可使用。UID 只作路由及內部引用，頁面、名稱、標籤與 title 不顯示。未關聯人名保持純文字。
 
-上傳數據的同一交易以當時名冊現在名稱精確比對，包含編外；唯一符合才保存 UID，不以職業、敵我、過去名稱或模糊搜尋推測。同名／未知名稱不關聯。`battle_player_links(record_id, player_index, member_uid)` 使用外鍵、逐列唯一索引及 member_uid 查詢索引，保留不可變的 players_json、原始 CSV、requestId／content_hash；詳情回應在讀取時加入 memberUid。單筆新增與 CSV 匯入共用成員建立流程；新增後依現在名稱精確比對尚未關聯的歷史玩家列，唯一同名才寫入關聯，已歸屬他人的資料不轉移。CSV 先完成整批建立再判斷唯一性，包含既有及同批同名；成員與關聯於同一 SQLite 交易／GAS 提交中保存。既有 UID 匯入仍跳過；改名、移至編外及重啟不觸發回填。原始 CSV、玩家快照與請求雜湊保持不變，戰績重試不重新比對名稱；本機詳情與重試讀取最新關聯，GAS 已保存的重試回應保持原樣。
+未手動指定歸屬的上傳數據列，在同一交易以當時名冊現在名稱精確比對，包含編外；唯一符合才保存 UID，不以職業、敵我、過去名稱或模糊搜尋推測。同名／未知名稱不關聯。`battle_player_links(record_id, player_index, member_uid)` 使用外鍵、逐列唯一索引及 member_uid 查詢索引，保留不可變的 players_json、原始 CSV、requestId／content_hash；詳情回應在讀取時加入 memberUid。單筆新增與 CSV 匯入共用成員建立流程；新增後依現在名稱精確比對尚未關聯的歷史玩家列，唯一同名才寫入關聯，已歸屬他人的資料不轉移。CSV 先完成整批建立再判斷唯一性，包含既有及同批同名；成員與關聯於同一 SQLite 交易／GAS 提交中保存。既有 UID 匯入仍跳過；改名、移至編外及重啟不觸發回填。原始 CSV、玩家快照與請求雜湊保持不變，戰績重試不重新比對名稱；本機詳情與重試讀取最新關聯，GAS 已保存的重試回應保持原樣。
 
 `GET /api/members/:uid/battle-records?page=1&startDate=2026-10-01&endDate=2026-10-31&profession=碎夢` 支援選填的台北起訖日期（含當天、可只填一邊）與當場職業名稱。日期須為有效 YYYY-MM-DD、結束不得早於開始；職業依不可變玩家快照精確篩選，選項涵蓋該成員全部已關聯紀錄。回傳現在名稱／職業、篩選條件、職業選項、全部符合條件參戰的統計，以及每頁 20 筆最新優先明細。包含保存的場次類型、日期、場序、當時姓名／職業、陣營、對手與十二欄數據，點日期可回對戰詳情。無資料、找不到成員、載入／失敗／重試均有提示，直接連結登入後保留目標。
 
@@ -305,3 +305,16 @@ SQLite 為 event_video_submissions 追加 revision=0，另建 event_video_profes
 原 submit receipts 保留；相同編輯 requestId 重試回傳原成功結果，與新增影片 receipts 分開，並納入 eventId／videoId／professionId／revision 指紋，不能用同 ID 改內容。新清單／新提交 DTO 加 revision，舊無值讀取相容0，原欄位與 CSV 六欄不變。
 
 VideoProfessionDialog 首次掛載才讀同 transport 的共用職業快取，未更動影片頁首載 RPC；重試失敗選項不黏住。草稿與版本不跨請求快取；正常送出一次修改，成功回應替換該列，原篩選與排序不變，不整頁重讀。衝突由明確操作重讀本場 getEventVideos 更新版本，保留已選更正供確認；失敗保留草稿，相同內容用相同 requestId。視窗卸載／關閉淘汰過期回應，儲存中不能重複送出或關閉，取消先確認未儲存變更，焦點回入口。詳見 Style.md／GASConcurrency.md，尚未同步或部署。
+
+
+## 上傳前數據歸屬（Unreleased）
+
+GET /api/battle-upload/roster／GAS getBattleUploadRoster() 限 admin／manager，回 `{ members: [{ uid, name, revision, isInGuild, isInClub, profession }] }`。SQLite 單次 JOIN，GAS 同次唯讀快照只讀 members／professions／commits；不讀名稱歷史、報名、排表、戰績或 Drive，不取業務寫入鎖。前端進頁背景一次；當頁 Map 分類／搜尋，無跨請求快取，HTTP no-store；明確重載／失敗重試取得新資料，離頁 token 丟棄舊回應。名冊未確認不阻擋解析／普通上傳。
+
+原 saveBattleRecords 的每筆 record 可選 attributions 陣列，每項恰有 playerIndex／sourcePlayer／sourceSide／memberUid／memberName／memberRevision。共用 validator 驗證完整鍵、型別、索引唯一／範圍及 CSV 原角色與陣營一致；undefined／空陣列與舊呼叫等價，不改舊指紋形狀。成員存在且姓名／revision 一致才可指定，包含編外；不依職業／敵我推測限制，不接受任意改名或偽造玩家快照。
+
+原 CSV 仍由後端解析，player 保留角色 B，新增 creditedName 保存歸屬 A 的顯示快照，原數字／職業／陣營不變；links 的 UID 才是實際個人戰績依據。手動指定優先於 B 的現名自動匹配，未指定沿唯一現名匹配，已關聯歷史不移轉。詳情、個人頁、團隊明細由 battlePlayerName 顯示歸屬名；詳情姓名排序使用歸屬名，詳情與個人頁另顯示原角色。重複 UID 不合併或刪列，預覽警告後沿原個人場數去重／逐列統計規則。
+
+歸屬參與原 requestId 指紋，內容變更同 ID 拒絕；contentHash 排除 attributions，避免以換歸屬重複匯入。SQLite 一次讀名冊建索引，在同交易重驗全部記錄後寫快照／links／receipts。GAS 鎖外 prepare 在有手動歸屬時先讀名冊驗證，未指定時不增加 prepare 名冊讀取；獨立 Drive 建檔後，最終 Script Lock 內重新讀名冊／驗權及原唯一性、場次版本、requestId，再一起提交快照／links／requests／commits，保留 flush。最終衝突不提交業務資料，鎖外未引用檔保留原復原策略。
+
+前端草稿獨立於解析快照，key 為 roundNumber＋file.id，列用原 playerIndex，不用分頁位置；調整不使預覽回第一頁。僅待上傳可調整，搜尋視窗按需掛載；跨頁／雙場保留，換場／檔案替換清除，普通失敗保留，名冊更新後失效的指定標示待確認並重新套用。選人與清除零 RPC，和原上傳同一請求保存，不新增逐列 API、資料表或永久別名。既有歷史更正不在此範圍。
