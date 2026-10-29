@@ -6,9 +6,9 @@
 
 - 介面、文件與操作訊息使用繁體中文
 - 視覺參考相鄰專案 `../NSHM_history`, 本專案的具體規則以 [Style.md](Style.md) 為準
-- 已建立 Vuetify 首頁／成員管理／活動安排／戰場排表／戰績上傳／戰績閱覽、Docker 本機環境、SQLite 讀寫 API 與 GAS 單檔編譯流程。最新 v1.0.28（同步來源 06c3532）過期行事曆僅影片、排表按需讀取及來源下拉選單已同步 GAS 並讀回四檔一致，尚未更新 Web App 部署。本輪未查詢或更新部署，實際狀態見 GASDeployment.md 及文末交接。
+- 已建立 Vuetify 首頁／成員管理／活動安排／戰場排表／戰績上傳／戰績閱覽、Docker 本機環境、SQLite 讀寫 API 與 GAS 單檔編譯流程。最新 v1.0.29（同步來源 c17d701）已於2026/10/29同步 GAS 並讀回四檔一致，包含行事曆／影片／對戰讀取改善、影片職業更正、上傳前數據歸屬及分析臨時分隊；尚未更新 Web App 部署。本輪未查詢或更新部署，實際狀態見 GASDeployment.md 及文末交接。
 - 使用者已確認本機使用 SQLite, 後期資料來源為 Google 試算表
-- GAS 最新同步程式為 v1.0.28（來源 06c3532），本機新改動以 Unreleased 累積：公開行事曆並行讀取、過期影片精簡表單、公開報名總數與職業統計隱藏、影片閱覽首載整併、對戰編輯精簡讀取及返回清單更新、影片職業更正、上傳前身分辨識與數據歸屬、分析未分類玩家臨時分隊。本批尚未定版／同步，package／lockfile 保持 1.0.28；未 push Git／更新 Web App 部署。下方舊版待同步說明保留作歷史，以文末最新交接及 GASDeployment.md 為準。
+- GAS 最新同步程式為 v1.0.29（來源 c17d701），本批原 Unreleased 已整併定版，package／lockfile／正式更新紀錄為1.0.29，日期2026-10-29，沒有空白Unreleased。未 push Git／更新 Web App 部署；後續新改動再建立唯一Unreleased。Discord頻道輪詢與後台設定仍僅審查方案，未實作／安裝排程／修改正式設定。下方舊版待同步說明保留作歷史，以文末最新交接及 GASDeployment.md 為準。
 - 過往 v1.0.22 同步紀錄：本機及 GAS 當時均為 v1.0.22（導覽／顯示設定、場次預設、數字格式及影片閱覽網址超連結），本批已交付，不重複升版；後續新一批功能交付須遞增 patch。v1.0.21 已交付：個人戰績一次載入、預選最新十筆、勾選總覽及 ECharts 走勢抽屜，移除三顆批次勾選快捷按鈕；進攻／防守分析重用詳情資料，提供數值／占比兩表及互斥配對。保留 v1.0.20 只解碼最新版本與既有唯讀／鎖範圍及多人請假修正；本輪未 push Git／更新部署。正式戰績上傳原始失敗原因仍未確定，見文末交接。
 - 試算表 ID 已取得, 本機使用帳號密碼登入；正式工作表名稱與 Google 登入待確認, 本機角色為 admin／manager／member, 成員、職業、過去名稱及活動安排欄位已依需求實作於本機
 
@@ -989,3 +989,16 @@ VideoProfessionDialog 首次開啟才讀共用職業選項，不改原影片首�
 隔離Chrome證據 /private/tmp/guild-analysis-assignments-preview/results.json、desktop-assignments.png／mobile-dark-assignments.png／mobile-dark-detail.png，腳本 /private/tmp/guild-analysis-assignments-browser.mjs。確認4／6tab、原未分類列始終可編輯、兩表／明細／圓餅即時更新、第二頁調整不跳頁、進攻防守共用／紅藍隔離、關閉重開保留與還原／全清除、重載只有原詳情一次RPC且清除、無排表保留警示、member手機深色與Escape／焦點、零操作API及Sheets／Properties／檔案／通知變更，頁面例外0。工具修正fixture占比、視窗分頁捲動與選單動畫／焦點定位後通過，未修改產品配合測試。
 
 規範已補本檔常態段、Style.md、Architecture.md、GASConcurrency.md，交付見GASDeployment.md；Unreleased維持同一筆，不升版／push／同步GAS／查詢或更新WebApp部署，不接正式資料或通知。最近已同步仍1.0.28（06c3532）。使用者Architecture既有NodeToGAS入口仍原樣留工作區，排除本次文件提交。
+
+
+## 2026/10/29 交接：v1.0.29 已同步 GAS，尚未更新 Web App 部署
+
+使用者明確要求同步，main起點2eed40f。先唯讀下載目前遠端到私有 data/gas-inspections/2026-10-29-pre-v1029-sync/，四檔與最近已確認1.0.28備份一致，無未整合遠端修改。依最新規則將唯一Unreleased全部整併，一次patch至1.0.29／2026-10-29，版本提交 **c17d701**；沒有改依賴或丟失原草稿內容／歷史，定版後無空白Unreleased。
+
+本批含公開行事曆與登入並行、過期影片精簡讀取／公開統計隱藏、影片閱覽整併、對戰編輯必要欄位讀取與返回清單一致性、影片職業更正（33b5ce3）、上傳前身分辨識／數據歸屬（60a0d79／49a8043）、未分類分析臨時分隊（60f0e73）。Discord Poller與後台設定只有方案文件，不在本批已實作功能，不自動建立trigger或修改設定。
+
+一般／GAS編譯通過，package／lockfile／正式條目／日期、四檔／新增wrapper／單檔／台北時區核對通過；隔離Chrome確認頁尾v1.0.29、目前正式條目及日期正確且無草稿（/private/tmp/guild-v1029-release-preview/）。沿用前批完整365項、最後歸屬33項與臨時分析21項及各批Chrome證據，本輪只改版本及交付文件，未重跑業務測試。日誌 /private/tmp/guild-v1029-build.log、guild-v1029-gas-build.log。
+
+`npm run gas:push` 重新編譯、備份遠端、同步 Index.html／Code.gs／Backend.gs／appsscript.json 並讀回四檔一致；同步日誌 **/private/tmp/guild-v1029-gas-sync.log**，私有前後備份 **data/gas-backups/2026-10-29T15-53-21-216Z/** 不提交。同步後再次核對四檔與1.0.29／正式日期一致。
+
+本輪只同步GAS程式，未push Git、查詢或更新WebApp部署、執行setupGas、讀寫正式試算表／Script Properties、發通知或安裝排程，也未量測Google正式耗時。使用者更新既有WebApp部署後，線上才套用本批新功能。原Architecture.md的NodeToGAS入口修改與私有檔／plans保留、不納入本次提交。
