@@ -152,6 +152,7 @@ Apps Script 的 `.gs` 檔案共用全域環境, 避免重複命名與載入時�
 
 ## 已確認成員規則
 
+- 成員名冊提供 CSV 匯出：沿目前成員／編外分類及所有篩選，輸出全部符合資料（非僅當頁），依原清單順序包含 UID、名稱、主副職業、幫派／俱樂部狀態與過去名稱；缺值留空，不輸出操作或內部版本。沿用完整名冊 admin／manager／member 權限，前端只重用當頁已授權資料，不新增 API、快取或鎖。CSV 共用 tableCsv 的 UTF-8 BOM／CRLF／引號與公式防護；下載 URL 延後回收及卸載清理。此為閱覽格式，既有四欄匯入契約維持不變。
 - UID 是文字主鍵，名稱及主職業必填、副職業可空；一般編輯維持 UID 鎖定，admin／manager 可透過專用維護功能修正 UID（見成員資料維護）
 - UID 僅在成員管理清單及相關表單／匯入／歷史視窗顯示；報名、排表、排表歷史、範本提示與 title 不顯示玩家 UID, 內部關聯與快照仍保留 UID
 - isInGuild／isInClub 為獨立 boolean, SQLite is_in_guild／is_in_club 保存 0／1 並有 CHECK 約束。
@@ -1029,3 +1030,11 @@ VideoProfessionDialog 首次開啟才讀共用職業選項，不改原影片首�
 `npm run gas:push` 已重新編譯、備份遠端、同步並讀回四檔一致，同步日誌 **/private/tmp/guild-v1030-gas-sync.log**，私有備份 **data/gas-backups/2026-10-29T16-35-34-488Z/**（檔名UTC時間，台北同步日期10/30）不提交。同步後另核對本機after快照與build四檔、正式版號／日期一致。
 
 只同步程式，未push Git、查詢或更新WebApp部署、setupGas、正式Sheets／Script Properties讀寫、通知或trigger，亦未量測Google正式耗時。使用者更新既有WebApp部署後線上才套用此修正。原Architecture.md的NodeToGAS入口與私有檔／plans保留，不納入本次提交。
+
+## 2026/10/31 交接：成員名冊匯出（Unreleased）
+
+功能 **7bb6746**：名冊篩選區下提供「匯出 CSV（N 位）」，包含目前分類／篩選的全部頁面及七欄資料；成員、編外及 member 權限皆沿原清單。瀏覽器產生檔案，檔名採台北日期，不新增 RPC、Sheets 讀取、業務寫入、快取或鎖。抽取影片原 CSV 編碼器為共用 tableCsv，影片既有測試預期不變；名冊原始快照不修改。
+
+新增三項 CSV 測試及原影片 CSV／成員 adapter／過去名稱篩選／名冊權限共 **19／19** 通過。初次沙箱執行 HTTP 測試因本機 listen EPERM 失敗，允許本機隔離 server 後原測試全數通過，沒有修改預期。一般／GAS 編譯通過，日誌 /private/tmp/guild-member-export-{tests,build,gas-build}.log；隔離 Chrome /private/tmp/guild-member-export-preview/results.json 驗證 26 人跨頁、搜尋／空結果、編外、admin／member、匿名拒絕、下載失敗重試、URL 延後／卸載清理、零新增 RPC／資料變更及手機深色無溢出，頁面／console 例外 0，截圖已檢視。
+
+唯一 Unreleased 累積本功能，package／lockfile 保持1.0.30；尚未 push、同步 GAS、查詢或更新 Web App 部署，最新同步仍5ddb9d7／1.0.30。Architecture.md 既有使用者修改及私有檔保留，不納入本次提交。
