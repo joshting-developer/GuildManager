@@ -281,6 +281,9 @@ export function createApp(repository, { authNow, notifier = null } = {}) {
   app.post('/api/lineups/templates', (request, response) => {
     response.status(201).json({ template: repository.createLineupTemplate(request.body) });
   });
+  app.delete('/api/lineups/templates/:id', (request, response) => {
+    response.json(repository.deleteLineupTemplate(request.params.id));
+  });
   app.get('/api/lineups/templates/:id/apply/:eventId', (request, response) => {
     response
       .set('Cache-Control', 'no-store')
