@@ -1,6 +1,6 @@
 <script setup>
 import DataLoading from '../components/DataLoading.vue';
-import { computed, inject, onMounted, ref, watch } from 'vue';
+import { computed, inject, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import {
   mdiAccountGroupOutline,
   mdiPlus,
@@ -11,9 +11,12 @@ import {
   mdiMagnify,
   mdiClose,
   mdiFileImportOutline,
+  mdiDownload,
   mdiDeleteOutline,
 } from '@mdi/js';
 import { createMemberClient } from '../api/members.js';
+import { memberTableCsv } from '../domain/member-table-csv.js';
+import { taipeiToday } from '../domain/battle-events.js';
 import './members.css';
 import MemberImportDialog from './MemberImportDialog.vue';
 import MemberMaintenanceDialog from './MemberMaintenanceDialog.vue';
@@ -26,6 +29,8 @@ const professions = ref([]);
 const loading = ref(true);
 const loadError = ref('');
 const notice = ref('');
+const exportError = ref('');
+const downloads = new Map();
 const search = ref('');
 const tab = ref('members');
 const memberCount = computed(
@@ -106,6 +111,37 @@ async function load() {
   }
 }
 onMounted(load);
+function exportCsv() {
+  if (loading.value || loadError.value || !filtered.value.length) return;
+  exportError.value = '';
+  let url, link;
+  try {
+    url = URL.createObjectURL(new Blob([memberTableCsv(filtered.value)], {
+      type: 'text/csv;charset=utf-8',
+    }));
+    link = document.createElement('a');
+    link.href = url;
+    link.download = `${taipeiToday()}_${tabLabel.value}名冊.csv`;
+    document.body.append(link);
+    link.click();
+    downloads.set(url, setTimeout(() => {
+      URL.revokeObjectURL(url);
+      downloads.delete(url);
+    }, 1000));
+  } catch {
+    if (url) URL.revokeObjectURL(url);
+    exportError.value = '無法匯出 CSV，請重試';
+  } finally {
+    link?.remove();
+  }
+}
+onBeforeUnmount(() => {
+  for (const [url, timer] of downloads) {
+    clearTimeout(timer);
+    URL.revokeObjectURL(url);
+  }
+  downloads.clear();
+});
 function clearFilters() {
   search.value = '';
   jobFilter.value = null;
@@ -426,6 +462,16 @@ function formatDate(value) {
             >清除篩選</v-btn
           >
         </div>
+        <div class="member-export-actions">
+          <p class="member-count">依目前篩選匯出，包含全部頁面。</p>
+          <v-btn
+            variant="outlined"
+            :prepend-icon="mdiDownload"
+            :disabled="!filtered.length"
+            @click="exportCsv"
+          >匯出 CSV（{{ filtered.length }} 位）</v-btn>
+        </div>
+        <v-alert v-if="exportError" type="error" variant="tonal" role="alert" class="mb-4">{{ exportError }}</v-alert>
         <div v-if="!categoryMembers.length" class="empty-state">
           <span class="empty-icon"><v-icon :icon="mdiAccountGroupOutline" size="28" /></span>
           <h3>{{ tab === 'members' ? '尚無成員' : '尚無編外人員' }}</h3>

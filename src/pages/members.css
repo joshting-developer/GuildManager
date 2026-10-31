@@ -25,6 +25,14 @@
   font-size: 13px;
   color: var(--color-text-muted);
 }
+.member-export-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0;
+}
 .member-table-scroll {
   overflow-x: auto;
   border: 1px solid var(--color-border);
