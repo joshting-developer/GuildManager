@@ -211,6 +211,10 @@ const WHEEL_LINES = {
   slipWin: ['🏁 滑到 {n}！', '🏁 喀一聲，停在 {n}！'],
   break: ['啪！指針斷掉了！', '指針：我不幹了', '指針罷工了！？'],
   breakWin: ['🏁 新指針指向 {n}！', '🏁 天降新指針，選中 {n}！'],
+  swap: ['等等！名字自己跑起來了！', '格子：我們換一下位子', '兩格的名字在移動？！'],
+  swapWin: ['🏁 換位成功，{n} 到指針下了！', '🏁 {n}：借過借過～'],
+  grow: ['旁邊那格開始變大了？！', '格子吃胖了！', '有一格在長大……'],
+  growWin: ['🏁 {n} 的格子撐到指針下了！', '🏁 {n}：這塊地盤是我的！'],
 };
 
 export function wheelLine(type, { winner, decoy, random = Math.random } = {}) {
