@@ -64,7 +64,7 @@ GAS 資料函式與 Sheets store 已生成，使用 mock Google 服務及編譯 
 
 儲存重新讀取本場有效報名與請假, 將額外報名姓名、職業、ID／場次及原報名備註嵌入不可變快照。跨場套用範本不複製額外報名, 不符合或取消者留空並提示。取消／請假不修改已保存版本。前端更新來源保留目前排表並標示無效人員, 不默默刪掉排表。
 
-排表介面每場直接編輯最後保存的名單, 儲存後繼續編輯, 手動另存範本保留或復用配置。沒有工作區／歷史版本選單或儲存確認視窗。前端以 getLineupEditor／getLineupEvent 讀最新一筆，既有 getLineupHistory／confirmLineup 契約保留相容；lineup_versions 保留相容快照及 expectedVersion／eventRevision／requestId 並行與重試保護, 不做刪除或資料搬移。刪除／改類型的場次只顯示最新快照且封存唯讀, 可另存範本。
+排表介面每場直接編輯最後保存的名單, 儲存後繼續編輯, 手動另存範本保留或復用配置；範本可存回、同名覆蓋（保留 ID）與刪除，範本與已保存排表彼此獨立。沒有工作區／歷史版本選單或儲存確認視窗。前端以 getLineupEditor／getLineupEvent 讀最新一筆，既有 getLineupHistory／confirmLineup 契約保留相容；lineup_versions 保留相容快照及 expectedVersion／eventRevision／requestId 並行與重試保護, 不做刪除或資料搬移。刪除／改類型的場次只顯示最新快照且封存唯讀, 可另存範本。
 
 GAS 已提供對應工作表、應用程式角色驗證、script lock、重試及提交日誌；登入未與遊戲 UID 綁定，仍不作本人操作驗證。本機仍限 loopback，尚未實作 Google OAuth 或驗證正式公開部署。
 
@@ -219,7 +219,7 @@ App 對 member 開放 members 路由及導覽，直接連結登入後保留目�
 
 `src/domain/lottery.js` 共用名單驗證、獎品保留、抽獎與清空規則，`server/lottery-repository.js` 以 SQLite 單列 JSON（`lottery_boards`）保存，`gas/src/lottery.js` 以 `GM_lottery` 單一紀錄保存並於首次使用補建工作表；兩端都由後端決定冠軍並在同一交易／提交中保存，抽同一獎品可安全重試。`src/api/lottery.js` 提供 getLottery／saveLottery／drawLotteryPrize／resetLottery 同名介面（本機 `GET/PATCH /api/lottery`、`POST/DELETE /api/lottery/draws`），未登入／member 由既有權限規則拒絕。
 
-`src/domain/lottery-race.js` 只規劃動畫：冠軍固定在 20 秒到線，其他人較晚，突發狀況（摔倒、睡著、吃草、跑錯方向、暴衝）皆在各自到線前結束，因此動畫順序永遠與保存結果一致。頁面分成殼層與玩法：`src/pages/lottery/LotteryPage.vue` 負責名單、獎品、抽獎 API、全螢幕舞台、播報框與結果視窗；玩法元件（`RaceStage.vue`、`WheelStage.vue`）只接收參加者名稱、演出並在揭曉後 resolve `play(winnerIndex)`，由 `modes.js` 登記並顯示為玩法卡片。結果視窗關閉後才把新得獎者套用到獎品清單；減少動畫設定下停用晃動與彩帶。轉盤的停點與三種結局計算在 `src/domain/lottery-wheel.js`，台詞在 `src/domain/lottery-commentary.js`。
+`src/domain/lottery-race.js` 只規劃動畫：冠軍固定在 20 秒到線，其他人較晚，突發狀況（摔倒、睡著、吃草、跑錯方向、暴衝）皆在各自到線前結束，因此動畫順序永遠與保存結果一致。頁面分成殼層與玩法：`src/pages/lottery/LotteryPage.vue` 負責名單、獎品、抽獎 API、全螢幕舞台、播報框與結果視窗；玩法元件（`RaceStage.vue`、`WheelStage.vue`）只接收參加者名稱、演出並在揭曉後 resolve `play(winnerIndex)`，由 `modes.js` 登記並顯示為玩法卡片。結果視窗關閉後才把新得獎者套用到獎品清單；減少動畫設定下停用晃動與彩帶。轉盤的停點與結局（七種機率相同、不連續重複，正常僅供本機預覽）計算在 `src/domain/lottery-wheel.js`，台詞在 `src/domain/lottery-commentary.js`。
 
 ## Discord 通知
 
