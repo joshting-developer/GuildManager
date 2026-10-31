@@ -78,6 +78,7 @@ const WRITES = [
   'confirmLineup',
   'cancelEventLeave',
   'createLineupTemplate',
+  'deleteLineupTemplate',
   'saveBattleRecords',
   'updateBattleRecord',
   'deleteBattleRecord',

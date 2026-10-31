@@ -6,7 +6,7 @@ import {
   mdiFullscreenExit,
   mdiSwordCross,
   mdiRefresh,
-  mdiContentSaveOutline,
+  mdiMenuDown,
   mdiAccountGroupOutline,
   mdiAccountPlusOutline,
   mdiDownload,
@@ -156,6 +156,9 @@ const saveStatus = computed(() =>
       : savedLineup.value
         ? '已儲存'
         : '尚未儲存',
+);
+const sameNameTemplate = computed(() =>
+  templates.value.find((template) => template.name === templateName.value.trim()),
 );
 const dialogDirty = computed(() =>
   dialog.value === 'registration'
@@ -611,6 +614,7 @@ function openDialog(type) {
   if (type === 'template') {
     templateName.value = '';
     templateAttempt = null;
+    loadTemplates();
   } else if (type === 'registration') {
     registrationName.value = '';
     registrationProfessionId.value = null;
@@ -846,13 +850,46 @@ async function saveTemplate() {
     dialogError.value = '請填寫範本名稱';
     return;
   }
-  busy.value = true;
   dialogError.value = '';
   try {
-    const payload = {
-      name: templateName.value.trim(),
-      teams: editableLineup(displayedTeams.value),
-    };
+    await writeTemplate({ name: templateName.value.trim() });
+    dialog.value = null;
+  } catch (cause) {
+    dialogError.value = cause.message;
+  }
+}
+// Overwrites the template picked in the toolbar with what is on screen now.
+async function saveToTemplate() {
+  const current = templates.value.find((template) => template.id === templateId.value);
+  if (!current || !window.confirm(`把目前名單存回範本「${current.name}」？原本的配置會被覆蓋。`)) return;
+  notice.value = '';
+  templateAttempt = null;
+  try {
+    await writeTemplate({ name: current.name, templateId: current.id });
+  } catch (cause) {
+    window.alert(cause.message);
+  }
+}
+async function deleteTemplate() {
+  const current = templates.value.find((template) => template.id === templateId.value);
+  if (!current || !window.confirm(`刪除範本「${current.name}」？刪除後無法復原，已儲存的排表不受影響。`)) return;
+  notice.value = '';
+  busy.value = true;
+  try {
+    await client.deleteTemplate(current.id);
+    templates.value = templates.value.filter((template) => template.id !== current.id);
+    templateId.value = null;
+    notice.value = `已刪除範本「${current.name}」。`;
+  } catch (cause) {
+    window.alert(cause.message);
+  } finally {
+    busy.value = false;
+  }
+}
+async function writeTemplate(fields) {
+  busy.value = true;
+  try {
+    const payload = { ...fields, teams: editableLineup(displayedTeams.value) };
     templateAttempt = attempt(templateAttempt, payload);
     const data = await client.createTemplate({ ...payload, requestId: templateAttempt.requestId });
     if (!data.template?.id || !Array.isArray(data.template?.teams))
@@ -862,10 +899,9 @@ async function saveTemplate() {
     if (!templates.value.some((template) => template.id === data.template.id))
       templates.value.unshift({ id: data.template.id, name: data.template.name, createdAt: data.template.createdAt });
     templateId.value = data.template.id;
-    dialog.value = null;
-    notice.value = `已儲存範本「${data.template.name}」，其他場次可重複套用。`;
-  } catch (cause) {
-    dialogError.value = cause.message;
+    notice.value = data.template.replaced
+      ? `已更新範本「${data.template.name}」。`
+      : `已儲存範本「${data.template.name}」，其他場次可重複套用。`;
   } finally {
     busy.value = false;
   }
@@ -1089,6 +1125,27 @@ onUnmounted(() => {
             @click="applyTemplate"
             >套用範本</v-btn
           >
+          <v-menu location="bottom end">
+            <template #activator="{ props: menu }">
+              <v-btn
+                v-bind="menu"
+                variant="outlined"
+                :append-icon="mdiMenuDown"
+                :disabled="busy || catalogBusy || lineupLoading"
+                >範本</v-btn
+              >
+            </template>
+            <v-list density="compact">
+              <v-list-item :disabled="!templateId || archived" title="存回這份範本" @click="saveToTemplate" />
+              <v-list-item title="另存新範本" @click="openDialog('template')" />
+              <v-list-item
+                :disabled="!templateId || archived"
+                title="刪除範本"
+                base-color="error"
+                @click="deleteTemplate"
+              />
+            </v-list>
+          </v-menu>
           <v-btn v-if="templateError" variant="text" :disabled="templatesLoading" @click="loadTemplates()">重試範本清單</v-btn>
         </div>
         <div class="lineup-toolbar-bottom">
@@ -1104,12 +1161,6 @@ onUnmounted(() => {
           </div>
           <div class="lineup-actions">
             <v-btn
-              variant="outlined"
-              :prepend-icon="mdiContentSaveOutline"
-              :disabled="busy || catalogBusy || lineupLoading"
-              @click="openDialog('template')"
-              >另存範本</v-btn
-            ><v-btn
               v-if="!archived"
               color="primary"
               :loading="saving"
@@ -1533,6 +1584,9 @@ onUnmounted(() => {
               :disabled="busy"
               autofocus
             />
+            <v-alert v-if="sameNameTemplate" type="warning" variant="tonal" class="mb-3"
+              >已有同名範本，儲存會覆蓋原本的配置。</v-alert
+            >
             <p>
               保存目前
               {{ count }} 位成員的位置、上場職業、隊名、職責與備註。套用到其他場次時會重新檢查資格。
@@ -1558,7 +1612,9 @@ onUnmounted(() => {
                   ? '套用位置'
                   : dialog === 'registration'
                     ? '送出報名'
-                    : '儲存範本'
+                    : sameNameTemplate
+                      ? '覆蓋範本'
+                      : '儲存範本'
             }}</v-btn
           >
         </div></v-card
