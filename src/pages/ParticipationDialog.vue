@@ -42,7 +42,7 @@ const videoForm = ref(null),
   videoSession = ref(0);
 const anyBusy = computed(() => busy.value || videoBusy.value);
 function reload() {
-  if (pastEvent.value) load();
+  if (pastEvent.value || tab.value === 'leaves') load();
   else if (videoForm.value) videoForm.value.reloadEvent();
   else load();
 }
@@ -59,6 +59,7 @@ const entries = computed(() => [
   ...registrations.value.map((row) => ({ ...row, status: 'registered' })),
   ...registrationLeaves.value.map((row) => ({ ...row, status: 'leave' })),
 ]);
+const leaveEntries = computed(() => entries.value.filter((row) => row.status === 'leave'));
 const registeredCount = computed(
   () => entries.value.filter((row) => row.status === 'registered').length,
 );
@@ -280,7 +281,7 @@ async function submit() {
         <div>
           <p class="eyebrow">{{ event.dates[0] }} · {{ eventTypeLabel(event.type) }}</p>
           <h2 id="participation-title">
-            {{ eventDisplayTitle(event) }} · {{ tab === 'videos' ? '影片上傳' : '報名／請假' }}
+            {{ eventDisplayTitle(event) }} · {{ tab === 'videos' ? '影片上傳' : tab === 'leaves' ? '已請假' : '報名／請假' }}
           </h2>
         </div>
         <v-btn
@@ -291,13 +292,8 @@ async function submit() {
           >重新載入</v-btn
         >
       </div>
-      <DataLoading v-if="authLoading">正在確認登入狀態…</DataLoading>
-      <DataLoading v-else-if="loading">{{ pastEvent ? '正在載入影片表單…' : '正在載入本場報名資料…' }}</DataLoading>
-      <v-alert v-else-if="loadError" type="error" variant="tonal" role="alert">{{
-        loadError
-      }}</v-alert>
-      <div v-show="!authLoading && !loading && !loadError">
-        <p v-if="showCounts && !pastEvent" class="participation-count">報名 {{ registeredCount }} 人</p>
+      <div>
+        <p v-if="showCounts && !pastEvent && !loading && !loadError" class="participation-count">報名 {{ registeredCount }} 人</p>
         <v-tabs v-model="tab" color="primary" aria-label="場次參與資訊">
           <v-tab
             v-if="!pastEvent"
@@ -306,6 +302,14 @@ async function submit() {
             aria-controls="participation-form-panel"
             :disabled="anyBusy"
             >報名／請假</v-tab
+          >
+          <v-tab
+            v-if="!pastEvent"
+            id="participation-leaves-tab"
+            value="leaves"
+            aria-controls="participation-leaves-panel"
+            :disabled="anyBusy"
+            >已請假</v-tab
           >
           <v-tab
             v-if="showCounts && !pastEvent"
@@ -331,7 +335,10 @@ async function submit() {
           aria-labelledby="participation-form-tab"
           tabindex="0"
         >
-          <form class="participation-form" @submit.prevent="submit">
+          <DataLoading v-if="authLoading">正在確認登入狀態…</DataLoading>
+          <DataLoading v-else-if="loading">正在載入本場報名資料…</DataLoading>
+          <v-alert v-else-if="loadError" type="error" variant="tonal" role="alert">{{ loadError }}</v-alert>
+          <form v-else class="participation-form" @submit.prevent="submit">
             <NameSourcePicker
               v-model:source="nameSource"
               v-model:name="name"
@@ -382,6 +389,26 @@ async function submit() {
           </form>
         </section>
         <section
+          v-if="!pastEvent"
+          v-show="tab === 'leaves'"
+          id="participation-leaves-panel"
+          role="tabpanel"
+          aria-labelledby="participation-leaves-tab"
+          :aria-busy="authLoading || loading"
+          tabindex="0"
+        >
+          <DataLoading v-if="authLoading">正在確認登入狀態…</DataLoading>
+          <DataLoading v-else-if="loading">正在載入已請假名單…</DataLoading>
+          <v-alert v-else-if="loadError" type="error" variant="tonal" role="alert">
+            {{ loadError }}
+            <v-btn variant="text" @click="load()">重試</v-btn>
+          </v-alert>
+          <p v-else-if="!leaveEntries.length" class="participation-count">目前沒有已請假的人員。</p>
+          <ul v-else class="participation-leave-list" aria-label="已請假名單">
+            <li v-for="person in leaveEntries" :key="person.uid ? `member:${person.uid}` : `guest:${person.id}`">{{ person.name }}</li>
+          </ul>
+        </section>
+        <section
           v-if="showCounts && !pastEvent"
           v-show="tab === 'professions'"
           id="participation-professions-panel"
@@ -389,7 +416,9 @@ async function submit() {
           aria-labelledby="participation-professions-tab"
           tabindex="0"
         >
-          <ul class="profession-count-list" aria-label="各職業報名人數">
+          <DataLoading v-if="authLoading || loading">正在載入職業統計…</DataLoading>
+          <v-alert v-else-if="loadError" type="error" variant="tonal" role="alert">{{ loadError }}</v-alert>
+          <ul v-else class="profession-count-list" aria-label="各職業報名人數">
             <li v-for="job in professionCounts" :key="job.job_id">
               <span class="profession-count-name" :style="{ '--job-color': job.colorcode }">{{
                 job.name
@@ -404,7 +433,11 @@ async function submit() {
           role="tabpanel"
           aria-labelledby="participation-video-tab"
         >
+          <DataLoading v-if="authLoading">正在確認登入狀態…</DataLoading>
+          <DataLoading v-else-if="loading">正在載入影片表單…</DataLoading>
+          <v-alert v-else-if="loadError" type="error" variant="tonal" role="alert">{{ loadError }}</v-alert>
           <VideoUploadForm
+            v-show="!authLoading && !loading && !loadError"
             ref="videoForm"
             :key="videoSession"
             :event="event"
@@ -453,6 +486,14 @@ async function submit() {
 }
 .participation-form > .v-btn {
   justify-self: start;
+}
+.participation-leave-list {
+  margin: 20px 0;
+  padding-left: 24px;
+  overflow-wrap: anywhere;
+}
+.participation-leave-list li {
+  padding: 6px 0;
 }
 .participation-count {
   font-size: 13px;
