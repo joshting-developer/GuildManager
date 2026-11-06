@@ -301,24 +301,36 @@ test('wheel endings always land on the saved winner and twists first stop on som
       // A single participant can't have a different first stop; keep it out of the ratios.
       if (count > 1) counts[plan.ending]++;
       assert.ok(plan.stopRotation >= 3 * 360, 'spins several full turns');
-      assert.equal(sliceAt(count, plan.rotation, plan.pointerAngle), winner, plan.ending);
+      if (plan.ending === 'grow') assert.ok(Math.abs(plan.target) < plan.growHalf, 'grows past the pointer');
+      else assert.equal(sliceAt(count, plan.rotation, plan.pointerAngle), plan.winnerSlot, plan.ending);
+      if (plan.ending !== 'swap') assert.equal(plan.winnerSlot, winner);
       assert.equal(plan.decoy, sliceAt(count, plan.stopRotation, 0));
-      if (['normal', 'fake'].includes(plan.ending)) assert.equal(plan.decoy, winner);
+      assert.notEqual(plan.ending, 'normal');
+      if (plan.ending === 'fake') assert.equal(plan.decoy, winner);
       else assert.notEqual(plan.decoy, winner, `${plan.ending} with ${count}`);
       if (plan.ending === 'extend') assert.equal(plan.pointerAngle, 180);
       if (plan.ending === 'slip') assert.equal(plan.pointerAngle, 0);
-      if (count === 1) assert.ok(['normal', 'fake'].includes(plan.ending));
+      if (count === 1) assert.equal(plan.ending, 'fake');
     }
   }
   const total = Object.values(counts).reduce((sum, value) => sum + value, 0);
-  assert.ok(Math.abs(counts.normal / total - 0.5) < 0.03, JSON.stringify(counts));
-  for (const key of ['fake', 'extend', 'bend', 'slip', 'break'])
-    assert.ok(Math.abs(counts[key] / total - 0.1) < 0.02, JSON.stringify(counts));
+  assert.equal(counts.normal, 0);
+  for (const key of ['fake', 'extend', 'bend', 'slip', 'break', 'swap', 'grow'])
+    assert.ok(Math.abs(counts[key] / total - 1 / 7) < 0.02, JSON.stringify(counts));
+  // The same ending never plays twice running, except with one person left.
+  let last = null;
+  for (let round = 0; round < 500; round++) {
+    const { ending } = planWheel(24, 5, Math.random, { avoid: last });
+    assert.notEqual(ending, last);
+    last = ending;
+  }
+  assert.equal(planWheel(1, 0, Math.random, { avoid: 'fake' }).ending, 'fake');
   // Forced previews still land on the winner for every ending.
   for (const { key } of WHEEL_ENDINGS) {
     const plan = planWheel(24, 5, Math.random, { ending: key });
     assert.equal(plan.ending, key);
-    assert.equal(sliceAt(24, plan.rotation, plan.pointerAngle), 5);
+    if (key === 'grow') assert.ok(Math.abs(plan.target) < plan.growHalf);
+    else assert.equal(sliceAt(24, plan.rotation, plan.pointerAngle), plan.winnerSlot);
   }
 });
 

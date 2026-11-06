@@ -56,6 +56,10 @@ export function createLineupClient({ source = 'local', fetchImpl = sessionFetch,
             { revision },
           ),
     createTemplate: (input) => call('createLineupTemplate', '/templates', 'POST', input),
+    deleteTemplate: (id) =>
+      source === 'gas'
+        ? callGas('deleteLineupTemplate', [id], googleRun)
+        : call('deleteLineupTemplate', `/templates/${encodeURIComponent(id)}`, 'DELETE', {}),
     applyTemplate: (id, eventId) =>
       call(
         'applyLineupTemplate',

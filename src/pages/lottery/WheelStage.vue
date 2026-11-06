@@ -1,7 +1,12 @@
+<script>
+// Kept across instances so switching modes or pages can't replay the last ending.
+let lastEnding = null;
+</script>
+
 <script setup>
 // 轉盤玩法。玩法元件共同介面見 modes.js。
 import { computed, onUnmounted, ref, watch } from 'vue';
-import { WHEEL_SPIN_MS, planWheel, sliceAt, wheelEase } from '../../domain/lottery-wheel.js';
+import { WHEEL_ENDINGS, WHEEL_SPIN_MS, planWheel, sliceAt, wheelEase } from '../../domain/lottery-wheel.js';
 import { wheelLine } from '../../domain/lottery-commentary.js';
 
 const props = defineProps({ names: { type: Array, default: () => [] }, live: Boolean });
@@ -32,7 +37,11 @@ const landed = ref(-1),
   winnerSlice = ref(-1),
   shaking = ref(false),
   zoom = ref(false),
-  bubble = ref('');
+  bubble = ref(''),
+  swapped = ref(null),
+  ghosts = ref([]),
+  flying = ref([]),
+  grow = ref(null);
 let rotation = 0,
   frame = 0,
   timers = [],
@@ -47,13 +56,26 @@ const point = (angle, radius) => {
 const slices = computed(() => {
   const count = props.names.length;
   if (!count) return [];
-  const size = 360 / count;
+  const base = 360 / count;
   // Size labels to the slice's width at the label radius, so small rosters get big names.
   const fontSize = Math.max(14, Math.min(52, ((2 * Math.PI * RADIUS * 0.6) / count) * 0.8));
   const maxChars = Math.max(2, Math.floor((RADIUS * 0.72) / fontSize));
+  // While a slice grows the others share what is left, in order, clockwise from its far edge.
+  const others = grow.value && (360 - 2 * grow.value.half) / (count - 1);
+  const span = (index) => {
+    if (!grow.value) return [index * base, base];
+    const { index: big, half } = grow.value;
+    const middle = big * base + base / 2;
+    if (index === big) return [middle - half, 2 * half];
+    return [middle + half + (((index - big + count) % count) - 1) * others, others];
+  };
+  const shown = (index) => {
+    const [a, b] = swapped.value || [];
+    return props.names[index === a ? b : index === b ? a : index];
+  };
   return props.names.map((name, index) => {
-    const start = index * size,
-      end = start + size,
+    const [start, size] = span(index);
+    const end = start + size,
       middle = start + size / 2;
     const [x1, y1] = point(start, RADIUS),
       [x2, y2] = point(end, RADIUS);
@@ -70,11 +92,11 @@ const slices = computed(() => {
       // Avoid the last slice matching the first one it touches.
       color:
         COLORS[(index === count - 1 && index % COLORS.length === 0 ? 3 : index) % COLORS.length],
-      label: name.length > maxChars ? `${name.slice(0, maxChars - 1)}…` : name,
+      label: shown(index).length > maxChars ? `${shown(index).slice(0, maxChars - 1)}…` : shown(index),
       textTransform: `rotate(${middle - 90 + flip} ${tx} ${ty})`,
       tx,
       ty,
-      fontSize,
+      fontSize: Math.max(10, fontSize * Math.min(1.25, size / base)),
     };
   });
 });
@@ -103,6 +125,9 @@ function reset() {
   landed.value = lost.value = winnerSlice.value = -1;
   shaking.value = zoom.value = false;
   bubble.value = '';
+  swapped.value = grow.value = null;
+  ghosts.value = [];
+  flying.value = [];
   setRotation(0);
   setPointer(0, TIP);
   setTilt(0);
@@ -131,10 +156,11 @@ function animate(duration, step) {
 // Elastic overshoot so the stretching / bending pointer looks springy.
 const springy = (p) => (p >= 1 ? 1 : 1 - Math.pow(2, -10 * p) * Math.cos(p * Math.PI * 3));
 
-async function play(winnerIndex) {
+async function play(winnerIndex, ending) {
   reset();
   const count = props.names.length;
-  const plan = planWheel(count, winnerIndex);
+  const plan = planWheel(count, winnerIndex, Math.random, { ending, avoid: lastEnding });
+  if (!ending) lastEnding = plan.ending;
   const fast = reduceMotion();
   const winner = props.names[winnerIndex],
     decoy = props.names[plan.decoy];
@@ -171,9 +197,9 @@ async function play(winnerIndex) {
 
   const reveal = (key) => {
     bubble.value = '';
-    if (plan.decoy !== winnerIndex) lost.value = plan.decoy;
+    if (plan.decoy !== winnerIndex) lost.value = plan.ending === 'swap' ? winnerIndex : plan.decoy;
     landed.value = -1;
-    winnerSlice.value = winnerIndex;
+    winnerSlice.value = plan.winnerSlot;
     emit('say', wheelLine(key, { winner }));
   };
   const jolt = (mark) => {
@@ -231,6 +257,43 @@ async function play(winnerIndex) {
     });
     setPointerGroup(`rotate(${plan.pointerAngle} ${CX} ${CY})`);
     reveal('breakWin');
+  } else if (plan.ending === 'swap') {
+    jolt('!?');
+    emit('say', wheelLine('swap', { winner, decoy }));
+    await wait(fast ? 200 : 700);
+    // Both names lift off and pass each other in a curve across the wheel.
+    const spot = (index) => point(index * plan.slice + plan.slice / 2 + plan.rotation, RADIUS * 0.6);
+    const [ax, ay] = spot(plan.decoy),
+      [bx, by] = spot(winnerIndex);
+    const length = Math.hypot(bx - ax, by - ay) || 1,
+      size = Math.max(36, slices.value[0].fontSize);
+    const labels = [slices.value[plan.decoy].label, slices.value[winnerIndex].label];
+    flying.value = [plan.decoy, winnerIndex];
+    await animate(fast ? 300 : 1400, (p) => {
+      const e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+      const lift = Math.sin(p * Math.PI) * 120;
+      const nx = ((by - ay) / length) * lift,
+        ny = ((ax - bx) / length) * lift;
+      ghosts.value = [
+        { label: labels[0], x: ax + (bx - ax) * e + nx, y: ay + (by - ay) * e + ny, size },
+        { label: labels[1], x: bx + (ax - bx) * e - nx, y: by + (ay - by) * e - ny, size },
+      ];
+    });
+    swapped.value = [plan.decoy, winnerIndex];
+    ghosts.value = [];
+    flying.value = [];
+    reveal('swapWin');
+  } else if (plan.ending === 'grow') {
+    jolt('?!');
+    emit('say', wheelLine('grow', { winner, decoy }));
+    await wait(fast ? 200 : 700);
+    const from = plan.slice / 2;
+    await animate(fast ? 300 : 1500, (p) => {
+      const half = from + (plan.growHalf - from) * springy(p);
+      grow.value = { index: winnerIndex, half: Math.min(175, half) };
+    });
+    grow.value = { index: winnerIndex, half: plan.growHalf };
+    reveal('growWin');
   } else {
     jolt(plan.ending === 'extend' ? '!?' : '?!');
     emit('say', wheelLine(plan.ending, { winner, decoy }));
@@ -267,9 +330,34 @@ onUnmounted(() => {
   timers.forEach(clearTimeout);
 });
 defineExpose({ play });
+
+// 本機預覽：只在 vite dev 顯示，不呼叫後端、不消耗獎品。
+const PREVIEW_LABELS = {
+  normal: '正常', fake: '虛驚一場', extend: '指針變長', bend: '指針彎曲',
+  slip: '轉盤滑動', break: '指針斷掉', swap: '格子交換', grow: '格子放大',
+};
+const previewEndings = import.meta.env.DEV ? WHEEL_ENDINGS : [];
+const previewing = ref(false);
+async function preview(key) {
+  if (previewing.value || !props.names.length) return;
+  previewing.value = true;
+  await play(Math.floor(Math.random() * props.names.length), key);
+  previewing.value = false;
+}
 </script>
 
 <template>
+  <div v-if="previewEndings.length && names.length && !live" class="wheel-preview">
+    <button
+      v-for="item in previewEndings"
+      :key="item.key"
+      type="button"
+      :disabled="previewing"
+      @click="preview(item.key)"
+    >
+      {{ PREVIEW_LABELS[item.key] }}
+    </button>
+  </div>
   <div class="wheel-wrap" :class="{ 'wheel-live': live, 'wheel-shake': shaking }">
     <p v-if="!names.length" class="wheel-empty">尚無參加人員</p>
     <svg
@@ -326,6 +414,7 @@ defineExpose({ play });
             text-anchor="middle"
             dominant-baseline="central"
             class="slice-label"
+            :opacity="flying.includes(index) ? 0 : 1"
           >
             {{ slice.label }}
           </text>
@@ -341,12 +430,42 @@ defineExpose({ play });
         />
         <circle :cx="CX" :cy="BASE_Y" r="16" fill="#b91c1c" />
       </g>
+      <text
+        v-for="ghost in ghosts"
+        :key="ghost.label"
+        :x="ghost.x"
+        :y="ghost.y"
+        :font-size="ghost.size"
+        text-anchor="middle"
+        dominant-baseline="central"
+        class="slice-ghost"
+      >
+        {{ ghost.label }}
+      </text>
       <text v-if="bubble" :x="CX + 70" y="70" class="wheel-bubble">{{ bubble }}</text>
     </svg>
   </div>
 </template>
 
 <style scoped>
+.wheel-preview {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.wheel-preview button {
+  padding: 6px 12px;
+  border: 1px solid var(--color-border, #cbd5e1);
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.wheel-preview button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
 .wheel-wrap {
   display: flex;
   justify-content: center;
@@ -389,6 +508,14 @@ defineExpose({ play });
   stroke: #b91c1c;
   stroke-width: 18;
   stroke-linecap: round;
+}
+.slice-ghost {
+  fill: #0f172a;
+  font-weight: 800;
+  stroke: #fff;
+  stroke-width: 10;
+  paint-order: stroke;
+  pointer-events: none;
 }
 .wheel-bubble {
   transform-box: fill-box;

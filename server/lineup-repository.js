@@ -282,7 +282,8 @@ export function createLineupRepository(db, { project = (_kind, _id, value) => va
       const teams = validateLineup(input?.teams);
       const name = text(input?.name, '範本名稱', 80, true);
       const key = requestId(input?.requestId);
-      const payload = JSON.stringify({ name, teams });
+      const templateId = input?.templateId == null ? null : text(input.templateId, '範本', 128, true);
+      const payload = JSON.stringify({ name, teams, ...(templateId ? { templateId } : {}) });
       return db.transaction(() => {
         const prior = db.prepare('SELECT * FROM lineup_templates WHERE request_id = ?').get(key);
         if (prior) {
@@ -290,6 +291,20 @@ export function createLineupRepository(db, { project = (_kind, _id, value) => va
           if (JSON.stringify({ ...previous, teams: validateLineup(previous.teams) }) !== payload)
             throw new LineupError('操作識別碼已使用，請重新操作', 409, 'REQUEST_CONFLICT');
           return template(prior);
+        }
+        // Saving back to a chosen template, or under a name already in use, updates it in place.
+        const target = templateId
+          ? db.prepare('SELECT * FROM lineup_templates WHERE id = ?').get(templateId)
+          : db.prepare('SELECT * FROM lineup_templates WHERE name = ? ORDER BY created_at DESC, rowid DESC LIMIT 1').get(name);
+        if (templateId && !target)
+          throw new LineupError('找不到這份範本，請重新載入', 404, 'TEMPLATE_NOT_FOUND');
+        if (target) {
+          const teamsJson = JSON.stringify(snapshot(teams));
+          db.prepare('UPDATE lineup_templates SET name = ?, request_id = ?, payload_json = ?, teams_json = ? WHERE id = ?')
+            .run(name, key, payload, teamsJson, target.id);
+          // The new snapshot holds current UIDs; older remaps no longer apply to it.
+          db.prepare("DELETE FROM member_reference_overrides WHERE kind = 'template' AND record_id = ?").run(target.id);
+          return { ...template({ ...target, name, teams_json: teamsJson }), replaced: true };
         }
         const row = {
           id: randomUUID(),
@@ -306,6 +321,14 @@ export function createLineupRepository(db, { project = (_kind, _id, value) => va
           row.created_at,
         );
         return template(row);
+      })();
+    },
+    deleteLineupTemplate(templateId) {
+      const id = text(templateId, '範本', 128, true);
+      return db.transaction(() => {
+        db.prepare("DELETE FROM member_reference_overrides WHERE kind = 'template' AND record_id = ?").run(id);
+        db.prepare('DELETE FROM lineup_templates WHERE id = ?').run(id);
+        return { deleted: true, id };
       })();
     },
     applyLineupTemplate(templateId, eventId) {

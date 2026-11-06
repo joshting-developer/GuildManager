@@ -252,6 +252,10 @@ function createLineupTemplate(input, context) {
   return GuildGas.rpc('createLineupTemplate', [input], context);
 }
 
+function deleteLineupTemplate(id, context) {
+  return GuildGas.rpc('deleteLineupTemplate', [id], context);
+}
+
 function applyLineupTemplate(templateId, eventId, context) {
   return GuildGas.rpc('applyLineupTemplate', [templateId, eventId], context);
 }

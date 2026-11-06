@@ -170,14 +170,30 @@ export function createLineups(store, catalog, participation, { uuid, now }) {
     },
     createLineupTemplate([input]) {
       const name = text(input?.name, '範本名稱', 64),
-        teams = validateLineup(input.teams);
+        teams = validateLineup(input.teams),
+        templateId = input.templateId == null ? null : text(input.templateId, '範本', 64);
       return {
-        template: projected('template', retry(store, 'createLineupTemplate', input.requestId, { name, teams }, () => {
-          const template = { id: uuid(), name, teams: snapshot(teams), createdAt: now() };
+        template: projected('template', retry(store, 'createLineupTemplate', input.requestId, { name, teams, ...(templateId ? { templateId } : {}) }, () => {
+          // Saving back to a chosen template, or under a name already in use, updates it in place.
+          const target = templateId
+            ? store.get('templates', templateId)
+            : store.all('templates').filter((value) => value.name === name)
+              .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+          if (templateId && !target) fail('TEMPLATE_NOT_FOUND', '找不到這份範本，請重新載入');
+          const template = { id: target?.id || uuid(), name, teams: snapshot(teams), createdAt: target?.createdAt || now() };
           store.put('templates', template.id, template);
-          return template;
+          if (!target) return template;
+          // The new snapshot holds current UIDs; older remaps no longer apply to it.
+          store.remove('requests', `member-ref:template:${target.id}`);
+          return { ...template, replaced: true };
         })),
       };
+    },
+    deleteLineupTemplate([id]) {
+      text(id, '範本', 64);
+      store.remove('templates', id);
+      store.remove('requests', `member-ref:template:${id}`);
+      return { deleted: true, id };
     },
     applyLineupTemplate([id, eventId]) {
       const currentEvent = event(eventId),
