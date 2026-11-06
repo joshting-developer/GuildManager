@@ -398,6 +398,7 @@ onUnmounted(() => {
               <th
                 v-for="[label, key] in BATTLE_TABLE_COLUMNS"
                 :key="key"
+                :data-stat="key"
                 scope="col"
                 :aria-sort="ariaSort(key)"
                 :class="{ numeric: !['player', 'profession'].includes(key) }"
@@ -447,6 +448,7 @@ onUnmounted(() => {
               <td
                 v-for="[, key] in BATTLE_TABLE_COLUMNS.slice(2)"
                 :key="key"
+                :data-stat="key"
                 class="numeric"
                 :class="{
                   'battle-sorted-cell': sortKey === key,

@@ -222,8 +222,21 @@
   margin-bottom: 20px;
   max-width: 100%;
 }
-.battle-detail-table {
-  min-width: 1480px;
+.battle-detail-table th,
+.battle-detail-table td {
+  padding-inline: 8px;
+}
+/* Let short counts use their content width, keeping room for damage and names.
+   Auto table layout still expands for unusually large values or per-life decimals. */
+.battle-detail-table th:is([data-stat='profession'], [data-stat='kill'], [data-stat='assist'], [data-stat='seriousInjury'], [data-stat='revive'], [data-stat='burnBone'], [data-stat='resource']) {
+  width: 1%;
+}
+.battle-detail-table :is(th, td):is([data-stat='kill'], [data-stat='assist'], [data-stat='seriousInjury'], [data-stat='revive'], [data-stat='burnBone'], [data-stat='resource']) {
+  padding-inline: 6px;
+}
+.battle-detail-table .battle-sort-button {
+  gap: 4px;
+  min-width: 44px;
 }
 .battle-table-controls {
   display: flex;
@@ -248,7 +261,8 @@
   margin-bottom: 16px;
 }
 .battle-detail-table td:first-child {
-  min-width: 160px;
+  width: 160px;
+  min-width: 140px;
   max-width: 240px;
   overflow-wrap: anywhere;
 }
