@@ -2,6 +2,18 @@
 
 目前已生成 Vue 單檔頁面與完整 GAS 後端，涵蓋登入／帳號管理、行事曆、成員／匯入／名稱歷史、活動、職責、報名／請假、排表／範本、戰績上傳／下載／閱覽、個人分析及團隊分析。本機 SQLite 環境保留。
 
+## 2026/11/06：v1.0.32 最新已同步狀態
+
+同步來源 **9efad90**，由main已定版1.0.31將唯一Unreleased一次定版為 **1.0.32／2026-11-06**；本批含名冊匯出7bb6746、首頁已請假分頁5c6f615及玩家表格欄寬e024c57，保留1.0.31的範本存回／刪除、轉盤新結局。package／lockfile／正式更新紀錄相同，依賴及歷史不變，沒有空白Unreleased。
+
+唯讀預檢 data/gas-inspections/2026-11-06-pre-v1032-sync/ 確認遠端已是origin/main **24ccd22** 的1.0.31：後端與Code相同、前端以main來源記憶體編譯後完全相同，manifest一致，沒有未整合修改。下方「最新1.0.30」及「Unreleased」記錄保留為歷史，現以本節為準。
+
+一般／GAS編譯、版號／日期／四檔／無外部JS或CSS／台北時區通過；隔離Chrome /private/tmp/guild-v1032-release-preview/ 確認頁尾、目前release、日期及三項待發布內容正確，無未發布標記或頁面例外。沿用本批main合併17項、欄寬10項與跨裝置Chrome證據，本輪只版本／交付文件、不重跑業務測試。
+
+`npm run gas:push` 成功，四檔上傳後讀回一致；日誌 **/private/tmp/guild-v1032-gas-sync.log**，私有前後備份 **data/gas-backups/2026-11-06T10-10-35-125Z/** 不提交。同步後獨立核對after與build四檔一致、before與預檢四檔一致。
+
+**只同步GAS程式，未pushGit、查詢或更新WebApp部署、setupGas、正式Sheets／Script Properties操作、發送通知或安裝排程。使用者更新既有WebApp部署後才會套用1.0.32。** 沒有以本機驗證宣稱Google正式效能量測。
+
 ## 2026/11/06：玩家戰績欄寬，本機 Unreleased
 
 功能 **e024c57**：對戰詳情移除1480px最小表寬，縮減短數值欄留白，依內容分配空間；不增加RPC／讀寫／鎖。既有統計與格式10項、一般／GAS編譯通過；隔離Chrome確認1440／1920／1280可完整呈現總計及一命，手機容器橫捲、125%字級及極大值／長姓名正常，證據 /private/tmp/guild-battle-table-width-preview/。
