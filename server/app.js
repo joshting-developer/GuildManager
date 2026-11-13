@@ -34,7 +34,18 @@ export function createApp(repository, { authNow, notifier = null } = {}) {
   app.use('/api', (request, response, next) => {
     if (!['POST', 'PATCH', 'DELETE'].includes(request.method)) return next();
     const origin = request.get('Origin');
-    const allowed = /^http:\/\/(?:localhost|127\.0\.0\.1):(?:5173|5174|4173)$/.test(origin || '');
+const localDevelopment = /^http:\/\/(?:localhost|127\.0\.0\.1):(?:5173|5174|4173)$/.test(origin || '');
+    // In production the SPA and API share the same hostname; do not depend on localhost.
+    // APP_ORIGIN may be set to a canonical public origin (e.g. https://example.com).
+    const configuredOrigin = process.env.APP_ORIGIN?.replace(/\/$/, '');
+    let sameOrigin = false;
+    try {
+      const parsed = new URL(origin);
+      sameOrigin = parsed.origin === configuredOrigin ||
+        (parsed.host === request.get('host') &&
+          (process.env.NODE_ENV !== 'production' || parsed.protocol === 'https:'));
+    } catch {}
+    const allowed = localDevelopment || sameOrigin;
     if (origin && !allowed) {
       return response
         .status(403)
