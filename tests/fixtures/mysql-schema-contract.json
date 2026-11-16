@@ -1,0 +1,311 @@
+{
+  "tables": [
+    "auth_accounts",
+    "auth_sessions",
+    "battle_metadata_requests",
+    "battle_player_links",
+    "battle_records",
+    "battle_sync_requests",
+    "battle_uploads",
+    "duties",
+    "event_batch_items",
+    "event_batches",
+    "event_dates",
+    "event_member_responses",
+    "event_participation_requests",
+    "event_registrations",
+    "event_video_profession_overrides",
+    "event_video_profession_requests",
+    "event_video_requests",
+    "event_video_submissions",
+    "event_videos",
+    "events",
+    "home_settings",
+    "lineup_templates",
+    "lineup_versions",
+    "lottery_boards",
+    "member_maintenance_requests",
+    "member_name_history",
+    "member_reference_overrides",
+    "member_uid_revisions",
+    "members",
+    "platform_settings",
+    "professions",
+    "scheduled_events"
+  ],
+  "columns": {
+    "auth_accounts": [
+      "id",
+      "username",
+      "password_salt",
+      "password_hash",
+      "created_at",
+      "role",
+      "revision"
+    ],
+    "auth_sessions": [
+      "token_hash",
+      "account_id",
+      "expires_at"
+    ],
+    "battle_metadata_requests": [
+      "request_id",
+      "input_hash",
+      "result_json"
+    ],
+    "battle_player_links": [
+      "record_id",
+      "player_index",
+      "member_uid"
+    ],
+    "battle_records": [
+      "id",
+      "upload_id",
+      "event_id",
+      "event_snapshot_json",
+      "battle_type",
+      "played_at",
+      "red_team",
+      "blue_team",
+      "winner",
+      "filename",
+      "csv_text",
+      "players_json",
+      "content_hash",
+      "created_at",
+      "round_number",
+      "our_side",
+      "is_internal",
+      "revision"
+    ],
+    "battle_sync_requests": [
+      "request_id",
+      "input_hash",
+      "result_json"
+    ],
+    "battle_uploads": [
+      "id",
+      "request_id",
+      "input_hash",
+      "image_name",
+      "image_type",
+      "image_data",
+      "created_at"
+    ],
+    "duties": [
+      "id",
+      "name",
+      "active",
+      "revision",
+      "request_id",
+      "original_name",
+      "created_at",
+      "updated_at"
+    ],
+    "event_batch_items": [
+      "batch_request_id",
+      "event_id"
+    ],
+    "event_batches": [
+      "request_id",
+      "title",
+      "type",
+      "dates_json"
+    ],
+    "event_dates": [
+      "event_id",
+      "date"
+    ],
+    "event_member_responses": [
+      "event_id",
+      "member_uid",
+      "status",
+      "note",
+      "revision",
+      "updated_at",
+      "profession_id"
+    ],
+    "event_participation_requests": [
+      "request_id",
+      "event_id",
+      "input_json",
+      "result_json"
+    ],
+    "event_registrations": [
+      "id",
+      "event_id",
+      "name",
+      "profession_id",
+      "note",
+      "active",
+      "revision",
+      "request_id",
+      "created_at",
+      "updated_at"
+    ],
+    "event_video_profession_overrides": [
+      "video_id",
+      "profession_id",
+      "profession_name",
+      "profession_colorcode",
+      "revision"
+    ],
+    "event_video_profession_requests": [
+      "request_id",
+      "input_json",
+      "result_json"
+    ],
+    "event_video_requests": [
+      "request_id",
+      "event_id",
+      "input_json",
+      "result_json"
+    ],
+    "event_video_submissions": [
+      "id",
+      "event_id",
+      "name",
+      "first_url",
+      "second_url",
+      "note",
+      "created_at",
+      "group_name",
+      "profession_id",
+      "profession_name",
+      "profession_colorcode",
+      "revision"
+    ],
+    "event_videos": [
+      "id",
+      "event_id",
+      "round_number",
+      "name",
+      "url",
+      "group_name",
+      "created_at"
+    ],
+    "events": [
+      "id",
+      "title",
+      "type",
+      "starts_at",
+      "registered",
+      "capacity",
+      "note"
+    ],
+    "home_settings": [
+      "id",
+      "guild_name",
+      "member_count",
+      "attendance_rate",
+      "pending_registrations",
+      "data_mode",
+      "updated_at"
+    ],
+    "lineup_templates": [
+      "id",
+      "name",
+      "request_id",
+      "payload_json",
+      "teams_json",
+      "created_at"
+    ],
+    "lineup_versions": [
+      "id",
+      "event_id",
+      "version",
+      "request_id",
+      "payload_json",
+      "snapshot_json",
+      "created_at"
+    ],
+    "lottery_boards": [
+      "id",
+      "board_json",
+      "revision",
+      "updated_at"
+    ],
+    "member_maintenance_requests": [
+      "request_id",
+      "input_hash",
+      "result_json"
+    ],
+    "member_name_history": [
+      "id",
+      "member_uid",
+      "name",
+      "changed_at"
+    ],
+    "member_reference_overrides": [
+      "kind",
+      "record_id",
+      "overrides_json"
+    ],
+    "member_uid_revisions": [
+      "uid",
+      "revision"
+    ],
+    "members": [
+      "uid",
+      "name",
+      "primary_profession_id",
+      "secondary_profession_id",
+      "primary_profession",
+      "secondary_profession",
+      "joined_at",
+      "updated_at",
+      "removed_at",
+      "revision",
+      "is_in_guild",
+      "is_in_club"
+    ],
+    "platform_settings": [
+      "id",
+      "name",
+      "revision",
+      "icon_mime_type",
+      "icon_base64"
+    ],
+    "professions": [
+      "job_id",
+      "colorcode",
+      "name"
+    ],
+    "scheduled_events": [
+      "id",
+      "title",
+      "type",
+      "request_id",
+      "created_at",
+      "revision",
+      "updated_at",
+      "deleted_at"
+    ]
+  },
+  "foreignKeys": [
+    "auth_sessions.account_id.auth_accounts.id",
+    "battle_player_links.member_uid.members.uid",
+    "battle_player_links.record_id.battle_records.id",
+    "battle_records.event_id.scheduled_events.id",
+    "battle_records.upload_id.battle_uploads.id",
+    "event_batch_items.batch_request_id.event_batches.request_id",
+    "event_batch_items.event_id.scheduled_events.id",
+    "event_dates.event_id.scheduled_events.id",
+    "event_member_responses.event_id.scheduled_events.id",
+    "event_member_responses.member_uid.members.uid",
+    "event_member_responses.profession_id.professions.job_id",
+    "event_participation_requests.event_id.scheduled_events.id",
+    "event_registrations.event_id.scheduled_events.id",
+    "event_registrations.profession_id.professions.job_id",
+    "event_video_profession_overrides.profession_id.professions.job_id",
+    "event_video_profession_overrides.video_id.event_videos.id",
+    "event_video_requests.event_id.scheduled_events.id",
+    "event_video_submissions.event_id.scheduled_events.id",
+    "event_video_submissions.profession_id.professions.job_id",
+    "event_videos.event_id.scheduled_events.id",
+    "lineup_versions.event_id.scheduled_events.id",
+    "member_name_history.member_uid.members.uid",
+    "members.primary_profession_id.professions.job_id",
+    "members.secondary_profession_id.professions.job_id"
+  ]
+}

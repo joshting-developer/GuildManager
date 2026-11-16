@@ -60,7 +60,7 @@ npm run test:mysql
 
 第二個設定檔格式相同, purpose 改成 `guildmanager-migration-test`, DB_DATABASE 與帳密改用自己獨立的 migrationtest 庫。第三個 schema 設定 purpose 為 `guildmanager-schema-test`, 使用獨立 schematest 庫。migration 與 schema 測試都要求空庫, 有既有表就停止, 不重設或清空舊資料
 
-此入口缺任一設定會失敗, 不會將全部 skip 當成 MySQL 通過。一般 `npm test` 仍可跑原 SQLite／GAS 與純函式回歸, 沒有明確測試設定時略過真 MySQL 案例。額外指定 `GUILD_MYSQL_TEST_CA` 可測試共用 MySQL 的自簽伺服器憑證主機名稱不符時會被拒絕
+此入口缺任一設定會失敗, 不會將全部 skip 當成 MySQL 通過。`npm test` 與 `npm run test:mysql` 都執行這套 MySQL 驗證, 沒有明確的隔離設定就失敗, 不回退 SQLite。額外指定 `GUILD_MYSQL_TEST_CA` 可測試共用 MySQL 的自簽伺服器憑證主機名稱不符時會被拒絕
 
 連線測試僅建立帶隨機名稱的人造表, 在 finally 移除自己的測試表並關閉 pool；驗證中文／emoji、前導零、BIGINT、交易回滾、單連線 pool 釋放、跨系統庫拒絕及錯誤不洩密。這些是開發與連線驗證, 不代表所有產品功能或正式站已切換 MySQL
 
@@ -96,6 +96,12 @@ MySQL 的 DDL 會隱含 commit, 不能假稱 rollback 可還原整批建表。�
 - 原查詢依 SQLite rowid 排序的帳號、職責、舊名、戰績與範本加 `created_order` 作明確插入次序。後續 Repository 使用明確欄位 INSERT, 不依賴實體列次序
 - 過渡 schema 保留原始 CSV、舊圖片與品牌圖示欄位供既有 Node 契約對照；R2 階段會另設 metadata／關聯並驗證原始檔, 不表示最終正式架構將檔案內容存在 MySQL
 
-schema 測試以隔離 SQLite 初始化結果核對所有表／原欄位／外鍵, 再用真 MySQL 驗有效／無效寫入、中文與 emoji、前導零、ASCII／Unicode 名稱差異、JSON 原文、nullable 場序、重跑與排序。測試只刪除自己在專用空庫建立的表
+schema 測試以固定的 MySQL 契約清單核對所有表／原欄位／外鍵, 執行時不建立或讀取 SQLite, 再用真 MySQL 驗有效／無效寫入、中文與 emoji、前導零、ASCII／Unicode 名稱差異、JSON 原文、nullable 場序、重跑與排序。測試只刪除自己在專用空庫建立的表
 
 目前實測引擎為共用 MySQL 8.4, 不把它當作 Oracle MySQL 8.0.46 的 migration 實測。正式庫仍不自動建表或匯入, 後續部署前另核對目標引擎與發布資格
+
+## 非同步名冊讀取（GM-5 進行中）
+
+MySQL 名冊 Repository 已提供職業清單、完整名冊與單人成員讀取。名冊以成員與職業 JOIN 加一次相關舊名查詢組裝, 不逐人成員查詢；單人查詢只讀指定 UID。名冊與詳情使用 REPEATABLE READ 的唯讀快照, 不取得業務寫入鎖, 不做跨請求快取；保留文字 UID、明確舊名排序與安全整數 revision
+
+這是 GM-5 的讀取階段, 尚未包含寫入、其他領域 Repository 或 API 接線。npm test 目前只執行 MySQL 測試, schema 契約從 tests/fixtures/mysql-schema-contract.json 讀取, 不再建立或開啟 SQLite

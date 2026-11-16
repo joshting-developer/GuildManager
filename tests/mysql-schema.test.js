@@ -1,13 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import Database from 'better-sqlite3';
-import { createRepository } from '../server/repository.js';
+import { readFileSync } from 'node:fs';
 import { createMysqlDatabase } from '../server/database/mysql.js';
 import { migrateMysql } from '../server/database/migrate.js';
 import { mysqlMigrations } from '../server/database/migrations.js';
+import { createMysqlMemberRepository } from '../server/mysql/member-repository.js';
 
 const configurationFile = process.env.GUILD_MYSQL_SCHEMA_TEST_CONFIG;
 
@@ -20,11 +17,8 @@ test('real MySQL initial schema preserves existing tables, constraints, snapshot
   assert.ok(['127.0.0.1', 'localhost', 'mysql', 'side-project-mysql'].includes(env.DB_HOST));
   assert.equal(env.DB_SSL_MODE, 'disabled');
   const database = createMysqlDatabase(env);
-  const directory = mkdtempSync(join(tmpdir(), 'guild-schema-contract-'));
-  const filename = join(directory, 'source.sqlite');
-  createRepository({ filename }).close();
-  const sqlite = new Database(filename, { readonly: true });
-  const tableNames = sqlite.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all().map((row) => row.name);
+  const contract = JSON.parse(readFileSync(new URL('./fixtures/mysql-schema-contract.json', import.meta.url), 'utf8'));
+  const tableNames = contract.tables;
   const createdTables = mysqlMigrations.flatMap((migration) => migration.statements)
     .map((sql) => sql.match(/^CREATE TABLE `([a-z_]+)`/)?.[1]).filter(Boolean);
   let ownsSchema = false;
@@ -41,11 +35,11 @@ test('real MySQL initial schema preserves existing tables, constraints, snapshot
     assert.ok(tables.every((row) => row.engine === 'InnoDB' && row.collation === 'utf8mb4_bin'));
     const columns = await database.query('SELECT TABLE_NAME AS tableName, COLUMN_NAME AS columnName FROM information_schema.columns WHERE table_schema=DATABASE()');
     for (const table of tableNames) {
-      const existing = sqlite.pragma(`table_info(${table})`).map((column) => column.name);
+      const existing = contract.columns[table];
       const actual = new Set(columns.filter((column) => column.tableName === table).map((column) => column.columnName));
       for (const name of existing) assert.ok(actual.has(name), `${table}.${name} must be preserved`);
     }
-    const expectedKeys = tableNames.flatMap((table) => sqlite.pragma(`foreign_key_list(${table})`).map((key) => [table, key.from, key.table, key.to].join('.'))).sort();
+    const expectedKeys = contract.foreignKeys;
     const foreignKeys = await database.query('SELECT TABLE_NAME AS tableName, COLUMN_NAME AS columnName, REFERENCED_TABLE_NAME AS targetTable, REFERENCED_COLUMN_NAME AS targetColumn FROM information_schema.key_column_usage WHERE table_schema=DATABASE() AND referenced_table_name IS NOT NULL');
     assert.deepEqual(foreignKeys.map((key) => [key.tableName, key.columnName, key.targetTable, key.targetColumn].join('.')).sort(), expectedKeys);
     for (const table of ['members', 'scheduled_events', 'battle_records', 'auth_accounts']) {
@@ -58,6 +52,20 @@ test('real MySQL initial schema preserves existing tables, constraints, snapshot
     await database.query('INSERT INTO members (uid, name, primary_profession_id, primary_profession, joined_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)', [uid, '測試成員🌊', 1, '素問', now, now]);
     const [member] = await database.query('SELECT uid, name, secondary_profession_id AS secondaryId FROM members WHERE uid=?', [uid]);
     assert.deepEqual(member, { uid, name: '測試成員🌊', secondaryId: null });
+    const repository = createMysqlMemberRepository(database);
+    assert.equal((await repository.listProfessions()).professions.length, 9);
+    await database.query('INSERT INTO member_name_history (id, member_uid, name, changed_at) VALUES (?, ?, ?, ?)', ['history-one', uid, '舊名稱一', now]);
+    await database.query('INSERT INTO member_name_history (id, member_uid, name, changed_at) VALUES (?, ?, ?, ?)', ['history-two', uid, '舊名稱二', now]);
+    const detail = await repository.getMember(uid);
+    assert.equal(detail.uid, uid);
+    assert.equal(detail.revision, 1);
+    assert.equal(detail.isInGuild, true);
+    assert.equal(detail.isInClub, false);
+    assert.deepEqual(detail.previousNames.map((entry) => entry.name), ['舊名稱二', '舊名稱一']);
+    assert.deepEqual((await repository.listMembers()).members, [detail]);
+    await assert.rejects(repository.getMember('missing'), { code: 'MEMBER_NOT_FOUND' });
+    await assert.rejects(database.transaction((transaction) => transaction.query('UPDATE members SET name=? WHERE uid=?', ['不可寫入', uid]), { readOnly: true }), { code: 'DATABASE_QUERY' });
+    assert.equal((await repository.getMember(uid)).name, '測試成員🌊');
     await assert.rejects(database.query('UPDATE members SET is_in_guild=2 WHERE uid=?', [uid]), { code: 'DATABASE_QUERY' });
     await assert.rejects(database.query('UPDATE members SET primary_profession_id=999 WHERE uid=?', [uid]), { code: 'DATABASE_REFERENCE' });
     await database.query('INSERT INTO auth_accounts (id, username, password_salt, password_hash, created_at) VALUES (?, ?, ?, ?, ?)', ['account-test', 'CaseAdmin', 'synthetic', '0'.repeat(128), now]);
@@ -105,7 +113,5 @@ test('real MySQL initial schema preserves existing tables, constraints, snapshot
       await database.query('DROP TABLE IF EXISTS schema_migrations');
     }
     await database.close();
-    sqlite.close();
-    rmSync(directory, { recursive: true });
   }
 });

@@ -164,7 +164,7 @@ export function createMysqlDatabase(env, { poolFactory = createPool, readFile } 
       }
       return { status: 'ok', driver: 'mysql', version: row.version, tls: Boolean(options.ssl) };
     },
-    async transaction(work) {
+    async transaction(work, { readOnly = false } = {}) {
       assertOpen();
       let connection;
       try {
@@ -174,7 +174,12 @@ export function createMysqlDatabase(env, { poolFactory = createPool, readFile } 
       }
       let phase = 'begin';
       try {
-        await connection.beginTransaction();
+        if (readOnly) {
+          await connection.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+          await connection.query('START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY');
+        } else {
+          await connection.beginTransaction();
+        }
         phase = 'work';
         const result = await work({ query: (sql, parameters) => {
           if (phase !== 'work') throw new DatabaseError('DATABASE_TRANSACTION_CLOSED', '資料庫交易已結束');
