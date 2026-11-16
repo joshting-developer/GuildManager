@@ -2,6 +2,8 @@
 
 本專案是逆水寒幫會管理平台, 介面與操作訊息使用繁體中文, 日曆日期與顯示時區採 Asia/Taipei
 
+2.0.0 遷移以 Node／MySQL／R2 為目標, 保留既有介面與功能；已開始 [MySQL 開發與隔離驗證](mysql-development.md), HTTP 服務目前仍使用原 SQLite Repository。正式舊資料在最後階段才匯入, 不把開發中的元件當作已切站
+
 - 前端 Vue 3／Vuetify／Vite, 本機後端 Node.js／Express／SQLite, GAS 使用 V8／HTML Service／Google 試算表與私人 Drive。共用 MySQL／Redis 或 TaskTracker 的 Laravel 架構不代表本專案已遷移
 - 元件經 src/api adapter 呼叫 HTTP 或 google.script.run, SQL 留 repository。沿用 session／角色／CSRF、revision／requestId、不可變快照及 GAS commits／flush／script lock, 不因採用共用 Skill 更換登入、授權或資料模型
 - admin／manager／member 與匿名各有明確範圍, 不能套用其他產品的 Workspace／permission 模型取代既有後端驗權；完整權限見下表
