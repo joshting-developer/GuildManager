@@ -1,6 +1,6 @@
 # MySQL 開發與隔離驗證
 
-2.0.0 將 Node 後端資料來源改為 MySQL, 保留現有功能與 API。現在已加入 mysql2 連線與交易工具, HTTP 服務仍走原本的 SQLite Repository；後續完成資料表、Repository 與非同步 API 後才切換。GAS 舊來源在正式資料移轉與驗收前保留
+2.0.0 將 Node 後端資料來源改為 MySQL, 保留現有功能與 API。目前已完成連線、migration、資料表與各領域非同步 Repository, HTTP 服務仍走原本的 SQLite Repository；完成非同步 API 接線後才切換。GAS 舊來源在正式資料移轉與驗收前保留
 
 ## 連線設定
 
@@ -32,7 +32,7 @@ node --env-file=.local/mysql.env tools/check-mysql.js
 
 ## 真實 MySQL 測試
 
-使用自己專用的隔離庫與限庫帳號, 不使用正式庫、TT 庫或使用者的日常開發資料。連線測試只接受 `sp_guildmanager_<agent>_test`, migration 測試另用 `sp_guildmanager_<agent>_migrationtest` 空庫, schema 契約另用 `sp_guildmanager_<agent>_schematest` 空庫, agent 使用自己的小寫識別。主機須為本機或明確的本機 Docker MySQL, 不從 DB 環境自動推測測試目標
+使用自己專用的隔離庫與限庫帳號, 不使用正式庫、TT 庫或使用者的日常開發資料。連線測試只接受 `sp_guildmanager_<agent>_test`, migration 測試另用 `sp_guildmanager_<agent>_migrationtest` 空庫, schema 契約另用 `sp_guildmanager_<agent>_schematest` 空庫, Repository 業務測試另用 `sp_guildmanager_<agent>_repositorytest` 空庫, agent 使用自己的小寫識別。主機須為本機或明確的本機 Docker MySQL, 不從 DB 環境自動推測測試目標
 
 將專用帳密填入忽略的 `.local/mysql-test.json`, 權限設為 0600。範例中的所有值皆為測試用途：
 
@@ -55,10 +55,11 @@ node --env-file=.local/mysql.env tools/check-mysql.js
 GUILD_MYSQL_TEST_CONFIG=.local/mysql-test.json \
 GUILD_MYSQL_MIGRATION_TEST_CONFIG=.local/mysql-migration-test.json \
 GUILD_MYSQL_SCHEMA_TEST_CONFIG=.local/mysql-schema-test.json \
+GUILD_MYSQL_REPOSITORY_TEST_CONFIG=.local/mysql-repository-test.json \
 npm run test:mysql
 ```
 
-第二個設定檔格式相同, purpose 改成 `guildmanager-migration-test`, DB_DATABASE 與帳密改用自己獨立的 migrationtest 庫。第三個 schema 設定 purpose 為 `guildmanager-schema-test`, 使用獨立 schematest 庫。migration 與 schema 測試都要求空庫, 有既有表就停止, 不重設或清空舊資料
+第二個設定檔格式相同, purpose 改成 `guildmanager-migration-test`, DB_DATABASE 與帳密改用自己獨立的 migrationtest 庫。第三個 schema 設定 purpose 為 `guildmanager-schema-test`, 使用獨立 schematest 庫。第四個 Repository 設定 purpose 為 `guildmanager-repository-test`, 使用獨立 repositorytest 庫。migration、schema 與 Repository 測試都要求空庫, 有既有表就停止, 不重設或清空舊資料
 
 此入口缺任一設定會失敗, 不會將全部 skip 當成 MySQL 通過。`npm test` 與 `npm run test:mysql` 都執行這套 MySQL 驗證, 沒有明確的隔離設定就失敗, 不回退 SQLite。額外指定 `GUILD_MYSQL_TEST_CA` 可測試共用 MySQL 的自簽伺服器憑證主機名稱不符時會被拒絕
 
@@ -100,8 +101,28 @@ schema 測試以固定的 MySQL 契約清單核對所有表／原欄位／外鍵
 
 目前實測引擎為共用 MySQL 8.4, 不把它當作 Oracle MySQL 8.0.46 的 migration 實測。正式庫仍不自動建表或匯入, 後續部署前另核對目標引擎與發布資格
 
-## 非同步名冊讀取（GM-5 進行中）
+## 非同步 Repository
 
-MySQL 名冊 Repository 已提供職業清單、完整名冊與單人成員讀取。名冊以成員與職業 JOIN 加一次相關舊名查詢組裝, 不逐人成員查詢；單人查詢只讀指定 UID。名冊與詳情使用 REPEATABLE READ 的唯讀快照, 不取得業務寫入鎖, 不做跨請求快取；保留文字 UID、明確舊名排序與安全整數 revision
+`server/mysql/repository.js` 的 `createMysqlRepository(database, { authNow })` 接受明確的 MySQL 連線工具, 所有公開方法均回傳 Promise。涵蓋名冊／預覽匯入、帳號與 session、活動／批次、報名／請假／外援、排表與範本、戰績／附件／成員關聯、UID 與舊名維護、平台設定及抽獎；保留原本輸入、結果與業務錯誤類別。建立 factory 不讀寫資料、不建表、不補種子；需先明確執行 migration
 
-這是 GM-5 的讀取階段, 尚未包含寫入、其他領域 Repository 或 API 接線。npm test 目前只執行 MySQL 測試, schema 契約從 tests/fixtures/mysql-schema-contract.json 讀取, 不再建立或開啟 SQLite
+名冊以一次成員／職業 JOIN 加一次相關舊名查詢組裝, 單人成員只讀指定 UID 與其舊名, 均為兩次查詢；職業清單一次查詢。不做跨請求快取, 寫後重新查詢可讀最新已提交資料。BIGINT 版本、到期時間與計數按欄位轉成安全整數, UID 維持字串；超出安全範圍報錯
+
+`store.js` 只封裝參數化的 MySQL 查詢與交易, SQL 已明確改成 MySQL 語法, 不在執行期翻譯 SQLite SQL。原本 rowid 順序改用 created_order, 歷史戰績玩家關聯改用 JSON_TABLE, nullable 欄位與 JSON 快照原文維持原契約。UID 修正／刪除透過關聯及投影覆蓋層保留歷史快照原文, 不重寫快照
+
+### 交易與多人操作
+
+migration `0002_repository_lock` 建立單列 `repository_write_lock`。業務寫入在同一條交易連線取得該列的 FOR UPDATE 鎖後, 才檢查最新 revision、唯一性與 requestId 並提交。跨領域操作及巢狀寫入共用同一交易, 失敗全數回滾。鎖列遺失會拒絕寫入, 不自動補建
+
+這一階段保守維持原本共用寫入保護, 所有合作中的 Repository 寫入會互斥, 尚未按不同成員／場次拆鎖。不同人送出保留個人版本檢查, 同人或相依場次變更會回報衝突；相同 requestId 重送返回既有結果, 不覆蓋後來更新。此鎖協議要求同一 schema 的所有業務寫入者共同遵守, 不保護繞過 Repository 的管理 SQL
+
+唯讀操作使用明確審核清單與 REPEATABLE READ／READ ONLY 快照, 不取得業務寫入鎖, 可在其他連線持寫入鎖時讀取已提交資料。getSession 因清除失效 session 仍屬寫入交易。密碼雜湊與 CSV 解析保留在最終寫入鎖外準備, 入鎖後重驗相依資料；資料庫層不自動重放失敗或結果不明的寫入
+
+### 提交後通知
+
+一般方法只回傳業務結果。需要發送通知的 API 呼叫端改用 `await repository.invoke(name, args)` 取得 `{ data, notifications }`, 只在成功提交後處理通知。每次操作透過 AsyncLocalStorage 保存自己的通知, 不提供跨請求共用的 takeNotifications 佇列；失敗交易不回傳通知。Repository 本身不發送 Webhook, API 接線須保留提交後發送與既有失敗處理
+
+### 驗證邊界
+
+Repository 測試將既有業務斷言改成 async MySQL 呼叫, 不改掉原本預期行為；另驗兩個獨立 Repository 的版本衝突、不同成員並行送出、相同 requestId 重送、持鎖時唯讀、故障注入回滾、通知隔離及重新建立 Repository 後的持久化。每個案例只在空的專用 repositorytest 庫建表及使用人造資料, finally 移除自己建立的表, 不初始化或驗證 SQLite
+
+這些驗證涵蓋 Repository, HTTP 路由的 await／錯誤處理與通知接線仍是下一階段。GAS 編譯只驗封裝相容, 不代表 GAS RPC、正式站或 Oracle 已完成切換；Oracle 目標引擎與正式舊資料另行驗收

@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { createMysqlDatabase } from '../server/database/mysql.js';
 import { migrateMysql } from '../server/database/migrate.js';
 import { mysqlMigrations } from '../server/database/migrations.js';
-import { createMysqlMemberRepository } from '../server/mysql/member-repository.js';
+import { createMysqlRepository } from '../server/mysql/repository.js';
 
 const configurationFile = process.env.GUILD_MYSQL_SCHEMA_TEST_CONFIG;
 
@@ -20,17 +20,17 @@ test('real MySQL initial schema preserves existing tables, constraints, snapshot
   const contract = JSON.parse(readFileSync(new URL('./fixtures/mysql-schema-contract.json', import.meta.url), 'utf8'));
   const tableNames = contract.tables;
   const createdTables = mysqlMigrations.flatMap((migration) => migration.statements)
-    .map((sql) => sql.match(/^CREATE TABLE `([a-z_]+)`/)?.[1]).filter(Boolean);
+    .map((sql) => sql.match(/^CREATE TABLE `?([a-z_]+)`? /)?.[1]).filter(Boolean);
   let ownsSchema = false;
   try {
     const [before] = await database.query('SELECT COUNT(*) AS count FROM information_schema.tables WHERE table_schema = DATABASE()');
     assert.equal(Number(before.count), 0, 'Schema tests require an empty dedicated schema; do not reset existing data');
     ownsSchema = true;
     const first = await migrateMysql(database, mysqlMigrations);
-    assert.deepEqual(first.applied, ['0001_initial_schema']);
+    assert.deepEqual(first.applied, mysqlMigrations.map((migration) => migration.id));
     assert.deepEqual((await migrateMysql(database, mysqlMigrations)).applied, []);
     const tables = await database.query('SELECT TABLE_NAME AS name, ENGINE AS engine, TABLE_COLLATION AS collation FROM information_schema.tables WHERE table_schema=DATABASE() ORDER BY TABLE_NAME');
-    assert.deepEqual(tables.filter((row) => row.name !== 'schema_migrations').map((row) => row.name), tableNames);
+    assert.deepEqual(tables.filter((row) => !['schema_migrations', 'repository_write_lock'].includes(row.name)).map((row) => row.name), tableNames);
     assert.equal(tableNames.length, 32);
     assert.ok(tables.every((row) => row.engine === 'InnoDB' && row.collation === 'utf8mb4_bin'));
     const columns = await database.query('SELECT TABLE_NAME AS tableName, COLUMN_NAME AS columnName FROM information_schema.columns WHERE table_schema=DATABASE()');
@@ -52,7 +52,7 @@ test('real MySQL initial schema preserves existing tables, constraints, snapshot
     await database.query('INSERT INTO members (uid, name, primary_profession_id, primary_profession, joined_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)', [uid, '測試成員🌊', 1, '素問', now, now]);
     const [member] = await database.query('SELECT uid, name, secondary_profession_id AS secondaryId FROM members WHERE uid=?', [uid]);
     assert.deepEqual(member, { uid, name: '測試成員🌊', secondaryId: null });
-    const repository = createMysqlMemberRepository(database);
+    const repository = createMysqlRepository(database);
     assert.equal((await repository.listProfessions()).professions.length, 9);
     await database.query('INSERT INTO member_name_history (id, member_uid, name, changed_at) VALUES (?, ?, ?, ?)', ['history-one', uid, '舊名稱一', now]);
     await database.query('INSERT INTO member_name_history (id, member_uid, name, changed_at) VALUES (?, ?, ?, ?)', ['history-two', uid, '舊名稱二', now]);
