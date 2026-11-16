@@ -1,2 +1,3 @@
-// Append immutable, ordered versions here; the initial business schema is the next migration step.
-export const mysqlMigrations = [];
+import { initialSchema } from './migrations/0001-initial-schema.js';
+
+export const mysqlMigrations = [initialSchema];

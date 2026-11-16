@@ -1,10 +1,10 @@
 import { spawnSync } from 'node:child_process';
 
-if (!process.env.GUILD_MYSQL_TEST_CONFIG || !process.env.GUILD_MYSQL_MIGRATION_TEST_CONFIG) {
-  console.error('請明確指定 GUILD_MYSQL_TEST_CONFIG 與 GUILD_MYSQL_MIGRATION_TEST_CONFIG 兩個隔離設定檔, 不使用應用程式的資料庫設定');
+if (!process.env.GUILD_MYSQL_TEST_CONFIG || !process.env.GUILD_MYSQL_MIGRATION_TEST_CONFIG || !process.env.GUILD_MYSQL_SCHEMA_TEST_CONFIG) {
+  console.error('請明確指定 GUILD_MYSQL_TEST_CONFIG、GUILD_MYSQL_MIGRATION_TEST_CONFIG 與 GUILD_MYSQL_SCHEMA_TEST_CONFIG 三個隔離設定檔, 不使用應用程式的資料庫設定');
   process.exitCode = 2;
 } else {
-  const result = spawnSync(process.execPath, ['--test', 'tests/mysql-database.test.js', 'tests/mysql-integration.test.js', 'tests/mysql-migrations.test.js'], {
+  const result = spawnSync(process.execPath, ['--test', 'tests/mysql-database.test.js', 'tests/mysql-integration.test.js', 'tests/mysql-migrations.test.js', 'tests/mysql-schema.test.js'], {
     stdio: 'inherit',
   });
   process.exitCode = result.status ?? 1;

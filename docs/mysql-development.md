@@ -32,7 +32,7 @@ node --env-file=.local/mysql.env tools/check-mysql.js
 
 ## 真實 MySQL 測試
 
-使用自己專用的隔離庫與限庫帳號, 不使用正式庫、TT 庫或使用者的日常開發資料。連線測試只接受 `sp_guildmanager_<agent>_test`, migration 測試另用 `sp_guildmanager_<agent>_migrationtest` 空庫, agent 使用自己的小寫識別。主機須為本機或明確的本機 Docker MySQL, 不從 DB 環境自動推測測試目標
+使用自己專用的隔離庫與限庫帳號, 不使用正式庫、TT 庫或使用者的日常開發資料。連線測試只接受 `sp_guildmanager_<agent>_test`, migration 測試另用 `sp_guildmanager_<agent>_migrationtest` 空庫, schema 契約另用 `sp_guildmanager_<agent>_schematest` 空庫, agent 使用自己的小寫識別。主機須為本機或明確的本機 Docker MySQL, 不從 DB 環境自動推測測試目標
 
 將專用帳密填入忽略的 `.local/mysql-test.json`, 權限設為 0600。範例中的所有值皆為測試用途：
 
@@ -54,10 +54,11 @@ node --env-file=.local/mysql.env tools/check-mysql.js
 ```sh
 GUILD_MYSQL_TEST_CONFIG=.local/mysql-test.json \
 GUILD_MYSQL_MIGRATION_TEST_CONFIG=.local/mysql-migration-test.json \
+GUILD_MYSQL_SCHEMA_TEST_CONFIG=.local/mysql-schema-test.json \
 npm run test:mysql
 ```
 
-第二個設定檔格式相同, purpose 改成 `guildmanager-migration-test`, DB_DATABASE 與帳密改用自己獨立的 migrationtest 庫。migration 測試要求空庫, 有既有表就停止, 不重設或清空舊資料
+第二個設定檔格式相同, purpose 改成 `guildmanager-migration-test`, DB_DATABASE 與帳密改用自己獨立的 migrationtest 庫。第三個 schema 設定 purpose 為 `guildmanager-schema-test`, 使用獨立 schematest 庫。migration 與 schema 測試都要求空庫, 有既有表就停止, 不重設或清空舊資料
 
 此入口缺任一設定會失敗, 不會將全部 skip 當成 MySQL 通過。一般 `npm test` 仍可跑原 SQLite／GAS 與純函式回歸, 沒有明確測試設定時略過真 MySQL 案例。額外指定 `GUILD_MYSQL_TEST_CA` 可測試共用 MySQL 的自簽伺服器憑證主機名稱不符時會被拒絕
 
@@ -83,3 +84,18 @@ MySQL 的 DDL 會隱含 commit, 不能假稱 rollback 可還原整批建表。�
 只有明確執行 `db:migrate` 才建立／改動表, HTTP 啟動與 `db:check` 不自動 migration。執行帳號無 DDL 權限會直接失敗, 不回退管理帳號或略過 migration
 
 設計依據：[MySQL DDL 隱含 commit](https://dev.mysql.com/doc/refman/8.4/en/implicit-commit.html)、[GET_LOCK 的連線生命週期](https://dev.mysql.com/doc/refman/8.4/en/locking-functions.html)
+
+## 初始業務 schema
+
+`0001_initial_schema` 明確建立 32 張業務表與必要索引, 使用 InnoDB／utf8mb4。僅寫入九個職業、三項固定職責及空平台設定, 不建立帳號、成員、活動、報名或戰績
+
+- 文字 UID 及關聯保留字串與前導零, 外鍵實際建立並驗證；角色、所屬布林、版本、場序與影片至少一個網址等規則保留 CHECK
+- 帳號名稱限定 ASCII 並不分大小寫。其他名稱與 ID 依原規則區分；有效外援的唯一鍵用 nullable binary generated column 保留 SQLite NOCASE 只折疊 ASCII 的語意, 取消外援不佔用有效名稱
+- 同場已指定場序的戰績唯一, 未指定場序的舊戰績可多筆。舊影片完整 URL 用 SHA-256 generated key 參與唯一索引, 不以網址前綴去重
+- 不可變 JSON 快照與 requestId 的輸入／結果使用 LONGTEXT＋JSON_VALID, 不採用會重新排列內容的原生 JSON 儲存。缺值仍為 NULL, 不以空字串或 0 補未知勝敗／數據
+- 原查詢依 SQLite rowid 排序的帳號、職責、舊名、戰績與範本加 `created_order` 作明確插入次序。後續 Repository 使用明確欄位 INSERT, 不依賴實體列次序
+- 過渡 schema 保留原始 CSV、舊圖片與品牌圖示欄位供既有 Node 契約對照；R2 階段會另設 metadata／關聯並驗證原始檔, 不表示最終正式架構將檔案內容存在 MySQL
+
+schema 測試以隔離 SQLite 初始化結果核對所有表／原欄位／外鍵, 再用真 MySQL 驗有效／無效寫入、中文與 emoji、前導零、ASCII／Unicode 名稱差異、JSON 原文、nullable 場序、重跑與排序。測試只刪除自己在專用空庫建立的表
+
+目前實測引擎為共用 MySQL 8.4, 不把它當作 Oracle MySQL 8.0.46 的 migration 實測。正式庫仍不自動建表或匯入, 後續部署前另核對目標引擎與發布資格
