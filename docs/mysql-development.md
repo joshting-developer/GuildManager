@@ -20,6 +20,10 @@ node --env-file=.local/mysql.env tools/check-mysql.js
 
 ## 交易與錯誤
 
+執行網站的 runtime 帳號只授予本專案 schema 的 SELECT／INSERT／UPDATE／DELETE；migration 使用另一個帳號, 另有本 schema 的 CREATE／ALTER／DROP／INDEX／REFERENCES。兩者都不具全域權限或 GRANT OPTION, 遠端帳號由伺服器強制要求 TLS
+
+正式環境先建立獨立空 schema 與帳號, 寫後核對當前 schema、TLS 與 grants 並驗跨庫拒絕；不為確認帳號而對既有正式表試寫。正式與開發帳密分開保存, 應用程序不持有管理帳號, 未完成業務遷移前也不自動建表或匯入舊資料
+
 `createMysqlDatabase` 提供 `query`、`transaction`、`probe`、`close`。交易 callback 取得專用 connection, 每個查詢都需 await；成功 commit, 失敗 rollback 並釋放。rollback 失敗則丟棄連線, 已結束的交易不能繼續使用
 
 不在連線層自動重試寫入、死鎖或未知 commit 結果, 呼叫端保留原 requestId 並依業務契約確認。業務版本、唯一性及 requestId 檢查仍須在同一交易與適當行鎖內完成, 後續 Repository 遷移另驗多人操作
