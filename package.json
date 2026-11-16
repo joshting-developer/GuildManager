@@ -20,7 +20,9 @@
     "preview": "vite preview --host 127.0.0.1",
     "test": "node --test tests/*.test.js",
     "db:check": "node tools/check-mysql.js",
-    "test:mysql": "node tools/run-mysql-tests.js"
+    "test:mysql": "node tools/run-mysql-tests.js",
+    "db:migrate": "node tools/migrate-mysql.js",
+    "db:status": "node tools/migrate-mysql.js --status"
   },
   "dependencies": {
     "@mdi/js": "7.4.47",

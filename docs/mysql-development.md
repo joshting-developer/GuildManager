@@ -24,7 +24,7 @@ node --env-file=.local/mysql.env tools/check-mysql.js
 
 正式環境先建立獨立空 schema 與帳號, 寫後核對當前 schema、TLS 與 grants 並驗跨庫拒絕；不為確認帳號而對既有正式表試寫。正式與開發帳密分開保存, 應用程序不持有管理帳號, 未完成業務遷移前也不自動建表或匯入舊資料
 
-`createMysqlDatabase` 提供 `query`、`transaction`、`probe`、`close`。交易 callback 取得專用 connection, 每個查詢都需 await；成功 commit, 失敗 rollback 並釋放。rollback 失敗則丟棄連線, 已結束的交易不能繼續使用
+`createMysqlDatabase` 提供 `query`、`transaction`、`withConnection`、`probe`、`close`。交易 callback 取得專用 connection, 每個查詢都需 await；成功 commit, 失敗 rollback 並釋放。rollback 失敗則丟棄連線, 已結束的交易不能繼續使用。`withConnection` 供需要固定 session 的 migration 使用, 結束後同樣不可保留連線引用
 
 不在連線層自動重試寫入、死鎖或未知 commit 結果, 呼叫端保留原 requestId 並依業務契約確認。業務版本、唯一性及 requestId 檢查仍須在同一交易與適當行鎖內完成, 後續 Repository 遷移另驗多人操作
 
@@ -32,7 +32,7 @@ node --env-file=.local/mysql.env tools/check-mysql.js
 
 ## 真實 MySQL 測試
 
-使用自己專用的隔離庫與限庫帳號, 不使用正式庫、TT 庫或使用者的日常開發資料。測試目前只接受共用環境建立的 `sp_guildmanager_codex_test`／`sp_guildmanager_claude_test`, 不從 DB 環境自動推測測試目標
+使用自己專用的隔離庫與限庫帳號, 不使用正式庫、TT 庫或使用者的日常開發資料。連線測試只接受 `sp_guildmanager_<agent>_test`, migration 測試另用 `sp_guildmanager_<agent>_migrationtest` 空庫, agent 使用自己的小寫識別。主機須為本機或明確的本機 Docker MySQL, 不從 DB 環境自動推測測試目標
 
 將專用帳密填入忽略的 `.local/mysql-test.json`, 權限設為 0600。範例中的所有值皆為測試用途：
 
@@ -52,11 +52,34 @@ node --env-file=.local/mysql.env tools/check-mysql.js
 ```
 
 ```sh
-GUILD_MYSQL_TEST_CONFIG=.local/mysql-test.json npm run test:mysql
+GUILD_MYSQL_TEST_CONFIG=.local/mysql-test.json \
+GUILD_MYSQL_MIGRATION_TEST_CONFIG=.local/mysql-migration-test.json \
+npm run test:mysql
 ```
 
-此入口缺設定會失敗, 不會將全部 skip 當成 MySQL 通過。一般 `npm test` 仍可跑原 SQLite／GAS 與純函式回歸, 沒有明確測試設定時略過真 MySQL 案例。額外指定 `GUILD_MYSQL_TEST_CA` 可測試共用 MySQL 的自簽伺服器憑證主機名稱不符時會被拒絕
+第二個設定檔格式相同, purpose 改成 `guildmanager-migration-test`, DB_DATABASE 與帳密改用自己獨立的 migrationtest 庫。migration 測試要求空庫, 有既有表就停止, 不重設或清空舊資料
+
+此入口缺任一設定會失敗, 不會將全部 skip 當成 MySQL 通過。一般 `npm test` 仍可跑原 SQLite／GAS 與純函式回歸, 沒有明確測試設定時略過真 MySQL 案例。額外指定 `GUILD_MYSQL_TEST_CA` 可測試共用 MySQL 的自簽伺服器憑證主機名稱不符時會被拒絕
 
 連線測試僅建立帶隨機名稱的人造表, 在 finally 移除自己的測試表並關閉 pool；驗證中文／emoji、前導零、BIGINT、交易回滾、單連線 pool 釋放、跨系統庫拒絕及錯誤不洩密。這些是開發與連線驗證, 不代表所有產品功能或正式站已切換 MySQL
 
 實作依據：[mysql2 Promise pool](https://sidorares.github.io/node-mysql2/docs/examples/connections/create-pool)、[TLS 設定](https://sidorares.github.io/node-mysql2/docs/documentation/ssl)
+
+## 明確執行版本更新
+
+使用獨立 migration 資格與私有設定檔：
+
+```sh
+node --env-file=.local/mysql-migration.env tools/migrate-mysql.js --status
+node --env-file=.local/mysql-migration.env tools/migrate-mysql.js
+```
+
+部署已提供環境變數時可分別執行 `npm run db:status`、`npm run db:migrate`。前者只查 ledger 是否存在與版本紀錄, 空庫也不建立表、不取得 migration 鎖；後者在同一條專用連線持有依 schema 命名的 advisory lock, 套用完成才釋放, 不把鎖交回其他請求
+
+版本清單在 `server/database/migrations.js`, 每個版本有固定 ID 與明確的 SQL statements。`schema_migrations` 保存內容 checksum、started／applied、已完成 statement 數與時間；完成版本重跑會跳過, 已套用內容變更、未知版本或不連續歷史會停止
+
+MySQL 的 DDL 會隱含 commit, 不能假稱 rollback 可還原整批建表。因此先保存 started, 每個 statement 完成後記錄進度；中斷或失敗留下 started, 後續執行會以 `MIGRATION_INCOMPLETE` 停止。維護者須先檢查 ledger、實際 schema 與備份再處理, 工具不自動續跑、刪表或改 checksum
+
+只有明確執行 `db:migrate` 才建立／改動表, HTTP 啟動與 `db:check` 不自動 migration。執行帳號無 DDL 權限會直接失敗, 不回退管理帳號或略過 migration
+
+設計依據：[MySQL DDL 隱含 commit](https://dev.mysql.com/doc/refman/8.4/en/implicit-commit.html)、[GET_LOCK 的連線生命週期](https://dev.mysql.com/doc/refman/8.4/en/locking-functions.html)

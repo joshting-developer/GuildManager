@@ -11,8 +11,8 @@ function testEnvironment() {
   assert.equal(configuration.purpose, 'guildmanager-integration-test');
   const env = configuration.environment;
   assert.equal(env.NODE_ENV, 'test');
-  assert.match(env.DB_DATABASE, /^sp_guildmanager_(codex|claude)_test$/);
-  assert.ok(['127.0.0.1', 'localhost', 'side-project-mysql'].includes(env.DB_HOST));
+  assert.match(env.DB_DATABASE, /^sp_guildmanager_[a-z][a-z0-9]{0,15}_test$/);
+  assert.ok(['127.0.0.1', 'localhost', 'mysql', 'side-project-mysql'].includes(env.DB_HOST));
   assert.equal(env.DB_SSL_MODE, 'disabled');
   return env;
 }

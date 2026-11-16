@@ -108,3 +108,16 @@ test('CLI errors are safe and the MySQL test entry point refuses implicit databa
   const tests = spawnSync(process.execPath, ['tools/run-mysql-tests.js'], { encoding: 'utf8', env });
   assert.equal(tests.status, 2);
 });
+
+test('dedicated connections stay on one session and discard rather than pool an unsafe connection', async () => {
+  const { database, calls } = fakeDatabase();
+  let held;
+  await database.withConnection(async (connection) => {
+    held = connection;
+    await connection.query('SELECT GET_LOCK(?, 0)', ['example']);
+    connection.discard();
+  });
+  assert.deepEqual(calls, [['execute', 'SELECT GET_LOCK(?, 0)', ['example']], 'destroy']);
+  assert.throws(() => held.query('SELECT 1'), { code: 'DATABASE_CONNECTION_RELEASED' });
+  await database.close();
+});

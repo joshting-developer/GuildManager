@@ -123,6 +123,33 @@ export function createMysqlDatabase(env, { poolFactory = createPool, readFile } 
     }
   };
   return {
+    async withConnection(work) {
+      assertOpen();
+      let connection;
+      try {
+        connection = await pool.getConnection();
+      } catch (error) {
+        throw databaseError(error);
+      }
+      let active = true;
+      let discarded = false;
+      try {
+        return await work({
+          query(sql, parameters) {
+            if (!active) throw new DatabaseError('DATABASE_CONNECTION_RELEASED', '資料庫專用連線已釋放');
+            return execute(connection, sql, parameters);
+          },
+          discard() {
+            active = false;
+            discarded = true;
+            connection.destroy();
+          },
+        });
+      } finally {
+        active = false;
+        if (!discarded) connection.release();
+      }
+    },
     async query(sql, parameters = []) {
       assertOpen();
       return execute(pool, sql, parameters);
