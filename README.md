@@ -120,7 +120,7 @@ npm run build:gas
 
 更新紀錄由 `src/content/release-notes.json` 靜態編譯進網站及 GAS，線上不讀 GitHub。開發期間把變更累積在唯一置頂的 `version: "Unreleased"`、`date: null` 條目，頁面及頁尾顯示「未發布」；package／lockfile 保持最近正式版本。
 
-使用者要求同步 GAS 時，才在編譯前升一次 patch（`npm version patch --no-git-tag-version --ignore-scripts`），把同一筆 Unreleased 改成正式版號與當天台北日期，核對、提交後執行同步。`gas:push` 不會自動定版；同批重試不再升版。成功同步程式與正式 Web App 發布是不同狀態，操作規則見 [AGENTS.md](AGENTS.md#發布版本與-gas-同步)。
+使用者要求同步 GAS 時, 才在編譯前升一次 patch（`npm version patch --no-git-tag-version --ignore-scripts`）, 把同一筆 Unreleased 改成正式版號與當天台北日期, 核對、提交後執行同步。`gas:push` 不會自動定版；同批重試不再升版。成功同步程式與正式 Web App 發布是不同狀態, 操作規則見 [GAS 發布流程](docs/gas-release.md)
 
 ## GAS 匯入方式
 
@@ -375,10 +375,9 @@ server/           Express 入口與 SQLite repository
 gas/              GAS 頁面入口、業務後端原始碼與 manifest
 tools/            GAS 打包工具
 tests/            資料與 adapter 測試
-plans/main/       需求、計畫與驗證紀錄
 ```
 
-開發規則見 [AGENTS.md](AGENTS.md), 視覺規範見 [Style.md](Style.md), 切換限制見 [Architecture.md](Architecture.md)
+產品與工程契約見 [工程綁定入口](docs/project-engineering-bindings.md), 視覺規範見 [Style.md](Style.md), 切換限制見 [Architecture.md](Architecture.md)
 ## 上傳數據
 
 登入後開啟 `#/battle-upload`, 或從管理行事曆的戰鬥詳情按「上傳戰績」, 會預選該場次。頁面參考相鄰 NSHM_history 的 CSV 上傳／對戰資料布局。

@@ -12,3 +12,11 @@ data/
 artifacts/
 .clasprc.json
 .clasp.json
+
+# 個人開發入口與任務紀錄保留本機
+/AGENTS.md
+/CLAUDE.md
+/Memory.md
+/.local/
+/.agents/
+/plans/
