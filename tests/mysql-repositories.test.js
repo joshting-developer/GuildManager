@@ -28,6 +28,7 @@ await import('./mysql-contracts/lottery.test.js');
 await import('./mysql-contracts/member-external.test.js');
 await import('./mysql-contracts/member-history-filters.test.js');
 await import('./mysql-contracts/member-import.test.js');
+await import('./mysql-contracts/member-choices.test.js');
 await import('./mysql-contracts/member-maintenance.test.js');
 await import('./mysql-contracts/member-membership.test.js');
 await import('./mysql-contracts/members.test.js');
