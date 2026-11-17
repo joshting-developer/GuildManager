@@ -1,4 +1,6 @@
 import express from 'express';
+import { DatabaseError } from './database/mysql.js';
+import { reportError } from './error-log.js';
 import { PlatformSettingsError } from '../src/domain/platform-settings.js';
 import { visibleCalendarEvents } from '../src/domain/calendar-access.js';
 import { installAuth } from './auth.js';
@@ -13,7 +15,7 @@ import { EventVideoError } from '../src/domain/event-videos.js';
 import { LotteryError } from '../src/domain/lottery.js';
 import { withDefaultLineupEvent } from '../src/domain/lineup-index.js';
 
-export function createApp(repository, { authNow, notifier = null } = {}) {
+export function createApp(repository, { authNow, notifier = null, log = console, isStopping = () => false, healthTimeoutMs = 2000 } = {}) {
   const app = express();
   // Notifications are collected per operation and only handed to the notifier after the
   // MySQL transaction committed; a failed operation discards them.
@@ -24,12 +26,33 @@ export function createApp(repository, { authNow, notifier = null } = {}) {
         const { platform } = await repository.getPlatformSettings();
         notifier.send(notifications, { footer: platform.name });
       } catch (error) {
-        console.error('Discord 通知排程失敗：', error.message);
+        reportError(log, 'notification_schedule_failed', error);
       }
     }
     return data;
   }
   app.disable('x-powered-by');
+  app.use('/api', (_request, response, next) => {
+    response.set('Cache-Control', 'no-store');
+    if (isStopping()) return response.status(503).json({ error: { code: 'SERVICE_STOPPING', message: '服務正在關閉，請稍後再試' } });
+    next();
+  });
+  app.get('/api/live', (_request, response) => response.json({ status: 'ok' }));
+  app.get('/api/health', async (_request, response) => {
+    let timer;
+    try {
+      await Promise.race([
+        repository.probe(),
+        new Promise((_, reject) => { timer = setTimeout(() => reject(new DatabaseError('DATABASE_UNAVAILABLE')), healthTimeoutMs); }),
+      ]);
+      response.json({ status: 'ok' });
+    } catch (error) {
+      reportError(log, 'health_failed', error);
+      response.status(503).json({ status: 'error', code: 'DATABASE_UNAVAILABLE' });
+    } finally {
+      clearTimeout(timer);
+    }
+  });
   app.use('/api', (request, response, next) => {
     if (!['POST', 'PATCH', 'DELETE'].includes(request.method)) return next();
     const origin = request.get('Origin');
@@ -93,10 +116,6 @@ export function createApp(repository, { authNow, notifier = null } = {}) {
   });
   app.get('/api/calendar/members', async (_request, response) => {
     response.json(await repository.listParticipationMembers());
-  });
-  app.get('/api/health', async (_request, response) => {
-    await repository.readHome();
-    response.json({ status: 'ok' });
   });
   app.get('/api/home', async (_request, response) => {
     response.set('Cache-Control', 'no-store').json(await repository.readHome());
@@ -373,7 +392,10 @@ export function createApp(repository, { authNow, notifier = null } = {}) {
         .status(error.status)
         .json({ error: { code: 'INVALID_BODY', message: '提交資料格式不正確或內容過大' } });
     }
-    console.error('API read failed:', error.message);
+    reportError(log, 'api_failed', error);
+    if (error instanceof DatabaseError) {
+      return response.status(503).json({ error: { code: 'DATABASE_ERROR', message: '資料庫暫時無法完成操作，請稍後確認操作結果' } });
+    }
     response
       .status(500)
       .json({ error: { code: 'OPERATION_FAILED', message: '目前無法完成操作，請稍後再試' } });

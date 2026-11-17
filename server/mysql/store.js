@@ -86,6 +86,7 @@ export function exposeRepository(implementation, store, database) {
   return {
     ...Object.fromEntries(Object.keys(implementation).map((name) => [name, async (...args) => (await invoke(name, args)).data])),
     invoke,
+    probe: () => database.probe(),
     close: () => database.close(),
   };
 }

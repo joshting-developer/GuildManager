@@ -20,7 +20,8 @@ docker compose up --build -d
 
 原首頁總覽改為 [管理總覽](http://localhost:5173/#/magament), `magament` 沿用使用者指定拼字, 也接受 `#/management`。未登入時直接開管理網址會回到首頁並開啟登入視窗；網址使用 hash 以支援單一 GAS HTML。
 
-- API 健康檢查：`http://localhost:3001/api/health`
+- API／MySQL 就緒檢查：`http://localhost:3001/api/health`（成功 200, 無法連線或逾時 503）
+- API 存活檢查：`http://localhost:3001/api/live`（不讀資料庫）
 - 成員資料：`http://localhost:3001/api/members`
 - 活動安排：`http://localhost:3001/api/events`
 - 戰場排表：`http://localhost:3001/api/lineups`

@@ -9,3 +9,5 @@ await import('./mysql-http/platform.test.js');
 await import('./mysql-http/startup.test.js');
 await import('./mysql-http/auth.test.js');
 await import('./mysql-http/account-cli.test.js');
+await import('./mysql-http/health.test.js');
+await import('./mysql-http/shutdown.test.js');

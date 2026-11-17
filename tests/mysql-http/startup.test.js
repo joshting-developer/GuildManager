@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { withApp } from '../helpers/mysql-app.js';
 import { repositoryDatabase } from '../helpers/mysql-repository.js';
 
-async function boot(environment, ready = false) {
+async function boot(environment, ready = false, signal = 'SIGTERM') {
   const child = spawn(process.execPath, ['server/index.js'], {
     env: { PATH: process.env.PATH, ...environment, API_HOST: '127.0.0.1', API_PORT: '0' },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -30,8 +30,8 @@ async function boot(environment, ready = false) {
     return output;
   } finally {
     clearTimeout(timer);
-    child.kill('SIGTERM');
-    await exited;
+    child.kill(signal);
+    assert.equal(await exited, ready ? 0 : 1);
   }
 }
 
@@ -40,6 +40,7 @@ test('HTTP startup requires explicit configuration and an applied migration ledg
   await withApp(async ({ repository }) => {
     const environment = JSON.parse(readFileSync(process.env.GUILD_MYSQL_REPOSITORY_TEST_CONFIG, 'utf8')).environment;
     assert.match(await boot(environment, true), /GuildManager API:/);
+    assert.match(await boot(environment, true, 'SIGINT'), /GuildManager API:/);
     const db = repositoryDatabase(repository);
     await db.query("UPDATE schema_migrations SET state = 'started' WHERE id = '0002_repository_lock'");
     const before = await db.query('SELECT id, state FROM schema_migrations ORDER BY id');

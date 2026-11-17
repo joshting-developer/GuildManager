@@ -139,4 +139,16 @@ HTTP 權限回歸使用真實 MySQL 驗匿名／member／manager／admin, 涵蓋
 
 Docker 的 API 服務加入共用 `side-project-environment` 網路, 沿用自己的 MySQL schema／帳號；需先啟動共用服務並明確套用 migration。遠端 TLS 連線可透過 `DB_SSL_CA_BASE64` 提供 CA, 不把主機私有檔案路徑直接傳入容器
 
-HTTP 契約測試在 `tests/mysql-http/`, 由 `tests/mysql-http.test.js` 在同一程序依序載入, 使用與 Repository 測試相同的 repositorytest 空庫；不要直接把多個檔案交給 `node --test` 平行跑, 會在同一個 schema 互相干擾。目前覆蓋存取／登入／錯誤 envelope、活動、成員與匯入、報名、排表／職責／範本、戰績上傳／附件／刪除、平台設定／抽獎／影片；角色／session／CSRF 的回歸另見 `auth.test.js`, CLI 回歸見 `account-cli.test.js`；完整健康檢查與 Discord 投遞行為另由後續卡片補
+HTTP 契約測試在 `tests/mysql-http/`, 由 `tests/mysql-http.test.js` 在同一程序依序載入, 使用與 Repository 測試相同的 repositorytest 空庫；不要直接把多個檔案交給 `node --test` 平行跑, 會在同一個 schema 互相干擾。目前覆蓋存取／登入／錯誤 envelope、活動、成員與匯入、報名、排表／職責／範本、戰績上傳／附件／刪除、平台設定／抽獎／影片；角色／session／CSRF 的回歸另見 `auth.test.js`, CLI 回歸見 `account-cli.test.js`；健康與停機回歸見下節, Discord 投遞行為另由後續卡片補
+
+
+## 健康檢查、錯誤紀錄與關閉連線
+
+- `GET /api/live` 只驗 HTTP 程序仍可回應, 不經 Session 或 MySQL；成功保持 `{ "status": "ok" }`
+- `GET /api/health` 是 Docker 沿用的就緒檢查, 只執行 `probe` 核對連線／schema／字元集及 TLS, 不讀首頁、Session 或業務表, 也不拿寫入鎖；成功 200 與 `{ "status": "ok" }`。MySQL 故障或探測超過 2 秒回 503 與 `{ "status": "error", "code": "DATABASE_UNAVAILABLE" }`
+- 兩個端點均公開且 `Cache-Control: no-store`, 不回傳資料庫位址、版本、schema、帳號或 TLS 明細。啟動時另驗 migration, 健康探測不建表或修復版本。探測逾時不重試, 底層操作由原有 pool 的連線與有界排隊限制管理
+- 一般 API 的資料庫錯誤回 503／`DATABASE_ERROR`, 未預期的程式錯誤回 500／`OPERATION_FAILED`, 維持 `{ error: { code, message } }`。寫入失敗訊息提醒先確認結果, 不自動重送；既有領域錯誤與欄位提示不變
+- 啟動、健康探測、一般 API、通知排程與停機錯誤使用 JSON 紀錄, 僅包含固定 `event`、`component` 與白名單 `code`。不記 driver 原文、stack、SQL、URL、Cookie、帳密或玩家輸入；logger 自身失敗不改變 API 結果。Discord 實際投遞仍由 notifier 自己處理
+- 收到 `SIGTERM`／`SIGINT` 後停止接新連線, 重用連線送來的新工作回 503／`SERVICE_STOPPING`。已在處理的要求先完成, 再關 MySQL pool, 正常退出碼 0；重複訊號共用同一次停機。關閉失敗或超過 10 秒會記固定分類、斷開剩餘 HTTP 連線並以非零碼退出, 不保證逾時中的寫入已完成或回滾, 呼叫端仍須沿原 requestId 核對結果
+
+`health.test.js` 在隔離 MySQL 驗 probe／寫鎖／真 pool 關閉, 並用故障注入驗錯誤不洩密；`startup.test.js` 驗實際啟動與兩種信號, `shutdown.test.js` 驗在途完成後關 pool、重複關閉、佔用埠、pool 關閉失敗與停機逾時。測試只關閉自己建立的 HTTP 與 pool, 不停共用 MySQL
