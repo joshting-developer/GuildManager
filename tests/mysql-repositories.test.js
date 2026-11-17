@@ -17,6 +17,7 @@ await import('./mysql-contracts/event-videos.test.js');
 await import('./mysql-contracts/events.test.js');
 await import('./mysql-contracts/historical-sync.test.js');
 await import('./mysql-contracts/home.test.js');
+await import('./mysql-contracts/legacy-import.test.js');
 await import('./mysql-contracts/lineup-empty-person.test.js');
 await import('./mysql-contracts/lineup-read-efficiency.test.js');
 await import('./mysql-contracts/lineup-rounds.test.js');
