@@ -71,6 +71,14 @@ docker compose exec -T api node server/create-account.js < data/local-admin.json
 
 本機 cookie 使用 HTTP loopback；正式 Node 網站使用 HTTPS、`NODE_ENV=production` 與明確的 `APP_ORIGIN`, 設定方式見下方「同源網站與 HTTPS」。
 
+v2 的初始管理員與歷史操作者歸屬見 [帳號契約](docs/platform-contracts.md#v2-初始管理員與歷史操作者)。部署初始化使用 `admin` 與私人 bootstrap 檔案, 不沿用舊站管理帳號。先確認目標資料庫與 migration, 再執行：
+
+```sh
+node --env-file=.local/runtime.env server/create-account.js < .local/deployment/bootstrap-admin.json
+```
+
+`bootstrap-admin.json` 包含 `username`、`password` 與 `role: "admin"`, 權限設為 0600。此指令只建立不存在的帳號, 不放進每次啟動或自動重設密碼流程；實際秘密不提交 Git
+
 ## 同源網站與 HTTPS
 
 一般 `npm run build` 產生 `dist/`, Node 在 `NODE_ENV=production` 時同時提供前端靜態檔案及 `/api`。正式啟動使用 `node server/index.js`, 除既有 MySQL／R2 設定外, HTTP 設定名稱見 [範本](config/http.env.example)。缺少 `dist/index.html` 或設定無效時拒絕啟動, 只記錄固定的 `HTTP_CONFIGURATION` 錯誤分類
