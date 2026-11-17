@@ -25,3 +25,6 @@ artifacts/
 # Python development tools
 __pycache__/
 *.py[cod]
+
+# Real Fly configuration stays private; fly.toml.example is the public template.
+/fly.toml
