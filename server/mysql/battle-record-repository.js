@@ -36,7 +36,9 @@ function imageAttachment(input) {
   if (
     !['image/png', 'image/jpeg', 'image/webp'].includes(input.mimeType) ||
     typeof input.base64 !== 'string' ||
-    !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(input.base64)
+    input.base64.length > Math.ceil(MAX_IMAGE_BYTES / 3) * 4 ||
+    input.base64.length % 4 !== 0 ||
+    !/^[A-Za-z0-9+/]*={0,2}$/.test(input.base64)
   )
     throw new BattleRecordError('陣容圖片只支援 PNG、JPEG、WebP');
   const bytes = Buffer.from(input.base64, 'base64');

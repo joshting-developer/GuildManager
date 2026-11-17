@@ -14,3 +14,5 @@ await import('./mysql-http/shutdown.test.js');
 await import('./mysql-http/notifications.test.js');
 
 await import('./mysql-http/file-metadata.test.js');
+
+await import('./mysql-http/media-regression.test.js');
