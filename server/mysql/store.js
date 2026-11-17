@@ -18,13 +18,20 @@ export function createStore(database) {
   const requests = new AsyncLocalStorage();
   async function transaction(work, readOnly = false) {
     if (transactions.getStore()) return work();
-    return database.transaction(async (connection) => {
-      if (!readOnly) {
-        const lock = await connection.query('SELECT id FROM repository_write_lock WHERE id=1 FOR UPDATE');
-        if (lock.length !== 1) throw new DatabaseError('DATABASE_SCHEMA_REQUIRED', '資料庫尚未完成必要版本更新');
-      }
-      return transactions.run(connection, work);
-    }, { readOnly });
+    // Writers lock only the rows they change; there is no repository-wide queue.
+    const run = () => database.transaction((connection) => transactions.run(connection, work), { readOnly });
+    if (readOnly) return run();
+    const notices = requests.getStore()?.notices;
+    const queued = notices?.length;
+    try {
+      return await run();
+    } catch (error) {
+      if (!['DATABASE_DUPLICATE', 'DATABASE_CONFLICT'].includes(error?.code)) throw error;
+      // Losing a unique key or deadlock to a concurrent writer rolled everything back. One fresh attempt
+      // sees the winner's commit and returns its requestId replay or the normal business conflict.
+      if (notices) notices.length = queued;
+      return run();
+    }
   }
   async function query(sql, parameters) { return (transactions.getStore() || database).query(sql, parameters); }
   return {
@@ -77,7 +84,8 @@ export function exposeRepository(implementation, store, database) {
     'listParticipationMembers', 'listMembers', 'readHome',
     'getLeaveSettings', 'getLeaveCare', 'getAttendanceOptions', 'getAttendanceHistory', 'getLeaveCalendar', 'getMemberLeaveHistory',
   ]);
-  const forceTransaction = new Set(['getSession', 'revokeSession', 'backfillMemberBattleRecords']);
+  // getSession reads without a transaction and only writes when it removes an expired session.
+  const forceTransaction = new Set(['backfillMemberBattleRecords']);
   const invoke = async (name, args = []) => {
     if (!Object.hasOwn(implementation, name) || typeof implementation[name] !== 'function') throw new Error('Unknown repository operation');
     return store.operation(() => readOnly.has(name)

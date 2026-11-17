@@ -77,6 +77,20 @@ test('API and database errors use distinct fixed classifications without leaking
   }
 });
 
+test('concurrent-write duplicates and deadlocks are definite 409 rollbacks, not unknown database failures', async () => {
+  for (const code of ['DATABASE_DUPLICATE', 'DATABASE_CONFLICT']) {
+    const log = recordingLog();
+    const error = new DatabaseError(code, '資料正在被其他操作更新, 請確認最新資料後重試', 409);
+    await withApp({ log, repository: (repo) => ({ ...repo, listDuties: async () => { throw error; } }) }, async ({ admin }) => {
+      const { request } = await admin();
+      const response = await request('/duties');
+      assert.equal(response.status, 409);
+      assert.deepEqual(await response.json(), { error: { code, message: error.message } });
+      assert.deepEqual(log.entries, []);
+    });
+  }
+});
+
 test('notification scheduling errors are sanitized and do not change committed writes', async () => {
   const log = recordingLog();
   await withApp({ log, notifier: { send() { throw new Error(secret); } } }, async ({ admin, repository }) => {

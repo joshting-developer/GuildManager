@@ -42,6 +42,7 @@ export function createAttendanceRepository(db) {
           /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(input.message) || !Number.isSafeInteger(input.revision) || input.revision < 1) fail('門檻須為 0–100 次, 關心訊息為 1–300 字');
       return db.write(async () => {
         await access.assertAccess();
+        await db.prepare('SELECT id FROM leave_settings WHERE id=1 FOR UPDATE').get();
         const current = (await getLeaveSettings()).settings;
         const message = input.message.trim();
         if (input.threshold === current.threshold && message === current.message &&
@@ -106,6 +107,8 @@ export function createAttendanceRepository(db) {
           typeof input.note !== 'string' || input.note.length > 160 || /[\u0000-\u001f\u007f]/.test(input.note)) fail('請確認日期、出勤狀態與備註');
       return db.write(async () => {
         const actor = await access.assertAccess();
+        // Attendance for one event queues on the event row; the request receipt is read after the lock.
+        await db.prepare('SELECT id FROM scheduled_events WHERE id=? FOR UPDATE').get(eventId);
         const hash = createHash('sha256').update(JSON.stringify([eventId,input.date,uid,input.status,input.note,input.revision])).digest('hex');
         const previous = await db.prepare('SELECT actor_id,input_hash,result_json FROM attendance_requests WHERE request_id=?').get(requestId);
         if (previous) {

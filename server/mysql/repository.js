@@ -72,6 +72,10 @@ function createImplementation(store, authNow) {
       previousNames: (await previousNames(uid)),
     };
   }
+  // Member writes lock the UID row first; a UID that does not exist yet is protected by the primary key.
+  async function lockMember(uid) {
+    (await db.prepare('SELECT uid FROM members WHERE uid = ? FOR UPDATE').get(uid));
+  }
   function checkRevision(member, revision) {
     if (member.revision !== revision) {
       throw new MemberError(409, 'STALE_MEMBER', '這位成員的資料已更新，請重新載入後再操作');
@@ -257,6 +261,7 @@ function createImplementation(store, authNow) {
     async addMember(input, { linkBattles = true, quiet = false } = {}) {
       const member = validateMember(input);
       return (await db.transaction(async () => {
+        (await lockMember(member.uid));
         const [primaryName, secondaryName] = (await professionNames(member));
         const existing = (await db.prepare('SELECT * FROM members WHERE uid = ?').get(member.uid));
         const now = new Date().toISOString();
@@ -312,6 +317,7 @@ function createImplementation(store, authNow) {
     async updateMember(uid, input) {
       const member = validateMember(input, { editing: true });
       return (await db.transaction(async () => {
+        (await lockMember(uid));
         const [primaryName, secondaryName] = (await professionNames(member));
         const current = (await getMember(uid));
         checkRevision(current, member.revision);
@@ -349,6 +355,7 @@ function createImplementation(store, authNow) {
     async removeMember(uid, revision) {
       validateRevision(revision);
       return (await db.transaction(async () => {
+        (await lockMember(uid));
         const current = (await getMember(uid));
         checkRevision(current, revision);
         if (!current.isInGuild && !current.isInClub) return { uid, member: current };

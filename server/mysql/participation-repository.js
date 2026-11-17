@@ -41,6 +41,10 @@ export function createParticipationRepository(db, { notify = () => {} } = {}) {
       throw new ParticipationError('報名／請假需要單日戰鬥場次');
     }
   }
+  // Every participation write for one event queues on that event row, not on the whole site.
+  async function lockEvent(id) {
+    (await db.prepare('SELECT id FROM scheduled_events WHERE id = ? FOR UPDATE').get(id));
+  }
   async function response(eventId, uid) {
     return (await db
       .prepare(
@@ -109,6 +113,7 @@ export function createParticipationRepository(db, { notify = () => {} } = {}) {
       if (!['member', 'registration'].includes(input?.source))
         throw new ParticipationError('人員來源不正確，請重新載入');
       return (await db.transaction(async () => {
+        (await lockEvent(eventId));
         (await checkEvent(eventId));
         const changed = () => {
           throw new ParticipationError('請假資料已更新，請重新載入後再操作', 409, 'PARTICIPATION_CHANGED');
@@ -217,6 +222,7 @@ export function createParticipationRepository(db, { notify = () => {} } = {}) {
         ...(input.expectedParticipant !== undefined ? { expectedParticipant: input.expectedParticipant } : {}),
       });
       return (await db.transaction(async () => {
+        (await lockEvent(eventId));
         const priorRequest = (await db
           .prepare(
             'SELECT event_id, input_json, result_json FROM event_participation_requests WHERE request_id = ?',
@@ -354,6 +360,7 @@ export function createParticipationRepository(db, { notify = () => {} } = {}) {
         throw new ParticipationError('請選擇報名、請假或取消');
       revision(input?.revision);
       return (await db.transaction(async () => {
+        (await lockEvent(eventId));
         (await checkEvent(eventId));
         if (!(await db.prepare('SELECT uid FROM members WHERE uid = ? AND removed_at IS NULL').get(uid))) {
           throw new ParticipationError('找不到這位成員，請重新選擇', 404, 'MEMBER_NOT_FOUND');
@@ -404,6 +411,7 @@ export function createParticipationRepository(db, { notify = () => {} } = {}) {
       if (typeof requestId !== 'string' || !/^[a-zA-Z0-9_-]{1,64}$/.test(requestId))
         throw new ParticipationError('缺少有效的操作識別碼，請重新操作');
       return (await db.transaction(async () => {
+        (await lockEvent(eventId));
         const priorId = (await db
           .prepare('SELECT id FROM event_registrations WHERE request_id = ?')
           .get(requestId))?.id;
@@ -458,6 +466,7 @@ export function createParticipationRepository(db, { notify = () => {} } = {}) {
     async deleteGuestRegistration(eventId, id, expectedRevision) {
       revision(expectedRevision);
       return (await db.transaction(async () => {
+        (await lockEvent(eventId));
         (await checkEvent(eventId));
         const prior = (await registration(id));
         if (!prior) return { deleted: true, id };
@@ -472,6 +481,7 @@ export function createParticipationRepository(db, { notify = () => {} } = {}) {
     async cancelGuestRegistration(eventId, id, expectedRevision) {
       revision(expectedRevision);
       return (await db.transaction(async () => {
+        (await lockEvent(eventId));
         (await checkEvent(eventId));
         const prior = (await registration(id));
         if (!prior || prior.eventId !== eventId)

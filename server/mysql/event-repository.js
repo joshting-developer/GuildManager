@@ -163,6 +163,7 @@ export function createEventRepository(db) {
       const values = validateEvent(input, { requireRequestId: false });
       checkRevision(input.revision);
       return (await db.transaction(async () => {
+        (await db.prepare('SELECT id FROM scheduled_events WHERE id = ? FOR UPDATE').get(id));
         const current = (await getEvent(id));
         if (!current)
           throw new EventError(
@@ -188,7 +189,7 @@ export function createEventRepository(db) {
       checkRevision(revision);
       return (await db.transaction(async () => {
         const current = (await db
-          .prepare('SELECT revision, deleted_at FROM scheduled_events WHERE id = ?')
+          .prepare('SELECT revision, deleted_at FROM scheduled_events WHERE id = ? FOR UPDATE')
           .get(id));
         if (!current)
           throw new EventError('找不到安排，請重新載入清單', {}, 404, 'EVENT_NOT_FOUND');

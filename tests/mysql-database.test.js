@@ -38,6 +38,7 @@ test('remote and production MySQL always validate CA and hostname without exposi
 function fakeDatabase({ failQuery, failCommit, failRollback } = {}) {
   const calls = [];
   const connection = {
+    async query(sql) { calls.push(['query', sql]); },
     async beginTransaction() { calls.push('begin'); },
     async execute(sql, values) { calls.push(['execute', sql, values]); if (failQuery) throw Object.assign(new Error('private-value SQL payload'), { code: 'ER_ACCESS_DENIED_ERROR' }); return [[{ value: 7 }]]; },
     async commit() { calls.push('commit'); if (failCommit) throw new Error('private-value'); },
@@ -56,7 +57,7 @@ test('a transaction commits on its own connection and releases it after all asyn
     return rows[0].value;
   });
   assert.equal(result, 7);
-  assert.deepEqual(calls, ['begin', ['execute', 'SELECT ?', [7]], 'commit', 'release']);
+  assert.deepEqual(calls, [['query', 'SET TRANSACTION ISOLATION LEVEL READ COMMITTED'], 'begin', ['execute', 'SELECT ?', [7]], 'commit', 'release']);
   await database.close();
 });
 
@@ -64,7 +65,7 @@ test('transaction failures roll back, retain business errors and discard connect
   const { database, calls } = fakeDatabase({ failRollback: true });
   const businessError = new Error('version conflict');
   await assert.rejects(database.transaction(async () => { throw businessError; }), (error) => error === businessError);
-  assert.deepEqual(calls, ['begin', 'rollback', 'destroy', 'release']);
+  assert.deepEqual(calls, [['query', 'SET TRANSACTION ISOLATION LEVEL READ COMMITTED'], 'begin', 'rollback', 'destroy', 'release']);
   await database.close();
 });
 

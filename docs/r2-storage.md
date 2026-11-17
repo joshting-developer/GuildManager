@@ -6,7 +6,7 @@ Node HTTP 的戰績 CSV、共用陣容圖片與平台圖示已接入 R2。新寫
 
 啟動 API 必須同時提供 MySQL 與 R2 設定, 並先明確執行包含 `0004_file_staging` 的 migration；缺 R2 或 schema 未就緒就停止啟動。Compose 從忽略的 `.env` 轉交設定, 不自動建立 bucket 或回退把新檔案寫回 MySQL。
 
-`server/services/file-backed-repository.js` 在組裝階段裝飾既有 Repository。戰績上傳先在短交易驗證內容與關聯、requestId, 釋放鎖後寫 R2, 再開交易重驗場次／版本／requestId 與授權, 同交易保存 metadata 和業務資料。已提交的重送直接回原結果, 不再寫物件。外部 I/O 不持有 MySQL 寫入鎖。
+`server/services/file-backed-repository.js` 在組裝階段裝飾既有 Repository。戰績上傳先在短交易驗證內容與關聯、requestId, 釋放鎖後寫 R2, 再開交易重驗場次／版本／requestId 與授權, 同交易保存 metadata 和業務資料。已提交的重送直接回原結果, 不再寫物件。外部 I/O 不持有 MySQL 交易或列鎖。
 
 既有 API 格式保留：戰績附件走原本的下載路徑、no-store／nosniff／Content-Disposition；平台設定依原公開讀取規則回傳 data URL, bucket 仍為私有, 不公開物件網址。下載只讀單筆 metadata 與指定物件, 驗 bytes 與 SHA-256；不符回固定 STORAGE_UNAVAILABLE, 不回傳損壞內容。HTTP 上傳／下載仍先由既有登入／角色／CSRF 保護, 並在檔案上傳後的最終交易重驗 Session；下載結束重驗 Session 與戰績存在狀態。下載許可 member／manager／admin, 上傳限 manager／admin, 平台修改限 admin。
 
@@ -18,7 +18,7 @@ Node HTTP 的戰績 CSV、共用陣容圖片與平台圖示已接入 R2。新寫
 
 維護者明確提供 API 相同的 DB_*／R2_* 環境後執行 `node tools/cleanup-staged-files.js --execute`。工具檢查 migration, 每次最多處理 100 筆過期 staging, 並將最多 100 筆已超過 24 小時且無引用的 metadata 移入清理紀錄。查詢限定目前 bucket, SQL 排序及上限固定, 不列舉 bucket、不載入檔案內容。未引用判斷包含戰績 CSV、共用 upload 圖片與平台圖示；upload 保留的重送／共用圖片關聯不清除。替換圖示或刪除戰績後, 無引用 metadata 須等待保留期才可回收。
 
-清理先在共用寫入鎖內將 staging 改成 deleting, 再於交易外刪 R2；被清理程序取得的上傳不能再 finalize。刪除失敗保留紀錄供下次重試, 不影響已提交檔案。成功刪除仍保留 deleting 標記, 24 小時後可再次刪除, 處理暫停的 PUT 稍後才完成的情況；標記不自動淘汰, 維護表會隨失敗／回收次數成長。工具只輸出成功與失敗筆數, 不輸出 key 或原始錯誤。
+清理先在交易內以 SKIP LOCKED 認領 staging 並改成 deleting, 再於交易外刪 R2；被清理程序取得的上傳不能再 finalize。刪除失敗保留紀錄供下次重試, 不影響已提交檔案。成功刪除仍保留 deleting 標記, 24 小時後可再次刪除, 處理暫停的 PUT 稍後才完成的情況；標記不自動淘汰, 維護表會隨失敗／回收次數成長。工具只輸出成功與失敗筆數, 不輸出 key 或原始錯誤。
 
 這是可重試的跨服務補償, 並非 MySQL／R2 原子交易；未設定自動清理或排程。使用者需明確授權後才在正式環境執行清理。GM-16 之前沒有 staging 的失敗物件不會由此工具發現, 需另行盤點；不得靠刪除整個 bucket 或清空 metadata 回收物件。
 

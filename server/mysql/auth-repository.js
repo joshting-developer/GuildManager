@@ -12,8 +12,8 @@ function validateUsername(username) {
     throw new AuthError(422, 'INVALID_ACCOUNT', '帳號請使用 3–32 個英數字、底線、點或減號');
 }
 export function createAuthRepository(db, { now = Date.now } = {}) {
-  async function checkAdmin(id) {
-    const account = (await db.prepare('SELECT * FROM auth_accounts WHERE id = ?').get(id));
+  async function checkAdmin(id, lock = '') {
+    const account = (await db.prepare(`SELECT * FROM auth_accounts WHERE id = ?${lock}`).get(id));
     if (account?.role !== 'admin')
       throw new AuthError(403, 'ADMIN_REQUIRED', '只有 admin 可以管理帳號');
     return account;
@@ -77,9 +77,9 @@ export function createAuthRepository(db, { now = Date.now } = {}) {
           ? null
           : await passwordHash(input.password);
       return (await db.transaction(async () => {
-        (await checkAdmin(adminId));
+        (await checkAdmin(adminId, ' FOR SHARE'));
         const manager = (await db
-          .prepare('SELECT * FROM auth_accounts WHERE id = ? AND role = ?')
+          .prepare('SELECT * FROM auth_accounts WHERE id = ? AND role = ? FOR UPDATE')
           .get(id, role));
         if (!manager) throw new AuthError(404, 'ACCOUNT_NOT_FOUND', `找不到 ${role} 帳號`);
         if (manager.revision !== input.revision) throw accountChanged();
@@ -111,7 +111,7 @@ export function createAuthRepository(db, { now = Date.now } = {}) {
         throw new AuthError(422, 'CURRENT_PASSWORD_INVALID', '目前密碼不正確');
       const secret = await passwordHash(input?.password);
       return (await db.transaction(async () => {
-        if ((await checkAdmin(adminId)).revision !== account.revision) throw accountChanged();
+        if ((await checkAdmin(adminId, ' FOR UPDATE')).revision !== account.revision) throw accountChanged();
         (await db.prepare(
           'UPDATE auth_accounts SET password_salt = ?, password_hash = ?, revision = revision + 1 WHERE id = ?',
         ).run(secret.salt, secret.hash, adminId));
@@ -141,8 +141,8 @@ export function createAuthRepository(db, { now = Date.now } = {}) {
       if (!Number.isSafeInteger(input.revision) || input.revision < 0) throw accountChanged();
       const secret = await passwordHash(input.password, 6);
       return (await db.transaction(async () => {
-        (await checkAdmin(adminId));
-        const account = (await db.prepare('SELECT * FROM auth_accounts WHERE username = ?').get(MEMBER_USERNAME));
+        (await checkAdmin(adminId, ' FOR SHARE'));
+        const account = (await db.prepare('SELECT * FROM auth_accounts WHERE username = ? FOR UPDATE').get(MEMBER_USERNAME));
         if (account && account.role !== 'member')
           throw new AuthError(409, 'RESERVED_ACCOUNT', '保留帳號已被管理帳號使用，請先更改該管理帳號名稱');
         if ((account?.revision || 0) !== input.revision) throw accountChanged();
@@ -178,8 +178,9 @@ export function createAuthRepository(db, { now = Date.now } = {}) {
       const token = randomBytes(32).toString('base64url');
       const expiresAt = now() + SESSION_SECONDS * 1000;
       (await db.transaction(async () => {
+        // A concurrent password change must either finish first or wait until this session exists.
         const current = (await db
-          .prepare('SELECT revision FROM auth_accounts WHERE id = ?')
+          .prepare('SELECT revision FROM auth_accounts WHERE id = ? FOR SHARE')
           .get(account.id));
         if (current?.revision !== account.revision)
           throw new AuthError(401, 'INVALID_CREDENTIALS', memberLogin ? '通行密碼不正確或尚未設定，請聯絡管理者' : '帳號或密碼不正確');

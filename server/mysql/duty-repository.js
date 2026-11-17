@@ -66,6 +66,7 @@ export function createDutyRepository(db) {
       )
         throw new DutyError('職責狀態或版本格式不正確');
       return (await db.transaction(async () => {
+        (await db.prepare('SELECT id FROM duties WHERE id = ? FOR UPDATE').get(id));
         const current = (await get(id));
         const same = current.name === name && current.active === input.active;
         if (

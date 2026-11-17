@@ -422,6 +422,9 @@ export function createApp(repository, { authNow, notifier = null, log = console,
         .status(error.status)
         .json({ error: { code: 'INVALID_BODY', message: '提交資料格式不正確或內容過大' } });
     }
+    if (error instanceof DatabaseError && error.status === 409) {
+      return response.status(409).json({ error: { code: error.code, message: error.message } });
+    }
     reportError(log, 'api_failed', error);
     if (error instanceof DatabaseError) {
       return response.status(503).json({ error: { code: 'DATABASE_ERROR', message: '資料庫暫時無法完成操作，請稍後確認操作結果' } });

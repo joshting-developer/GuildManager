@@ -49,7 +49,7 @@ export function withFileStorage(repository, storage, journal) {
       const csv = [];
       for (const record of input.records) csv.push(await write('battle-csv', record.filename, 'text/csv', Buffer.from(record.csvText)));
       const image = input.image ? await write('battle-image', input.image.name, input.image.mimeType, Buffer.from(input.image.base64, 'base64')) : null;
-      // Finalize rechecks requestId, event, round, member attribution and duplicates under the write lock.
+      // Finalize rechecks requestId, event, round, member attribution and duplicates inside one transaction.
       return repository.saveBattleRecords(input, { fileReferences: { csv, image }, assertAccess });
     },
     async getBattleAttachment(id, kind, { assertAccess } = {}) {

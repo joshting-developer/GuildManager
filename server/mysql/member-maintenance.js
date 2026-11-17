@@ -20,10 +20,17 @@ export function createMemberReferences(db) {
         ['template', 'lineup_templates', 'teams_json'],
         ['battle', 'battle_records', 'players_json'],
       ]) {
-        for (const row of (await db.prepare(`SELECT id, ${column} AS content FROM ${table}`).all())) {
+        const changes = async (row) => {
           const old = (await overrides(kind, row.id));
           const next = remapMemberReferences(JSON.parse(row.content), old, fromUid, toUid);
-          if (JSON.stringify(old) !== JSON.stringify(next))
+          return JSON.stringify(old) === JSON.stringify(next) ? null : next;
+        };
+        for (const scanned of (await db.prepare(`SELECT id, ${column} AS content FROM ${table}`).all())) {
+          if (!(await changes(scanned))) continue;
+          // Another remap may have changed this record's overrides; lock it and recompute.
+          const row = (await db.prepare(`SELECT id, ${column} AS content FROM ${table} WHERE id=? FOR UPDATE`).get(scanned.id));
+          const next = row && (await changes(row));
+          if (next)
             (await db.prepare('INSERT INTO member_reference_overrides (kind,record_id,overrides_json) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE overrides_json=VALUES(overrides_json)')
               .run(kind, row.id, JSON.stringify(next)));
         }
@@ -39,6 +46,8 @@ export function createMemberMaintenance(db, { getMember, updateMember, reference
   }
   async function retry(operation, uid, input, work) {
     return (await db.transaction(async () => {
+      // Lock before the receipt check so a concurrent replay waits and then returns the first result.
+      (await db.prepare('SELECT uid FROM members WHERE uid=? FOR UPDATE').get(uid));
       const hash = createHash('sha256').update(JSON.stringify([operation, uid, input])).digest('hex');
       const previous = (await db.prepare('SELECT * FROM member_maintenance_requests WHERE request_id=?').get(input.requestId));
       if (previous) {

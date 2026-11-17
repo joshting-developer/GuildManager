@@ -34,6 +34,7 @@ export function createEventVideoRepository(db) {
       const input = validateVideoProfessionUpdate(eventId, videoId, rawInput);
       const encoded = JSON.stringify({ eventId, videoId, ...input });
       return (await db.transaction(async () => {
+        (await db.prepare('SELECT id FROM scheduled_events WHERE id = ? FOR UPDATE').get(eventId));
         const previous = (await db.prepare('SELECT * FROM event_video_profession_requests WHERE request_id=?').get(input.requestId));
         if (previous) {
           if (previous.input_json !== encoded)
@@ -90,6 +91,7 @@ export function createEventVideoRepository(db) {
     async submitEventVideo(eventId, rawInput) {
       const input = validateVideoSubmission(rawInput);
       return (await db.transaction(async () => {
+        (await db.prepare('SELECT id FROM scheduled_events WHERE id = ? FOR UPDATE').get(eventId));
         const previous = (await db
           .prepare('SELECT * FROM event_video_requests WHERE request_id = ?')
           .get(input.requestId));

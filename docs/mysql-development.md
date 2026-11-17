@@ -111,11 +111,17 @@ schema 測試以固定的 MySQL 契約清單核對所有表／原欄位／外鍵
 
 ### 交易與多人操作
 
-migration `0002_repository_lock` 建立單列 `repository_write_lock`。業務寫入在同一條交易連線取得該列的 FOR UPDATE 鎖後, 才檢查最新 revision、唯一性與 requestId 並提交。跨領域操作及巢狀寫入共用同一交易, 失敗全數回滾。鎖列遺失會拒絕寫入, 不自動補建
+寫入交易使用 READ COMMITTED, 開頭先以 `SELECT ... FOR UPDATE` 鎖住自己要改的主列, 之後才檢查最新 revision、唯一性與 requestId 並提交。跨領域操作及巢狀寫入共用同一交易, 失敗全數回滾
 
-這一階段保守維持原本共用寫入保護, 所有合作中的 Repository 寫入會互斥, 尚未按不同成員／場次拆鎖。不同人送出保留個人版本檢查, 同人或相依場次變更會回報衝突；相同 requestId 重送返回既有結果, 不覆蓋後來更新。此鎖協議要求同一 schema 的所有業務寫入者共同遵守, 不保護繞過 Repository 的管理 SQL
+- 場次相關寫入 (報名／請假／外援、出勤、影片、排表、場次修改刪除、綁場次的戰績上傳) 鎖 `scheduled_events` 該列, 同一場依序處理, 不同場互不等待
+- 成員新增／修改／移除／維護鎖 `members` 該 UID; 帳號、職責、戰績、抽獎、平台與請假設定各鎖自己那一列; 登入以 FOR SHARE 讀帳號, 與改密碼互斥
+- requestId 回執在取得主列鎖後才讀, 同 requestId 同時重送會等前一筆提交後回同一結果
+- 沒有主列可鎖的新增 (建場次、批次、新職責、無場次戰績上傳、新帳號) 靠唯一索引。輸給同時寫入者的重複鍵或死結會整筆回滾, store 只自動重跑一次並清掉該次佇列的通知; 重跑看得到對方的提交, 回 requestId 原結果或一般業務衝突, 仍失敗才回 409
+- 檔案清理以 `FOR UPDATE SKIP LOCKED` 認領, 多個清理程序不重複處理
 
-唯讀操作使用明確審核清單與 REPEATABLE READ／READ ONLY 快照, 不取得業務寫入鎖, 可在其他連線持寫入鎖時讀取已提交資料。getSession 因清除失效 session 仍屬寫入交易。密碼雜湊與 CSV 解析保留在最終寫入鎖外準備, 入鎖後重驗相依資料；資料庫層不自動重放失敗或結果不明的寫入
+`repository_write_lock` 表 (migration 0002) 已不再使用, 為了部署切換期間舊版實例仍能寫入先保留, 之後另以 migration 移除。這些鎖只保護經過 Repository 的寫入, 不保護繞過 Repository 的管理 SQL
+
+唯讀操作使用明確審核清單與 REPEATABLE READ／READ ONLY 快照, 不取得任何列鎖。getSession 不開交易, 只有清除失效 session 時才單獨刪除。密碼雜湊與 CSV 解析在交易外準備, 入交易鎖列後重驗相依資料；資料庫層不自動重放失敗或結果不明的寫入
 
 ### 提交後通知
 

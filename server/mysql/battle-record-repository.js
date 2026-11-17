@@ -187,7 +187,7 @@ export function createBattleRecordRepository(db, { project = (_kind, _id, value)
       if (!Number.isSafeInteger(expected) || expected < 0)
         throw new BattleRecordError('資料版本不正確，請重新載入');
       return (await db.transaction(async () => {
-        const current = (await db.prepare('SELECT revision FROM battle_records WHERE id = ?').get(id));
+        const current = (await db.prepare('SELECT revision FROM battle_records WHERE id = ? FOR UPDATE').get(id));
         if (!current) return { deleted: true, id };
         if (current.revision !== expected)
           throw new BattleRecordError(
@@ -203,6 +203,7 @@ export function createBattleRecordRepository(db, { project = (_kind, _id, value)
     },
     async updateBattleRecord(id, input) {
       return (await db.transaction(async () => {
+        (await db.prepare('SELECT id FROM battle_records WHERE id = ? FOR UPDATE').get(id));
         const current = (await get(id));
         const values = validateBattleMetadata(input, current.type);
         const fingerprint = createHash('sha256')
@@ -377,6 +378,10 @@ export function createBattleRecordRepository(db, { project = (_kind, _id, value)
       );
       return (await db.transaction(async () => {
         await assertAccess?.();
+        // Uploads tied to an event queue on that event row (sorted to avoid lock-order deadlocks);
+        // others rely on the unique request, content and round keys.
+        for (const eventId of [...new Set(records.map((record) => record.eventId).filter(Boolean))].sort())
+          (await db.prepare('SELECT id FROM scheduled_events WHERE id=? FOR UPDATE').get(eventId));
         const previous = (await db
           .prepare('SELECT id,input_hash FROM battle_uploads WHERE request_id=?')
           .get(input.requestId));

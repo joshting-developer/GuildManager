@@ -99,7 +99,8 @@ function databaseError(error) {
     SELF_SIGNED_CERT_IN_CHAIN: ['DATABASE_TLS', '資料庫安全連線失敗, 請檢查憑證與伺服器名稱'],
   };
   const [code, message] = codes[error?.code] || ['DATABASE_QUERY', '資料庫操作失敗, 請稍後確認操作結果'];
-  return new DatabaseError(code, message);
+  // Concurrent writers that lose a unique key or deadlock get a definite rollback, not an unknown outcome.
+  return new DatabaseError(code, message, ['DATABASE_DUPLICATE', 'DATABASE_CONFLICT'].includes(code) ? 409 : 503);
 }
 
 export function createMysqlDatabase(env, { poolFactory = createPool, readFile } = {}) {
@@ -178,6 +179,8 @@ export function createMysqlDatabase(env, { poolFactory = createPool, readFile } 
           await connection.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
           await connection.query('START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY');
         } else {
+          // Writers lock their own rows first, so later reads must see the latest committed data.
+          await connection.query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
           await connection.beginTransaction();
         }
         phase = 'work';

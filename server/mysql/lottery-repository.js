@@ -13,8 +13,9 @@ export function createLotteryRepository(db) {
     now: () => new Date().toISOString(),
     random: () => randomInt(0, 2 ** 32) / 2 ** 32,
   };
-  async function read() {
-    const row = (await db.prepare("SELECT board_json FROM lottery_boards WHERE id = 'default'").get());
+  // Writers pass FOR UPDATE so draws and edits on the shared board queue on its row.
+  async function read(lock = '') {
+    const row = (await db.prepare(`SELECT board_json FROM lottery_boards WHERE id = 'default'${lock}`).get());
     return row ? JSON.parse(row.board_json) : emptyLotteryBoard();
   }
   async function write(board) {
@@ -30,14 +31,14 @@ export function createLotteryRepository(db) {
     },
     async saveLottery(input) {
       return (await db.transaction(async () => {
-        const board = updateLotteryBoard((await read()), input, options);
+        const board = updateLotteryBoard((await read(' FOR UPDATE')), input, options);
         (await write(board));
         return { lottery: board };
       }));
     },
     async drawLotteryPrize(input) {
       return (await db.transaction(async () => {
-        const current = (await read());
+        const current = (await read(' FOR UPDATE'));
         const { board, draw } = (await drawLotteryPrize(current, input?.prizeId, options));
         if (board !== current) (await write(board));
         return { lottery: board, draw };
@@ -45,7 +46,7 @@ export function createLotteryRepository(db) {
     },
     async resetLottery(input) {
       return (await db.transaction(async () => {
-        const current = (await read());
+        const current = (await read(' FOR UPDATE'));
         const board = resetLotteryBoard(current, input?.revision, options);
         if (board !== current) (await write(board));
         return { lottery: board };

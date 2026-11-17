@@ -5,6 +5,8 @@ import { createMysqlRepository } from '../../server/mysql/repository.js';
 import { fixtureCsv } from '../helpers/battle-csv.js';
 
 import { participationTarget } from '../../src/domain/participation-target.js';
+import { emptyLineup } from '../../src/domain/lineups.js';
+import { randomUUID as randomId } from 'node:crypto';
 
 const person = (uid, name = uid) => ({ uid, name, primaryProfessionId: 1 });
 const arrangement = (requestId) => ({ title: requestId, type: 'scrimmage', dates: ['2026-11-16'], requestId });
@@ -57,7 +59,7 @@ test('independent repository instances serialize conflicting edits and preserve 
   } finally { await repo.close(); }
 });
 
-test('a reader sees committed data while a different connection holds the repository write lock', async () => {
+test('a reader sees committed data while a different connection holds an uncommitted member write', async () => {
   const repo = await createTestRepository();
   const database = repositoryDatabase(repo);
   const entered = deferred(), finish = deferred();
@@ -65,7 +67,7 @@ test('a reader sees committed data while a different connection holds the reposi
   try {
     await repo.addMember(person('001', 'committed'));
     held = database.transaction(async (connection) => {
-      await connection.query('SELECT id FROM repository_write_lock WHERE id=1 FOR UPDATE');
+      await connection.query('SELECT uid FROM members WHERE uid=? FOR UPDATE', ['001']);
       await connection.query('UPDATE members SET name=? WHERE uid=?', ['uncommitted', '001']);
       entered.resolve();
       await finish.promise;
@@ -155,9 +157,6 @@ test('notifications belong to one committed operation and failed transactions ne
     assert.deepEqual((await repo.invoke('listMembers')).notifications, []);
     const succeeded = await repo.invoke('addMember', [person('003', 'retry')]);
     assert.deepEqual(succeeded.notifications.map((notice) => notice.member.name), ['retry']);
-    await database.query('DELETE FROM repository_write_lock WHERE id=1');
-    await assert.rejects(repo.addMember(person('004')), { code: 'DATABASE_SCHEMA_REQUIRED' });
-    assert.equal((await repo.listMembers()).members.length, 3);
   } finally { await repo.close(); }
 });
 
@@ -258,3 +257,88 @@ test('battle deletion checks metadata revision, removes member links and safely 
     assert.equal(Number((await database.query('SELECT COUNT(*) AS count FROM battle_uploads'))[0].count), 1);
   } finally { await repo.close(); }
 });
+
+// Holds a real row lock in another connection until released, so tests can prove who waits.
+async function holdRow(database, sql, parameters) {
+  const entered = deferred(), finish = deferred();
+  const held = database.transaction(async (connection) => {
+    await connection.query(sql, parameters);
+    entered.resolve();
+    await finish.promise;
+  });
+  await entered.promise;
+  return async () => { finish.resolve(); await held; };
+}
+const within = (promise, ms = 1000) => {
+  let timer;
+  return Promise.race([promise, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('blocked by another writer')), ms); })])
+    .finally(() => clearTimeout(timer));
+};
+
+test('a write on one event or member does not block sessions, reads or writes elsewhere', async () => {
+  const repo = await createTestRepository();
+  const database = repositoryDatabase(repo);
+  let release = async () => {};
+  try {
+    await repo.addMember(person('001'));
+    await repo.addMember(person('002'));
+    const busy = await repo.createEvent(arrangement('busy-event'));
+    const free = await repo.createEvent(arrangement('free-event'));
+    release = await holdRow(database, 'SELECT id FROM scheduled_events WHERE id=? FOR UPDATE', [busy.id]);
+    const other = await holdRow(database, 'SELECT uid FROM members WHERE uid=? FOR UPDATE', ['001']);
+    try {
+      assert.equal(await within(repo.getSession(undefined)), null);
+      assert.equal(await within(repo.getSession('a'.repeat(43))), null);
+      assert.equal((await within(repo.listEvents())).events.length, 2);
+      assert.equal((await within(repo.saveMemberResponse(free.id, { uid: '002', status: 'leave', revision: 0 }))).status, 'leave');
+      assert.equal((await within(repo.updateMember('002', { name: 'moved', primaryProfessionId: 1, revision: 1 }))).name, 'moved');
+      // The same event really does queue behind the holder, then completes once it commits.
+      const queued = repo.saveMemberResponse(busy.id, { uid: '002', status: 'leave', revision: 0 });
+      await assert.rejects(within(queued, 300), /blocked/);
+      await release();
+      assert.equal((await queued).status, 'leave');
+    } finally { await other(); }
+  } finally { await release(); await repo.close(); }
+});
+
+test('concurrent writers on the same row get one success and one conflict or the same replay', async () => {
+  const repo = await createTestRepository();
+  const other = createMysqlRepository(repositoryDatabase(repo));
+  try {
+    await repo.addMember(person('001'));
+    const event = await repo.createEvent(arrangement('race-event'));
+    const both = (work) => Promise.allSettled([work(repo), work(other)]);
+    const outcome = (results) => results.map((result) => result.status === 'fulfilled' ? 'ok' : result.reason.code).sort();
+
+    const guests = await both((target) => target.addGuestRegistration(event.id, { name: 'Guest', professionId: 3, requestId: randomId() }));
+    assert.deepEqual(outcome(guests), ['REGISTRATION_EXISTS', 'ok']);
+
+    const responses = await both((target) => target.saveMemberResponse(event.id, { uid: '001', status: 'leave', note: '', revision: 0 }));
+    assert.equal(outcome(responses).filter((code) => code === 'ok').length, 2, 'the second identical save is treated as the first one replayed');
+    assert.equal((await repo.getEventParticipation(event.id)).responses.find((row) => row.uid === '001').revision, 1);
+    const edits = await both(async (target) => target.saveMemberResponse(event.id, { uid: '001', status: target === repo ? 'registered' : 'none', note: '', revision: 1 }));
+    assert.deepEqual(outcome(edits), ['PARTICIPATION_CHANGED', 'ok']);
+
+    const teams = { eventId: event.id, eventRevision: event.revision, expectedVersion: 0, teams: [] };
+    const lineups = await both((target) => target.confirmLineup({ ...teams, teams: (target === repo ? first : second)(), requestId: randomId() }));
+    assert.deepEqual(outcome(lineups), ['LINEUP_CONFLICT', 'ok']);
+
+    const sameRequest = { title: 'same-request', type: 'scrimmage', dates: ['2026-11-17'], requestId: 'same-create' };
+    // No row to lock yet: the unique requestId decides the winner and the loser replays its result.
+    const created = await both((target) => target.createEvent(sameRequest));
+    assert.deepEqual(outcome(created), ['ok', 'ok']);
+    assert.deepEqual(created[0].value, created[1].value);
+    assert.equal((await repo.listEvents()).events.filter((row) => row.title === 'same-request').length, 1);
+    const duties = await both((target) => target.addDuty({ name: '同名職責', requestId: randomId() }));
+    assert.deepEqual(outcome(duties), ['DUPLICATE_DUTY', 'ok']);
+
+    const current = await repo.getMember('001');
+    const maintain = { newUid: '001', name: 'kept', primaryProfessionId: 1, secondaryProfessionId: null, revision: current.revision, requestId: 'same-maintain' };
+    const replays = await both((target) => target.maintainMember('001', maintain));
+    assert.deepEqual(outcome(replays), ['ok', 'ok']);
+    assert.deepEqual(replays[0].value, replays[1].value);
+  } finally { await repo.close(); }
+});
+
+function first() { const teams = emptyLineup(); teams[0].slots[0].uid = '001'; return teams; }
+function second() { const teams = emptyLineup(); teams[0].slots[1].uid = '001'; return teams; }

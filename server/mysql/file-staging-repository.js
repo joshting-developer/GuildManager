@@ -2,7 +2,7 @@ import { FileStorageError } from '../storage/r2.js';
 
 const RETENTION_MS = 24 * 60 * 60 * 1000;
 
-/** Coordinates staging and finalization through the repository write lock. */
+/** Coordinates staging and cleanup; concurrent cleaners skip rows another cleaner has claimed. */
 export function createFileStagingRepository(db) {
   return {
     async stage(file) {
@@ -27,14 +27,14 @@ export function createFileStagingRepository(db) {
           AND NOT EXISTS (SELECT 1 FROM battle_records b WHERE b.csv_file_id=f.id)
           AND NOT EXISTS (SELECT 1 FROM battle_uploads u WHERE u.image_file_id=f.id)
           AND NOT EXISTS (SELECT 1 FROM platform_settings p WHERE p.icon_file_id=f.id)
-          ORDER BY f.created_at,f.id LIMIT ?`).all(bucket, cutoff, limit);
+          ORDER BY f.created_at,f.id LIMIT ? FOR UPDATE SKIP LOCKED`).all(bucket, cutoff, limit);
         for (const file of orphans) {
           await db.prepare("INSERT INTO file_staging (id,bucket,object_key,state,expires_at) VALUES (?,?,?,'deleting',0)")
             .run(file.id, bucket, file.object_key);
           await db.prepare('DELETE FROM file_metadata WHERE id=?').run(file.id);
         }
         const rows = await db.prepare(`SELECT id,object_key FROM file_staging
-          WHERE bucket=? AND expires_at<=? ORDER BY expires_at,id LIMIT ?`).all(bucket, Date.now(), limit);
+          WHERE bucket=? AND expires_at<=? ORDER BY expires_at,id LIMIT ? FOR UPDATE SKIP LOCKED`).all(bucket, Date.now(), limit);
         for (const row of rows) await db.prepare("UPDATE file_staging SET state='deleting' WHERE id=?").run(row.id);
         return rows;
       });

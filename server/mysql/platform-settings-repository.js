@@ -16,6 +16,7 @@ export function createPlatformSettingsRepository(db) {
     async updatePlatformSettings(input, { assertAccess, currentIcon = null, observedFileId = null, iconFile = null } = {}) {
       return db.transaction(async () => {
         await assertAccess?.();
+        await db.prepare('SELECT id FROM platform_settings WHERE id=1 FOR UPDATE').get();
         const current = await getPlatformSettings();
         if ((current.iconFile?.id || null) !== observedFileId) throw new PlatformSettingsError(409, 'STALE_SETTINGS', '平台設定已被修改，請重新載入後再儲存');
         const platform = { ...current.platform, ...(current.iconFile ? { iconSrc: currentIcon } : {}) };

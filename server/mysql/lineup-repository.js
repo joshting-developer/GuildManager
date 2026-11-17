@@ -208,6 +208,8 @@ export function createLineupRepository(db, { project = (_kind, _id, value) => va
         teams,
       });
       return (await db.transaction(async () => {
+        // Saves for one event queue on its row, so the version check and receipt read are current.
+        (await db.prepare('SELECT id FROM scheduled_events WHERE id = ? FOR UPDATE').get(input.eventId));
         const prior = (await db.prepare('SELECT * FROM lineup_versions WHERE request_id = ?').get(key));
         if (prior) {
           const previous = JSON.parse(prior.payload_json);
@@ -272,8 +274,8 @@ export function createLineupRepository(db, { project = (_kind, _id, value) => va
         }
         // Saving back to a chosen template, or under a name already in use, updates it in place.
         const target = templateId
-          ? (await db.prepare('SELECT * FROM lineup_templates WHERE id = ?').get(templateId))
-          : (await db.prepare('SELECT * FROM lineup_templates WHERE name = ? ORDER BY created_at DESC, created_order DESC LIMIT 1').get(name));
+          ? (await db.prepare('SELECT * FROM lineup_templates WHERE id = ? FOR UPDATE').get(templateId))
+          : (await db.prepare('SELECT * FROM lineup_templates WHERE name = ? ORDER BY created_at DESC, created_order DESC LIMIT 1 FOR UPDATE').get(name));
         if (templateId && !target)
           throw new LineupError('找不到這份範本，請重新載入', 404, 'TEMPLATE_NOT_FOUND');
         if (target) {
