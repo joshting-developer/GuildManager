@@ -1,8 +1,6 @@
-> GAS 相關段落僅為舊版行為與資料格式參考；現行版本只透過 Node HTTP API 運作，已移除 GAS 建置、RPC 與同步工具。舊資料尚未因此搬移，參見 [舊版來源](legacy-gas/README.md)。
-
 # MySQL 開發與隔離驗證
 
-2.0.0 將 Node 後端資料來源改為 MySQL, 保留現有功能與 API。目前已完成連線、migration、資料表、各領域非同步 Repository 與 HTTP API 接線, `server/index.js` 只接 MySQL；舊 SQLite Repository 與測試保留在原位置供對照, 不再由服務或 `npm test` 使用。GAS 舊來源在正式資料移轉與驗收前保留
+2.0.0 將 Node 後端資料來源改為 MySQL, 保留現有功能與 API。目前已完成連線、migration、資料表、各領域非同步 Repository 與 HTTP API 接線, `server/index.js` 只接 MySQL；舊 SQLite Repository 與測試保留在原位置供對照, 不再由服務或 `npm test` 使用。舊來源另存歷史參考, 不隨目前分支維護
 
 ## 連線設定
 
@@ -127,7 +125,7 @@ migration `0002_repository_lock` 建立單列 `repository_write_lock`。業務�
 
 Repository 測試將既有業務斷言改成 async MySQL 呼叫, 不改掉原本預期行為；另驗兩個獨立 Repository 的版本衝突、不同成員並行送出、相同 requestId 重送、持鎖時唯讀、故障注入回滾、通知隔離及重新建立 Repository 後的持久化。每個案例只在空的專用 repositorytest 庫建表及使用人造資料, finally 移除自己建立的表, 不初始化或驗證 SQLite
 
-Repository 與 HTTP 路由的 await／錯誤處理及提交後通知分別由業務契約與 HTTP 測試驗證。GAS 編譯只驗封裝相容, 不代表 GAS RPC、正式站或 Oracle 已完成切換；Oracle 目標引擎與正式舊資料另行驗收
+Repository 與 HTTP 路由的 await／錯誤處理及提交後通知分別由業務契約與 HTTP 測試驗證。Oracle 目標引擎與正式舊資料另行驗收
 
 ## MySQL 帳號與權限
 
@@ -165,3 +163,11 @@ HTTP 契約測試在 `tests/mysql-http/`, 由 `tests/mysql-http.test.js` 在同�
 `0003_file_metadata` 新增檔案描述與戰績CSV／共用圖片／平台圖示的外鍵。新內容寫R2, SQL只保存bucket、key、檔名、MIME、bytes與SHA-256；原inline欄位保留作舊資料讀取相容。migration不搬舊資料或刪原欄位。API還需要 `config/r2.env.example` 的設定, 缺設定停止啟動；詳見 [R2私有檔案服務](r2-storage.md)。
 
 大部分業務測試用真MySQL與記憶體物件儲存替身, 重建Repository須注入同一儲存依賴；這不視為真R2通過。提供明確 `GUILD_R2_TEST_CONFIG` 後, HTTP檔案關聯案例另驗真MySQL＋R2, 只清理本次合成物件。
+
+## 日常開發與隔離測試分開
+
+本機使用共用 MySQL 8.4, 日常開發庫與四個 Agent 測試庫分開。日常庫可用共用環境工具的 `--project guildmanager --agent local --purpose dev` 建立, 不沿用測試庫作為網站資料來源
+
+將專用連線與檔案服務設定放到忽略的 `.env`, 依序執行 migration、建立帳號及 `docker compose up --build -d`。Compose 使用容器主機名稱與埠, 主機執行 migration 時另外提供 `127.0.0.1:13306` 的私有設定。帳密不寫入產品文件
+
+網站為 `http://localhost:5173`, API 為 `http://localhost:3001`。重新啟動沿用原資料與帳號；不要使用 `down -v` 或刪除共用服務 volume

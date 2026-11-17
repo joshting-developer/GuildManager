@@ -1,24 +1,17 @@
-> GAS 相關段落僅為舊版行為與資料格式參考；現行版本只透過 Node HTTP API 運作，已移除 GAS 建置、RPC 與同步工具。舊資料尚未因此搬移，參見 [舊版來源](legacy-gas/README.md)。
-
 # 平台架構、安全與驗證契約
 
-本文保留既有產品契約, 供相關修改時按需查閱；實作協議另見 [Architecture](../Architecture.md), 介面依 [Style](../Style.md)。原文的版本、驗證及「尚未部署」敘述是當時紀錄, 不代表目前遠端狀態；現行同步方式見 [GAS 發布流程](legacy-gas/gas-release.md)
+本文保留既有產品契約, 供相關修改時按需查閱；實作協議另見 [Architecture](../Architecture.md), 介面依 [Style](../Style.md)。原文的版本、驗證及「尚未部署」敘述是當時紀錄, 不代表目前遠端狀態
 
 ## 技術方向
 
 - 前端：Vue 3／Vuetify／Vite, 日常編輯 `.vue`、JS 與 CSS 原始碼
-- 本機後端：Node.js／Express, 由 SQLite repository 存取資料；2.0.0 改為 MySQL 非同步 Repository, 分層與寫法見 [Node.js 分層規範](nodejs-architecture.md)
-- 本機環境：Docker Compose 的 frontend／api 服務, SQLite 使用獨立 volume 保存
-- GAS 後端：Google Apps Script, 採 V8 執行環境, 不直接搬入 Node.js 專用套件或 API
-- GAS 前端：以 HTML Service 提供 Vite 單檔編譯的 HTML
-- Web App 入口：`doGet()` 回傳 HTML 頁面, 依 [HTML Service 官方文件](https://developers.google.com/apps-script/guides/html) 實作
-- 前後端通訊：統一由 `src/api/` 呼叫, 本機使用 HTTP API, GAS 使用非同步 `google.script.run`, 每次呼叫處理成功與失敗回應, 不假設呼叫依序完成；參考 [官方通訊文件](https://developers.google.com/apps-script/guides/html/communication)
-- 資料存取：由後端透過 `SpreadsheetApp` 操作 Google 試算表, 參考 [官方 API 文件](https://developers.google.com/apps-script/reference/spreadsheet/spreadsheet-app)
-- 日期顯示與專案／試算表時區統一採 `Asia/Taipei`
+- 本機後端：Node.js／Express, 使用 MySQL 非同步 Repository, 分層與寫法見 [Node.js 分層規範](nodejs-architecture.md)
+- 本機環境：Docker Compose 的 frontend／api 服務, 資料保存在共用 MySQL 的專用資料庫
+- 日期顯示與專案時區統一採 `Asia/Taipei`
 
 `NSHM_history` 的 Laravel、Vue、Inertia 與資料庫架構只作背景參考, 本專案沿用其視覺語言, 不直接搬入這些框架
 
-使用者已確認採用 Vue／Vuetify 與本機 API／SQLite, 取代最初的原生 HTML 方向；開發與編譯方式見 [README.md](../README.md), 平台切換規則見 [Architecture.md](../Architecture.md)
+使用者已確認採用 Vue／Vuetify 與 Node API／MySQL, 取代最初的原生 HTML 方向；開發與編譯方式見 [README.md](../README.md), 平台切換規則見 [Architecture.md](../Architecture.md)
 
 ## 建議檔案分工
 
@@ -28,63 +21,40 @@
 | --- | --- |
 | `src/App.vue`、`src/pages/` | 共用導覽、首頁與成員管理畫面 |
 | `src/main.js`、`src/styles.css` | Vuetify 主題與共用樣式 |
-| `src/api/` | 本機／GAS 資料呼叫 adapter |
+| `src/api/` | Node 資料呼叫 adapter |
 | `server/app.js`、`server/index.js` | Express API 與啟動入口 |
-| `server/repository.js` | SQLite 初始化、職業資料與成員交易讀寫 |
-| `gas/Code.gs` | GAS 頁面及 RPC 入口；業務來源在 gas/src/，編譯為 Backend.gs |
-| `gas/appsscript.json` | Apps Script 執行環境與時區 |
-| `vite.config.js`、`tools/package-gas.js` | 一般與 GAS 單檔編譯流程 |
+| `server/mysql/`、`server/database/` | MySQL Repository、連線與明確 migration |
 | `compose.yaml`、`Dockerfile` | 本機開發環境 |
 
-Apps Script 的 `.gs` 檔案共用全域環境, 避免重複命名與載入時就執行資料讀寫
 
 ## 程式撰寫規則
 
 - JavaScript 預設使用 2 格縮排、單引號、分號, 優先使用 `const`, 需要重新賦值才用 `let`
-- 函式與變數使用 `camelCase`, 常數使用 `UPPER_SNAKE_CASE`, 試算表欄位使用 `snake_case`
+- 函式與變數使用 `camelCase`, 常數使用 `UPPER_SNAKE_CASE`, 資料表欄位使用 `snake_case`
 - 前端處理顯示與操作狀態, 後端處理資料驗證、權限與資料存取
-- Vue 元件不直接呼叫 HTTP、`google.script.run` 或資料庫, 統一透過前端資料介面
-- SQL 留在 SQLite repository, 不把 JOIN 或交易行為當成試算表一定支援的功能
+- SQL 留在 MySQL Repository, 前端與 HTTP handler 不直接查詢資料庫
 - 鎖定套件版本並維護 lockfile, 不手改編譯產物
 - DOM ID、class 與 `data-*` 使用一致且具功能語意的命名
-- 後端傳回可序列化的資料, 日期轉成 ISO 8601 字串, 不直接傳回 `Date`、`Range` 或 `Sheet`
+- 後端傳回可序列化的資料, 日期轉成 ISO 8601 字串, 不直接傳回 `Date` 或 driver 物件
 - 錯誤訊息讓使用者知道原因與下一步, 記錄中不包含憑證或不必要的個資
 - 載入玩家名稱、備註等使用者輸入時, 優先用 `textContent`, 不直接插入未處理的 HTML
 - 註解用來說明原因與限制, 不逐行翻譯程式碼
 
-## Google 試算表資料規則
+## 資料與一致性
 
-### 設定與欄位
-
-- 使用者已提供資料來源, 後續接入前確認工作表名稱、欄位與執行帳號權限
-- 試算表 ID 與部署環境設定集中由後端管理, 不散落在前端或每個函式
-- 每張工作表代表一種資料, 第一列固定為欄位標題, 欄位定義確定後另行記錄
-- 以欄位名稱對應資料, 避免在業務邏輯中散落欄號
-- 每筆資料使用固定唯一 ID, 不以列號或角色名稱作為主鍵
-- 跨工作表關聯使用 ID, 不依賴容易變動的顯示名稱
-- 遊戲角色 ID 等識別值以文字保存, 避免自動轉數字造成前導零或精度遺失
-- 可依實際需求加入 `created_at`、`updated_at`, 時間使用一致格式
-
-### 讀寫與一致性
-
-- 批次讀寫資料, 避免每列／每個儲存格各發出一次呼叫
-- 寫入前在後端檢查必填、格式、允許值、重複資料與引用對象是否存在
-- 修改與刪除時依固定 ID 重新定位, 不沿用前端暫存的列號
-- 多人同時新增或更新共享資料時, 在後端對相關讀取、檢查與寫入使用適合 Web App 的 script lock, 並確保釋放
-- 試算表沒有跨工作表資料庫交易保證, 涉及多處寫入時需明確處理部分失敗與重試
-- 提交中停用重複操作, 重要新增流程在後端檢查重複提交
-- 一般文字輸入不得意外被當成試算表公式, 匯入與寫入時需處理公式字首
-- 改欄位、批次覆寫、刪除或資料搬移前先確認影響範圍與備份方式
-- 假資料與正式資料分開, 不用正式工作表進行驗證性寫入
+- MySQL 使用固定唯一 ID 與外鍵, 遊戲 UID 保留字串與前導零
+- 後端驗證格式、允許值、revision、requestId 與引用資格, 同一交易保存業務資料與重試結果
+- 所有 async 查詢必須 await, MySQL 交易與鎖由單一 owner 管理, 不在持鎖時等待物件儲存或 Discord
+- 原始檔案存私有物件儲存, metadata 與關聯存 MySQL, 跨服務失敗依 staging ledger 復原
+- 測試與日常開發分庫, 不用正式資料進行驗證性寫入；資料搬移與破壞性維護須另行授權
+- CSV 匯出處理公式字首, 不把使用者文字當作公式或 HTML
 
 ## 身分與權限
 
-- 本機角色分 admin／manager／member, admin／manager 可使用既有管理功能, member 可使用行事曆報名、完整成員清單與戰績閱覽／個人分析，其他管理功能不開放, `#/admin` 及 `/api/admin/*` 僅 admin；不建立公開註冊。首個 CLI 帳號預設 admin, 後續 manager；舊無角色資料優先名稱 admin, 否則最早帳號為 admin, 其餘 manager, 不重設密碼。Google 登入未定案。兩角色舊 schema 擴充 member 時先備份完整 SQLite 至同目錄 before-member-role 檔案, 同一交易換表並保留 session、密碼與角色, 檢查 FK 且重啟不重複備份。
+- 本機角色分 admin／manager／member, admin／manager 可使用既有管理功能, member 可使用行事曆報名、完整成員清單與戰績閱覽／個人分析，其他管理功能不開放, `#/admin` 及 `/api/admin/*` 僅 admin；不建立公開註冊。首個 CLI 帳號預設 admin, 後續 manager；舊無角色資料優先名稱 admin, 否則最早帳號為 admin, 其餘 manager, 不重設密碼。角色與帳號升級須保留原密碼、Session 與外鍵一致性。
 - admin 可驗證目前密碼後修改自己的密碼, 保留目前 session 並撤銷其他登入；可建立／修改 manager 帳號／密碼（留空保留）與共用 member 通行密碼, manager／member 修改撤銷全部 session。帳號名稱不分大小寫唯一, revision 拒絕過期修改, 不提供角色提升／刪除。網頁改密碼不更新私有 local-admin.json。
 - 公開頁為行事曆及既有報名／請假；完整成員清單及相關 API 開放 member／manager／admin；管理總覽 (magament／management)、活動安排、排表及相關管理 API 須 admin／manager 登入, 不只隱藏導覽
-- 本機密碼使用 scrypt 雜湊, session 用 HttpOnly cookie 且伺服器只保存 token 雜湊, 管理及登入後報名修改檢查 CSRF；私有帳號檔 data/local-admin.json 不得提交。GAS 登入見本文件的 GAS 後端契約。
-- 部署時需明確決定執行身分與可存取對象, 依 [Web Apps 官方文件](https://developers.google.com/apps-script/guides/web) 確認實際權限行為
-- 不假設每種部署方式都能取得使用者 Email, 需在目標環境驗證
+- 本機密碼使用 scrypt 雜湊, session 用 HttpOnly cookie 且伺服器只保存 token 雜湊, 管理及登入後報名修改檢查 CSRF；私有帳號檔 data/local-admin.json 不得提交。
 - 每個可由前端呼叫的資料函式都要在後端檢查權限, 隱藏按鈕不等於存取控制
 - 不信任前端傳入的使用者身分、角色或操作人欄位
 - 憑證、Token 與私密設定保留於後端設定, 不放在 HTML、公開文件或版控
@@ -102,12 +72,10 @@ Apps Script 的 `.gs` 檔案共用全域環境, 避免重複命名與載入時�
 
 - 文件調整：確認連結、名稱、設定與兩份文件的敘述一致
 - 前端調整：確認桌面與手機版面、鍵盤操作及必要畫面狀態
-- 資料調整：使用測試試算表確認新增、修改、查詢及失敗處理, 視變更檢查重複提交與並行寫入
-- 本機資料調整：執行 `npm test`, 驗證 API 契約、SQLite 保存與 adapter 的成功／失敗處理
-- 編譯調整：執行 `npm run build` 與 `npm run build:gas`, 確認 GAS HTML 無外部 JS／CSS 檔案依賴
+- 資料調整：使用隔離 MySQL確認新增、修改、查詢及失敗處理, 視變更檢查重複提交與並行寫入
+- 本機資料調整：執行 `npm test`, 驗證 API 契約、MySQL 保存與 adapter 的成功／失敗處理
 - 權限調整：以目標部署方式驗證允許與拒絕存取的情境
-- 本機靜態預覽不能驗證 `google.script.run` 或 Google 授權, 這些流程需在 Apps Script 測試部署確認
-- 尚未有部署或試算表時, 如實寫出未驗證項目, 不宣稱已完成端到端測試
+- 尚未有對應環境時, 如實寫出未驗證項目, 不宣稱已完成端到端測試
 - 只有文件需求時交付文件, 應用程式與正式部署依後續使用者需求執行
 
 ## 參考來源
@@ -117,15 +85,3 @@ Apps Script 的 `.gs` 檔案共用全域環境, 避免重複命名與載入時�
 - 表格與篩選參考：NSHM_history 的 Games.vue（原本機參考）
 
 相鄰專案僅供原本機參考, 必要規則以本專案 [Style](../Style.md) 為準, 一般 clone 與部署不依賴相鄰專案
-
-## GAS 後端契約
-
-已配置 clasp 3.4.1 自動上傳，目標為 gas/upload-target.json；使用者已提供指令碼 ID 並授權覆蓋目前空白專案。npm run gas:login 由使用者本人完成 OAuth；npm run gas:push 先編譯四檔、備份遠端，再覆蓋並讀回比對。data/clasp-auth.json 與 .clasp.json 均忽略，勿讀出憑證或納入提交。上傳程式與初始化正式試算表／發布 Web App 是不同範圍，後兩者仍需後續指示。
-
-已完成全部既有 RPC 的 GAS 來源及單檔打包，初始化／部署見 [GAS 通用部署操作](legacy-gas/GASDeployment.md)。`gas/src/` 使用共享純資料驗證、私有 Properties 登入、追加式 Sheets store、私人 Drive 附件；`gas/Code.gs` 公開白名單 RPC 入口。編輯器選單略過私有 setupGas_，現以 setupGas 作可選取的初始化入口，由 Google Session 檢查非空且相同的 active／effective email；沿用以部署者執行 Web App，一般訪客不可初始化，部署者本人可執行，勿稱為可辨識 editor-only。userinfo.email scope 只用於此檢查，前端沒有初始化功能，不回傳 email；setupGas_ 私有實作保留。`npm run build:gas` 產生 Index.html／Code.gs／Backend.gs／appsscript.json 四檔，全部需同步；勿手改產物。
-
-GAS 管理者無法登入可由部署者在私有屬性填 RECOVERY_ADMIN_PASSWORD（6–128 字元）並從編輯器執行 resetAdminPassword，沿用 Google 身分檢查。script lock 下只重設唯一 admin 雜湊、增加 revision、撤銷其 sessions 並清除此帳號失敗計數；成功後刪除明文，只記錄登入帳號，不記錄密碼／email。不新增或重建帳號、不改 manager／member／試算表／Drive，全站限流仍保留；此操作不在業務 RPC 白名單。不得代使用者讀取或要求貼出復原密碼；未實際雲端登入時不得把沙盒成功說成正式登入已修復。
-
-業務表使用 GM_ 前綴，保留原 gid=0，不自動遷移 SQLite／本機帳號／示範資料。每類資料分表，以固定 ID、Base64 JSON 分段及提交標記讀取最新有效值；script lock 下先 flush 資料後發布 marker，失敗未提交列不讀取。戰績清單讀摘要、詳情才讀玩家快照。跨 Drive／Sheets 失敗可能保留未引用附件，不自動刪除。初始化只補專用表及九職業／三職責，不覆寫既有帳號或資料。
-
-本機 scrypt／HttpOnly cookie 與 GAS PBKDF2／sessionStorage token 互相獨立，兩端沿用相同角色及 CSRF／撤銷規則。GAS 需以部署者身分執行，Google OAuth 未實作，帳號不與遊戲 UID 綁定。所有憑證在 Script Properties，測試與正式專案／表／Drive 分開。已進行隔離模擬及編譯沙盒驗證，尚未進行真實授權、配額、登入速度、iframe 下載或正式部署驗證。

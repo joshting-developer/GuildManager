@@ -2,8 +2,6 @@
 
 圖文操作手冊：[PDF](docs/操作手冊.pdf)／[離線網頁版](docs/操作手冊.html)／[Markdown](docs/操作手冊.md)。涵蓋成員、管理者與 admin 操作，附 26 張最新版示範畫面；圖片來源與更新方式見 [文件說明](docs/README.md)。
 
-Vue 3／Vuetify 管理介面, 本機透過 Node.js／Express API 讀寫 MySQL（2.0.0 遷移中, 舊 SQLite 程式保留對照）, GAS 專用程式與套件已移除，舊資料與線上服務尚未因此搬移或停用
-
 首頁直接顯示活動行事曆與場次報名／請假, 右上預設成員通行密碼登入，另一分頁供管理帳號登入。manager／admin 可使用管理總覽、成員清單、活動安排、戰場排表與上傳數據；member 可閱覽戰績與個人分析，管理頁與管理 API 都檢查角色。雲端版沿用應用程式帳密／通行密碼，Google OAuth 尚未實作；正式試算表未執行初始化
 
 ## 使用 Docker 開發
@@ -27,7 +25,7 @@ docker compose up --build -d
 - 戰場排表：`http://localhost:3001/api/lineups`
 - 職責清單：`http://localhost:3001/api/duties`
 - 職業清單：`http://localhost:3001/api/professions`
-- API 服務由 compose.yaml 旁的 `.env`（忽略檔, 變數名稱依 `config/mysql.env.example`）取得 MySQL 連線, 預設指向共用服務的 `side-project-mysql`；舊 `guild_data` volume 的 SQLite 保留到正式資料移轉完成
+- API 服務由 compose.yaml 旁的 `.env`（忽略檔, 變數名稱依 `config/mysql.env.example`）取得 MySQL 連線, 預設指向共用服務的 `side-project-mysql`；舊 `guild_data` volume 的 SQLite 保留, 不作為目前服務資料來源
 - 本機資料庫啟動時不自動加入示範資料, 重啟不覆寫既有設定
 - `src/` 與 `server/` 修改會反映至服務, 依賴或 Dockerfile 變更後重新執行 `docker compose up --build -d`
 - 若 Docker Desktop 的檔案事件通知不穩定, 再依需要開啟 polling
@@ -165,11 +163,7 @@ npm run build
 
 更新紀錄由 `src/content/release-notes.json` 靜態編譯進網站，線上不讀 GitHub。開發期間把變更累積在唯一置頂的 `version: "Unreleased"`、`date: null` 條目，頁面及頁尾顯示「未發布」；package／lockfile 保持最近正式版本。
 
-正式定版與發布分開執行；只有明確要求定版時才更新版本及日期。歷史 GAS 發布流程不再適用現行版本。
-
-## 舊版資料來源
-
-GAS 程式、RPC adapter、建置與同步工具已移除。工作表／Drive 格式、歷史部署文件與移除前原始碼位置見 [舊版 GAS 參考](docs/legacy-gas/README.md)，供後續資料搬移使用。私人憑證與備份保留，不執行線上停用、同步或切站。
+正式定版與發布分開執行；只有明確要求定版時才更新版本及日期。
 
 ## R2 私有檔案服務
 
@@ -180,7 +174,7 @@ Node 後端的可注入檔案讀寫服務與隔離驗證見 [R2 私有檔案服�
 首頁目前直接顯示待開發, 尚未使用保留的 `src/api/home.js` 首頁資料介面
 
 - 本機模式：HTTP `GET /api/home`
-- 新版 `dev`／`build` 與其他非 `gas` mode 固定使用同源 `/api`；舊的 `VITE_DATA_SOURCE` 環境值不再切換新版來源
+- `dev`／`build` 固定使用同源 `/api`；舊的 `VITE_DATA_SOURCE` 環境值不再切換新版來源
 - HTTP 回傳格式, `meta.mode` 使用 `demo`、`empty` 或後續正式資料的 `live`
 
 ```json

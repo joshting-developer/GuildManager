@@ -1,5 +1,3 @@
-> GAS 相關段落僅為舊版行為與資料格式參考；現行版本只透過 Node HTTP API 運作，已移除 GAS 建置、RPC 與同步工具。舊資料尚未因此搬移，參見 [舊版來源](legacy-gas/README.md)。
-
 # GM v2 Node.js 分層與開發方式
 
 2.0.0 的後端是 Node.js 22／Express 5／mysql2, 原始碼維持 JavaScript ESM。這份文件定義 Codex／Claude 與其他協作者寫 `server/` 時共同遵守的分層與寫法, 目標是讓後續功能用同一套簡單規則開發, 而不是每次各寫各的
@@ -13,7 +11,7 @@
 | HTTP 入口 | `server/app.js`、`server/auth.js` | 解析 request、檢查 Origin／JSON／大小／session 與角色、`await` Repository 或 Service、組 response、把錯誤交給統一 handler | 不寫 SQL, 不做業務判斷, 不自己開交易, 不直接送通知 |
 | Service | 跨功能流程才建立, 放 `server/services/<流程>.js`；目前跨領域組合先放在 `server/mysql/repository.js` 的組合區 | 串接兩個以上領域的流程, 例如排表編輯器要同時讀場次、職業目錄與報名；決定呼叫順序與回傳形狀 | 不寫 SQL, 不自己管連線；單一領域的增刪改查不需要 Service |
 | Repository | `server/mysql/<領域>-repository.js`, 由 `server/mysql/repository.js` 組裝 | 參數化 SQL、交易、寫入鎖、revision／requestId／唯一性檢查、把資料列轉成 API 契約的純物件、丟出領域錯誤 | 不處理 HTTP、cookie 或 header；不假設呼叫端已經驗證過輸入 |
-| Domain | `src/domain/*.js` | 純驗證與純運算：欄位規則、日期、戰績統計、排表索引、錯誤類別；本機 API、GAS 與前端共用 | 不 import `node:` 模組、`server/`、mysql2 或任何 I/O |
+| Domain | `src/domain/*.js` | 純驗證與純運算：欄位規則、日期、戰績統計、排表索引、錯誤類別；Node API 與前端共用 | 不 import `node:` 模組、`server/`、mysql2 或任何 I/O |
 
 基礎設施不算業務層：`server/database/mysql.js` 管 pool／交易／TLS, `server/database/migrate.js` 與 `migrations/` 管版本, `server/mysql/store.js` 包查詢、寫入鎖與通知上下文, `server/discord-notifier.js` 只負責送出。這些檔案不含業務規則, 新功能不應該改到它們
 
@@ -84,7 +82,6 @@
 | 2 | `server/app.js` 全部路由改 `await`, `notifying()` 改成 `await repository.invoke(name, args)` 後才送通知；`server/auth.js` 的 `getSession`／`participationRequiresLogin` 改 await | GM-7 |
 | 3 | 補 HTTP 層契約測試：status、JSON 形狀、錯誤碼、通知只在提交後送出、失敗不送 | GM-7 |
 | 4 | 錯誤類別建構子順序不一致（`MemberError(status, code, message, fields)` 對 `EventError(message, fields, status, code)`）, 逐個領域對齊到共用基底, 每次只動一個領域並跑該領域測試 | 後續重構 |
-| 5 | `MemberError`／`validateMember` 從 `server/member-validation.js` 搬到 `src/domain/`, 讓 Domain 不再引用 server, GAS 編譯也不需要繞路 | 後續重構, 可隨 GM-7 一起 |
 | 6 | 舊 SQLite Repository 與 better-sqlite3 依賴在 API 切換、正式資料匯入驗證後才移除, GM-27 前保留以便對照 | GM-27 之後 |
 | 7 | 戰績同步預覽（`syncPlan`）整表讀 `players_json` 再逐筆 `project()`、個人戰績與排表讀取是否有 N+1, 先量測再決定 | GM-37／GM-38 |
 | 8 | `server/app.js` 若在 GM-7 後超過約 500 行, 再按領域拆成 `server/routes/<領域>.js`；現在不先拆 | 視 GM-7 結果 |
