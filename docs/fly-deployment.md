@@ -35,4 +35,4 @@
 
 回退時手動執行 `Deploy`, 在 `image` 填入該 App 已驗證的 `registry.fly.io/<app>@sha256:<digest>`。不接受其他 App、可變標籤或任意命令。先從私人發布紀錄取得前一映像 digest, 確認與目前 schema 相容；回退映像不還原資料庫。首次部署沒有前一版本時不能宣稱回退演練已完成
 
-流程檔須先推送到 GitHub 才能執行；GitHub 的手動入口另要求流程已存在預設分支。只推送開發分支不代表手動部署已可用, 首次導入需另安排合併或已核准的版本 Tag。runner 通過、Fly health 成功與實際 HTTPS／登入／休眠驗收分開記錄, 本機測試不能取代 runner 或部署結果
+流程檔須先推送到 GitHub 才能執行。首次導入時, 尚未註冊的 workflow 可能使手動派送回 404；先用已核准的預發布驗收 Tag 觸發一次, 確認 `gh workflow list` 已列出 Deploy 後, 可用 `gh workflow run deploy.yml --ref <branch>` 指定分支執行, 回退另加 `-f image=<同一 App 的映像 digest>`。網頁手動入口以預設分支的流程為準, 不必為首次驗收提前合併產品分支或打正式版本 Tag。runner 通過、Fly health 成功與實際 HTTPS／登入／休眠驗收分開記錄, 本機測試不能取代 runner 或部署結果
