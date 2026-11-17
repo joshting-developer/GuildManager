@@ -45,13 +45,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          args=(--config "$RUNNER_TEMP/fly.toml" --ha=false)
+          args=(--config "$GITHUB_WORKSPACE/fly.toml" --ha=false)
           if [ -n "$DEPLOY_IMAGE" ]; then
             args+=(--image "$DEPLOY_IMAGE")
           else
-            args+=(--remote-only --image-label "git-${GITHUB_SHA}")
+            args+=(--remote-only --dockerfile "$GITHUB_WORKSPACE/Dockerfile" --image-label "git-${GITHUB_SHA}")
           fi
-          if ! flyctl config validate --strict --config "$RUNNER_TEMP/fly.toml" > "$RUNNER_TEMP/fly-deploy.log" 2>&1 ||
+          if ! flyctl config validate --strict --config "$GITHUB_WORKSPACE/fly.toml" > "$RUNNER_TEMP/fly-deploy.log" 2>&1 ||
              ! flyctl deploy "${args[@]}" >> "$RUNNER_TEMP/fly-deploy.log" 2>&1; then
             echo 'Fly deployment failed; inspect private platform logs. Configuration and provider output withheld.'
             exit 1
@@ -64,7 +64,7 @@ jobs:
           import json, os, sys, tomllib, urllib.request
           from pathlib import Path
           try:
-              config = tomllib.loads((Path(os.environ['RUNNER_TEMP']) / 'fly.toml').read_text())
+              config = tomllib.loads((Path(os.environ['GITHUB_WORKSPACE']) / 'fly.toml').read_text())
               origin = config['env']['APP_ORIGIN']
               if not origin.startswith('https://'):
                   raise ValueError('HTTPS required')
@@ -80,4 +80,4 @@ jobs:
       - name: Remove private runtime files
         if: always()
         shell: bash
-        run: rm -f "$RUNNER_TEMP/fly.toml" "$RUNNER_TEMP/fly-deploy.log"
+        run: rm -f "$GITHUB_WORKSPACE/fly.toml" "$RUNNER_TEMP/fly-deploy.log"

@@ -40,7 +40,7 @@ class DeployTest(unittest.TestCase):
     def test_invalid_secret_is_not_logged(self):
         marker = 'private-value-never-log'
         with tempfile.TemporaryDirectory() as folder:
-            result = subprocess.run([sys.executable, str(spec.origin)], env={**os.environ, 'FLY_DEPLOY_CONFIG': marker, 'RUNNER_TEMP': folder}, capture_output=True, text=True)
+            result = subprocess.run([sys.executable, str(spec.origin)], env={**os.environ, 'FLY_DEPLOY_CONFIG': marker, 'GITHUB_WORKSPACE': folder}, capture_output=True, text=True)
             self.assertNotEqual(result.returncode, 0)
             self.assertNotIn(marker, result.stdout + result.stderr)
             self.assertNotIn('Traceback', result.stderr)

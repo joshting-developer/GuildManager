@@ -33,7 +33,7 @@ def prepare(config, image, folder):
 
 if __name__ == '__main__':
     try:
-        prepare(os.environ['FLY_DEPLOY_CONFIG'], os.environ.get('DEPLOY_IMAGE', ''), os.environ['RUNNER_TEMP'])
+        prepare(os.environ['FLY_DEPLOY_CONFIG'], os.environ.get('DEPLOY_IMAGE', ''), os.environ['GITHUB_WORKSPACE'])
     except (KeyError, ValueError, TypeError, AttributeError, OSError):
         print('Deployment configuration rejected; private details withheld', file=sys.stderr)
         sys.exit(1)
