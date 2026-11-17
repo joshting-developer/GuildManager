@@ -43,18 +43,18 @@ docker compose down
 
 ## 本機登入
 
-以下 CLI 建立帳號方式與 `data/local-admin.json` 紀錄屬舊 SQLite 環境, 不會寫入 MySQL；MySQL API 接線完成後, 帳號建立工具仍待遷移。既有 SQLite 資料保留, 不視為已匯入 MySQL
+帳號建立工具寫入明確設定的 MySQL, 啟動前須先套用 migration；不自動建表、不回退 SQLite。既有 SQLite 帳號與資料保留, 不視為已匯入 MySQL
 
 首頁右上「登入」使用本機帳號密碼, 登入後顯示帳號、登出及管理導覽。登入維持 8 小時, 重新整理仍保留；登出立即撤銷伺服器 session。管理操作未儲存時沿用離開確認。
 
-此工作環境已建立 `admin` 帳號, 隨機密碼保存在 `data/local-admin.json`；這是本機私有檔案, 已由 `.gitignore` 排除, 不包含在提交中。其他開發環境第一次啟動 Docker 後可建立自己的帳號：
+舊 SQLite 工作環境曾建立 `admin` 帳號, 隨機密碼保存在 `data/local-admin.json`；這是本機私有檔案, 已由 `.gitignore` 排除, 不包含在提交中。MySQL 開發環境套用 migration 後可建立自己的帳號：
 
 ```sh
 node --input-type=module -e 'import {mkdirSync,writeFileSync} from "node:fs"; import {randomBytes} from "node:crypto"; mkdirSync("data",{recursive:true}); writeFileSync("data/local-admin.json",JSON.stringify({username:"admin",password:randomBytes(24).toString("base64url")},null,2)+"\n",{mode:0o600,flag:"wx"});'
 docker compose exec -T api node server/create-account.js < data/local-admin.json
 ```
 
-工具從 stdin 讀取帳號 JSON, 帳號為 3–32 個英數字／底線／點／減號, 密碼 6–128 字元。既有帳號拒絕覆寫；其他 manager 可由帳號管理頁建立, CLI 仍可新增帳號。直接使用 Node API 的環境改用 `npm run account:create < data/local-admin.json`, 目前此帳號 CLI 仍使用舊 SQLite Repository, 不會建立 MySQL 帳號；MySQL 帳號建立工具待後續遷移。
+工具從 stdin 讀取帳號 JSON, 帳號為 3–32 個英數字／底線／點／減號, 密碼 6–128 字元。既有帳號拒絕覆寫；其他 manager 可由帳號管理頁建立, CLI 仍可新增帳號。直接使用 Node API 的環境改用 `npm run account:create < data/local-admin.json`, 需提供與 API 相同的 MySQL 連線環境變數。
 
 - `auth_accounts` 保存 scrypt 密碼雜湊與獨立 salt, 不保存明文密碼
 - `auth_sessions` 保存 session token 的 SHA-256 雜湊及到期時間；瀏覽器使用 HttpOnly／SameSite=Lax cookie, 不使用 localStorage 保存登入憑證

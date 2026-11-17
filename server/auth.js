@@ -98,7 +98,8 @@ export function installAuth(app, repository, { now = Date.now } = {}) {
           'member 登入可使用行事曆、成員清單與戰績閱覽，其他管理操作需要管理者帳號',
         ),
       );
-    if (request.path.startsWith('/admin') && request.auth.user.role !== 'admin')
+    // Express matches routes without case sensitivity; the authorization guard must agree.
+    if (request.path.toLowerCase().startsWith('/admin') && request.auth.user.role !== 'admin')
       return next(new AuthError(403, 'ADMIN_REQUIRED', '只有 admin 可以管理帳號'));
     if (
       ['POST', 'PATCH', 'DELETE'].includes(request.method) &&

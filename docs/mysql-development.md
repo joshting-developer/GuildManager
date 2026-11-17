@@ -127,10 +127,16 @@ Repository 測試將既有業務斷言改成 async MySQL 呼叫, 不改掉原本
 
 Repository 與 HTTP 路由的 await／錯誤處理及提交後通知分別由業務契約與 HTTP 測試驗證。GAS 編譯只驗封裝相容, 不代表 GAS RPC、正式站或 Oracle 已完成切換；Oracle 目標引擎與正式舊資料另行驗收
 
+## MySQL 帳號與權限
+
+`npm run account:create` 或 `docker compose exec -T api node server/create-account.js` 從 stdin 讀取帳號 JSON, 使用與 API 相同的明確 `DB_*` 設定與已完成的 migration, 不自動建表、不回退 SQLite、不覆寫同名帳號。第一個帳號預設 admin, 後續預設 manager；既有 SQLite 帳號未自動匯入
+
+HTTP 權限回歸使用真實 MySQL 驗匿名／member／manager／admin, 涵蓋登入登出、cookie／session 輪替與到期、CSRF、角色與密碼變更撤銷、共用成員通行密碼、平行登入限流及 CLI 建帳號。授權範圍沿用 [成員契約](member-contracts.md) 與 [平台契約](platform-contracts.md), 不因換資料庫放寬
+
 ## HTTP API 接線
 
 `server/index.js` 啟動時依環境變數建立 pool、`probe` 連線, 再以 `migrationStatus` 核對所有版本都是 applied；有 pending 或連線失敗就輸出固定代碼並結束, 不自動建表。`server/app.js` 全部路由 `await` Repository, 回應格式、狀態碼與錯誤 envelope 維持原契約；需要通知的寫入改走 `repository.invoke(name, args)`, 只在交易提交後把該次操作的通知交給 notifier, 失敗操作不送。`server/auth.js` 的 session 讀取、公開路徑判斷與撤銷同樣 `await`
 
 Docker 的 API 服務加入共用 `side-project-environment` 網路, 沿用自己的 MySQL schema／帳號；需先啟動共用服務並明確套用 migration。遠端 TLS 連線可透過 `DB_SSL_CA_BASE64` 提供 CA, 不把主機私有檔案路徑直接傳入容器
 
-HTTP 契約測試在 `tests/mysql-http/`, 由 `tests/mysql-http.test.js` 在同一程序依序載入, 使用與 Repository 測試相同的 repositorytest 空庫；不要直接把多個檔案交給 `node --test` 平行跑, 會在同一個 schema 互相干擾。目前覆蓋存取／登入／錯誤 envelope、活動、成員與匯入、報名、排表／職責／範本、戰績上傳／附件／刪除、平台設定／抽獎／影片；完整的角色權限、健康檢查與 Discord 投遞行為另由後續卡片補
+HTTP 契約測試在 `tests/mysql-http/`, 由 `tests/mysql-http.test.js` 在同一程序依序載入, 使用與 Repository 測試相同的 repositorytest 空庫；不要直接把多個檔案交給 `node --test` 平行跑, 會在同一個 schema 互相干擾。目前覆蓋存取／登入／錯誤 envelope、活動、成員與匯入、報名、排表／職責／範本、戰績上傳／附件／刪除、平台設定／抽獎／影片；角色／session／CSRF 的回歸另見 `auth.test.js`, CLI 回歸見 `account-cli.test.js`；完整健康檢查與 Discord 投遞行為另由後續卡片補

@@ -18,13 +18,14 @@ export async function createTestApp({ notifier = null, repository: wrap = (value
       headers: { ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}), ...headers },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
-  async function login(credentials = ADMIN) {
-    const response = await request('/auth/login', 'POST', credentials);
+  async function login(credentials = ADMIN, { path = '/auth/login', headers: loginHeaders = {} } = {}) {
+    const response = await request(path, 'POST', credentials, loginHeaders);
     assert.equal(response.status, 200);
     const session = await response.json();
     const cookie = response.headers.get('set-cookie').split(';')[0];
     const headers = { Cookie: cookie, 'X-CSRF-Token': session.csrfToken };
     return {
+      response,
       session,
       headers,
       request: (path, method = 'GET', body) => request(path, method, body, headers),
