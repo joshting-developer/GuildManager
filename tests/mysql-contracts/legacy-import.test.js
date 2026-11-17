@@ -2,10 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { applyLegacyImport } from '../../tools/legacy-import/apply.js';
+import { applyLegacyFiles, legacyFileEntries, planLegacyFiles } from '../../tools/legacy-import/files.js';
 import { GAS_TABLES, LegacyFormatError, resolveGasStore } from '../../tools/legacy-import/gas-store.js';
 import { transformLegacyStore } from '../../tools/legacy-import/transform.js';
 import { readWorkbook } from '../../tools/legacy-import/workbook.js';
-import { createTestRepository, repositoryDatabase } from '../helpers/mysql-repository.js';
+import { createTestRepository, repositoryDatabase, repositoryFileStorage } from '../helpers/mysql-repository.js';
 
 // Synthetic GAS export: same sheet layout as the retired Apps Script store, fabricated values only.
 const PROFESSIONS = [[1, '#ffb6c1', '素問'], [2, '#3cb371', '龍吟'], [3, '#add8e6', '碎夢'], [4, '#00bfff', '潮光'], [5, '#f0e68c', '玄機'], [6, '#9932cc', '九靈'], [7, '#ff8c00', '鐵衣'], [8, '#8b0000', '血河'], [9, '#4682b4', '神相']];
@@ -129,6 +130,57 @@ test('import writes an empty migrated database that v2 repositories read back un
     assert.equal((await repository.getLottery()).lottery.revision, 4);
 
     await assert.rejects(() => applyLegacyImport(database, plan), /已有資料/);
+  } finally {
+    await repository.close();
+  }
+});
+
+// Synthetic Drive folder export for battle-1 of the fixture.
+const CSV_HEADER = '玩家名字,職業,擊敗,助攻,資源,對玩家傷害,對建築傷害,治療值,承受傷害,重傷,化羽/清泉';
+const BATTLE_CSV = `${CSV_HEADER}\r\n成員甲,素問,1,0,0,0,0,0,0,0,0\r\n${CSV_HEADER}\r\n路人,龍吟,2,0,0,0,0,0,0,0,0\r\n`;
+const ICON = Buffer.from('/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==', 'base64');
+const folder = (extra = {}) => new Map(Object.entries({ 'GuildManager 戰績原始檔/battle.csv': BATTLE_CSV, 'GuildManager 戰績原始檔/battle(1).csv': BATTLE_CSV, ...extra })
+  .map(([name, value]) => [name, () => Buffer.from(value)]));
+const withIcon = ({ put }) => put('settings', 'platform', { name: '測試平台', icon: { mimeType: 'image/jpeg', fileId: 'drive-icon' }, revision: 2 });
+
+test('legacy files match battle CSVs by filename, verify their players and report re-uploads', () => {
+  const { rows, settings } = transformLegacyStore(resolveGasStore(fixture(withIcon)));
+  const { files } = legacyFileEntries(folder({ 'GuildManager 戰績原始檔/platform-icon-1.jpg': ICON }));
+  const plan = planLegacyFiles(files, { records: rows.battle_records, platform: settings.platform });
+  assert.deepEqual(plan.anomalies, []);
+  assert.deepEqual(plan.csv.map(({ recordId, name }) => [recordId, name]), [['battle-1', 'battle.csv']]);
+  assert.equal(plan.icon.mimeType, 'image/jpeg');
+  assert.deepEqual(plan.unused, [{ name: 'battle(1).csv', result: 'duplicate', of: 'battle.csv' }]);
+
+  const edited = legacyFileEntries(folder({ 'GuildManager 戰績原始檔/battle.csv': BATTLE_CSV.replace('成員甲,素問,1', '成員甲,素問,9') })).files;
+  assert.deepEqual(planLegacyFiles(edited, { records: rows.battle_records, platform: settings.platform }).anomalies.map(({ kind }) => kind), ['csv-mismatch', 'icon']);
+  assert.deepEqual(planLegacyFiles(new Map(), { records: rows.battle_records, platform: null }).anomalies.map(({ kind }) => kind), ['missing-csv']);
+  assert.deepEqual(legacyFileEntries(new Map([['a/x.csv', () => Buffer.from('1')], ['b/x.csv', () => Buffer.from('2')]])).anomalies.map(({ kind }) => kind), ['duplicate-name']);
+});
+
+test('legacy files upload once, link metadata and read back through the v2 attachment path', async () => {
+  const repository = await createTestRepository();
+  try {
+    const database = repositoryDatabase(repository);
+    const store = resolveGasStore(fixture(withIcon));
+    await applyLegacyImport(database, transformLegacyStore(store));
+    const { rows, settings } = transformLegacyStore(store);
+    const plan = planLegacyFiles(legacyFileEntries(folder({ 'x/platform-icon-1.jpg': ICON })).files, { records: rows.battle_records, platform: settings.platform });
+    const storage = repositoryFileStorage(repository);
+
+    assert.deepEqual(await applyLegacyFiles(database, storage, plan), { csvUploaded: 1, csvSkipped: 0, iconUploaded: 1, iconSkipped: 0 });
+    const [record] = await database.query('SELECT f.name, f.mime_type, f.size_bytes FROM battle_records r JOIN file_metadata f ON f.id=r.csv_file_id');
+    assert.deepEqual([record.name, record.mime_type, Number(record.size_bytes)], ['battle.csv', 'text/csv', Buffer.byteLength(BATTLE_CSV)]);
+    assert.deepEqual(await database.query('SELECT * FROM file_staging'), []);
+    const [platform] = await database.query('SELECT revision, icon_file_id FROM platform_settings WHERE id=1');
+    assert.equal(Number(platform.revision), 2);
+    assert.ok(platform.icon_file_id);
+    const attachment = await repository.getBattleAttachment('battle-1', 'csv');
+    assert.equal(Buffer.from(attachment.bytes).toString(), BATTLE_CSV);
+
+    // Re-running after a partial or full success only fills what is still missing.
+    assert.deepEqual(await applyLegacyFiles(database, storage, plan), { csvUploaded: 0, csvSkipped: 1, iconUploaded: 0, iconSkipped: 1 });
+    await assert.rejects(() => applyLegacyFiles(database, storage, { ...plan, csv: [{ ...plan.csv[0], recordId: 'missing' }] }), /GM-29/);
   } finally {
     await repository.close();
   }

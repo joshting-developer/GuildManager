@@ -40,7 +40,7 @@ node tools/import-legacy-gas.js --source GuildManagerDataBase.xlsx --report .loc
 - 舊資料沒有 v2 的 requestId, 以 `legacy-<種類>:<舊 id>` 填入, 不會跟新操作重複；`payload_json` 為 `{}`
 - 其他 requests 是舊站的重送結果, 不搬
 - 戰績玩家資料照原樣保存, 包含舊站存在玩家列裡的 `memberUid`／`creditedName`, 讀取時一樣以 battle_player_links 覆蓋 `memberUid`, 與舊站行為相同
-- 戰績 CSV 與平台圖示不在 Sheets：`csv_text` 留空、`csv_file_id`／`icon_file_id` 留 NULL, 由 R2 匯入（GM-30）補上
+- 戰績 CSV 與平台圖示不在 Sheets：`csv_text` 留空、`csv_file_id`／`icon_file_id` 留 NULL, 由下方「戰績原始檔匯入 R2」補上
 - 帳號、Session 與登入限制存在 Script Properties, 不在匯出檔, 也不匯入：舊 admin／manager 帳號一律不沿用, 部署時依[平台契約](platform-contracts.md#v2-初始管理員與歷史操作者)建立 admin, manager 與成員通行密碼上線後由 admin 在帳號管理重新設定
 - 舊資料沒有操作者／建立者欄位；將來若出現, 依[平台契約](platform-contracts.md#v2-初始管理員與歷史操作者)對應到目標庫的 admin
 
@@ -57,3 +57,22 @@ node tools/import-legacy-gas.js --source GuildManagerDataBase.xlsx --report .loc
 | R5 | 參照的成員／場次／戰績／排表／範本不存在 | 捨棄 | 例如已刪除成員留下的 UID 版本紀錄 |
 
 會讓匯入停止、需要先決定的異常：未知的場次類型／出席狀態／影片分組／勝方, 職業對不到, 日期格式錯誤, 同場次重複的有效報名名稱或排表版本, 戰績缺玩家或人數不符, 文字超過 v2 欄位長度, 以及無法辨識的 requests／settings 紀錄
+
+## 戰績原始檔匯入 R2
+
+上一步寫入後, 用同一份 xlsx 與 Drive 下載的「戰績原始檔」zip 把 CSV 與平台圖示放到 R2, 並在 MySQL 補上檔案資訊
+
+```sh
+# 預覽：不連資料庫與 R2
+node tools/import-legacy-files.js --source GuildManagerDataBase.xlsx --files 戰績原始檔.zip --report .local/legacy-import
+
+# 寫入：DB_* 指向已完成上一步的資料庫, R2_* 指向目標 bucket, 兩個名稱都要再確認一次
+node tools/import-legacy-files.js --source GuildManagerDataBase.xlsx --files 戰績原始檔.zip --report .local/legacy-import --apply --database <DB_DATABASE> --bucket <R2_BUCKET>
+```
+
+- 戰績用舊資料的 `filename` 對 zip 內的檔名, 再用 v2 的 CSV 解析器讀一次, 玩家順序、名字、職業與數值都要跟已匯入的戰績相同才會上傳。舊站的 `contentHash` 是解析後內容的雜湊, Drive 的 fileId 也不在 zip 裡, 所以兩者都不拿來對檔
+- 平台圖示取 zip 內唯一的 `platform-icon-*` 檔, 副檔名要符合舊設定的 MIME, 並通過 v2 的圖示檢查（256 KB 內）；不改平台 revision
+- Drive 重傳留下的 `名稱(1).csv` 這類檔案, 內容和已使用的檔案相同就列為 duplicate；內容不同但沒有戰績使用的列為 unreferenced, 都只寫進報告不上傳
+- 找不到檔案、內容不符、同名檔案或圖示候選不是剛好 1 個時, 結束碼為 3 且不寫入
+- 上傳沿用 GM-17 的暫存紀錄：先登記再 PUT, 每個檔案用一個短交易寫入 `file_metadata` 並連結；中途失敗可直接重跑, 已連結的會跳過, 沒連結的物件由 `tools/cleanup-staged-files.js` 回收
+
