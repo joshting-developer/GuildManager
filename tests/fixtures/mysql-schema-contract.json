@@ -21,6 +21,7 @@
     "event_videos",
     "events",
     "file_metadata",
+    "file_staging",
     "home_settings",
     "lineup_templates",
     "lineup_versions",
@@ -291,6 +292,13 @@
       "size_bytes",
       "sha256",
       "created_at"
+    ],
+    "file_staging": [
+      "id",
+      "bucket",
+      "object_key",
+      "state",
+      "expires_at"
     ]
   },
   "foreignKeys": [

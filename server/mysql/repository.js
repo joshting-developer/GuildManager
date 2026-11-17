@@ -1,3 +1,4 @@
+import { createFileStagingRepository } from './file-staging-repository.js';
 import { withFileStorage } from '../services/file-backed-repository.js';
 import { createStore, exposeRepository } from './store.js';
 import { asyncMap } from "./collections.js";
@@ -379,5 +380,5 @@ function createImplementation(store, authNow) {
 
 export function createMysqlRepository(database, { authNow, fileStorage } = {}) {
   const store = createStore(database);
-  return withFileStorage(exposeRepository(createImplementation(store, authNow), store, database), fileStorage);
+  return withFileStorage(exposeRepository(createImplementation(store, authNow), store, database), fileStorage, createFileStagingRepository(store));
 }

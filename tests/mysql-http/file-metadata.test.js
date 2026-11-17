@@ -124,6 +124,19 @@ test('real MySQL plus R2 resolves original CSV, image and platform icon through 
       assert.equal(saved.status, 200);
       assert.equal((await (await anonymous('/platform-settings')).json()).platform.iconSrc, `data:image/png;base64,${png.base64}`);
       assert.equal((await repositoryDatabase(repository).query('SELECT COUNT(*) AS n FROM file_metadata'))[0].n, '3');
+      const originalPut = storage.put;
+      storage.put = async (...args) => { await originalPut(...args); throw new FileStorageError(); };
+      const failed = { requestId: 'real-r2-unknown', records: [{ ...record, redTeam: '另一隊' }] };
+      assert.equal((await request('/battle-records', 'POST', failed)).status, 503);
+      const db = repositoryDatabase(repository);
+      const [staged] = await db.query('SELECT object_key FROM file_staging');
+      assert.ok(staged);
+      await db.query('UPDATE file_staging SET expires_at=0');
+      const restarted = createMysqlRepository(db, { fileStorage: storage });
+      assert.deepEqual(await restarted.cleanupStagedFiles(), { removed: 1, failed: 0 });
+      await assert.rejects(adapter.get(staged.object_key), { code: 'FILE_NOT_FOUND' });
+      storage.put = originalPut;
+      assert.equal((await request('/battle-records', 'POST', failed)).status, 201);
     });
   } finally {
     try {
@@ -153,5 +166,83 @@ test('legacy inline attachments remain readable without R2 and removal during ob
       return result;
     };
     assert.equal((await request(`/battle-records/${target.id}/attachments/csv`)).status, 404);
+  });
+});
+
+test('staging journal recovers unknown PUT after restart, bounded cleanup retries failures and protects committed replay', async () => {
+  const storage = memoryStorage(); const put = storage.put;
+  let fail = true;
+  storage.put = async (...args) => { await put(...args); if (fail) throw new FileStorageError(); };
+  await withApp({ repositoryOptions: { fileStorage: storage }, log: { error() {} } }, async ({ repository, admin }) => {
+    const { request } = await admin(); const db = repositoryDatabase(repository);
+    const input = { requestId: 'recover-same-id', records: [record], image: png };
+    assert.equal((await request('/battle-records', 'POST', input)).status, 503);
+    assert.equal(storage.objects.size, 1);
+    assert.equal((await db.query('SELECT state FROM file_staging'))[0].state, 'uploading');
+    const restarted = createMysqlRepository(db, { fileStorage: storage });
+    assert.deepEqual(await restarted.cleanupStagedFiles(), { removed: 0, failed: 0 });
+    fail = false;
+    assert.equal((await request('/battle-records', 'POST', input)).status, 201);
+    assert.equal((await db.query('SELECT COUNT(*) AS n FROM battle_uploads'))[0].n, '1');
+    assert.equal((await db.query('SELECT COUNT(*) AS n FROM file_metadata'))[0].n, '2');
+    const count = storage.puts.length;
+    assert.equal((await request('/battle-records', 'POST', input)).status, 201);
+    assert.equal(storage.puts.length, count);
+    await db.query('UPDATE file_staging SET expires_at=0');
+    const remove = storage.remove;
+    storage.remove = async () => { throw new FileStorageError(); };
+    assert.deepEqual(await restarted.cleanupStagedFiles({ limit: 1 }), { removed: 0, failed: 1 });
+    storage.remove = remove;
+    assert.deepEqual(await restarted.cleanupStagedFiles({ limit: 1 }), { removed: 1, failed: 0 });
+    assert.equal(storage.objects.size, 2, 'committed files survive cleanup');
+    const [tombstone] = await db.query('SELECT object_key,state FROM file_staging');
+    assert.equal(tombstone.state, 'deleting');
+    storage.objects.set(tombstone.object_key, Buffer.from('late PUT'));
+    await db.query('UPDATE file_staging SET expires_at=0');
+    assert.deepEqual(await restarted.cleanupStagedFiles(), { removed: 1, failed: 0 });
+    assert.equal(storage.objects.size, 2, 'late PUT is reclaimed on a later pass');
+    await assert.rejects(restarted.cleanupStagedFiles({ limit: 101 }), { code: 'STORAGE_UNAVAILABLE' });
+  });
+});
+
+test('parallel same requestId commits once and cleanup fences a delayed finalizer', async () => {
+  const storage = memoryStorage();
+  await withApp({ repositoryOptions: { fileStorage: storage } }, async ({ repository, admin }) => {
+    const { request } = await admin(); const db = repositoryDatabase(repository);
+    const input = { requestId: 'parallel-staging', records: [record], image: png };
+    const results = await Promise.all([request('/battle-records', 'POST', input), request('/battle-records', 'POST', input)]);
+    assert.deepEqual(results.map(result => result.status), [201, 201]);
+    assert.deepEqual(await results[0].json(), await results[1].json());
+    assert.equal((await db.query('SELECT COUNT(*) AS n FROM battle_uploads'))[0].n, '1');
+    await db.query('UPDATE file_staging SET expires_at=0');
+    await repository.cleanupStagedFiles();
+    assert.equal(storage.objects.size, 2);
+    const put = storage.put;
+    storage.put = async (...args) => {
+      await put(...args);
+      await db.query('UPDATE file_staging SET expires_at=0');
+      await repository.cleanupStagedFiles();
+    };
+    const response = await request('/battle-records', 'POST', { requestId: 'fenced-upload', records: [{ ...record, redTeam: '另隊' }] });
+    assert.equal(response.status, 503);
+    assert.equal((await db.query('SELECT COUNT(*) AS n FROM file_metadata'))[0].n, '2');
+    assert.equal(storage.objects.size, 2);
+  });
+});
+
+test('cleanup reclaims an old detached icon but retains shared upload and active icon metadata', async () => {
+  const storage = memoryStorage();
+  await withApp({ repositoryOptions: { fileStorage: storage } }, async ({ repository, admin }) => {
+    const { request } = await admin(); const db = repositoryDatabase(repository);
+    const upload = await (await request('/battle-records', 'POST', { requestId: 'retain-shared', records: [record], image: png })).json();
+    const icon = await (await request('/admin/platform-settings', 'PATCH', { name: '圖示', revision: 1, icon: { mimeType: png.mimeType, base64: png.base64 } })).json();
+    await request(`/battle-records/${upload.records[0].id}`, 'DELETE', { revision: upload.records[0].revision });
+    await db.query("UPDATE file_metadata SET created_at='2000-01-01T00:00:00.000Z'");
+    assert.deepEqual(await repository.cleanupStagedFiles(), { removed: 1, failed: 0 });
+    assert.equal(storage.objects.size, 2, 'detached CSV reclaimed, replay upload image and active icon retained');
+    assert.equal((await request('/admin/platform-settings', 'PATCH', { name: '圖示', revision: icon.platform.revision, icon: null })).status, 200);
+    assert.deepEqual(await repository.cleanupStagedFiles(), { removed: 1, failed: 0 });
+    assert.equal(storage.objects.size, 1, 'shared upload reference retained');
+    assert.equal((await db.query('SELECT COUNT(*) AS n FROM file_metadata'))[0].n, '1');
   });
 });

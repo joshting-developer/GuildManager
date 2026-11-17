@@ -3,7 +3,7 @@ import { FileStorageError } from '../storage/r2.js';
 import { validatePlatformSettings, validatePlatformIcon, platformIconSource } from '../../src/domain/platform-settings.js';
 
 /** Keep object IO outside MySQL transactions; HTTP auth still guards the original routes. */
-export function withFileStorage(repository, storage) {
+export function withFileStorage(repository, storage, journal) {
   async function read(file) {
     if (!storage || !file || storage.bucket !== file.bucket) throw new FileStorageError();
     const bytes = await storage.get(file.key);
@@ -14,7 +14,10 @@ export function withFileStorage(repository, storage) {
     if (!storage) throw new FileStorageError();
     const id = randomUUID();
     const file = { id, bucket: storage.bucket, key: `files/${kind}/${id}`, name, mimeType, size: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') };
+    // Persist before PUT: even an unknown provider result remains discoverable after restart.
+    await journal.stage(file);
     await storage.put(file.key, bytes, mimeType);
+    await journal.ready(file.id);
     return file;
   }
   async function platformResult(result) {
@@ -24,6 +27,21 @@ export function withFileStorage(repository, storage) {
     return { platform: { ...platform, iconSrc: platformIconSource({ mimeType: iconFile.mimeType, base64: bytes.toString('base64') }) } };
   }
   const methods = {
+    /** Explicit maintenance operation; never exposed as a browser-selected object key API. */
+    async cleanupStagedFiles({ limit = 100 } = {}) {
+      if (!storage || !Number.isInteger(limit) || limit < 1 || limit > 100) throw new FileStorageError();
+      const candidates = await journal.claimExpired(storage.bucket, limit);
+      let removed = 0, failed = 0;
+      for (const row of candidates) {
+        try {
+          await storage.remove(row.object_key);
+          // Retain a tombstone: a PUT paused before IO may finish after the first deletion.
+          await journal.deleted(row.id);
+          removed += 1;
+        } catch { failed += 1; }
+      }
+      return { removed, failed };
+    },
     async saveBattleRecords(input, { assertAccess } = {}) {
       await assertAccess?.();
       const preflight = await repository.saveBattleRecords(input, { preflight: true, assertAccess });

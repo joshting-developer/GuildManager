@@ -4,7 +4,7 @@ Node 後端提供 `server/storage/r2.js` 的 `createR2Storage(environment)` 與 
 
 Node HTTP 的戰績 CSV、共用陣容圖片與平台圖示已接入 R2。新寫入的 MySQL 只保存 file_metadata（bucket、object key、原檔名、MIME、大小、SHA-256）與外鍵關聯；原始 CSV 內容欄位保留空字串、圖片與圖示內容欄位保存 NULL。既有 inline 資料仍可讀取, 不自動搬移正式舊資料。場次影片只有外部網址, 不屬於 R2 檔案上傳。
 
-啟動 API 必須同時提供 MySQL 與 R2 設定, 並先明確執行包含 `0003_file_metadata` 的 migration；缺 R2 或 schema 未就緒就停止啟動。Compose 從忽略的 `.env` 轉交設定, 不自動建立 bucket 或回退把新檔案寫回 MySQL。
+啟動 API 必須同時提供 MySQL 與 R2 設定, 並先明確執行包含 `0004_file_staging` 的 migration；缺 R2 或 schema 未就緒就停止啟動。Compose 從忽略的 `.env` 轉交設定, 不自動建立 bucket 或回退把新檔案寫回 MySQL。
 
 `server/services/file-backed-repository.js` 在組裝階段裝飾既有 Repository。戰績上傳先在短交易驗證內容與關聯、requestId, 釋放鎖後寫 R2, 再開交易重驗場次／版本／requestId 與授權, 同交易保存 metadata 和業務資料。已提交的重送直接回原結果, 不再寫物件。外部 I/O 不持有 MySQL 寫入鎖。
 
@@ -14,7 +14,13 @@ Node HTTP 的戰績 CSV、共用陣容圖片與平台圖示已接入 R2。新寫
 
 兩場戰績共用 upload 圖片, 刪除單場只移除該場及既有關聯, 不刪仍可能被另一場或重送紀錄引用的 R2 物件。替換／移除平台圖示會更換或清除關聯, 舊 metadata／物件先保留。
 
-目前不自動回收上傳成功但 finalize 失敗的物件, 也不重試未知寫入結果；並行相同 requestId 可能產生未引用物件, 最終仍只保存一份業務紀錄。完整 staging ledger、失敗補償、孤兒清理與保留政策留後續復原階段, 不能把本階段當成跨 MySQL／R2 原子交易。不得靠刪除整個 bucket 或清空 metadata 回收物件。
+`0004_file_staging` 在每次 PUT 前保存物件位置與 24 小時期限, PUT 成功後才改為 ready；最終交易只有在 ready 時才能保存 metadata, 並在同一交易移除 staging。未知 PUT 結果或 finalize 失敗仍留有紀錄, 沿原 requestId 重試後只提交一份業務資料；並行請求多出的物件由維護程序回收。未知資料庫 commit 結果也不立即刪物件, 先依已提交 metadata／requestId 判斷。
+
+維護者明確提供 API 相同的 DB_*／R2_* 環境後執行 `node tools/cleanup-staged-files.js --execute`。工具檢查 migration, 每次最多處理 100 筆過期 staging, 並將最多 100 筆已超過 24 小時且無引用的 metadata 移入清理紀錄。查詢限定目前 bucket, SQL 排序及上限固定, 不列舉 bucket、不載入檔案內容。未引用判斷包含戰績 CSV、共用 upload 圖片與平台圖示；upload 保留的重送／共用圖片關聯不清除。替換圖示或刪除戰績後, 無引用 metadata 須等待保留期才可回收。
+
+清理先在共用寫入鎖內將 staging 改成 deleting, 再於交易外刪 R2；被清理程序取得的上傳不能再 finalize。刪除失敗保留紀錄供下次重試, 不影響已提交檔案。成功刪除仍保留 deleting 標記, 24 小時後可再次刪除, 處理暫停的 PUT 稍後才完成的情況；標記不自動淘汰, 維護表會隨失敗／回收次數成長。工具只輸出成功與失敗筆數, 不輸出 key 或原始錯誤。
+
+這是可重試的跨服務補償, 並非 MySQL／R2 原子交易；未設定自動清理或排程。使用者需明確授權後才在正式環境執行清理。GM-16 之前沒有 staging 的失敗物件不會由此工具發現, 需另行盤點；不得靠刪除整個 bucket 或清空 metadata 回收物件。
 
 ## 呼叫與授權契約
 
