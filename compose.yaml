@@ -1,6 +1,8 @@
 services:
   api:
-    build: .
+    build:
+      context: .
+      target: development
     command: npm run server
     environment:
       API_HOST: 0.0.0.0
@@ -40,7 +42,9 @@ services:
       retries: 10
     init: true
   frontend:
-    build: .
+    build:
+      context: .
+      target: development
     environment:
       API_PROXY_TARGET: http://api:3001
     ports:

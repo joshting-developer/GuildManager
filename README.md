@@ -85,7 +85,38 @@ docker compose exec -T api node server/create-account.js < data/local-admin.json
 - 寫入 Origin 採精確比對, 不根據 Host 或轉送標頭自動放行；無 Origin 的 CLI 請求沿用既有契約, 仍須 JSON 與對應 Session／CSRF／角色驗證。未設定 `APP_ORIGIN` 的非 production 環境保留原本 localhost 開發來源
 - 網址保留 `#/members` 等 hash 路由, `#/magament` 與 `#/management` 均可使用。未知 API 與缺少的靜態資源不會改回首頁 HTML
 
-Dockerfile 與 Compose 目前仍用於開發, production image、實際代理、TLS 與 DNS 需另行配置及驗收。舊 GAS build 與登入方式獨立, 不套用 Node Cookie 或網站 Origin 設定
+Dockerfile 預設產出 production 映像, Compose 明確使用 development target。實際代理、TLS 與 DNS 仍需另行配置及驗收。舊 GAS build 與登入方式獨立, 不套用 Node Cookie 或網站 Origin 設定
+
+## 正式 Docker 映像
+
+預設映像以非 root 的 `node` 帳號直接執行 Express, 同一個 HTTP 埠提供 Vue 的 `dist/` 與 `/api`, 不啟動 Vite。開發仍使用上方的 Docker Compose 流程
+
+```sh
+docker build -t guild-manager:production .
+docker build --target development -t guild-manager:development .
+```
+
+建置不需要 DB／R2 憑證。建置 context 採允許清單, 排除私人設定、資料與憑證；新增建置輸入時需同步檢查 `.dockerignore`。runtime 只包含 production dependencies、`package.json`、`dist/`、`server/` 與後端引用的 `src/domain/`, 不包含編譯工具或 dev dependencies
+
+執行前在私有環境檔設定 [HTTP](config/http.env.example)、[MySQL](config/mysql.env.example) 與 [R2](config/r2.env.example) 變數。秘密只於執行時注入, 不使用 build args 或 `VITE_*`。例如將設定保存在已忽略的 `.local/runtime.env`, CA 保存在 `.local/mysql-ca.pem`, 並設定 `DB_SSL_CA_FILE=/run/secrets/mysql-ca.pem`：
+
+```sh
+docker run -d --name guild-manager-production \
+  --env-file .local/runtime.env \
+  --mount type=bind,src="$(pwd)/.local/mysql-ca.pem",dst=/run/secrets/mysql-ca.pem,readonly \
+  -p 127.0.0.1:3001:3001 \
+  --stop-timeout 20 \
+  guild-manager:production
+```
+
+- 預設 `API_HOST=0.0.0.0`、`API_PORT=3001`；若覆寫埠號, 同步調整 port mapping 與反向代理。映像 healthcheck 依實際 `API_PORT` 探測 `/api/health`, 逾時 2 秒；`/api/live` 僅驗程序存活, 兩者不驗 R2
+- `APP_ORIGIN` 必須是精確 HTTPS origin, 外部 HTTPS 由可信反向代理提供；上例只綁本機 HTTP 埠供代理轉入。`TRUSTED_PROXY_CIDRS` 僅填實際可信入口, Docker 不會自動建立 HTTPS
+- production 的 MySQL 必須使用 `DB_SSL_MODE=verify_identity`, 提供可信 CA 與符合憑證的 hostname；CA 掛載檔須可由容器的 `node` 使用者讀取。資料庫若位於其他 Docker 網路, 另指定對應 `--network` 與可驗證的 hostname
+- 啟動前由具資格的獨立步驟套用 migration（見 MySQL 開發說明）, runtime 使用限庫 CRUD 帳號。啟動只核對連線及 migration, 不建表、不建帳號、不匯入資料
+- 資料保存在外部 MySQL／R2, 正式映像不使用 SQLite `/data` volume；開發 Compose 的既有 `guild_data` 保留
+- `docker stop --time 20 guild-manager-production` 直接傳送 `SIGTERM` 給 Node, 為服務的 10 秒關閉期限保留餘裕
+
+建置成功不代表 production 啟動、真 R2 存取或實際 HTTPS 代理已通過驗收；各項需使用隔離資料與對應環境另驗
 
 ## 建立示範成員
 
