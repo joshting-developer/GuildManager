@@ -135,6 +135,10 @@ npm run build:gas
 
 目前全部既有資料介面已生成，使用 GM_ 專用工作表、私人 Drive 原始檔與 Script Properties 帳號／session；尚未部署或寫入正式試算表。本機 SQLite 資料與帳號不會自動匯入雲端。
 
+## R2 私有檔案服務
+
+Node 後端的可注入檔案讀寫服務與隔離驗證見 [R2 私有檔案服務](docs/r2-storage.md)。目前尚未接入既有功能與 MySQL metadata, 不代表正式檔案已移轉。
+
 ## 資料介面
 
 首頁目前直接顯示待開發, 尚未使用保留的 `src/api/home.js` 首頁資料介面
