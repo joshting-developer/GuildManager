@@ -66,19 +66,7 @@ export function createBattleRecordRepository(db, { project = (_kind, _id, value)
     );
   }
   const syncFingerprint = plan => createHash('sha256').update(JSON.stringify(plan)).digest('hex');
-  async function get(id) {
-    const row = (await db
-      .prepare(
-        `SELECT r.*, u.image_name,u.image_type FROM battle_records r JOIN battle_uploads u ON u.id=r.upload_id WHERE r.id=?`,
-      )
-      .get(id));
-    if (!row) throw new BattleRecordError('找不到這筆戰績', 404, 'BATTLE_NOT_FOUND');
-    const players = (await project('battle', row.id, JSON.parse(row.players_json)));
-    for (const link of (await db
-      .prepare('SELECT player_index, member_uid FROM battle_player_links WHERE record_id = ?')
-      .all(id))) {
-      if (players[link.player_index]) players[link.player_index].memberUid = link.member_uid;
-    }
+  function summary(row, players) {
     return {
       id: row.id,
       eventId: row.event_id,
@@ -97,8 +85,22 @@ export function createBattleRecordRepository(db, { project = (_kind, _id, value)
       redCount: players.filter((p) => p.side === 'red').length,
       blueCount: players.filter((p) => p.side === 'blue').length,
       image: row.image_name ? { name: row.image_name, mimeType: row.image_type } : null,
-      players,
     };
+  }
+  async function get(id) {
+    const row = (await db
+      .prepare(
+        `SELECT r.*, u.image_name,u.image_type FROM battle_records r JOIN battle_uploads u ON u.id=r.upload_id WHERE r.id=?`,
+      )
+      .get(id));
+    if (!row) throw new BattleRecordError('找不到這筆戰績', 404, 'BATTLE_NOT_FOUND');
+    const players = (await project('battle', row.id, JSON.parse(row.players_json)));
+    for (const link of (await db
+      .prepare('SELECT player_index, member_uid FROM battle_player_links WHERE record_id = ?')
+      .all(id))) {
+      if (players[link.player_index]) players[link.player_index].memberUid = link.member_uid;
+    }
+    return { ...summary(row, players), players };
   }
   async function analysisLineup(record) {
     if (!record.eventId || ![1, 2].includes(record.roundNumber)) return null;
@@ -141,19 +143,20 @@ export function createBattleRecordRepository(db, { project = (_kind, _id, value)
     },
     async listBattleRecords({ page = 1, eventId = null } = {}) {
       if (!Number.isSafeInteger(page) || page < 1) throw new BattleRecordError('頁碼不正確');
-      const where = eventId == null ? '' : ' WHERE event_id=? AND round_number IS NOT NULL';
+      const where = eventId == null ? '' : ' WHERE r.event_id=? AND r.round_number IS NOT NULL';
       const args = eventId == null ? [] : [text(eventId, '場次', 64)];
       const total = (await db
-        .prepare(`SELECT COUNT(*) AS total FROM battle_records${where}`)
+        .prepare(`SELECT COUNT(*) AS total FROM battle_records r${where}`)
         .get(...args)).total;
-      const records = (await asyncMap(await db
-        .prepare(
-          `SELECT id FROM battle_records${where} ORDER BY played_at DESC, created_at DESC, id LIMIT 20 OFFSET ?`,
-        )
-        .all(...args, (page - 1) * 20), async (row) => {
-          const { players, ...record } = (await get(row.id));
-          return record;
-        }));
+      // Summaries need side counts, not member UID projection or per-record link reads.
+      const rows = await db.prepare(
+        `SELECT r.id, r.event_id, r.event_snapshot_json, r.battle_type, r.played_at,
+          r.red_team, r.blue_team, r.winner, r.our_side, r.is_internal, r.revision,
+          r.filename, r.created_at, r.round_number, r.players_json, u.image_name, u.image_type
+        FROM battle_records r JOIN battle_uploads u ON u.id=r.upload_id${where}
+        ORDER BY r.played_at DESC, r.created_at DESC, r.id LIMIT 20 OFFSET ?`,
+      ).all(...args, (page - 1) * 20);
+      const records = rows.map(row => summary(row, JSON.parse(row.players_json)));
       return { records, total, page, pageSize: 20 };
     },
     async getBattleMetadata(id) {

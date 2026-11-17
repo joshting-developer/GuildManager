@@ -2,7 +2,7 @@ import { asyncMap } from "../../server/mysql/collections.js";
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createTestRepository as createRepository } from '../helpers/mysql-repository.js';
+import { createTestRepository as createRepository, repositoryDatabase } from '../helpers/mysql-repository.js';
 
 import {
   BATTLE_COLUMNS,
@@ -226,4 +226,40 @@ test('event rounds allow second-round-first, separate retries and reject occupie
   } finally {
     (await repo.close());
   }
+});
+
+test('battle summaries read only one bounded page without per-record links or UID projection', async () => {
+  const repo = await createRepository();
+  try {
+    for (let i = 0; i < 30; i++) {
+      await repo.saveBattleRecords(input({ requestId: `bounded-${i}`, records: [record({ csvText: csv.replace('紅方玩家', `紅方玩家${i}`) })] }));
+    }
+    const database = repositoryDatabase(repo);
+    const transaction = database.transaction.bind(database);
+    const reads = [];
+    database.transaction = (work, options) => transaction(connection => work({
+      ...connection,
+      async query(sql, parameters) {
+        const result = await connection.query(sql, parameters);
+        reads.push({ sql, rows: Array.isArray(result) ? result.length : 0 });
+        return result;
+      },
+    }), options);
+    const first = await repo.listBattleRecords();
+    assert.equal(first.total, 30);
+    assert.equal(first.records.length, 20);
+    assert.equal(reads.length, 2);
+    assert.deepEqual(reads.map(read => read.rows), [1, 20]);
+    assert.match(reads[1].sql, /LIMIT 20 OFFSET/);
+    assert.doesNotMatch(reads.map(read => read.sql).join(' '), /battle_player_links|member_reference_overrides|csv_text/);
+    reads.length = 0;
+    const second = await repo.listBattleRecords({ page: 2 });
+    assert.deepEqual(reads.map(read => read.rows), [1, 10]);
+    assert.equal(new Set([...first.records, ...second.records].map(row => row.id)).size, 30);
+    for (const summary of [...first.records, ...second.records]) {
+      const { players, ...detail } = await repo.getBattleRecord(summary.id);
+      assert.equal(players.length, 2);
+      assert.deepEqual(summary, detail);
+    }
+  } finally { await repo.close(); }
 });
