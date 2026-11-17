@@ -46,3 +46,17 @@ node tools/recover-local-object.js restore --config .local/backup/r2.json --file
 正式 bucket 的權限、刪除保護、離機備份、保留期與排程須在正式環境另行配置；本地復原驗證不能代表正式保護已啟用
 
 安全測試：`python3 tests/backup-local.test.py`、`node --test tests/local-object-recovery.test.js`。真物件演練只使用專用測試 bucket 的隨機合成物件, 不刪除現有業務附件
+
+## 本地網站檢查與錯誤追查
+
+```sh
+node tools/check-local-site.js http://localhost:5173
+docker compose ps
+docker compose logs --tail 50 api frontend
+```
+
+檢查只接受明確的 HTTP loopback origin, 分開確認首頁 HTML、前端 module、API 存活與 MySQL readiness。每個請求最多 3 秒, 回應讀取有大小上限；成功 exit 0, 任一失敗 exit 1, 只輸出固定檢查名稱、狀態與耗時, 不轉印回應內容或 provider 例外
+
+Compose 的 API 透過 `/api/health` 驗資料庫, frontend 另有 HTTP healthcheck。macOS 的私人 launchd 設定可每 5 分鐘執行檢查並保存 `.local/monitor/site.jsonl`；這是本地狀態紀錄, 不會發送外部通知。正式站的外部探測、警報收件人、日誌保存及告警演練仍須在部署階段配置
+
+安全測試另含 `node --test tests/local-site-check.test.js`, 確認資料庫故障時仍能辨識 API 存活, 且不輸出故障回應中的秘密
