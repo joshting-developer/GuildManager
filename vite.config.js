@@ -9,7 +9,11 @@ export default defineConfig(({ mode }) => ({
   plugins: [vue(), ...(mode === 'gas' ? [viteSingleFile()] : [])],
   publicDir: false,
   // Shown in the footer so users can tell which release a Web App deployment runs.
-  define: { __APP_VERSION__: JSON.stringify(version) },
+  define: {
+    __APP_VERSION__: JSON.stringify(version),
+    // Only the explicit legacy build may use RPC; stale env values cannot switch v2 back.
+    'import.meta.env.VITE_DATA_SOURCE': JSON.stringify(mode === 'gas' ? 'gas' : 'local'),
+  },
   server: {
     port: 5173,
     strictPort: true,

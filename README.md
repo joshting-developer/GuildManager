@@ -145,7 +145,8 @@ Node 後端的可注入檔案讀寫服務與隔離驗證見 [R2 私有檔案服�
 
 - 本機模式：HTTP `GET /api/home`
 - GAS 模式：`google.script.run.getHomeData()`, 包裝成 Promise
-- 編譯設定：`.env.gas` 的 `VITE_DATA_SOURCE=gas`, 不放任何憑證
+- 新版 `dev`／`build` 與其他非 `gas` mode 固定使用同源 `/api`；舊的 `VITE_DATA_SOURCE` 環境值不再切換新版來源
+- 舊版僅明確的 `--mode gas` 使用 `google.script.run`, 保留至舊來源退役；不放任何憑證
 - 兩端回傳相同格式, `meta.mode` 使用 `demo`、`empty` 或後續正式資料的 `live`
 
 ```json
