@@ -41,7 +41,7 @@ node tools/import-legacy-gas.js --source GuildManagerDataBase.xlsx --report .loc
 - 其他 requests 是舊站的重送結果, 不搬
 - 戰績玩家資料照原樣保存, 包含舊站存在玩家列裡的 `memberUid`／`creditedName`, 讀取時一樣以 battle_player_links 覆蓋 `memberUid`, 與舊站行為相同
 - 戰績 CSV 與平台圖示不在 Sheets：`csv_text` 留空、`csv_file_id`／`icon_file_id` 留 NULL, 由 R2 匯入（GM-30）補上
-- 帳號、Session 與登入限制存在 Script Properties, 不在匯出檔, 另行處理
+- 帳號、Session 與登入限制存在 Script Properties, 不在匯出檔, 也不匯入：舊 admin／manager 帳號一律不沿用, 部署時依[平台契約](platform-contracts.md#v2-初始管理員與歷史操作者)建立 admin, manager 與成員通行密碼上線後由 admin 在帳號管理重新設定
 - 舊資料沒有操作者／建立者欄位；將來若出現, 依[平台契約](platform-contracts.md#v2-初始管理員與歷史操作者)對應到目標庫的 admin
 
 ## 清洗規則

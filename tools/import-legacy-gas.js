@@ -29,7 +29,7 @@ try {
     target: counts,
     cleaning: report.summary(),
     pending: {
-      accounts: '帳號／Session 不在 Sheets, 另行匯出後補做',
+      accounts: '帳號／Session 不匯入；部署時建立 admin, manager 與成員通行密碼由 admin 重新設定',
       battleCsv: `${counts.battle_records} 筆戰績 CSV 待 GM-30 上傳 R2 後補 csv_file_id`,
       platformIcon: settings.platform?.icon ? '平台圖示待 GM-30 上傳 R2 後補 icon_file_id' : null,
     },
