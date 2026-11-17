@@ -53,15 +53,26 @@ function imageAttachment(input) {
   if (!valid) throw new BattleRecordError('圖片內容與格式不符');
   return { name, mimeType: input.mimeType, bytes };
 }
-export function createBattleRecordRepository(db, { project = (_kind, _id, value) => value } = {}) {
+export function createBattleRecordRepository(db, {
+  project = (_kind, _id, value) => value,
+  projectAll = async (_kind, rows) => rows.map((row) => row.value),
+} = {}) {
   const files = createFileMetadataRepository(db);
+  // Links are written as multi-row INSERTs; 500 rows keep each statement well under the placeholder limit.
+  async function insertLinks(links) {
+    for (let start = 0; start < links.length; start += 500) {
+      const chunk = links.slice(start, start + 500);
+      (await db.prepare(`INSERT INTO battle_player_links (record_id, player_index, member_uid) VALUES ${chunk.map(() => '(?, ?, ?)').join(', ')}`)
+        .run(chunk.flat()));
+    }
+  }
   async function syncPlan() {
+    const records = (await db.prepare('SELECT id, players_json FROM battle_records').all());
+    const players = (await projectAll('battle', records.map((row) => ({ id: row.id, value: JSON.parse(row.players_json) }))));
     return planBattleMemberSync(
       (await db.prepare('SELECT uid, name FROM members').all()),
       (await db.prepare('SELECT member_uid AS uid, name FROM member_name_history').all()),
-      (await asyncMap(await db.prepare('SELECT id, players_json FROM battle_records').all(), async row => ({
-        id: row.id, players: (await project('battle', row.id, JSON.parse(row.players_json))),
-      }))),
+      records.map((row, index) => ({ id: row.id, players: players[index] })),
       (await db.prepare('SELECT record_id AS recordId, player_index AS playerIndex FROM battle_player_links').all()),
     );
   }
@@ -134,8 +145,7 @@ export function createBattleRecordRepository(db, { project = (_kind, _id, value)
         const plan = (await syncPlan());
         if (syncFingerprint(plan) !== values.fingerprint)
           throw new BattleRecordError('成員或戰績資料已變動，請重新預覽後同步', 409, 'STALE_SYNC_PREVIEW');
-        const insert = db.prepare('INSERT INTO battle_player_links (record_id, player_index, member_uid) VALUES (?, ?, ?)');
-        for (const row of plan.assignments) (await insert.run(row.recordId, row.playerIndex, row.memberUid));
+        (await insertLinks(plan.assignments.map((row) => [row.recordId, row.playerIndex, row.memberUid])));
         const result = { ...publicBattleSyncPlan(plan), linkedPlayers: plan.assignments.length };
         (await db.prepare('INSERT INTO battle_sync_requests VALUES (?, ?, ?)').run(values.requestId, values.fingerprint, JSON.stringify(result)));
         return result;
@@ -441,15 +451,15 @@ export function createBattleRecordRepository(db, { project = (_kind, _id, value)
               );
           }
           const { filename, csvText, attributions, ...content } = record;
-          const contentHash = hash(JSON.stringify(content));
-          if ((await db.prepare('SELECT id FROM battle_records WHERE content_hash=?').get(contentHash)))
-            throw new BattleRecordError(
-              '這筆戰績已上傳, 請查看已上傳戰績',
-              409,
-              'BATTLE_DUPLICATE',
-            );
-          return { record, event, contentHash };
+          return { record, event, contentHash: hash(JSON.stringify(content)) };
         }));
+        if ((await db.prepare(`SELECT id FROM battle_records WHERE content_hash IN (${prepared.map(() => '?').join(',')}) LIMIT 1`)
+          .get(prepared.map((row) => row.contentHash))))
+          throw new BattleRecordError(
+            '這筆戰績已上傳, 請查看已上傳戰績',
+            409,
+            'BATTLE_DUPLICATE',
+          );
         if (new Set(prepared.map((row) => row.contentHash)).size !== prepared.length)
           throw new BattleRecordError('本次有重複的戰績, 請移除重複 CSV');
         const members = (await db.prepare('SELECT uid, name, revision FROM members').all());
@@ -478,7 +488,7 @@ export function createBattleRecordRepository(db, { project = (_kind, _id, value)
           now,
           fileReferences.image?.id || null,
         ));
-        const ids = [];
+        const ids = [], links = [];
         for (const [index, { record, event, contentHash, attribution }] of prepared.entries()) {
           const id = randomUUID();
           ids.push(id);
@@ -504,15 +514,13 @@ export function createBattleRecordRepository(db, { project = (_kind, _id, value)
             record.isInternal ? 1 : 0,
             fileReferences.csv[index].id,
           ));
-          const insertLink = db.prepare(
-            'INSERT INTO battle_player_links (record_id, player_index, member_uid) VALUES (?, ?, ?)',
-          );
           for (const [index, player] of record.players.entries()) {
             const target = attribution.targets.get(index);
             const matches = byName.get(player.player) || [];
-            if (target || matches.length === 1) (await insertLink.run(id, index, target?.uid || matches[0]));
+            if (target || matches.length === 1) links.push([id, index, target?.uid || matches[0]]);
           }
         }
+        (await insertLinks(links));
         return { records: (await asyncMap(ids, get)) };
       }));
     },

@@ -14,6 +14,12 @@ export function createMemberReferences(db) {
       (await db.prepare('INSERT INTO member_uid_revisions VALUES (?, ?) ON DUPLICATE KEY UPDATE revision=GREATEST(revision, VALUES(revision))').run(uid, revision));
     },
     project: async (kind, id, value) => projectMemberReferences(value, (await overrides(kind, id))),
+    // Whole-table scans read every override of one kind once instead of once per record.
+    async projectAll(kind, rows) {
+      const byId = new Map((await db.prepare('SELECT record_id, overrides_json FROM member_reference_overrides WHERE kind=?').all(kind))
+        .map((row) => [row.record_id, JSON.parse(row.overrides_json)]));
+      return rows.map((row) => projectMemberReferences(row.value, byId.get(row.id) || []));
+    },
     async remap(fromUid, toUid) {
       for (const [kind, table, column] of [
         ['lineup', 'lineup_versions', 'snapshot_json'],

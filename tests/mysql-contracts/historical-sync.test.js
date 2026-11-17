@@ -74,9 +74,9 @@ test('MySQL sync repairs historical aliases atomically while retaining original 
   const snapshot=await database.query('SELECT * FROM battle_records ORDER BY created_order');
   const uploads=await database.query('SELECT * FROM battle_uploads ORDER BY id');
   const preview=await repo.previewBattleMemberSync();
-  let count=0;
+  // Links are one batched INSERT now; failing the receipt after it proves the links roll back too.
   const broken=createMysqlRepository({...database, transaction:(work,options)=>database.transaction(async connection=>(await work({query(sql,args){
-   if(sql.startsWith('INSERT INTO battle_player_links') && ++count===2) throw new Error('synthetic sync failure');
+   if(sql.startsWith('INSERT INTO battle_sync_requests')) throw new Error('synthetic sync failure');
    return connection.query(sql,args);
   }})),options)});
   await assert.rejects((broken.syncBattleMembers({fingerprint:preview.fingerprint,requestId:'fail'})),/synthetic sync failure/);
@@ -87,4 +87,39 @@ test('MySQL sync repairs historical aliases atomically while retaining original 
   assert.deepEqual(await database.query('SELECT * FROM battle_uploads ORDER BY id'),uploads);
   assert.equal((await createMysqlRepository(database).getMemberBattleRecords('1')).total,3);
  } finally {await repo.close();}
+});
+
+test('uploads and member sync write player links in one statement instead of one per player', async () => {
+  const repo = await createRepository();
+  const database = repositoryDatabase(repo);
+  const statements = [];
+  const observed = createMysqlRepository({
+    ...database,
+    transaction: (work, options) => database.transaction((connection) => work({
+      query(sql, parameters) { statements.push(sql); return connection.query(sql, parameters); },
+    }), options),
+  }, { fileStorage: (await import('../helpers/mysql-repository.js')).repositoryFileStorage(repo) });
+  const linkInserts = () => statements.filter((sql) => sql.startsWith('INSERT INTO battle_player_links')).length;
+  try {
+    const before = [];
+    for (const name of ['甲', '乙', '丙']) before.push((await observed.saveBattleRecords(uploadInput(name))).records[0]);
+    for (const [uid, name] of [['1', '甲'], ['2', '乙'], ['3', '丙'], ['4', '對手']])
+      await database.query('INSERT INTO members (uid,name,primary_profession_id,primary_profession,is_in_guild,is_in_club,joined_at,updated_at,revision) VALUES (?,?,3,?,1,1,?,?,1)', [uid, name, '素問', '2026-01-01', '2026-01-01']);
+    statements.length = 0;
+    const preview = await observed.previewBattleMemberSync();
+    const synced = await observed.syncBattleMembers({ fingerprint: preview.fingerprint, requestId: 'batched-sync' });
+    assert.equal(synced.linkedPlayers, 6);
+    assert.equal(linkInserts(), 1);
+    // Preview + sync read a fixed set of tables; the count no longer grows with records or players.
+    assert.ok(statements.length <= 15, `sync used ${statements.length} statements`);
+    for (const record of before) assert.ok((await repo.getBattleRecord(record.id)).players.every((player) => player.memberUid));
+
+    statements.length = 0;
+    const uploaded = (await observed.saveBattleRecords(uploadInput('甲'))).records[0];
+    assert.equal(linkInserts(), 1);
+    assert.deepEqual(uploaded.players.map((player) => player.memberUid), ['1', '4']);
+    const again = uploadInput('乙');
+    await observed.saveBattleRecords(again);
+    await assert.rejects(observed.saveBattleRecords({ ...again, requestId: 'same-content' }), code('BATTLE_DUPLICATE'));
+  } finally { await repo.close(); }
 });
