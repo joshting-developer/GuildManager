@@ -1,6 +1,8 @@
+> 歷史參考：此文件描述移除前 GAS，所有命令與狀態均非現行操作流程。來源見 [索引](README.md)。
+
 # GAS 初始化與部署
 
-版本定版與同步的現行流程見 [GAS 發布流程](docs/gas-release.md)。下列舊紀錄提到的原 AGENTS 交接已完整保留在私人歷史, 本機可從 Memory 索引按日期查閱；這次文件整理未重新查詢遠端或更新部署
+版本定版與同步的現行流程見 [GAS 發布流程](gas-release.md)。下列舊紀錄提到的原 AGENTS 交接已完整保留在私人歷史, 本機可從 Memory 索引按日期查閱；這次文件整理未重新查詢遠端或更新部署
 
 目前已生成 Vue 單檔頁面與完整 GAS 後端，涵蓋登入／帳號管理、行事曆、成員／匯入／名稱歷史、活動、職責、報名／請假、排表／範本、戰績上傳／下載／閱覽、個人分析及團隊分析。本機 SQLite 環境保留。
 
@@ -96,7 +98,7 @@ member閱覽測試補強DELETE／PATCH拒絕及資料不變斷言，連同原分
 
 隔離 Chrome 驗證行事曆早於登入確認顯示、登入失敗仍可瀏覽且確認後不重載；三種過期場次均用精簡讀取、公開計數隱藏、正常請假與影片提交、重載保留草稿並用修改後 revision、過期改期後恢復完整報名資料、關閉後舊回應忽略、跨午夜零新增 RPC、管理統計保留、桌面／手機明暗無溢出或例外。證據 `/private/tmp/guild-calendar-fast-preview/`。
 
-使用者改為先累積 **Unreleased**、同步 GAS 前才定版；先前預備的 1.0.29 尚未同步，已將條目改回 Unreleased／date=null，package／lockfile 保持最近正式 **1.0.28**，本機頁尾顯示「未發布」。之後要求同步時才在編譯前定版下一個 patch（無其他交付時預期為 1.0.29），失敗重試不重複升版。更新紀錄隨 GAS 編譯交付，沒有執行期 GitHub 讀取；完整流程見 [GAS 發布流程](docs/gas-release.md)。本輪未 push／同步 GAS／查詢或更新 Web App 部署、setupGas、正式資料／Properties 寫入或通知；最新成功同步仍為下方 1.0.28。
+使用者改為先累積 **Unreleased**、同步 GAS 前才定版；先前預備的 1.0.29 尚未同步，已將條目改回 Unreleased／date=null，package／lockfile 保持最近正式 **1.0.28**，本機頁尾顯示「未發布」。之後要求同步時才在編譯前定版下一個 patch（無其他交付時預期為 1.0.29），失敗重試不重複升版。更新紀錄隨 GAS 編譯交付，沒有執行期 GitHub 讀取；完整流程見 [GAS 發布流程](gas-release.md)。本輪未 push／同步 GAS／查詢或更新 Web App 部署、setupGas、正式資料／Properties 寫入或通知；最新成功同步仍為下方 1.0.28。
 
 本輪另完成未發布狀態的顯示與流程調整（`fe7cd4b`）：更新紀錄頁不渲染草稿日期，頁尾顯示「未發布」，正式歷史保留；一般／GAS 編譯與隔離 Chrome 桌面／手機明暗通過，證據 `/private/tmp/guild-unreleased-preview/`。沒有功能資料讀寫或新內容請求，未重新執行前輪 347 項業務測試；目前 build 是 Unreleased 測試包，不是已定版的同步來源。
 
@@ -178,7 +180,7 @@ ECharts 6.1.0 採必要模組、圓餅共用單一 Canvas；目前一般網站�
 
 ## 2026/10/19：v1.0.20 同步狀態（歷史）
 
-同步來源 `455efb0`（功能 `f35e0c8`），平台版本 **1.0.20**，沿用同批版本，不再次升版。雲端儲存讀取改為先挑選最新已提交版本，只解碼該版本；大表與指定 key 查詢先讀索引再取最新 payload，小表保留單次批次讀取，同次交易重用索引。保留全部歷史、五欄格式、Base64、提交標記、版本／權限及併發保護；不需資料搬移或重新執行 setupGas，詳見 [Architecture.md](Architecture.md) 的 GAS 最新已提交版本讀取。
+同步來源 `455efb0`（功能 `f35e0c8`），平台版本 **1.0.20**，沿用同批版本，不再次升版。雲端儲存讀取改為先挑選最新已提交版本，只解碼該版本；大表與指定 key 查詢先讀索引再取最新 payload，小表保留單次批次讀取，同次交易重用索引。保留全部歷史、五欄格式、Base64、提交標記、版本／權限及併發保護；不需資料搬移或重新執行 setupGas，詳見 [Architecture.md](../../Architecture.md) 的 GAS 最新已提交版本讀取。
 
 新增 9 項回歸，完整 300 項測試全通過，原有 291 項未修改；與 v1.0.19 基準的 24 組讀取回應比較一致。一般／GAS 編譯、版號／release note／四檔及無外部 JS／CSS 核對通過；隔離高歷史量編譯後 GAS 案例亦驗證多人請假、同人衝突及 requestId 重試正常。效能比較是讀取／解碼次數，沒有實測正式 Google 延遲。
 
@@ -256,7 +258,7 @@ ECharts 6.1.0 採必要模組、圓餅共用單一 Canvas；目前一般網站�
 
 **最新同版補充：** `687b01b` 已補上更新紀錄頁的 v1.0.11 條目及 AGENTS.md 的交付規則，並推送至 `origin/main`。再次執行 `npm run gas:push` 成功，四檔讀回比對一致；最新遠端前後備份為 `data/gas-backups/2026-10-19T05-17-07-633Z/before` 與 `after`（私有、不提交）。一般／GAS 編譯及編譯產物中的四項更新說明核對通過。版本仍為 1.0.11，Web App 部署與正式資料未更動。以下為首次成員維護同步紀錄。
 
-來源提交 `f02e43a`（`feat(members): 新增成員資料維護並交付 v1.0.11`）已推送至 `origin/main`，並核對 GitHub main 的完整 SHA 為 `f02e43a84446e2346976448f68d1fc1b93acfe17`。沿用既有 `1.0.11`，本輪未重複升版。
+來源提交 `f02e43a`（`feat(../../members): 新增成員資料維護並交付 v1.0.11`）已推送至 `origin/main`，並核對 GitHub main 的完整 SHA 為 `f02e43a84446e2346976448f68d1fc1b93acfe17`。沿用既有 `1.0.11`，本輪未重複升版。
 
 2026/10/19 已執行 `npm run gas:push`，將 `Index.html`／`Code.gs`／`Backend.gs`／`appsscript.json` 四檔同步至 `gas/upload-target.json` 指定的 Apps Script 專案；Google 接受上傳，四檔讀回比對一致。遠端前後備份位於 `data/gas-backups/2026-10-19T05-13-09-376Z/before` 與 `after`（私有、不提交）。先前自動核准服務容量不足的交付阻礙已解除。
 
@@ -282,7 +284,7 @@ ECharts 6.1.0 採必要模組、圓餅共用單一 Canvas；目前一般網站�
 
 更新既有部署可保留網址；直接同步程式不會更新已發布版本。[Google 版本部署說明](https://developers.google.com/apps-script/concepts/deployments)
 
-最新同步與備份紀錄見上方 v1.0.18 交付狀態；[2026/10/05 手冊與團隊分析同步計畫](plans/main/team-analysis-manual-gas-sync-plan.md)、[前次日期模式同步](plans/main/gas-date-mode-sync-plan.md)、[前次 admin 同步](plans/main/gas-admin-sync-plan.md)及[先前部署準備紀錄](plans/main/gas-release-preparation-plan.md)保留過往資訊。本節是已存在部署的更新流程；以下首次建立、私有屬性與初始化章節供尚未設定的環境參考。
+最新同步與備份紀錄見上方 v1.0.18 交付狀態；[2026/10/05 手冊與團隊分析同步計畫](../../plans/main/team-analysis-manual-gas-sync-plan.md)、[前次日期模式同步](../../plans/main/gas-date-mode-sync-plan.md)、[前次 admin 同步](../../plans/main/gas-admin-sync-plan.md)及[先前部署準備紀錄](../../plans/main/gas-release-preparation-plan.md)保留過往資訊。本節是已存在部署的更新流程；以下首次建立、私有屬性與初始化章節供尚未設定的環境參考。
 
 ## 本機自動上傳
 

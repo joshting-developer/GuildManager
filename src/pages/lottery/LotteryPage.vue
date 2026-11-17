@@ -15,9 +15,8 @@ import { LOTTERY_MAX_PLAYERS, LOTTERY_MAX_PRIZES, lotteryRunners } from '../../d
 import { shuffle } from '../../domain/lottery-race.js';
 import { LOTTERY_MODES } from './modes.js';
 
-const source = import.meta.env.VITE_DATA_SOURCE || 'local';
-const client = createLotteryClient({ source });
-const memberClient = createMemberClient({ source });
+const client = createLotteryClient();
+const memberClient = createMemberClient();
 const MODE_STORAGE_KEY = 'guild-lottery-mode';
 
 const board = ref(null),

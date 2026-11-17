@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createTestRepository, repositoryDatabase, repositoryFileStorage } from '../helpers/mysql-repository.js';
 import { createMysqlRepository } from '../../server/mysql/repository.js';
-import { fixtureCsv } from '../helpers/gas-runtime.js';
+import { fixtureCsv } from '../helpers/battle-csv.js';
+
 import { participationTarget } from '../../src/domain/participation-target.js';
 
 const person = (uid, name = uid) => ({ uid, name, primaryProfessionId: 1 });

@@ -7,7 +7,7 @@ import { createRepository } from '../server/repository.js';
 import { createApp } from '../server/app.js';
 import { csrfToken } from '../server/auth-repository.js';
 import { createLotteryClient } from '../src/api/lottery.js';
-import { setGasSession } from '../src/api/gas.js';
+
 import {
   drawLotteryPrize,
   emptyLotteryBoard,
@@ -15,7 +15,6 @@ import {
   updateLotteryBoard,
   validateLotteryInput,
 } from '../src/domain/lottery.js';
-import { gasRuntime, cloudResult, cloudSession } from './helpers/gas-runtime.js';
 
 const code = (value) => (error) => error.code === value;
 let ids = 0;
@@ -177,70 +176,6 @@ test('lottery HTTP API is limited to admin/manager sessions with CSRF', async ()
   }
 });
 
-test('GAS lottery mirrors the local contract, creates its sheet on first use and blocks members', async () => {
-  const env = await gasRuntime();
-  env.setup();
-  env.sheets.delete('GM_lottery');
-  const admin = cloudResult(
-    env.raw('login', [{ username: 'admin', password: 'initial-password-123' }]),
-  );
-  const context = cloudSession(admin);
-  cloudResult(env.raw('setMemberToken', [{ password: 'Member123', revision: 0 }], context));
-  const member = cloudSession(cloudResult(env.raw('loginMember', [{ password: 'Member123' }])));
-  assert.equal(env.raw('getLottery', [], member).error.code, 'MANAGEMENT_REQUIRED');
-  assert.equal(env.raw('getLottery', []).error.code, 'AUTH_REQUIRED');
-  assert.equal(
-    env.raw('saveLottery', [{ players: [], prizes: [], revision: 0 }], {
-      ...context,
-      csrfToken: 'x',
-    }).error.code,
-    'CSRF_INVALID',
-  );
-
-  let success;
-  const googleRun = {
-    withSuccessHandler(fn) {
-      success = fn;
-      return this;
-    },
-    withFailureHandler() {
-      return this;
-    },
-  };
-  for (const [operation, arity] of [
-    ['getLottery', 0],
-    ['saveLottery', 1],
-    ['drawLotteryPrize', 1],
-    ['resetLottery', 1],
-  ])
-    googleRun[operation] = (...args) =>
-      success(env.raw(operation, args.slice(0, arity), args[arity]));
-  setGasSession(admin);
-  try {
-    const client = createLotteryClient({
-      source: 'gas',
-      googleRun,
-      fetchImpl: () => assert.fail('HTTP must not be used'),
-    });
-    assert.equal((await client.getLottery()).lottery.prizes.length, 0);
-    assert.ok(env.sheets.has('GM_lottery'));
-    const saved = (
-      await client.saveLottery({ players: ['甲', '乙'], prizes: ['一獎', '二獎'], revision: 0 })
-    ).lottery;
-    const first = await client.drawPrize(saved.prizes[0].id);
-    const repeat = await client.drawPrize(saved.prizes[0].id);
-    assert.equal(repeat.draw.already, true);
-    assert.equal(repeat.draw.winner, first.draw.winner);
-    const second = await client.drawPrize(saved.prizes[1].id);
-    assert.notEqual(second.draw.winner, first.draw.winner);
-    await assert.rejects(client.resetLottery(saved.revision), code('LOTTERY_CONFLICT'));
-    const reset = await client.resetLottery(second.lottery.revision);
-    assert.ok(reset.lottery.prizes.every((prize) => prize.winner === null));
-  } finally {
-    setGasSession({ user: null });
-  }
-});
-
 test('race plan always lets the saved winner finish first and keeps mishaps before each finish', async () => {
   const { planRace, horseClock, RACE_MS, raceIcon } = await import('../src/domain/lottery-race.js');
   const names = Array.from({ length: 40 }, (_value, index) => `玩家${index}`);
@@ -331,57 +266,5 @@ test('wheel endings always land on the saved winner and twists first stop on som
     assert.equal(plan.ending, key);
     if (key === 'grow') assert.ok(Math.abs(plan.target) < plan.growHalf);
     else assert.equal(sliceAt(24, plan.rotation, plan.pointerAngle), plan.winnerSlot);
-  }
-});
-
-test('GAS lottery client tolerates google.script.run dropping null fields', async () => {
-  const env = await gasRuntime();
-  env.setup();
-  const admin = cloudResult(
-    env.raw('login', [{ username: 'admin', password: 'initial-password-123' }]),
-  );
-  // Simulate the HTML Service transport omitting null-valued properties.
-  const dropNulls = (value) =>
-    Array.isArray(value)
-      ? value.map(dropNulls)
-      : value && typeof value === 'object'
-        ? Object.fromEntries(
-            Object.entries(value)
-              .filter(([, item]) => item !== null)
-              .map(([key, item]) => [key, dropNulls(item)]),
-          )
-        : value;
-  let success;
-  const googleRun = {
-    withSuccessHandler(fn) {
-      success = fn;
-      return this;
-    },
-    withFailureHandler() {
-      return this;
-    },
-  };
-  for (const [operation, arity] of [
-    ['getLottery', 0],
-    ['saveLottery', 1],
-    ['drawLotteryPrize', 1],
-  ])
-    googleRun[operation] = (...args) =>
-      success(dropNulls(env.raw(operation, args.slice(0, arity), args[arity])));
-  setGasSession(admin);
-  try {
-    const client = createLotteryClient({ source: 'gas', googleRun });
-    const saved = (
-      await client.saveLottery({ players: ['甲', '乙'], prizes: ['一獎', '二獎'], revision: 0 })
-    ).lottery;
-    assert.equal(saved.prizes[0].winner, null, 'missing winner is normalized to null');
-    assert.equal(saved.prizes[0].drawnAt, null);
-    const loaded = (await client.getLottery()).lottery;
-    assert.equal(loaded.prizes.length, 2);
-    const drawn = await client.drawPrize(saved.prizes[0].id);
-    assert.ok(['甲', '乙'].includes(drawn.draw.winner));
-    assert.equal(drawn.lottery.prizes[1].winner, null);
-  } finally {
-    setGasSession({ user: null });
   }
 });

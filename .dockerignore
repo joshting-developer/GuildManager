@@ -12,8 +12,6 @@
 !tools/**
 !tests/
 !tests/**
-!gas/
-!gas/**
 !config/
 !config/*.env.example
 

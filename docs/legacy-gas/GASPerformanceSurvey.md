@@ -1,3 +1,5 @@
+> 歷史參考：此文件描述移除前 GAS，所有命令與狀態均非現行操作流程。來源見 [索引](README.md)。
+
 # GAS 效能調查與 GuildManager 可行性評估
 
 調查日期：**2026-10-27（Asia/Taipei）**
@@ -99,17 +101,17 @@ Advanced Sheets Service 要顯式啟用，使用標準 Cloud project 時也要�
 
 | 區域 | 程式碼事實 | 狀態／剩餘成本 |
 | --- | --- | --- |
-| Storage | [storage.js](gas/src/storage.js) 固定 commits 快照、每 ID 選最新提交、同交易索引／解碼重用 | 已完成；仍掃 commits 與業務索引 |
+| Storage | `gas/src/storage.js`（[移除前原始碼](README.md#移除前原始碼)） 固定 commits 快照、每 ID 選最新提交、同交易索引／解碼重用 | 已完成；仍掃 commits 與業務索引 |
 | payload | 小表 all 一次五欄；指定 key／大表先四欄索引，再讀最新 payload | 已完成；非連續最新列會分多個 Range |
-| 排表首頁 | [lineups.js](gas/src/lineups.js) 的 `getLineupEditor` 先 `all('lineup_versions')`，再取該場最新 | 只回傳最新版，**但仍解碼每個不同版本 ID 的快照** |
-| 排表儲存 | `confirmLineup` 用 `versions(eventId)[0]` 檢查版本 | 仍可能投影該場舊快照；這段處於寫入保護內 |
-| 報名／請假 | [participation.js](gas/src/participation.js) 對 responses／registrations 做 all 後依 eventId 篩選 | 個人版本已減少無關衝突；不等於只讀這一人的資料 |
-| 對戰詳情 | [battles.js](gas/src/battles.js) 讀當筆玩家，但 battle_links 仍 all；分團另找最新排表 | 保留同次最小對應，開分析零新增 RPC；來源掃描尚在 |
+| 排表首頁 | `gas/src/lineups.js`（[移除前原始碼](README.md#移除前原始碼)） 的 `getLineupEditor` 先 `all(../../'lineup_versions')`，再取該場最新 | 只回傳最新版，**但仍解碼每個不同版本 ID 的快照** |
+| 排表儲存 | `confirmLineup` 用 `versions(../../eventId)[0]` 檢查版本 | 仍可能投影該場舊快照；這段處於寫入保護內 |
+| 報名／請假 | `gas/src/participation.js`（[移除前原始碼](README.md#移除前原始碼)） 對 responses／registrations 做 all 後依 eventId 篩選 | 個人版本已減少無關衝突；不等於只讀這一人的資料 |
+| 對戰詳情 | `gas/src/battles.js`（[移除前原始碼](README.md#移除前原始碼)） 讀當筆玩家，但 battle_links 仍 all；分團另找最新排表 | 保留同次最小對應，開分析零新增 RPC；來源掃描尚在 |
 | 精簡編輯 | `getBattleMetadata` 只讀 battles 指定 ID | Unreleased 已完成，不應重做一份 |
-| 唯讀／寫入鎖 | [backend.js](gas/src/backend.js) READ_ONLY 不拿業務鎖；共享寫入仍 Script Lock | 已完成；持鎖長度仍決定尖峰排隊 |
+| 唯讀／寫入鎖 | `gas/src/backend.js`（[移除前原始碼](README.md#移除前原始碼)） READ_ONLY 不拿業務鎖；共享寫入仍 Script Lock | 已完成；持鎖長度仍決定尖峰排隊 |
 | 請假通知 | `deliverNotices` 在鎖外，但在 RPC return 前；429 另有一次等待／重送 | 不擋其他寫入，**本人仍等通知送完才收到成功** |
-| 品牌首載 | [Code.gs](gas/Code.gs) 的 doGet 呼叫 `pagePlatform`，6 小時 Script Cache | miss／被提前淘汰時會回退 Sheets／可能 Drive，延後 HTML 送出 |
-| 登入狀態 | [storage.js](gas/src/storage.js) 的 private store 逐段讀 Properties、再次驗 pointer | 一般 RPC 也有這層成本；穩定快照／撤銷不能移除 |
+| 品牌首載 | `gas/Code.gs`（[移除前原始碼](README.md#移除前原始碼)） 的 doGet 呼叫 `pagePlatform`，6 小時 Script Cache | miss／被提前淘汰時會回退 Sheets／可能 Drive，延後 HTML 送出 |
+| 登入狀態 | `gas/src/storage.js`（[移除前原始碼](README.md#移除前原始碼)） 的 private store 逐段讀 Properties、再次驗 pointer | 一般 RPC 也有這層成本；穩定快照／撤銷不能移除 |
 | 前端 | GAS 單檔；圖表已選必要 ECharts 模組，抽屜延後畫圖 | 模組仍在單檔下載中；延後初始化不等於延後下載 |
 
 這裡的「大」應用四個量判斷：實體歷史／分段列數、有效邏輯紀錄數、payload bytes、最新列的分散範圍數。現有 **128 列**只是 storage 選擇單次五欄或索引分階段讀取的門檻，不是容量上限。少量大型排表也可能比數千筆小回應昂貴；本輪沒有正式表的這四項統計。
@@ -139,7 +141,7 @@ Base64 對 n 個輸入 bytes 的編碼長度為 `4 × ceil(n / 3)`，大型內�
 
 ### 6.1 P0：先把「慢」分層
 
-目前完整分段診斷主要針對戰績上傳失敗，見 [battle-upload-diagnostics.js](gas/src/battle-upload-diagnostics.js)；成功的一般 RPC 沒有同等觀測。
+目前完整分段診斷主要針對戰績上傳失敗，見 `gas/src/battle-upload-diagnostics.js`（[移除前原始碼](README.md#移除前原始碼)）；成功的一般 RPC 沒有同等觀測。
 
 建議記錄：operation、固定階段名稱、總耗時、鎖等待／持有時間、各表讀取範圍次數／列數／payload bytes、解碼筆數、cache hit/miss、通知耗時。表名固定白名單，不記 UID、姓名、CSV、網址、token 或整份 payload。採樣並在一次執行尾端彙整，不逐格 logging。
 
@@ -165,9 +167,9 @@ Base64 對 n 個輸入 bytes 的編碼長度為 `4 × ceil(n / 3)`，大型內�
 
 目錄必須和排表快照在**同一提交**發布，且讀取使用相同 commits；名冊 UID 維護造成的引用覆寫，仍在取出指定快照後投影，不把投影結果當永久真相。既有紀錄先保留全掃回退；正式回填需另行規劃與授權。
 
-只把目錄加成一般五欄工作表，依然會掃目錄索引；它主要省去大型歷史 payload 的傳輸／解碼，不能宣稱 O(1) 或完全不掃歷史。更進一步的實體 row directory 需另處理排序、行位移、損毀及驗證。
+只把目錄加成一般五欄工作表，依然會掃目錄索引；它主要省去大型歷史 payload 的傳輸／解碼，不能宣稱 O(../../1) 或完全不掃歷史。更進一步的實體 row directory 需另處理排序、行位移、損毀及驗證。
 
-較小的先行改善是 `confirmLineup` 只選最高 version 做衝突比較，避免為了取版本號投影全部舊排表；這個改動本身仍不會省掉 `all('lineup_versions')` 的解碼，必須分開報告成果。
+較小的先行改善是 `confirmLineup` 只選最高 version 做衝突比較，避免為了取版本號投影全部舊排表；這個改動本身仍不會省掉 `all(../../'lineup_versions')` 的解碼，必須分開報告成果。
 
 ### 6.4 P2：快取只放有邊界的資料
 
@@ -274,6 +276,6 @@ Lock 類型與 Document Lock 限制見 [官方 LockService](https://developers.g
 
 ## 10. 維護與來源說明
 
-外部規則與配額可能變動；要實作時重新核對上方原始連結。未採用的提案不寫成 AGENTS.md 的強制常態要求；採用並驗證後，才更新 [Architecture.md](Architecture.md)、[GASConcurrency.md](GASConcurrency.md)、[Style.md](Style.md) 與 [AGENTS.md](AGENTS.md)。
+外部規則與配額可能變動；要實作時重新核對上方原始連結。未採用的提案不寫成 AGENTS.md 的強制常態要求；採用並驗證後，才更新 [Architecture.md](../../Architecture.md)、[GASConcurrency.md](GASConcurrency.md)、[Style.md](../../Style.md) 與 [AGENTS.md](../../AGENTS.md)。
 
 純研究不升版、不新增 release note、不改套件或程式。本文提案與工期皆尚未成為交付承諾，正式執行依使用者選定的範圍進行。

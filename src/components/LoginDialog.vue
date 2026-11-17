@@ -5,7 +5,6 @@ const props = defineProps({
   modelValue: Boolean,
   busy: Boolean,
   error: String,
-  source: String,
   initialMode: { type: String, default: 'member' },
 });
 const emit = defineEmits(['update:modelValue', 'login', 'closed', 'mode-change']);

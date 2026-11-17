@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createTestRepository as createRepository } from '../helpers/mysql-repository.js';
 
-import { fixtureCsv } from "../helpers/gas-runtime.js";
+import { fixtureCsv } from '../helpers/battle-csv.js';
 
 import { parseBattleCsv } from '../../src/domain/battle-records.js';
 import { battlePlayerValue, sortBattlePlayers } from '../../src/domain/battle-statistics.js';

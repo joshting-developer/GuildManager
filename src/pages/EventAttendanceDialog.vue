@@ -9,7 +9,7 @@ const props = defineProps({
   event: { type: Object, required: true },
 });
 const emit = defineEmits(['update:modelValue', 'closed']);
-const client = createParticipationClient({ source: import.meta.env.VITE_DATA_SOURCE || 'local' });
+const client = createParticipationClient();
 const id = useId();
 const tab = ref('leave');
 const data = ref(null);

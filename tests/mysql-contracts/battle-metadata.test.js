@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createTestRepository as createRepository } from '../helpers/mysql-repository.js';
 
-import { fixtureCsv } from "../helpers/gas-runtime.js";
+import { fixtureCsv } from '../helpers/battle-csv.js';
 
 const member = { uid: '001', name: '城', primaryProfessionId: 3 };
 const upload = (type = 'scrimmage', eventId = null, roundNumber) => ({

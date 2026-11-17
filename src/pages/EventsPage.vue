@@ -16,7 +16,7 @@ import EventAttendanceDialog from './EventAttendanceDialog.vue';
 import { LINEUP_TYPES } from '../domain/lineups.js';
 import './events.css';
 import { EVENT_TYPE_OPTIONS, eventTypeLabel, eventDisplayTitle } from '../domain/event-types.js';
-const client = createEventClient({ source: import.meta.env.VITE_DATA_SOURCE || 'local' });
+const client = createEventClient();
 const events = ref([]);
 const loading = ref(true);
 const loadError = ref('');

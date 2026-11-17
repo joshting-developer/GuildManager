@@ -17,7 +17,7 @@ const PersonalBattleTrend = defineAsyncComponent({
   delay: 0,
 });
 const props = defineProps({ memberUid: { type: String, required: true } });
-const client = createMemberClient({ source: import.meta.env.VITE_DATA_SOURCE || 'local' });
+const client = createMemberClient();
 const data = shallowRef(null), loading = ref(true), error = ref(''), page = ref(1);
 const selection = shallowRef(new Set());
 const trendOpen = ref(false), trendVisited = ref(false);

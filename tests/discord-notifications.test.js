@@ -9,7 +9,6 @@ import {
   leaveNotice,
 } from '../src/domain/discord-notifications.js';
 import { authenticatedFetch } from './helpers/authenticated-fetch.js';
-import { gasRuntime, cloudResult, cloudSession } from './helpers/gas-runtime.js';
 
 const LEAVE_URL = 'https://discord.com/api/webhooks/123456/leave-token_A';
 const MEMBER_URL = 'https://discordapp.com/api/webhooks/654321/member-token';
@@ -256,108 +255,4 @@ test('local API hands notices to the notifier with the platform name only after 
     f.server.close();
     f.repo.close();
   }
-});
-
-test('GAS sends committed notices after the lock, skips retries and survives webhook failures', async () => {
-  const env = await gasRuntime();
-  env.setup();
-  const admin = cloudResult(
-    env.raw('login', [{ username: 'admin', password: 'initial-password-123' }]),
-  );
-  const context = cloudSession(admin);
-  const call = (op, args = []) => cloudResult(env.raw(op, args, context));
-
-  call('addMember', [{ uid: '001', name: '甲', primaryProfessionId: 3 }]);
-  assert.equal(env.fetches.length, 0, 'no webhook configured');
-
-  env.propertyService.setProperty('DISCORD_WEBHOOK_LEAVE', LEAVE_URL);
-  env.propertyService.setProperty('DISCORD_WEBHOOK_MEMBER', 'https://example.com/not-discord');
-  call('addMember', [{ uid: '002', name: '乙', primaryProfessionId: 1 }]);
-  assert.equal(env.fetches.length, 0, 'non-Discord URLs are ignored');
-  env.propertyService.setProperty('DISCORD_WEBHOOK_MEMBER', MEMBER_URL);
-  const member = call('addMember', [{ uid: '003', name: '丙', primaryProfessionId: 2 }]).member;
-  assert.equal(env.fetches.length, 1);
-  assert.equal(env.fetches[0].url, MEMBER_URL);
-  const embed = JSON.parse(env.fetches[0].options.payload).embeds[0];
-  assert.equal(embed.title, '➕ 幫眾名冊：新增');
-  assert.equal(embed.footer.text, '逆水寒');
-
-  const edit = { name: '丙', primaryProfessionId: 2, secondaryProfessionId: null };
-  call('updateMember', ['003', { ...edit, revision: member.revision }]);
-  assert.equal(env.fetches.length, 1, 'unchanged update is silent');
-  assert.equal(env.raw('removeMember', ['003', 99], context).ok, false);
-  assert.equal(env.fetches.length, 1, 'failed write is silent');
-
-  const event = call('createEvent', [
-    { title: '週末', type: 'guild_war', dates: ['2026-10-24'], requestId: 'war' },
-  ]).events[0];
-  const input = (name, status, requestId) => ({
-    name,
-    status,
-    note: '',
-    professionId: 4,
-    requestId,
-    revision: call('getEventParticipation', [event.id]).revision,
-  });
-  env.fetches.length = 0;
-  const leave = input('甲', 'leave', 'leave-1');
-  call('submitParticipation', [event.id, leave]);
-  call('submitParticipation', [event.id, leave]);
-  assert.equal(env.fetches.length, 1, 'retry with the same requestId is silent');
-  const leaveEmbed = JSON.parse(env.fetches[0].options.payload).embeds[0];
-  assert.equal(env.fetches[0].url, LEAVE_URL);
-  assert.equal(leaveEmbed.fields[0].value, '2026/10/24 · 幫戰 · 週末');
-  assert.equal(leaveEmbed.fields[1].value, '**甲**（碎夢）');
-
-  env.fetchRespondsWith(429);
-  call('submitParticipation', [event.id, input('甲', 'registered', 'back-1')]);
-  assert.equal(env.fetches.length, 3, 'one retry after 429');
-  assert.equal(
-    JSON.parse(env.fetches[2].options.payload).embeds[0].fields[2].value,
-    '**已改回報名**',
-  );
-
-  env.fetchRespondsWith('throw');
-  const saved = env.raw(
-    'submitParticipation',
-    [event.id, input('乙', 'leave', 'leave-2')],
-    context,
-  );
-  assert.equal(saved.ok, true, 'webhook failure does not fail the saved operation');
-  const attendance = call('getEventAttendance', [event.id]);
-  assert.deepEqual(
-    attendance.leave.map((row) => row.name),
-    ['乙'],
-  );
-});
-
-test('GAS editor webhook check posts one test message per channel and never logs the URL', async () => {
-  const env = await gasRuntime();
-  const logs = [];
-  env.sandbox.Session = {
-    getActiveUser: () => ({ getEmail: () => 'deployer@example.com' }),
-    getEffectiveUser: () => ({ getEmail: () => 'deployer@example.com' }),
-  };
-  env.sandbox.Logger = { log: (message) => logs.push(message) };
-
-  env.propertyService.setProperty('DISCORD_WEBHOOK_LEAVE', `${LEAVE_URL}\n`);
-  let results = env.sandbox.testDiscordWebhooks();
-  assert.equal(env.fetches.length, 1, 'trailing whitespace is tolerated');
-  assert.equal(env.fetches[0].url, LEAVE_URL);
-  assert.match(JSON.parse(env.fetches[0].options.payload).content, /測試通知（請假頻道）/);
-  assert.equal(results[0], 'DISCORD_WEBHOOK_LEAVE：成功（HTTP 204）');
-  assert.equal(results[1], 'DISCORD_WEBHOOK_MEMBER：未設定或不是 Discord webhook 網址');
-
-  env.propertyService.setProperty('DISCORD_WEBHOOK_MEMBER', MEMBER_URL);
-  env.fetchRespondsWith(404);
-  results = env.sandbox.testDiscordWebhooks();
-  assert.deepEqual([...results], [
-    'DISCORD_WEBHOOK_LEAVE：失敗（HTTP 404）',
-    'DISCORD_WEBHOOK_MEMBER：失敗（HTTP 404）',
-  ]);
-  assert.equal(logs.length, 4);
-  assert.equal(logs.some((line) => line.includes('webhooks/')), false);
-
-  env.sandbox.Session.getActiveUser = () => ({ getEmail: () => '' });
-  assert.throws(() => env.sandbox.testDiscordWebhooks(), /Google 執行帳號/);
 });

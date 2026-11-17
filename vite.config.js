@@ -1,18 +1,15 @@
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
-import { viteSingleFile } from 'vite-plugin-singlefile';
 import { readFileSync } from 'node:fs';
 
 const { version } = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
 
-export default defineConfig(({ mode }) => ({
-  plugins: [vue(), ...(mode === 'gas' ? [viteSingleFile()] : [])],
+export default defineConfig({
+  plugins: [vue()],
   publicDir: false,
-  // Shown in the footer so users can tell which release a Web App deployment runs.
+  // Shown in the website footer.
   define: {
     __APP_VERSION__: JSON.stringify(version),
-    // Only the explicit legacy build may use RPC; stale env values cannot switch v2 back.
-    'import.meta.env.VITE_DATA_SOURCE': JSON.stringify(mode === 'gas' ? 'gas' : 'local'),
   },
   server: {
     port: 5173,
@@ -23,7 +20,7 @@ export default defineConfig(({ mode }) => ({
     proxy: { '/api': process.env.API_PROXY_TARGET || 'http://127.0.0.1:3001' },
   },
   build: {
-    outDir: mode === 'gas' ? 'build/gas' : 'dist',
+    outDir: 'dist',
     sourcemap: false,
   },
-}));
+});

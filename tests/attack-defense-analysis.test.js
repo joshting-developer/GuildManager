@@ -4,8 +4,7 @@ import { createRepository } from '../server/repository.js';
 import { createApp } from '../server/app.js';
 import { createBattleRecordClient } from '../src/api/battle-records.js';
 import { authenticatedFetch } from './helpers/authenticated-fetch.js';
-import { gasRuntime, cloudResult, cloudSession } from './helpers/gas-runtime.js';
-import { createSheetStore } from '../gas/src/storage.js';
+
 import { emptyLineup } from '../src/domain/lineups.js';
 import { BATTLE_COLUMNS } from '../src/domain/battle-records.js';
 import { analyzeBattleTeams, battleTeamContext, analyzeBattleTeamContext, defenseComparisonGroups, comparisonMetricShares, combineAnalysisGroups } from '../src/domain/team-battle-analysis.js';
@@ -114,28 +113,4 @@ test('HTTP detail opt-in uses one adapter request and protects context fields an
     assert.throws(() => repo.getBattleRecord(battle.id, { includeTeamContext: 'true' }), { code: 'BATTLE_FILTER_INVALID' });
     assert.deepEqual(repo.getBattleTeamAnalysis(battle.id).sides.red.groups[0].totals, analyzeBattleTeamContext(result.record).sides.red.groups[0].totals);
   } finally { await new Promise(r => server.close(r)); repo.close(); }
-});
-
-test('compiled GAS details include minimal context under held writer lock with legacy wrapper compatibility and no writes', async () => {
-  const env = await gasRuntime(); env.setup();
-  const session = cloudResult(env.raw('login', [{ username: 'admin', password: 'initial-password-123' }])), context = cloudSession(session);
-  cloudResult(env.raw('setMemberToken', [{ password: 'Member123', revision: 0 }], context));
-  const member = cloudResult(env.raw('loginMember', [{ password: 'Member123' }]));
-  const storage = createSheetStore(env), fixtureData = fixture();
-  storage.transaction(s => {
-    const { players, ...record } = fixtureData.record;
-    s.put('battles', record.id, record); s.put('battle_players', record.id, { players });
-    s.put('lineup_versions', fixtureData.lineup.id, fixtureData.lineup);
-  });
-  const snapshot = () => JSON.stringify({ sheets: [...env.sheets].map(([name, s]) => [name, s.data]), properties: [...env.properties], files: [...env.files.keys()], fetches: env.fetches });
-  const before = snapshot(); env.lock.tryLock(); env.lock.tryLock = () => assert.fail('detail must not acquire writer lock');
-  env.globals.DriveApp.getFileById = () => assert.fail('analysis context must not read Drive');
-  const result = cloudResult(env.raw('getBattleRecord', ['battle', { includeTeamContext: true }], context));
-  assert.ok(!JSON.stringify(result.record.teamContext).includes('private-'));
-  assert.equal(analyzeBattleTeamContext(result.record).sides.red.groups.length, 6);
-  assert.ok(cloudResult(env.raw('getBattleRecord', ['battle', { includeTeamContext: true }], cloudSession(member))).record.teamContext);
-  assert.equal(cloudResult(env.raw('getBattleRecord', ['battle'], context)).record.teamContext, undefined);
-  assert.equal(env.raw('getBattleRecord', ['battle', { includeTeamContext: true }]).error.code, 'AUTH_REQUIRED');
-  assert.equal(env.raw('getBattleRecord', ['battle', { includeTeamContext: 'true' }], context).error.code, 'BATTLE_FILTER_INVALID');
-  assert.equal(snapshot(), before);
 });

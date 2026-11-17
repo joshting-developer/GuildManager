@@ -26,9 +26,8 @@ import BattleAttributionDialog from './BattleAttributionDialog.vue';
 import { memberAffiliation, battlePlayerName, battlePlayerMember, battleRosterIndex } from '../domain/battle-attributions.js';
 const props = defineProps({ initialEventId: { type: String, default: null } });
 
-const source = import.meta.env.VITE_DATA_SOURCE || 'local';
-const client = createBattleRecordClient({ source }),
-  eventClient = createEventClient({ source });
+const client = createBattleRecordClient(),
+  eventClient = createEventClient();
 const csvInputs = {};
 const files = ref([]);
 const roster = shallowRef([]), rosterLoading = ref(true), rosterError = ref('');

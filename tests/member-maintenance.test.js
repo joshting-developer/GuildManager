@@ -11,7 +11,7 @@ import { createApp } from '../server/app.js';
 import { csrfToken } from '../server/auth-repository.js';
 import { createMemberClient } from '../src/api/members.js';
 import { emptyLineup } from '../src/domain/lineups.js';
-import { gasRuntime, cloudSession, cloudResult, fixtureCsv } from './helpers/gas-runtime.js';
+import { fixtureCsv } from './helpers/battle-csv.js';
 
 const person = (uid, name = '現在名') => ({ uid, name, primaryProfessionId: 3, secondaryProfessionId: null });
 // Never send the ordinary endpoint's immutable uid field to management writes.
@@ -128,49 +128,6 @@ test('SQLite member maintenance preserves records, foreign keys, snapshot immuta
     assert.equal(repo.getLineupHistory(db.prepare('SELECT event_id FROM lineup_versions').get().event_id).versions[0].teams[0].slots[0].uid, null);
     assert.equal(repo.getMemberMaintenance('final-uid').member.name, '新使用者');
   } finally { repo.close(); db.close(); rmSync(dir, { recursive: true, force: true }); }
-});
-
-test('GAS real RPC runs the same maintenance contract and rejects member/anonymous calls', async () => {
-  const env = await gasRuntime(); env.setup();
-  const admin = cloudResult(env.raw('login', [{ username: 'admin', password: 'initial-password-123' }]));
-  const context = cloudSession(admin);
-  const call = (name, args = []) => cloudResult(env.raw(name, args, context));
-  contract({
-    add: (input) => call('addMember', [input]).member, event: (input) => call('createEvent', [input]).event,
-    confirm: (input) => call('confirmLineup', [input]), template: (input) => call('createLineupTemplate', [input]).template,
-    upload: (input) => call('saveBattleRecords', [input]), response: (id, input) => call('saveMemberResponse', [id, input]),
-    history: (uid, input) => call('saveMemberNameHistory', [uid, input]), edit: (uid, input) => call('maintainMember', [uid, input]),
-    remove: (uid, input) => call('deleteMemberPermanently', [uid, input]), row: (uid) => call('getMemberMaintenance', [uid]).member,
-    detail: (id) => call('getBattleRecord', [id]).record, personal: (uid) => call('getMemberBattleRecords', [uid, 1, {}]),
-    lineup: (id) => call('getLineupHistory', [id]), apply: (id, eventId) => call('applyLineupTemplate', [id, eventId]),
-    analysis: (id) => call('getBattleTeamAnalysis', [id]), attendance: (id) => call('getEventAttendance', [id]),
-  });
-  call('setMemberToken', [{ password: 'Member123', revision: 0 }]);
-  const member = cloudSession(cloudResult(env.raw('loginMember', [{ password: 'Member123' }])));
-  for (const [operation, args] of [['getMemberMaintenance', ['final-uid']], ['maintainMember', ['final-uid', edit('x', 1, 'member')]],
-    ['saveMemberNameHistory', ['final-uid', { revision: 1, requestId: 'member', entries: [] }]],
-    ['deleteMemberPermanently', ['final-uid', { revision: 1, requestId: 'member', confirmUid: 'final-uid' }]]]) {
-    assert.equal(env.raw(operation, args).error.code, 'AUTH_REQUIRED');
-    assert.equal(env.raw(operation, args, member).error.code, 'MANAGEMENT_REQUIRED');
-    if (operation !== 'getMemberMaintenance')
-      assert.equal(env.raw(operation, args, { ...context, csrfToken: 'bad' }).error.code, 'CSRF_INVALID');
-  }
-  env.failOn('GM_members');
-  const before = call('getMemberMaintenance', ['final-uid']).member;
-  assert.equal(env.raw('maintainMember', ['final-uid', edit('rollback', before.revision, 'rollback')], context).ok, false);
-  env.failOn(null);
-  assert.deepEqual(call('getMemberMaintenance', ['final-uid']).member, before);
-  assert.equal(env.raw('getMemberMaintenance', ['rollback'], context).error.code, 'MEMBER_NOT_FOUND');
-  call('createManager', [{ username: 'manager', password: 'manager-password-123' }]);
-  const manager = cloudSession(cloudResult(env.raw('login', [{ username: 'manager', password: 'manager-password-123' }])));
-  const row = cloudResult(env.raw('getMemberMaintenance', ['final-uid'], manager)).member;
-  const history = cloudResult(env.raw('saveMemberNameHistory', ['final-uid', {
-    revision: row.revision, requestId: 'manager-history', entries: [{ name: '管理者補名' }],
-  }], manager)).member;
-  const updated = cloudResult(env.raw('maintainMember', ['final-uid', edit('manager-fixed', history.revision, 'manager-edit')], manager)).member;
-  assert.equal(cloudResult(env.raw('deleteMemberPermanently', ['manager-fixed', {
-    revision: updated.revision, requestId: 'manager-delete', confirmUid: 'manager-fixed',
-  }], manager)).deleted, true);
 });
 
 test('SQLite failed UID, history and delete writes roll back all related changes and retry receipts', () => {

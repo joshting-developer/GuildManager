@@ -1,12 +1,7 @@
-import { callGas } from './gas.js';
 import { sessionFetch } from './session.js';
 
-export function createAdminClient({ source = 'local', fetchImpl = sessionFetch, googleRun } = {}) {
-  if (!['local', 'gas'].includes(source)) throw new Error('未知的資料來源設定');
-  async function call(operation, path, method = 'GET', input) {
-    if (source === 'gas') {
-      return callGas(operation, input ? [input] : [], googleRun);
-    }
+export function createAdminClient({ fetchImpl = sessionFetch } = {}) {
+  async function call(path, method = 'GET', input) {
     let response;
     try {
       response = await fetchImpl(`/api/admin/${path}`, {
@@ -32,11 +27,11 @@ export function createAdminClient({ source = 'local', fetchImpl = sessionFetch, 
     return data;
   }
   return {
-    getAccounts: () => call('getAccountSettings', 'accounts'),
-    changePassword: (input) => call('changeAdminPassword', 'password', 'POST', input),
-    createManager: (input) => call('createManager', 'managers', 'POST', input),
-    setMemberToken: (input) => call('setMemberToken', 'member-token', 'PATCH', input),
+    getAccounts: () => call('accounts'),
+    changePassword: (input) => call('password', 'POST', input),
+    createManager: (input) => call('managers', 'POST', input),
+    setMemberToken: (input) => call('member-token', 'PATCH', input),
     updateManager: (id, input) =>
-      call('updateManager', `managers/${encodeURIComponent(id)}`, 'PATCH', { ...input, id }),
+      call(`managers/${encodeURIComponent(id)}`, 'PATCH', { ...input, id }),
   };
 }

@@ -5,7 +5,6 @@ import { createApp } from '../server/app.js';
 import { createLineupClient } from '../src/api/lineups.js';
 import { authenticatedFetch } from './helpers/authenticated-fetch.js';
 import { emptyLineup } from '../src/domain/lineups.js';
-import { gasRuntime, cloudResult, cloudSession } from './helpers/gas-runtime.js';
 
 const member = { uid: '001', name: '城', primaryProfessionId: 3 };
 const lineup = (note) => {
@@ -72,25 +71,4 @@ test('the lineup client deletes a template over HTTP; signed-out visitors cannot
     server.close();
     repo.close();
   }
-});
-
-test('GAS saves back to a chosen template and overwrites a same-name template in place', async () => {
-  const env = await gasRuntime();
-  env.setup();
-  const admin = cloudSession(cloudResult(env.raw('login', [{ username: 'admin', password: 'initial-password-123' }])));
-  const call = (op, args = []) => {
-    const result = env.raw(op, args, admin);
-    if (!result.ok) throw Object.assign(new Error(result.error.message), { code: result.error.code });
-    return result.data;
-  };
-  call('addMember', [member]);
-  checks({
-    save: (input) => call('createLineupTemplate', [input]).template,
-    list: () => call('getLineupTemplates').templates,
-    remove: (id) => call('deleteLineupTemplate', [id]),
-  });
-  call('setMemberToken', [{ password: 'Member123', revision: 0 }]);
-  const member_ = cloudSession(cloudResult(env.raw('loginMember', [{ password: 'Member123' }])));
-  assert.equal(env.raw('deleteLineupTemplate', ['x']).error.code, 'AUTH_REQUIRED');
-  assert.equal(env.raw('deleteLineupTemplate', ['x'], member_).error.code, 'MANAGEMENT_REQUIRED');
 });

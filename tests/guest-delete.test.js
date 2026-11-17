@@ -4,7 +4,6 @@ import { createRepository } from '../server/repository.js';
 import { createApp } from '../server/app.js';
 import { createLineupClient } from '../src/api/lineups.js';
 import { authenticatedFetch } from './helpers/authenticated-fetch.js';
-import { gasRuntime, cloudResult, cloudSession } from './helpers/gas-runtime.js';
 
 test('local managers can delete a 本場外援 outright; repeats are no-ops and stale revisions are refused', async () => {
   const repo = createRepository({ filename: ':memory:' });
@@ -32,23 +31,4 @@ test('local managers can delete a 本場外援 outright; repeats are no-ops and 
     server.close();
     repo.close();
   }
-});
-
-test('GAS deletes a 本場外援 for managers only, without a leave record or Discord notice', async () => {
-  const env = await gasRuntime();
-  env.setup();
-  const admin = cloudSession(cloudResult(env.raw('login', [{ username: 'admin', password: 'initial-password-123' }])));
-  const call = (op, args = []) => cloudResult(env.raw(op, args, admin));
-  env.propertyService.setProperty('DISCORD_WEBHOOK_LEAVE', 'https://discord.com/api/webhooks/123456/leave-token_A');
-  const event = call('createEvent', [{ type: 'guild_war', title: '', dates: ['2026-10-04'], requestId: 'war' }]).events[0];
-  const guest = call('addGuestRegistration', [event.id, { name: '打錯的外援', professionId: 2, requestId: 'guest' }]).registration;
-  env.fetches.length = 0;
-  assert.equal(env.raw('deleteGuestRegistration', [event.id, guest.id, guest.revision]).error.code, 'AUTH_REQUIRED');
-  assert.equal(env.raw('deleteGuestRegistration', [event.id, guest.id, guest.revision + 3], admin).error.code, 'REVISION_CONFLICT');
-  assert.deepEqual(call('deleteGuestRegistration', [event.id, guest.id, guest.revision]), { deleted: true, id: guest.id });
-  const participation = call('getEventParticipation', [event.id]);
-  assert.equal(participation.registrations.length, 0);
-  assert.equal(participation.registrationLeaves.length, 0);
-  assert.equal(env.fetches.length, 0, 'no Discord notice');
-  assert.deepEqual(call('deleteGuestRegistration', [event.id, guest.id, guest.revision]), { deleted: true, id: guest.id });
 });

@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { createRepository } from '../server/repository.js';
 import { createApp } from '../server/app.js';
 import { createBattleRecordClient } from '../src/api/battle-records.js';
-import { fixtureCsv, gasRuntime, cloudResult, cloudSession } from './helpers/gas-runtime.js';
+import { fixtureCsv } from './helpers/battle-csv.js';
+
 import { authenticatedFetch } from './helpers/authenticated-fetch.js';
 import { parseBattleCsv } from '../src/domain/battle-records.js';
 import { battlePlayerValue, sortBattlePlayers } from '../src/domain/battle-statistics.js';
@@ -19,13 +20,7 @@ const input = (extra = {}) => ({ requestId: crypto.randomUUID(), records: [{ fil
   type: 'scrimmage', datetime: '2026-10-27', redTeam: '本幫', blueTeam: '對手', ourSide: 'red', winner: 'red',
   attributions: [attribution()], ...extra }] });
 const localFixture = () => { const repo = createRepository({ filename: ':memory:' }); repo.addMember(A); repo.addMember(B); return repo; };
-async function cloudFixture() {
-  const env = await gasRuntime(); env.setup();
-  const context = cloudSession(cloudResult(env.raw('login', [{ username: 'admin', password: 'initial-password-123' }])));
-  const call = (op, args = [], ctx = context) => cloudResult(env.raw(op, args, ctx));
-  call('addMember', [A]); call('addMember', [B]);
-  return { env, context, call };
-}
+
 const stripped = ({ memberUid, creditedName, ...value }) => value;
 
 function exercise(api) {
@@ -92,65 +87,6 @@ test('SQLite explicit operator assignment wins over the account owner, preserves
     for (const attributions of [[attribution({ memberUid: 'missing' })], [attribution({ sourceSide: 'blue' })]])
       assert.throws(() => repo.saveBattleRecords(input({ datetime: '2026-10-30', attributions })));
   } finally { repo.close(); }
-});
-
-test('compiled GAS explicit operator assignment preserves original players and files, existing automatic links and safe retry behavior', async () => {
-  const { env, call } = await cloudFixture();
-  exercise({ save: x => call('saveBattleRecords', [x]), get: id => call('getBattleRecord', [id]).record,
-    list: () => call('getBattleRecords', [1, null]), personal: uid => call('getMemberBattleRecords', [uid, 1, { readAll: true }]),
-    attachment: id => Buffer.from(call('getBattleAttachment', [id, 'csv']).base64, 'base64').toString(),
-    members: () => call('getBattleUploadRoster').members });
-  const originalCreate = env.globals.DriveApp.getFolderById;
-  let changed = false;
-  env.globals.DriveApp.getFolderById = (...args) => {
-    const folder = originalCreate(...args), create = folder.createFile;
-    return { ...folder, createFile(...values) {
-      const file = create(...values);
-      if (!changed) {
-        changed = true;
-        call('updateMember', [A.uid, { name: '鎖外建檔時改名', primaryProfessionId: 3, secondaryProfessionId: null,
-          isInGuild: true, isInClub: false, revision: 1 }]);
-      }
-      return file;
-    } };
-  };
-  assert.throws(() => call('saveBattleRecords', [input({ datetime: '2026-10-29' })]), { code: 'ATTRIBUTION_MEMBER_CHANGED' });
-  assert.equal(changed, true); assert.equal(call('getBattleRecords', [1, null]).total, 2);
-});
-
-test('two-round attribution failure is atomic and legacy uploads remain accepted; read-only roster requires management without history reads', async () => {
-  const { env, call, context } = await cloudFixture();
-  const event = call('createEvent', [{ type: 'scrimmage', title: '雙場', dates: ['2026-10-27'], requestId: 'event' }]).event;
-  const payload = input({ eventId: event.id, roundNumber: 1 });
-  payload.records.push({ ...payload.records[0], roundNumber: 2, attributions: [attribution({ memberUid: 'missing' })] });
-  assert.throws(() => call('saveBattleRecords', [payload]), { code: 'ATTRIBUTION_MEMBER_CHANGED' });
-  assert.equal(call('getBattleRecords', [1, null]).total, 0);
-  payload.records[1].attributions = [attribution({ memberUid: B.uid, memberName: B.name })];
-  env.failOn('GM_commits'); assert.equal(env.raw('saveBattleRecords', [payload], context).ok, false); env.failOn(null);
-  assert.equal(call('getBattleRecords', [1, null]).total, 0);
-  assert.equal(call('saveBattleRecords', [payload]).records.length, 2);
-  const before = env.sheets.get('GM_battle_players').data.length;
-  assert.equal(call('saveBattleRecords', [payload]).records.length, 2);
-  assert.equal(env.sheets.get('GM_battle_players').data.length, before);
-  call('setMemberToken', [{ password: '001234', revision: 0 }]);
-  const member = cloudSession(cloudResult(env.raw('loginMember', [{ password: '001234' }])));
-  call('createManager', [{ username: 'manager', password: 'manager-password' }]);
-  const manager = cloudSession(cloudResult(env.raw('login', [{ username: 'manager', password: 'manager-password' }])));
-  const accessed = new Set();
-  for (const [name, sheet] of env.sheets) { const range = sheet.getRange.bind(sheet); sheet.getRange = (...args) => { accessed.add(name); return range(...args); }; }
-  const snapshot = () => JSON.stringify({ sheets: [...env.sheets].map(([n, s]) => [n, s.data]), properties: [...env.properties], files: [...env.files], fetches: env.fetches });
-  const original = snapshot(); env.lock.tryLock(); const lock = env.lock.tryLock; env.lock.tryLock = () => assert.fail('roster is read-only');
-  const result = call('getBattleUploadRoster');
-  assert.ok(result.members.every(m => Object.keys(m).sort().join(',') === 'isInClub,isInGuild,name,profession,revision,uid'));
-  assert.ok([...accessed].every(n => ['GM_commits', 'GM_members', 'GM_professions'].includes(n)), [...accessed].join(','));
-  assert.equal(env.raw('getBattleUploadRoster').error.code, 'AUTH_REQUIRED');
-  assert.equal(env.raw('getBattleUploadRoster', [], member).error.code, 'MANAGEMENT_REQUIRED');
-  assert.deepEqual(call('getBattleUploadRoster', [], manager), result);
-  let success; const run = { withSuccessHandler(fn) { success = fn; return this; }, withFailureHandler() { return this; },
-    getBattleUploadRoster() { success(env.raw('getBattleUploadRoster', [], manager)); } };
-  assert.deepEqual(await createBattleRecordClient({ source: 'gas', googleRun: run }).getUploadRoster(), result);
-  assert.equal(snapshot(), original);
-  env.lock.tryLock = lock; env.lock.releaseLock();
 });
 
 test('HTTP roster is one uncached management request, submission attribution retains CSRF and malformed responses fail', async () => {

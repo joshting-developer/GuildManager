@@ -4,8 +4,6 @@ import { createRepository } from '../server/repository.js';
 import { createApp } from '../server/app.js';
 import { csrfToken } from '../server/auth-repository.js';
 import { createMemberClient } from '../src/api/members.js';
-import { setGasSession } from '../src/api/gas.js';
-import { gasRuntime, cloudResult, cloudSession } from './helpers/gas-runtime.js';
 
 const person = {
   uid: '0001',
@@ -140,88 +138,4 @@ test('member HTTP roster retains editing/import but denies move-to-external; adm
     await new Promise((resolve) => server.close(resolve));
     repo.close();
   }
-});
-
-test('GAS member roster denies removeMember while retaining other roster operations and manager access', async () => {
-  const env = await gasRuntime();
-  env.setup();
-  const admin = cloudResult(
-    env.raw('login', [{ username: 'admin', password: 'initial-password-123' }]),
-  );
-  const adminCtx = cloudSession(admin);
-  cloudResult(env.raw('setMemberToken', [{ password: 'Member123', revision: 0 }], adminCtx));
-  const session = cloudResult(env.raw('loginMember', [{ password: 'Member123' }]));
-  const context = cloudSession(session);
-  for (const [op, args] of [
-    ['getMembers', []],
-    ['addMember', [person]],
-    ['updateMember', ['0001', {}]],
-    ['removeMember', ['0001', 1]],
-    ['previewMemberImport', [{ text: '' }]],
-    ['importMembers', [{}]],
-  ]) {
-    assert.equal(env.raw(op, args).error.code, 'AUTH_REQUIRED', op);
-    if (!['getMembers', 'previewMemberImport', 'removeMember'].includes(op))
-      assert.equal(
-        env.raw(op, args, { sessionToken: session.sessionToken }).error.code,
-        'CSRF_INVALID',
-        op,
-      );
-  }
-  setGasSession(session);
-  function run(success = () => {}, failure = () => {}) {
-    return new Proxy(
-      {},
-      {
-        get(_, op) {
-          if (op === 'withSuccessHandler') return (fn) => run(fn, failure);
-          if (op === 'withFailureHandler') return (fn) => run(success, fn);
-          return (...args) => {
-            try {
-              success(env.raw(op, args));
-            } catch (error) {
-              failure(error);
-            }
-          };
-        },
-      },
-    );
-  }
-  await memberFlow(
-    createMemberClient({
-      source: 'gas',
-      googleRun: run(),
-      fetchImpl: () => assert.fail('no HTTP fallback'),
-    }),
-  );
-  cloudResult(env.raw('createManager', [{ username: 'manager', password: 'manager-password-123' }], adminCtx));
-  const manager = cloudSession(cloudResult(env.raw('login', [{ username: 'manager', password: 'manager-password-123' }])));
-  for (const privileged of [adminCtx, manager]) {
-    const current = cloudResult(env.raw('getMembers', [], privileged)).members.find((row) => row.uid === '0001');
-    const moved = cloudResult(env.raw('removeMember', [current.uid, current.revision], privileged)).member;
-    assert.equal(moved.isInGuild, false);
-    assert.equal(moved.isInClub, false);
-  }
-  for (const [op, args] of [
-    ['getHomeData', []],
-    ['getLineupIndex', []],
-    ['getDuties', []],
-    ['getEventVideos', ['missing']],
-    ['getEventAttendance', ['missing']],
-    ['createEvent', [{}]],
-    ['confirmLineup', [{}]],
-    ['saveBattleRecords', [{}]],
-    ['updateBattleRecord', ['missing', {}]],
-    ['getAccountSettings', []],
-  ]) {
-    assert.equal(
-      env.raw(op, args, context).error.code,
-      op === 'getAccountSettings' ? 'ADMIN_REQUIRED' : 'MANAGEMENT_REQUIRED',
-      op,
-    );
-  }
-  cloudResult(env.raw('setMemberToken', [{ password: 'NewPass123', revision: 1 }], adminCtx));
-  assert.equal(env.raw('getMembers', [], context).error.code, 'AUTH_REQUIRED');
-  assert.equal(env.raw('addMember', [person], context).error.code, 'AUTH_REQUIRED');
-  setGasSession({ user: null });
 });

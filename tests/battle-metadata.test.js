@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { createRepository } from '../server/repository.js';
 import { createApp } from '../server/app.js';
 import { createBattleRecordClient } from '../src/api/battle-records.js';
-import { setGasSession } from '../src/api/gas.js';
+
 import { authenticatedFetch } from './helpers/authenticated-fetch.js';
-import { gasRuntime, cloudResult, cloudSession, fixtureCsv } from './helpers/gas-runtime.js';
+import { fixtureCsv } from './helpers/battle-csv.js';
 
 const member = { uid: '001', name: '城', primaryProfessionId: 3 };
 const upload = (type = 'scrimmage', eventId = null, roundNumber) => ({
@@ -150,86 +150,6 @@ test('SQLite result editing preserves CSV, players, member links and round ident
   } finally {
     repo.close();
   }
-});
-
-test('GAS result editing is atomic, retains Drive files and player snapshots, and supports old revision-less records', async () => {
-  const env = await gasRuntime();
-  env.setup();
-  const session = cloudResult(
-    env.raw('login', [{ username: 'admin', password: 'initial-password-123' }]),
-  );
-  const ctx = cloudSession(session);
-  const call = (op, args = []) => cloudResult(env.raw(op, args, ctx));
-  call('addMember', [member]);
-  const event = call('createEvent', [
-    { type: 'scrimmage', title: '約戰', dates: ['2026-10-05'], requestId: 'event' },
-  ]).event;
-  const savedInput = upload('scrimmage', event.id, 1);
-  const first = call('saveBattleRecords', [savedInput]).records[0];
-  const second = call('saveBattleRecords', [upload('scrimmage', event.id, 2)]).records[0];
-  const ordinary = call('saveBattleRecords', [upload('guild_war')]).records[0];
-  assert.equal(first.revision, 0);
-  env.failOn('GM_commits');
-  assert.equal(env.raw('updateBattleRecord', [first.id, patch()], ctx).ok, false);
-  env.failOn(null);
-  assert.equal(call('getBattleRecord', [first.id]).record.winner, null);
-  assert.equal(call('getBattleRecord', [first.id]).record.revision, 0);
-  call('deleteEvent', [event.id, event.revision]);
-  const fileCount = env.files.size;
-  checks(
-    {
-      get: (id) => call('getBattleRecord', [id]).record,
-      update: (id, input) => call('updateBattleRecord', [id, input]),
-      list: () => call('getBattleRecords', [1, null]).records,
-      attachment: (id) => call('getBattleAttachment', [id, 'csv']),
-      personal: () => call('getMemberBattleRecords', ['001', 1, {}]),
-      save: (input) => call('saveBattleRecords', [input]),
-    },
-    first,
-    second,
-    ordinary,
-    savedInput,
-  );
-  assert.equal(env.files.size, fileCount);
-  call('setMemberToken', [{ password: 'Member123', revision: 0 }]);
-  const memberCtx = cloudSession(cloudResult(env.raw('loginMember', [{ password: 'Member123' }])));
-  assert.equal(env.raw('updateBattleRecord', [second.id, patch()]).error.code, 'AUTH_REQUIRED');
-  assert.equal(
-    env.raw('updateBattleRecord', [second.id, patch()], memberCtx).error.code,
-    'MANAGEMENT_REQUIRED',
-  );
-  assert.equal(
-    env.raw('updateBattleRecord', [second.id, patch()], { sessionToken: session.sessionToken })
-      .error.code,
-    'CSRF_INVALID',
-  );
-  call('createManager', [{ username: 'manager', password: 'manager-password-123' }]);
-  const manager = cloudResult(
-    env.raw('login', [{ username: 'manager', password: 'manager-password-123' }]),
-  );
-  setGasSession(manager);
-  const run = {
-    withSuccessHandler(fn) {
-      this.success = fn;
-      return this;
-    },
-    withFailureHandler() {
-      return this;
-    },
-    updateBattleRecord(id, input, context) {
-      this.success(env.raw('updateBattleRecord', [id, input], context));
-    },
-  };
-  const client = createBattleRecordClient({
-    source: 'gas',
-    googleRun: run,
-    fetchImpl: () => assert.fail('no HTTP fallback'),
-  });
-  assert.equal(
-    (await client.updateRecord(second.id, patch({ requestId: 'manager-edit' }))).record.winner,
-    'red',
-  );
-  setGasSession({ user: null });
 });
 
 test('HTTP editing requires management role and CSRF; member keeps read access; adapter PATCH supports late results', async () => {

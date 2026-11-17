@@ -225,32 +225,6 @@ test('unified HTTP adapter is public, checks revisions and never opens managemen
   }
 });
 
-test('unified GAS operation preserves the input and reports unconnected without HTTP fallback', async () => {
-  let success, failure;
-  const input = { name: '外援', status: 'leave', requestId: 'gas' };
-  const client = createParticipationClient({
-    source: 'gas',
-    fetchImpl: () => assert.fail('不可呼叫 HTTP'),
-    googleRun: {
-      withSuccessHandler(fn) {
-        success = fn;
-        return this;
-      },
-      withFailureHandler(fn) {
-        failure = fn;
-        return this;
-      },
-      submitParticipation(eventId, payload) {
-        assert.equal(eventId, 'event');
-        assert.deepEqual(payload, input);
-        failure({ message: '尚未串接' });
-      },
-    },
-  });
-  await assert.rejects(client.submitParticipation('event', input), /尚未串接/);
-  assert.equal(typeof success, 'function');
-});
-
 test('member registrations retain their selected battle profession without changing the roster or saved lineup', () => {
   const { repo, events, submit } = setup();
   const event = events[0];

@@ -9,8 +9,7 @@ import { createApp } from '../server/app.js';
 import { createEventVideoClient } from '../src/api/event-videos.js';
 import { videoTableCsv } from '../src/domain/video-table-csv.js';
 import { validateVideoProfessionUpdate } from '../src/domain/event-videos.js';
-import { createSheetStore } from '../gas/src/storage.js';
-import { gasRuntime, cloudResult, cloudSession } from './helpers/gas-runtime.js';
+
 import { authenticatedFetch } from './helpers/authenticated-fetch.js';
 
 const submission = event => ({ name: '同名角色', professionId: 3, firstUrl: 'https://example.com/first',
@@ -115,65 +114,4 @@ test('HTTP profession editing is management-only, requires CSRF and adapter PATC
     await assert.rejects(client.updateProfession(event.id, video.id, input()), { code: 'REVISION_CONFLICT' });
     assert.equal((await authed(base + `/api/events/${event.id}/videos`)).status, 200);
   } finally { await new Promise(r => server.close(r)); repo.close(); }
-});
-
-async function cloudFixture() {
-  const env = await gasRuntime(); env.setup();
-  const session = cloudResult(env.raw('login', [{ username: 'admin', password: 'initial-password-123' }])), context = cloudSession(session);
-  const call = (operation, args = [], ctx = context) => cloudResult(env.raw(operation, args, ctx));
-  return { env, session, context, call };
-}
-
-test('compiled GAS corrections keep receipts atomic and preserve old missing professions, histories and original upload retry behavior', async () => {
-  const { env, call, context } = await cloudFixture();
-  const event = call('createEvent', [{ type: 'scrimmage', title: 'GAS', dates: ['2020-01-01'], requestId: 'gas' }]).event;
-  const other = call('createEvent', [{ type: 'scrimmage', title: '其他', dates: ['2020-01-01'], requestId: 'other' }]).event;
-  const uploaded = submission(event), saved = call('submitEventVideo', [event.id, uploaded]);
-  const storage = createSheetStore(env);
-  const old = { ...saved.video, id: 'legacy' }; delete old.revision; delete old.professionId; delete old.professionName; delete old.professionColorcode;
-  storage.transaction(s => s.put('videos', 'legacy', old));
-  assert.equal(call('getEventVideos', [event.id]).videos.find(v => v.id === 'legacy').revision, 0);
-  const patch = input();
-  env.failOn('GM_commits');
-  assert.equal(env.raw('updateEventVideoProfession', [event.id, 'legacy', patch], context).ok, false);
-  env.failOn(null);
-  assert.equal(call('getEventVideos', [event.id]).videos.find(v => v.id === 'legacy').professionId, undefined);
-  const changed = call('updateEventVideoProfession', [event.id, 'legacy', patch]).video;
-  assert.deepEqual(unchanged(changed), unchanged(old));
-  assert.deepEqual(call('updateEventVideoProfession', [event.id, 'legacy', patch]).video, changed);
-  assert.ok(env.sheets.get('GM_videos').data.length > 3); // Append history retained; failed rows invisible.
-  exercise({ get: id => call('getEventVideos', [id]), update: (...args) => call('updateEventVideoProfession', args),
-    submit: (...args) => call('submitEventVideo', args), unavailable: e => call('deleteEvent', [e.id, e.revision]) }, event, other, saved, uploaded);
-});
-
-test('compiled GAS profession writes retain lock, management, CSRF and scoped table dependencies; adapter never falls back to HTTP', async () => {
-  const { env, call, context } = await cloudFixture();
-  const event = call('createEvent', [{ type: 'scrimmage', title: '權限', dates: ['2020-01-01'], requestId: 'event' }]).event;
-  const video = call('submitEventVideo', [event.id, submission(event)]).video;
-  call('setMemberToken', [{ password: '001234', revision: 0 }]);
-  const member = cloudSession(cloudResult(env.raw('loginMember', [{ password: '001234' }])));
-  call('createManager', [{ username: 'manager', password: 'manager-password' }]);
-  const manager = cloudSession(cloudResult(env.raw('login', [{ username: 'manager', password: 'manager-password' }])));
-  const patch = input();
-  assert.equal(env.raw('updateEventVideoProfession', [event.id, video.id, patch]).error.code, 'AUTH_REQUIRED');
-  assert.equal(env.raw('updateEventVideoProfession', [event.id, video.id, patch], member).error.code, 'MANAGEMENT_REQUIRED');
-  assert.equal(env.raw('updateEventVideoProfession', [event.id, video.id, patch], { sessionToken: context.sessionToken }).error.code, 'CSRF_INVALID');
-  env.lock.tryLock();
-  assert.equal(env.raw('updateEventVideoProfession', [event.id, video.id, patch], context).error.code, 'BUSY');
-  env.lock.releaseLock();
-  const accessed = new Set();
-  for (const [name, sheet] of env.sheets) { const getRange = sheet.getRange.bind(sheet); sheet.getRange = (...args) => { accessed.add(name); return getRange(...args); }; }
-  let handler; const run = { withSuccessHandler(fn) { handler = fn; return this; }, withFailureHandler() { return this; },
-    updateEventVideoProfession(eventId, id, values) { handler(env.raw('updateEventVideoProfession', [eventId, id, values], manager)); } };
-  const client = createEventVideoClient({ source: 'gas', googleRun: run, fetchImpl: () => assert.fail('no HTTP fallback') });
-  const filesBefore = env.files.size, requestsBefore = env.fetches.length;
-  assert.equal((await client.updateProfession(event.id, video.id, patch)).video.revision, 1);
-  assert.ok([...accessed].every(name => ['GM_commits', 'GM_requests', 'GM_events', 'GM_videos', 'GM_professions'].includes(name)), [...accessed].join(','));
-  assert.equal(env.files.size, filesBefore); assert.equal(env.fetches.length, requestsBefore);
-  assert.throws(() => validateVideoProfessionUpdate(event.id, video.id, []), { code: 'VIDEO_INVALID' });
-  const valid = call('getEventVideos', [event.id]).videos[0];
-  for (const malformed of [null, { ...valid, revision: 99 }, { ...valid, id: 'wrong' }, { ...valid, professionId: 5 }]) {
-    const bad = createEventVideoClient({ fetchImpl: async () => ({ ok: true, json: async () => ({ video: malformed }) }) });
-    await assert.rejects(bad.updateProfession(event.id, video.id, patch));
-  }
 });

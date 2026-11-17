@@ -8,9 +8,9 @@ import { planBattleMemberSync } from '../src/domain/battle-member-sync.js';
 import { createRepository } from '../server/repository.js';
 import { createApp } from '../server/app.js';
 import { createBattleSyncClient } from '../src/api/battle-sync.js';
-import { setGasSession } from '../src/api/gas.js';
+
 import { authenticatedFetch } from './helpers/authenticated-fetch.js';
-import { gasRuntime, cloudResult, cloudSession, fixtureCsv } from './helpers/gas-runtime.js';
+import { fixtureCsv } from './helpers/battle-csv.js';
 
 const person = (uid, name) => ({ uid, name, primaryProfessionId: 3 });
 let uploadMinute = 0;
@@ -115,56 +115,6 @@ test('SQLite sync repairs legacy members/aliases atomically, persists links, pre
     assert.equal(repo.getMemberBattleRecords('1').total, 3);
     assert.equal(db.pragma('foreign_key_check').length, 0);
   } finally { db.close(); repo.close(); rmSync(dir, { recursive: true, force: true }); }
-});
-
-test('GAS sync is admin-only and preserves committed aliases, immutable snapshots and atomic retries', async () => {
-  const env = await gasRuntime(); env.setup();
-  const session = cloudResult(env.raw('login', [{ username: 'admin', password: 'initial-password-123' }]));
-  const context = cloudSession(session);
-  const call = (op, args = []) => cloudResult(env.raw(op, args, context));
-  const api = {
-    upload: name => call('saveBattleRecords', [uploadInput(name)]).records[0],
-    add: row => call('addMember', [row]),
-    rename: (uid, name, revision) => call('updateMember', [uid, { name, primaryProfessionId: 3, revision }]),
-    preview: () => call('previewBattleMemberSync'), sync: input => call('syncBattleMembers', [input]),
-    personal: uid => call('getMemberBattleRecords', [uid, 1, {}]), detail: id => call('getBattleRecord', [id]).record,
-  };
-  const records = fixture(api);
-  const snapshot = JSON.stringify(env.sheets.get('GM_battle_players').data);
-  const first = api.preview();
-  const input = { fingerprint: first.fingerprint, requestId: 'failed-sync' };
-  for (const sheet of ['GM_battle_links', 'GM_commits']) {
-    env.failOn(sheet);
-    assert.equal(env.raw('syncBattleMembers', [input], context).ok, false);
-    env.failOn(null);
-    assert.equal(api.personal('1').total, 1);
-    assert.equal(api.preview().fingerprint, first.fingerprint);
-  }
-  checkSync(api, records);
-  assert.equal(JSON.stringify(env.sheets.get('GM_battle_players').data), snapshot);
-  call('setMemberToken', [{ password: 'Member123', revision: 0 }]);
-  const member = cloudSession(cloudResult(env.raw('loginMember', [{ password: 'Member123' }])));
-  for (const op of ['previewBattleMemberSync', 'syncBattleMembers']) {
-    assert.equal(env.raw(op, op === 'syncBattleMembers' ? [input] : []).error.code, 'AUTH_REQUIRED');
-    assert.equal(env.raw(op, op === 'syncBattleMembers' ? [input] : [], member).error.code, 'ADMIN_REQUIRED');
-  }
-  assert.equal(env.raw('syncBattleMembers', [input], { sessionToken: session.sessionToken }).error.code, 'CSRF_INVALID');
-  call('createManager', [{ username: 'manager', password: 'manager-password-123' }]);
-  const manager = cloudResult(env.raw('login', [{ username: 'manager', password: 'manager-password-123' }]));
-  for (const op of ['previewBattleMemberSync', 'syncBattleMembers'])
-    assert.equal(env.raw(op, op === 'syncBattleMembers' ? [input] : [], cloudSession(manager)).error.code, 'ADMIN_REQUIRED');
-  setGasSession(session);
-  const run = {
-    withSuccessHandler(fn) { this.done = fn; return this; },
-    withFailureHandler() { return this; },
-    previewBattleMemberSync(ctx) { this.done(env.raw('previewBattleMemberSync', [], ctx)); },
-    syncBattleMembers(value, ctx) { this.done(env.raw('syncBattleMembers', [value], ctx)); },
-  };
-  try {
-    const client = createBattleSyncClient({ source: 'gas', googleRun: run });
-    const p = await client.preview();
-    assert.equal((await client.sync({ fingerprint: p.fingerprint, requestId: 'admin-sync' })).linkedPlayers, 0);
-  } finally { setGasSession({ user: null }); }
 });
 
 test('HTTP sync enforces admin + CSRF, denies manager/member, and returns stale/retry errors through adapter', async () => {

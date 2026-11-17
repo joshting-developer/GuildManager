@@ -30,7 +30,7 @@ function text(value, label, max, field, required = true, multiline = false) {
     });
   return value.trim();
 }
-// Apps Script V8 has no Web URL constructor; keep validation identical on both backends.
+// Keep URL validation portable and consistent across runtimes.
 function isHttpVideoUrl(url) {
   const match = /^https?:\/\/([^/?#]+)(?:[/?#][^\s\\]*)?$/i.exec(url);
   if (!match || /[\s@\\%]/.test(match[1])) return false;

@@ -1,18 +1,6 @@
-import { callGas } from './gas.js';
 import { sessionFetch } from './session.js';
-export function createDutyClient({ source = 'local', fetchImpl = sessionFetch, googleRun } = {}) {
-  if (!['local', 'gas'].includes(source)) throw new Error('未知的資料來源設定');
+export function createDutyClient({ fetchImpl = sessionFetch } = {}) {
   async function call(method, input, id) {
-    if (source === 'gas') {
-      const operation = { GET: 'getDuties', POST: 'addDuty', PATCH: 'updateDuty' }[method];
-      const args =
-        method === 'GET'
-          ? []
-          : method === 'POST'
-            ? [input]
-            : [id, method === 'DELETE' ? input.revision : input];
-      return callGas(operation, args, googleRun);
-    }
     let response;
     try {
       response = await fetchImpl(

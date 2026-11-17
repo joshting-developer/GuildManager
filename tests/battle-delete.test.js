@@ -4,7 +4,7 @@ import { createRepository } from '../server/repository.js';
 import { createApp } from '../server/app.js';
 import { createBattleRecordClient } from '../src/api/battle-records.js';
 import { authenticatedFetch } from './helpers/authenticated-fetch.js';
-import { gasRuntime, cloudResult, cloudSession, fixtureCsv } from './helpers/gas-runtime.js';
+import { fixtureCsv } from './helpers/battle-csv.js';
 
 const member = { uid: '001', name: '城', primaryProfessionId: 3 };
 const upload = (eventId, roundNumber, requestId, redTeam = '紅方') => ({
@@ -59,37 +59,4 @@ test('local managers delete a mistaken battle upload so the round can be uploade
     server.close();
     repo.close();
   }
-});
-
-test('GAS deletes a battle for managers only, atomically, keeping Drive files', async () => {
-  const env = await gasRuntime();
-  env.setup();
-  const admin = cloudSession(cloudResult(env.raw('login', [{ username: 'admin', password: 'initial-password-123' }])));
-  const call = (op, args = []) => cloudResult(env.raw(op, args, admin));
-  call('addMember', [member]);
-  const event = call('createEvent', [{ type: 'scrimmage', title: '約戰', dates: ['2026-10-05'], requestId: 'event' }]).event;
-  const thrown = (op, args) => {
-    const result = env.raw(op, args, admin);
-    if (!result.ok) throw Object.assign(new Error(result.error.message), { code: result.error.code });
-    return result.data;
-  };
-  const probe = call('saveBattleRecords', [upload(event.id, 2, 'probe')]).records[0];
-  env.failOn('GM_commits');
-  assert.equal(env.raw('deleteBattleRecord', [probe.id, 0], admin).ok, false);
-  env.failOn(null);
-  assert.equal(call('getBattleRecord', [probe.id]).record.id, probe.id, 'failed commit keeps the record');
-  assert.equal(env.raw('deleteBattleRecord', [probe.id, 0]).error.code, 'AUTH_REQUIRED');
-  call('setMemberToken', [{ password: 'Member123', revision: 0 }]);
-  const memberCtx = cloudSession(cloudResult(env.raw('loginMember', [{ password: 'Member123' }])));
-  assert.equal(env.raw('deleteBattleRecord', [probe.id, 0], memberCtx).error.code, 'MANAGEMENT_REQUIRED');
-  call('deleteBattleRecord', [probe.id, 0]);
-  const files = env.files.size;
-  checks({
-    save: (input) => thrown('saveBattleRecords', [input]),
-    remove: (id, revision) => thrown('deleteBattleRecord', [id, revision]),
-    get: (id) => thrown('getBattleRecord', [id]).record,
-    list: () => call('getBattleRecords', [1, event.id]).records,
-    personal: () => call('getMemberBattleRecords', ['001', 1, {}]),
-  }, event.id);
-  assert.ok(env.files.size >= files + 2, 'raw CSVs stay in Drive');
 });

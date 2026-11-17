@@ -1,18 +1,11 @@
-import { callGas } from './gas.js';
 import { sessionFetch } from './session.js';
 import { validateVideoDetails, validateVideoProfessionUpdate } from '../domain/event-videos.js';
 import { isBattleEvent } from '../domain/battle-events.js';
 
 export function createEventVideoClient({
-  source = 'local',
   fetchImpl = sessionFetch,
-  googleRun,
 } = {}) {
-  if (!['local', 'gas'].includes(source)) throw new Error('未知的資料來源設定');
-  async function request(operation, path, args, input, method = input ? 'POST' : 'GET') {
-    if (source === 'gas') {
-      return callGas(operation, args, googleRun);
-    }
+  async function request(path, input, method = input ? 'POST' : 'GET') {
     let response;
     try {
       response = await fetchImpl(path, {
@@ -39,8 +32,7 @@ export function createEventVideoClient({
     return data;
   }
   async function call(eventId, input) {
-    const data = await request(input ? 'submitEventVideo' : 'getEventVideos',
-      `/api/events/${encodeURIComponent(eventId)}/videos`, input ? [eventId, input] : [eventId], input);
+    const data = await request(`/api/events/${encodeURIComponent(eventId)}/videos`, input);
     return validateResponse(data, eventId, input);
   }
   function validateResponse(data, eventId, input) {
@@ -70,8 +62,7 @@ export function createEventVideoClient({
   }
   return {
     async getBrowser(eventId = null) {
-      const data = await request('getVideoBrowser',
-        `/api/videos/browser${eventId ? `?eventId=${encodeURIComponent(eventId)}` : ''}`, [eventId]);
+      const data = await request(`/api/videos/browser${eventId ? `?eventId=${encodeURIComponent(eventId)}` : ''}`);
       if (!Array.isArray(data?.events) || !data.events.every(isBattleEvent) ||
         (data.events.length === 0 ? data.selected !== null :
           !data.selected || !data.events.some(event => event.id === data.selected.eventId)))
@@ -83,9 +74,7 @@ export function createEventVideoClient({
     submitVideo: (eventId, input) => call(eventId, input),
     async updateProfession(eventId, videoId, input) {
       const values = validateVideoProfessionUpdate(eventId, videoId, input);
-      const data = await request('updateEventVideoProfession',
-        `/api/events/${encodeURIComponent(eventId)}/videos/${encodeURIComponent(videoId)}/profession`,
-        [eventId, videoId, values], values, 'PATCH');
+      const data = await request(`/api/events/${encodeURIComponent(eventId)}/videos/${encodeURIComponent(videoId)}/profession`, values, 'PATCH');
       if (!data?.video || data.video.eventId !== eventId || data.video.id !== videoId || data.video.professionId !== values.professionId ||
           data.video.revision !== values.revision + 1 || typeof data.video.professionName !== 'string' ||
           !data.video.professionName || typeof data.video.professionColorcode !== 'string')

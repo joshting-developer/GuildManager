@@ -1,3 +1,5 @@
+> GAS 相關段落僅為舊版行為與資料格式參考；現行版本只透過 Node HTTP API 運作，已移除 GAS 建置、RPC 與同步工具。舊資料尚未因此搬移，參見 [舊版來源](legacy-gas/README.md)。
+
 # GM v2 Node.js 分層與開發方式
 
 2.0.0 的後端是 Node.js 22／Express 5／mysql2, 原始碼維持 JavaScript ESM。這份文件定義 Codex／Claude 與其他協作者寫 `server/` 時共同遵守的分層與寫法, 目標是讓後續功能用同一套簡單規則開發, 而不是每次各寫各的

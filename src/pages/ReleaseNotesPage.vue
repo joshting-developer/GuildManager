@@ -1,5 +1,5 @@
 <script setup>
-// Notes ship inside the build; pending changes stay in Unreleased until GAS delivery.
+// Notes ship inside the build; pending changes stay in Unreleased until release.
 import notes from '../content/release-notes.json';
 
 const currentVersion = __APP_VERSION__;

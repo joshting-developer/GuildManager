@@ -1,6 +1,8 @@
+> GAS 相關段落僅為舊版行為與資料格式參考；現行版本只透過 Node HTTP API 運作，已移除 GAS 建置、RPC 與同步工具。舊資料尚未因此搬移，參見 [舊版來源](legacy-gas/README.md)。
+
 # 平台架構、安全與驗證契約
 
-本文保留既有產品契約, 供相關修改時按需查閱；實作協議另見 [Architecture](../Architecture.md), 介面依 [Style](../Style.md)。原文的版本、驗證及「尚未部署」敘述是當時紀錄, 不代表目前遠端狀態；現行同步方式見 [GAS 發布流程](gas-release.md)
+本文保留既有產品契約, 供相關修改時按需查閱；實作協議另見 [Architecture](../Architecture.md), 介面依 [Style](../Style.md)。原文的版本、驗證及「尚未部署」敘述是當時紀錄, 不代表目前遠端狀態；現行同步方式見 [GAS 發布流程](legacy-gas/gas-release.md)
 
 ## 技術方向
 
@@ -120,7 +122,7 @@ Apps Script 的 `.gs` 檔案共用全域環境, 避免重複命名與載入時�
 
 已配置 clasp 3.4.1 自動上傳，目標為 gas/upload-target.json；使用者已提供指令碼 ID 並授權覆蓋目前空白專案。npm run gas:login 由使用者本人完成 OAuth；npm run gas:push 先編譯四檔、備份遠端，再覆蓋並讀回比對。data/clasp-auth.json 與 .clasp.json 均忽略，勿讀出憑證或納入提交。上傳程式與初始化正式試算表／發布 Web App 是不同範圍，後兩者仍需後續指示。
 
-已完成全部既有 RPC 的 GAS 來源及單檔打包，初始化／部署見 [GAS 通用部署操作](../GASDeployment.md)。`gas/src/` 使用共享純資料驗證、私有 Properties 登入、追加式 Sheets store、私人 Drive 附件；`gas/Code.gs` 公開白名單 RPC 入口。編輯器選單略過私有 setupGas_，現以 setupGas 作可選取的初始化入口，由 Google Session 檢查非空且相同的 active／effective email；沿用以部署者執行 Web App，一般訪客不可初始化，部署者本人可執行，勿稱為可辨識 editor-only。userinfo.email scope 只用於此檢查，前端沒有初始化功能，不回傳 email；setupGas_ 私有實作保留。`npm run build:gas` 產生 Index.html／Code.gs／Backend.gs／appsscript.json 四檔，全部需同步；勿手改產物。
+已完成全部既有 RPC 的 GAS 來源及單檔打包，初始化／部署見 [GAS 通用部署操作](legacy-gas/GASDeployment.md)。`gas/src/` 使用共享純資料驗證、私有 Properties 登入、追加式 Sheets store、私人 Drive 附件；`gas/Code.gs` 公開白名單 RPC 入口。編輯器選單略過私有 setupGas_，現以 setupGas 作可選取的初始化入口，由 Google Session 檢查非空且相同的 active／effective email；沿用以部署者執行 Web App，一般訪客不可初始化，部署者本人可執行，勿稱為可辨識 editor-only。userinfo.email scope 只用於此檢查，前端沒有初始化功能，不回傳 email；setupGas_ 私有實作保留。`npm run build:gas` 產生 Index.html／Code.gs／Backend.gs／appsscript.json 四檔，全部需同步；勿手改產物。
 
 GAS 管理者無法登入可由部署者在私有屬性填 RECOVERY_ADMIN_PASSWORD（6–128 字元）並從編輯器執行 resetAdminPassword，沿用 Google 身分檢查。script lock 下只重設唯一 admin 雜湊、增加 revision、撤銷其 sessions 並清除此帳號失敗計數；成功後刪除明文，只記錄登入帳號，不記錄密碼／email。不新增或重建帳號、不改 manager／member／試算表／Drive，全站限流仍保留；此操作不在業務 RPC 白名單。不得代使用者讀取或要求貼出復原密碼；未實際雲端登入時不得把沙盒成功說成正式登入已修復。
 

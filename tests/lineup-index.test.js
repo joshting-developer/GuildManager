@@ -6,7 +6,6 @@ import { createLineupClient } from '../src/api/lineups.js';
 import { emptyLineup } from '../src/domain/lineups.js';
 import { taipeiToday } from '../src/domain/battle-events.js';
 import { authenticatedFetch } from './helpers/authenticated-fetch.js';
-import { gasRuntime, cloudResult, cloudSession } from './helpers/gas-runtime.js';
 
 const shift = (days) => {
   const [y, m, d] = taipeiToday().split('-').map(Number);
@@ -41,23 +40,4 @@ test('local lineup index can bundle the nearest upcoming battle with its version
     server.close();
     repo.close();
   }
-});
-
-test('GAS lineup index bundles the default battle only when asked, and old callers still work', async () => {
-  const env = await gasRuntime();
-  env.setup();
-  const context = cloudSession(cloudResult(env.raw('login', [{ username: 'admin', password: 'initial-password-123' }])));
-  const call = (op, args = []) => cloudResult(env.raw(op, args, context));
-  call('addMember', [{ uid: '0001', name: '甲', primaryProfessionId: 3, isInGuild: true, isInClub: false }]);
-  const soon = call('createEvent', [{ type: 'guild_war', title: '', dates: [shift(1)], requestId: 'soon' }]).events[0];
-  call('saveMemberResponse', [soon.id, { uid: '0001', status: 'registered', revision: 0 }]);
-  const teams = emptyLineup();
-  teams[0].slots[0].uid = '0001';
-  call('confirmLineup', [{ teams, eventId: soon.id, eventRevision: 1, expectedVersion: 0, requestId: 'soon-lineup' }]);
-  const plain = cloudResult(env.sandbox.getLineupIndex(context));
-  assert.equal('selected' in plain, false, 'getLineupIndex(context) keeps working');
-  const bundled = cloudResult(env.sandbox.getLineupIndex({ include: 'default' }, context));
-  assert.equal(bundled.selected.eventId, soon.id);
-  assert.equal(bundled.selected.versions[0].version, 1);
-  assert.equal(bundled.selected.participation.responses[0].uid, '0001');
 });

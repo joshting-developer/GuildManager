@@ -1,13 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRepository } from '../server/repository.js';
-import { gasRuntime, cloudResult, cloudSession } from './helpers/gas-runtime.js';
+
 import { participationTarget } from '../src/domain/participation-target.js';
-import { callGas, setGasSession } from '../src/api/gas.js';
 
 async function fixture(source) {
   let repo, call, close = () => {};
-  if (source === 'local') {
+
     repo = createRepository({ filename: ':memory:' });
     close = () => repo.close();
     call = (op, ...args) => {
@@ -16,15 +15,7 @@ async function fixture(source) {
       if (op === 'updateMember') return repo.updateMember(...args);
       return repo[op](...args);
     };
-  } else {
-    const env = await gasRuntime();
-    env.setup();
-    const context = cloudSession(cloudResult(env.raw('login', [{ username: 'admin', password: 'initial-password-123' }])));
-    call = (op, ...args) => {
-      const result = cloudResult(env.rpc(op === 'getForm' ? 'getEventParticipationForm' : op, args, context));
-      return ['createEvent', 'updateEvent'].includes(op) ? result.event : ['addMember', 'updateMember'].includes(op) ? result.member : result;
-    };
-  }
+
   const members = [];
   for (let i = 0; i < 12; i++) members.push(call('addMember', { uid: `u${i}`, name: `成員${i}`, primaryProfessionId: 1, isInGuild: true, isInClub: true }));
   const event = call('createEvent', { title: '同時請假', type: 'scrimmage', dates: ['2026-10-19'], requestId: 'event' });
@@ -38,7 +29,7 @@ function submission(event, form, name, requestId, status = 'leave', extra = {}) 
   return input;
 }
 
-for (const source of ['local', 'gas']) {
+for (const source of ['local']) {
   test(`${source}: twelve members using one old form can leave without reloading; same-person stale edits and replay stay protected`, async () => {
     const { call, close, event } = await fixture(source);
     try {
@@ -94,43 +85,3 @@ for (const source of ['local', 'gas']) {
     } finally { close(); }
   });
 }
-
-function runner(results) {
-  let success, failure;
-  const calls = [];
-  return {
-    calls,
-    withSuccessHandler(fn) { success = fn; return this; },
-    withFailureHandler(fn) { failure = fn; return this; },
-    submitParticipation(...args) {
-      calls.push(structuredClone(args));
-      const result = results.shift();
-      if (result instanceof Error) failure(result);
-      else success(result);
-    },
-  };
-}
-const busy = { __gasRpc: 1, ok: false, error: { code: 'BUSY', message: '稍候' } };
-test('GAS BUSY backs off with the same input/context and succeeds without clearing a draft or changing requestId', async () => {
-  setGasSession({ user: {}, sessionToken: 'a'.repeat(64), csrfToken: 'csrf' });
-  const run = runner([busy, busy, { __gasRpc: 1, ok: true, data: { status: 'leave' } }]);
-  const input = { name: '成員', note: '保留輸入', requestId: 'same-request', status: 'leave' };
-  const waits = [];
-  let notifications = 0;
-  try {
-    assert.deepEqual(await callGas('submitParticipation', ['event', input], run, { wait: async (ms) => waits.push(ms), random: () => 0, onBusyRetry: () => notifications++ }), { status: 'leave' });
-    assert.deepEqual(waits, [350, 700]);
-    assert.equal(notifications, 2);
-    assert.equal(run.calls.length, 3);
-    assert.ok(run.calls.every((call) => JSON.stringify(call) === JSON.stringify(run.calls[0])));
-    assert.equal(input.note, '保留輸入');
-  } finally { setGasSession({ user: null }); }
-});
-
-test('BUSY retry is bounded and transport, version, validation and authorization errors are not blindly retried', async () => {
-  for (const result of [busy, new Error('傳輸中斷'), ...['PARTICIPATION_CHANGED', 'VALIDATION_ERROR', 'AUTH_REQUIRED'].map((code) => ({ __gasRpc: 1, ok: false, error: { code, message: code } }))]) {
-    const run = runner([result, result, result]);
-    await assert.rejects(callGas('submitParticipation', ['event', {}], run, { wait: async () => {}, random: () => 0 }));
-    assert.equal(run.calls.length, result === busy ? 3 : 1);
-  }
-});

@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { createRepository } from '../server/repository.js';
 import { emptyLineup, editableLineup } from '../src/domain/lineups.js';
 import { validateLineup } from '../src/domain/lineup-validation.js';
-import { gasRuntime, cloudResult, cloudSession } from './helpers/gas-runtime.js';
 
 test('empty first-round IDs normalize while invalid and dual identities report the exact position', () => {
   const teams = emptyLineup();
@@ -76,18 +75,4 @@ test('SQLite saves 48 people with blank positions and resaves after a second-rou
     saveContract({ add: repo.addMember, event: repo.createEvent, confirm: repo.confirmLineup,
       remove: repo.deleteMemberPermanently, history: repo.getLineupHistory });
   } finally { repo.close(); }
-});
-
-test('GAS uses the same empty-position and deleted-second-round save contract', async () => {
-  const env = await gasRuntime();
-  env.setup();
-  const context = cloudSession(cloudResult(env.raw('login', [{ username: 'admin', password: 'initial-password-123' }])));
-  const call = (name, args) => cloudResult(env.raw(name, args, context));
-  saveContract({
-    add: (input) => call('addMember', [input]),
-    event: (input) => call('createEvent', [input]).event,
-    confirm: (input) => call('confirmLineup', [input]).version,
-    remove: (uid, input) => call('deleteMemberPermanently', [uid, input]),
-    history: (id) => call('getLineupHistory', [id]),
-  });
 });

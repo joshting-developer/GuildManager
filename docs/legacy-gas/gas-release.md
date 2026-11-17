@@ -1,6 +1,8 @@
+> 歷史參考：此文件描述移除前 GAS，所有命令與狀態均非現行操作流程。來源見 [索引](README.md)。
+
 # GAS 版本定版與程式同步
 
-本文保留既有產品契約, 供相關修改時按需查閱；實作協議另見 [Architecture](../Architecture.md), 介面依 [Style](../Style.md)。原文的版本、驗證及「尚未部署」敘述是當時紀錄, 不代表目前遠端狀態；現行同步方式見 [GAS 發布流程](gas-release.md)
+本文保留既有產品契約, 供相關修改時按需查閱；實作協議另見 [Architecture](../../Architecture.md), 介面依 [Style](../../Style.md)。原文的版本、驗證及「尚未部署」敘述是當時紀錄, 不代表目前遠端狀態；現行同步方式見 [GAS 發布流程](gas-release.md)
 
 ## 發布版本與 GAS 同步
 

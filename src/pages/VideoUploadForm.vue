@@ -12,9 +12,8 @@ const props = defineProps({
   professions: { type: Array, default: () => [] },
 });
 const emit = defineEmits(['busy', 'dirty', 'event-refreshed']);
-const source = import.meta.env.VITE_DATA_SOURCE || 'local';
-const client = createEventVideoClient({ source });
-const eventClient = createEventClient({ source });
+const client = createEventVideoClient();
+const eventClient = createEventClient();
 const emptyDraft = () => ({ name: '', professionId: null, firstUrl: '', secondUrl: '', groupName: null, note: '' });
 const draft = ref(emptyDraft());
 const nameSource = ref('manual');

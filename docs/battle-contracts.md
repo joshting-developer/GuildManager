@@ -1,6 +1,8 @@
+> GAS 相關段落僅為舊版行為與資料格式參考；現行版本只透過 Node HTTP API 運作，已移除 GAS 建置、RPC 與同步工具。舊資料尚未因此搬移，參見 [舊版來源](legacy-gas/README.md)。
+
 # 戰績上傳、歸屬與分析契約
 
-本文保留既有產品契約, 供相關修改時按需查閱；實作協議另見 [Architecture](../Architecture.md), 介面依 [Style](../Style.md)。原文的版本、驗證及「尚未部署」敘述是當時紀錄, 不代表目前遠端狀態；現行同步方式見 [GAS 發布流程](gas-release.md)
+本文保留既有產品契約, 供相關修改時按需查閱；實作協議另見 [Architecture](../Architecture.md), 介面依 [Style](../Style.md)。原文的版本、驗證及「尚未部署」敘述是當時紀錄, 不代表目前遠端狀態；現行同步方式見 [GAS 發布流程](legacy-gas/gas-release.md)
 
 ## 已確認戰績上傳規則
 

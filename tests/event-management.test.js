@@ -215,36 +215,3 @@ test('event adapter encodes IDs and passes revisions for HTTP edits/deletes with
   assert.equal(requests[1].options.method, 'DELETE');
   assert.deepEqual(JSON.parse(requests[1].options.body), { revision: 3 });
 });
-test('GAS edit/delete bridge preserves ID and revision and propagates unconnected errors without HTTP', async () => {
-  let success, failure;
-  const calls = [];
-  const client = createEventClient({
-    source: 'gas',
-    fetchImpl: () => assert.fail('no HTTP'),
-    googleRun: {
-      withSuccessHandler(handler) {
-        success = handler;
-        return this;
-      },
-      withFailureHandler(handler) {
-        failure = handler;
-        return this;
-      },
-      updateEvent(id, values) {
-        calls.push([id, values]);
-        success({ event: { id, ...values } });
-      },
-      deleteEvent(id, revision) {
-        calls.push([id, revision]);
-        failure({ message: '雲端活動刪除尚未串接' });
-      },
-    },
-  });
-  const values = { ...input, revision: 4 };
-  assert.equal((await client.updateEvent('id', values)).event.id, 'id');
-  await assert.rejects(client.deleteEvent('id', 4), /尚未串接/);
-  assert.deepEqual(calls, [
-    ['id', values],
-    ['id', 4],
-  ]);
-});

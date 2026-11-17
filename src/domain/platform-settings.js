@@ -30,7 +30,7 @@ export function validatePlatformIcon(icon) {
     (padding === 1 && last & 3)
   )
     invalid();
-  // Decode only the signature, using the same implementation in browsers and GAS.
+  // Decode only the signature using the portable implementation.
   const bytes = [];
   for (let i = 0; i < Math.min(icon.base64.length, 32); i += 4) {
     const value =

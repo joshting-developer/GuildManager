@@ -1,3 +1,5 @@
+> GAS 相關段落僅為舊版行為與資料格式參考；現行版本只透過 Node HTTP API 運作，已移除 GAS 建置、RPC 與同步工具。舊資料尚未因此搬移，參見 [舊版來源](legacy-gas/README.md)。
+
 # MySQL 開發與隔離驗證
 
 2.0.0 將 Node 後端資料來源改為 MySQL, 保留現有功能與 API。目前已完成連線、migration、資料表、各領域非同步 Repository 與 HTTP API 接線, `server/index.js` 只接 MySQL；舊 SQLite Repository 與測試保留在原位置供對照, 不再由服務或 `npm test` 使用。GAS 舊來源在正式資料移轉與驗收前保留
@@ -141,7 +143,6 @@ Docker 的 API 服務加入共用 `side-project-environment` 網路, 沿用自�
 
 HTTP 契約測試在 `tests/mysql-http/`, 由 `tests/mysql-http.test.js` 在同一程序依序載入, 使用與 Repository 測試相同的 repositorytest 空庫；不要直接把多個檔案交給 `node --test` 平行跑, 會在同一個 schema 互相干擾。目前覆蓋存取／登入／錯誤 envelope、活動、成員與匯入、報名、排表／職責／範本、戰績上傳／附件／刪除、平台設定／抽獎／影片；角色／session／CSRF 的回歸另見 `auth.test.js`, CLI 回歸見 `account-cli.test.js`；健康與停機回歸見下節, 通知提交／重送／rollback／footer 故障與非同步投遞見 `notifications.test.js`, 使用合成 fetch, 不代表真 Discord 送達
 
-
 ## 健康檢查、錯誤紀錄與關閉連線
 
 - `GET /api/live` 只驗 HTTP 程序仍可回應, 不經 Session 或 MySQL；成功保持 `{ "status": "ok" }`
@@ -153,13 +154,11 @@ HTTP 契約測試在 `tests/mysql-http/`, 由 `tests/mysql-http.test.js` 在同�
 
 `health.test.js` 在隔離 MySQL 驗 probe／寫鎖／真 pool 關閉, 並用故障注入驗錯誤不洩密；`startup.test.js` 驗實際啟動與兩種信號, `shutdown.test.js` 驗在途完成後關 pool、重複關閉、佔用埠、pool 關閉失敗與停機逾時。測試只關閉自己建立的 HTTP 與 pool, 不停共用 MySQL
 
-
 ## 提交後通知驗證
 
 通知透過 `repository.invoke` 回傳的操作專用 notices 發送, HTTP 不等待 Discord 網路完成。測試用另一條真 MySQL pool 連線確認資料已提交才進入合成 fetch, 並在交易已收集通知後注入 rollback, 驗證不送失敗通知；並行操作、無變更、一般報名與相同 requestId 重送都保留原有隔離／去重規則
 
 `server/discord-notifier.js` 提供 `drain()` 等待當前已排通知。停機先讓在途 HTTP 結束、關 pool, 再等待 drain, 仍受整體 10 秒期限限制；這是記憶體 best-effort 佇列, 不保證強制終止或超時後送達。429 只重試一次且不增加寫入, 其他失敗不重播；詳細規則見 [平台與整合契約](platform-contracts.md)
-
 
 ## R2 metadata
 

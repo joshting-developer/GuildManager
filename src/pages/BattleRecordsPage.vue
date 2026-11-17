@@ -13,7 +13,7 @@ import BattleRecordDetail from './BattleRecordDetail.vue';
 import './battle-record-view.css';
 
 const props = defineProps({ recordId: { type: String, default: null } });
-const client = createBattleRecordClient({ source: import.meta.env.VITE_DATA_SOURCE || 'local' });
+const client = createBattleRecordClient();
 const records = ref([]),
   total = ref(0),
   page = ref(1),

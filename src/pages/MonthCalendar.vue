@@ -43,9 +43,8 @@ function restoreAttendanceFocus() {
   if (attendanceOpener?.isConnected) attendanceOpener.focus();
   if (dayDialog.value) loadParticipationCounts();
 }
-const client = createEventClient({ source: import.meta.env.VITE_DATA_SOURCE || 'local' });
+const client = createEventClient();
 const participationClient = createParticipationClient({
-  source: import.meta.env.VITE_DATA_SOURCE || 'local',
 });
 const participationCounts = ref({});
 let participationToken = 0;

@@ -8,7 +8,7 @@ export function lineupEditorEventId(events, preferredId) {
 }
 
 // The lineup page opens on the nearest upcoming battle. Returning that battle's saved
-// versions and sign-ups with the index saves a second ~2 s cloud round trip on page load.
+// versions and sign-ups with the index avoids a second round trip on page load.
 export function withDefaultLineupEvent(index, { history, participation, today } = {}) {
   const eventId = defaultBattleEventId(index.events, { prefer: 'upcoming', ...(today ? { today } : {}) });
   if (!eventId) return { ...index, selected: null };

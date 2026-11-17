@@ -6,9 +6,6 @@ import { createLineupClient } from '../src/api/lineups.js';
 import { emptyLineup } from '../src/domain/lineups.js';
 import { taipeiToday } from '../src/domain/battle-events.js';
 import { authenticatedFetch } from './helpers/authenticated-fetch.js';
-import { gasRuntime, cloudResult, cloudSession } from './helpers/gas-runtime.js';
-import { createSheetStore } from '../gas/src/storage.js';
-import { canonical } from '../gas/src/common.js';
 
 function localFixture() {
   const repo = createRepository({ filename: ':memory:' });
@@ -93,83 +90,4 @@ test('HTTP new adapter uses one request per read and requires management without
     }
     assert.equal((await authed(base + `/api/lineups/events/${event.id}/current?includeCatalogs=bad`)).status, 422);
   } finally { await new Promise(resolve => server.close(resolve)); repo.close(); }
-});
-
-async function gasFixture() {
-  const env = await gasRuntime(); env.setup();
-  const context = cloudSession(cloudResult(env.raw('login', [{ username: 'admin', password: 'initial-password-123' }])));
-  cloudResult(env.raw('createManager', [{ username: 'manager', password: 'manager-password' }], context));
-  const manager = cloudSession(cloudResult(env.raw('login', [{ username: 'manager', password: 'manager-password' }])));
-  cloudResult(env.raw('setMemberToken', [{ password: '001234', revision: 0 }], context));
-  const member = cloudSession(cloudResult(env.raw('loginMember', [{ password: '001234' }])));
-  const stamp = '2026-10-26T00:00:00Z', teams = emptyLineup();
-  teams[0].slots[0] = { ...teams[0].slots[0], uid: 'old-uid', alias: '第一人小名', member: { uid: 'old-uid', name: '原快照' },
-    secondRound: { uid: 'second', profession: 'primary', alias: '第二人小名', member: { uid: 'second', name: '第二人' } } };
-  const storage = createSheetStore(env);
-  storage.transaction(store => {
-    store.put('events', 'event', { id: 'event', title: '最近場次', type: 'scrimmage', dates: [taipeiToday()], revision: 1, createdAt: stamp });
-    store.put('members', 'new-uid', { uid: 'new-uid', name: '現在名稱', primaryProfessionId: 1, isInGuild: true, isInClub: false, joinedAt: stamp, revision: 1 });
-    store.put('responses', canonical(['event', 'new-uid']), { eventId: 'event', uid: 'new-uid', status: 'leave', revision: 1 });
-    for (let i = 1; i <= 20; i++) store.put('lineup_versions', `v-${i}`, { id: `v-${i}`, eventId: 'event', event: { id: 'event', title: '最近場次', type: 'scrimmage', dates: [taipeiToday()], revision: 1 }, version: i, createdAt: stamp, teams });
-    store.put('requests', 'member-ref:lineup:v-20', { overrides: [['old-uid', 'new-uid']] });
-    for (let i = 0; i < 8; i++) store.put('templates', `template-${i}`, { id: `template-${i}`, name: `範本${i}`, teams, createdAt: stamp });
-  });
-  return { env, context, manager, member, storage };
-}
-
-test('GAS editor uses fewer Sheets reads, skips templates entirely and returns the same latest projected snapshot under writer lock', async (t) => {
-  const { env, context, manager, member } = await gasFixture();
-  let reads = [];
-  for (const [name, sheet] of env.sheets) {
-    const getRange = sheet.getRange.bind(sheet);
-    sheet.getRange = (...args) => { const range = getRange(...args), values = range.getValues; range.getValues = () => { reads.push(name); return values(); }; return range; };
-  }
-  const call = (op, args = [], ctx = context) => cloudResult(env.raw(op, args, ctx));
-  const old = call('getLineupIndex', [{ include: 'default' }]);
-  const catalogs = { ...call('getMembers'), ...call('getProfessions'), ...call('getDuties') };
-  const oldReads = reads.length; reads = [];
-  const before = JSON.stringify({ sheets: [...env.sheets].map(([n, s]) => [n, s.data]), properties: [...env.properties], files: [...env.files], fetches: env.fetches });
-  env.lock.tryLock(); env.lock.tryLock = () => assert.fail('editor cannot acquire writer lock');
-  const editor = call('getLineupEditor', [null]);
-  assert.ok(reads.length < oldReads, `${reads.length} editor reads versus ${oldReads} legacy reads`);
-  assert.equal(reads.includes('GM_templates'), false);
-  t.diagnostic(JSON.stringify({ legacySheetsReads: oldReads, editorSheetsReads: reads.length, legacyBytes: JSON.stringify({ ...old, ...catalogs }).length, editorBytes: JSON.stringify(editor).length }));
-  assert.deepEqual(editor.selected.versions, old.selected.versions.slice(0, 1));
-  assert.deepEqual(editor.selected.participation, old.selected.participation);
-  assert.deepEqual(editor.events, old.events);
-  for (const key of ['members', 'professions', 'duties']) assert.deepEqual(editor[key], catalogs[key]);
-  assert.equal(editor.templates, undefined);
-  assert.equal(editor.selected.versions[0].teams[0].slots[0].uid, 'new-uid');
-  assert.equal(editor.selected.versions[0].teams[0].slots[0].secondRound.alias, '第二人小名');
-  assert.ok(JSON.stringify(editor).length < JSON.stringify({ ...old, ...catalogs }).length / 2);
-  reads = [];
-  assert.deepEqual(call('getLineupSources', ['event']).members, catalogs.members);
-  assert.equal(reads.includes('GM_lineup_versions'), false, 'source refresh must not read saved lineups');
-  assert.equal(reads.includes('GM_templates'), false);
-  assert.deepEqual(call('getLineupEvent', ['event', true]).members, catalogs.members);
-  assert.ok(call('getLineupEditor', ['event'], manager).selected);
-  const summaries = call('getLineupTemplates').templates;
-  assert.equal(summaries.length, 8);
-  assert.ok(summaries.every(row => Object.keys(row).sort().join(',') === 'createdAt,id,name'));
-  for (const [op, args] of [['getLineupEditor', [null]], ['getLineupEvent', ['event', false]], ['getLineupTemplates', []], ['getLineupSources', ['event']]]) {
-    assert.equal(env.raw(op, args).error.code, 'AUTH_REQUIRED');
-    assert.equal(env.raw(op, args, member).error.code, 'MANAGEMENT_REQUIRED');
-  }
-  assert.equal(JSON.stringify({ sheets: [...env.sheets].map(([n, s]) => [n, s.data]), properties: [...env.properties], files: [...env.files], fetches: env.fetches }), before);
-});
-
-test('GAS archived and empty editor retain legacy snapshots and never read participation for archived records', async () => {
-  const env = await gasRuntime(); env.setup();
-  const context = cloudSession(cloudResult(env.raw('login', [{ username: 'admin', password: 'initial-password-123' }])));
-  const call = (op, args = []) => cloudResult(env.raw(op, args, context));
-  assert.equal(call('getLineupEditor', [null]).selected, null);
-  const storage = createSheetStore(env), event = { id: 'archived', title: '舊場次', type: 'scrimmage', dates: ['2020-01-01'], revision: 1 };
-  storage.transaction(s => s.put('lineup_versions', 'old', { id: 'old', eventId: event.id, event, teams: emptyLineup(), version: 1, createdAt: '2020-01-01T00:00:00Z' }));
-  const old = call('getLineupHistory', [event.id]);
-  const current = call('getLineupEvent', [event.id, false]);
-  assert.equal(current.event.archived, true);
-  assert.equal(current.participation, null);
-  assert.deepEqual(current.versions, old.versions);
-  assert.equal(call('getLineupEditor', [event.id]).selected.eventId, event.id);
-  assert.equal(env.raw('getLineupEvent', [event.id, 'true'], context).error.code, 'LINEUP_INVALID');
 });

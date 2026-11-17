@@ -9,7 +9,6 @@ import {
 } from '../src/domain/lineups.js';
 import { validateLineup } from '../src/domain/lineup-validation.js';
 import { lineupImageData } from '../src/domain/lineup-image.js';
-import { gasRuntime, cloudResult, cloudSession } from './helpers/gas-runtime.js';
 
 function lineup() {
   const teams = emptyLineup();
@@ -75,21 +74,6 @@ test('the exported image shows the nickname instead of the real name', () => {
   assert.deepEqual(people.map((person) => person.name), ['小白', '阿黑']);
   assert.equal(data.groups[0].teams[0].rows[1].people[0].name, '本名丙');
   assert.ok(!JSON.stringify(data).includes('本名甲'), 'the real name is not in the image data');
-});
-
-test('GAS keeps nicknames in saved lineup versions', async () => {
-  const env = await gasRuntime();
-  env.setup();
-  const context = cloudSession(cloudResult(env.raw('login', [{ username: 'admin', password: 'initial-password-123' }])));
-  const call = (op, args = []) => cloudResult(env.raw(op, args, context));
-  call('addMember', [{ uid: '0001', name: '本名', primaryProfessionId: 3, isInGuild: true, isInClub: false }]);
-  const event = call('createEvent', [{ type: 'guild_war', title: '', dates: ['2026-10-04'], requestId: 'war' }]).events[0];
-  const teams = emptyLineup();
-  Object.assign(teams[0].slots[0], { uid: '0001', profession: 'primary', alias: '阿本' });
-  const version = call('confirmLineup', [{ teams, eventId: event.id, eventRevision: 1, expectedVersion: 0, requestId: 'alias' }]).version;
-  assert.equal(version.teams[0].slots[0].alias, '阿本');
-  assert.equal(version.teams[0].slots[0].member.name, '本名');
-  assert.equal(call('getLineupHistory', [event.id]).versions[0].teams[0].slots[0].alias, '阿本');
 });
 
 test('SQLite keeps nicknames in saved lineup versions and history', async () => {

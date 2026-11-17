@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createRepository } from '../server/repository.js';
 import { createApp } from '../server/app.js';
-import { gasRuntime, cloudSession, cloudResult } from './helpers/gas-runtime.js';
+
 import { MAX_PLATFORM_ICON_BYTES, validatePlatformIcon } from '../src/domain/platform-settings.js';
 import { createPlatformSettingsClient } from '../src/api/platform-settings.js';
 
@@ -121,38 +121,6 @@ test('local icon upload is admin-only, atomic, retryable, public-readable and pe
     repo.close();
     rmSync(directory, { recursive: true, force: true });
   }
-});
-
-test('GAS icon uses private Drive references, safe retries and committed settings after write failure', async () => {
-  const env = await gasRuntime();
-  env.setup();
-  const context = cloudSession(
-    cloudResult(env.raw('login', [{ username: 'admin', password: 'initial-password-123' }])),
-  );
-  const call = (input) => cloudResult(env.raw('updatePlatformSettings', [input], context)).platform;
-  const read = () => cloudResult(env.raw('getPlatformSettings')).platform;
-  const input = { name: '雲端圖示', revision: 1, icon: png };
-  assert.equal(env.raw('updatePlatformSettings', [input]).error.code, 'AUTH_REQUIRED');
-  assert.deepEqual(call(input), { name: input.name, revision: 2, iconSrc: source });
-  assert.equal(env.files.size, 1);
-  assert.deepEqual(call(input), read());
-  assert.equal(env.files.size, 1);
-  assert.equal(JSON.stringify(read()).includes('fileId'), false);
-  assert.equal(call({ name: '改名保留圖示', revision: 2 }).iconSrc, source);
-  env.failOn('GM_commits');
-  assert.equal(
-    env.raw('updatePlatformSettings', [{ name: '未提交', revision: 3, icon: largePng }], context)
-      .ok,
-    false,
-  );
-  env.failOn(null);
-  assert.deepEqual(read(), { name: '改名保留圖示', revision: 3, iconSrc: source });
-  assert.equal(call({ name: '重試成功', revision: 3, icon: largePng }).revision, 4);
-  env.setup();
-  assert.equal(read().iconSrc, `data:image/png;base64,${largePng.base64}`);
-  assert.deepEqual(call({ name: '移除', revision: 4, icon: null }), { name: '移除', revision: 5 });
-  assert.deepEqual(call({ name: '移除', revision: 4, icon: null }), { name: '移除', revision: 5 });
-  assert.equal(env.files.size, 3); // Old and uncommitted files remain private for recovery.
 });
 
 test('platform adapter refuses arbitrary or malformed image sources', async () => {

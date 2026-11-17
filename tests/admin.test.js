@@ -228,52 +228,6 @@ test('legacy accounts upgrade once with an admin and preserve hashes/sessions ac
   }
 });
 
-test('admin adapter uses protected HTTP paths and GAS errors without fallback', async () => {
-  const f = await setup();
-  try {
-    const admin = await f.login();
-    const client = createAdminClient({
-      fetchImpl: (path, init = {}) =>
-        fetch(f.base + path, { ...init, headers: { ...init.headers, ...admin.headers } }),
-    });
-    assert.equal((await client.getAccounts()).admin.role, 'admin');
-    const { manager } = await client.createManager({ username: 'adapter', password });
-    assert.equal(
-      (await client.updateManager(manager.id, { username: 'changed', revision: 1 })).manager
-        .username,
-      'changed',
-    );
-    await assert.rejects(
-      client.updateManager(manager.id, { username: 'changed', revision: 1 }),
-      code('ACCOUNT_CHANGED'),
-    );
-    await assert.rejects(
-      createAdminClient({ source: 'gas', fetchImpl: () => assert.fail() }).getAccounts(),
-      /Apps Script Web App/,
-    );
-    let failure;
-    const gas = createAdminClient({
-      source: 'gas',
-      googleRun: {
-        withSuccessHandler() {
-          return this;
-        },
-        withFailureHandler(fn) {
-          failure = fn;
-          return this;
-        },
-        createManager(input) {
-          assert.equal(input.username, 'gas');
-          failure({ message: '尚未串接' });
-        },
-      },
-    });
-    await assert.rejects(gas.createManager({ username: 'gas', password }), /尚未串接/);
-  } finally {
-    await f.close();
-  }
-});
-
 test('shared member token is fixed, private, admin-only and revokes all sessions on reset', async () => {
   const f = await setup();
   try {

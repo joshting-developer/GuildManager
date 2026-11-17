@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { createTestRepository as createRepository, repositoryDatabase } from '../helpers/mysql-repository.js';
 import { createMysqlRepository } from '../../server/mysql/repository.js';
 import { emptyLineup } from '../../src/domain/lineups.js';
-import { fixtureCsv } from '../helpers/gas-runtime.js';
+import { fixtureCsv } from '../helpers/battle-csv.js';
+
 const person = (uid, name = '現在名') => ({ uid, name, primaryProfessionId: 3, secondaryProfessionId: null });
 // Never send the ordinary endpoint's immutable uid field to management writes.
 function edit(newUid, revision, requestId) {

@@ -24,12 +24,8 @@ export function normalizeCachedPlatform(value) {
   return { name: value.name, iconSrc: value.iconSrc || null, revision: value.revision };
 }
 
-export function createPlatformCache({ source, namespace, storage } = {}) {
-  const key = source === 'local'
-    ? 'guild-platform:v1:local'
-    : source === 'gas' && typeof namespace === 'string' && namespace
-      ? `guild-platform:v1:gas:${namespace}`
-      : null;
+export function createPlatformCache({ storage } = {}) {
+  const key = 'guild-platform:v1:local';
   function getStorage() {
     return storage === undefined ? globalThis.localStorage : storage;
   }

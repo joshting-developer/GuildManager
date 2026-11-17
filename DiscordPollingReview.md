@@ -1,3 +1,5 @@
+> GAS 相關段落僅為舊版行為與資料格式參考；現行版本只透過 Node HTTP API 運作，已移除 GAS 建置、RPC 與同步工具。舊資料尚未因此搬移，參見 [舊版來源](docs/legacy-gas/README.md)。
+
 # Discord／GAS 輪詢架構審查
 
 審查日期：2026/10/29。專案基準：main `5412041`。
@@ -16,7 +18,7 @@
 
 附件 §6.2 第一步取得 Script Lock，直到抓訊息、分頁、處理所有 URL 完才釋放。Google 的 Script Lock 以整個 script 為範圍，不會因為函式不同而分成兩把。[LockService 官方說明](https://developers.google.com/apps-script/reference/lock/lock-service#getScriptLock())
 
-本專案 [backend.js](gas/src/backend.js) 的 `locked()`（152 行）也是這把鎖，`submitParticipation` 等寫入在此保護下執行，最多等 10 秒後回 BUSY。當 Poller 的 Discord HTTP／URL handler 變慢，請假送出就要一起等；唯讀白名單仍可讀，不能因此判定沒有使用者影響。
+本專案 `gas/src/backend.js`（[移除前原始碼](docs/legacy-gas/README.md#移除前原始碼)） 的 `locked()`（152 行）也是這把鎖，`submitParticipation` 等寫入在此保護下執行，最多等 10 秒後回 BUSY。當 Poller 的 Discord HTTP／URL handler 變慢，請假送出就要一起等；唯讀白名單仍可讀，不能因此判定沒有使用者影響。
 
 隔離模擬目前後端的結果：
 
@@ -57,7 +59,7 @@
 
 附件的 at-least-once 判斷正確。但 §7 的 TODO／console.log handler 沒有業務效果，若當作成功並前進 cursor，之後補上正式 handler 也不會再處理那些訊息。
 
-本專案已用 [common.js](gas/src/common.js) 的 `retry()` 與 [storage.js](gas/src/storage.js) 的提交標記，將業務資料和 requestId 結果一起提交。新 adapter 應重用同等保護：
+本專案已用 `gas/src/common.js`（[移除前原始碼](docs/legacy-gas/README.md#移除前原始碼)） 的 `retry()` 與 `gas/src/storage.js`（[移除前原始碼](docs/legacy-gas/README.md#移除前原始碼)） 的提交標記，將業務資料和 requestId 結果一起提交。新 adapter 應重用同等保護：
 
 1. 穩定來源識別由 channelId／messageId／原文 URL occurrence index 組成。
 2. 來源識別和業務場次 ID 分開命名，例如 `sourceEventId` 與 `battleEventId`；附件的 eventId 不能直接當成我們的活動 ID。
@@ -94,8 +96,8 @@ Sheets receipt 可以保護站內寫入；若 handler 還有外部副作用，�
 
 ### P2：現有打包、排程身分和啟用流程需要另外接線
 
-- [package-gas.js](tools/package-gas.js) 只從 backend.js 編譯 Backend.gs，複製 Code.gs／manifest；[gas-sync.js](tools/gas-sync.js) 核對固定四檔。直接新增附件所列的六份 `.gs` 不會自動進同步包。建議沿 `gas/src/discord-*.js` 加模組，Code.gs 放必要入口；確有新增檔案才另改打包與讀回比對契約。
-- [appsscript.json](gas/appsscript.json) 已有 external_request，尚無程式建立／移除 trigger 所需的 `script.scriptapp` scope；採附件 setup 功能時須補權限並由操作者完成授權，不能靠排程跳出授權畫面。[ScriptApp 授權要求](https://developers.google.com/apps-script/reference/script/script-app#newTrigger(String))
+- `tools/package-gas.js`（[移除前原始碼](docs/legacy-gas/README.md#移除前原始碼)） 只從 backend.js 編譯 Backend.gs，複製 Code.gs／manifest；`tools/gas-sync.js`（[移除前原始碼](docs/legacy-gas/README.md#移除前原始碼)） 核對固定四檔。直接新增附件所列的六份 `.gs` 不會自動進同步包。建議沿 `gas/src/discord-*.js` 加模組，Code.gs 放必要入口；確有新增檔案才另改打包與讀回比對契約。
+- `gas/appsscript.json`（[移除前原始碼](docs/legacy-gas/README.md#移除前原始碼)） 已有 external_request，尚無程式建立／移除 trigger 所需的 `script.scriptapp` scope；採附件 setup 功能時須補權限並由操作者完成授權，不能靠排程跳出授權畫面。[ScriptApp 授權要求](https://developers.google.com/apps-script/reference/script/script-app#newTrigger(String))
 - `getProjectTriggers()` 只列目前使用者的 trigger，不能保證其他帳號沒裝。應指定單一安裝者，保存已登記 trigger／owner 資訊並做執行去重；不能只憑當前清單就宣稱全專案唯一。觸發器以建立者身分執行，配額也要以該帳號評估。[安裝式觸發器限制](https://developers.google.com/apps-script/guides/triggers/installable)
 - 一般 trigger 直接按 handler 呼叫專案函式，不能把目前 Web App 的固定部署版本當成 Poller 啟用閘門。Google 對目前程式碼與版本部署有明確區分；此處依 trigger 入口與部署合約推導，未在正式專案驗證。應有預設關閉的獨立 enabled 開關、相容的資料協議及獨立啟停／回復步驟，未更新 Web App 不代表背景排程不會工作。[部署版本說明](https://developers.google.com/apps-script/concepts/deployments)、[Trigger 入口合約](https://developers.google.com/apps-script/reference/script/script-app#newTrigger(String))
 
@@ -130,7 +132,7 @@ flowchart TD
 
 ## 還需要確定的業務範圍
 
-目前沒有 `handleDiscordUrl` 服務，任意 URL 也沒有足夠欄位可直接變成我們的影片或戰績。例如 [videos.js](gas/src/videos.js) 的提交需場次及版本、名稱、團別、職業等資訊，Discord authorId 並不是遊戲 UID。
+目前沒有 `handleDiscordUrl` 服務，任意 URL 也沒有足夠欄位可直接變成我們的影片或戰績。例如 `gas/src/videos.js`（[移除前原始碼](docs/legacy-gas/README.md#移除前原始碼)） 的提交需場次及版本、名稱、團別、職業等資訊，Discord authorId 並不是遊戲 UID。
 
 實作前需要明確選定：
 

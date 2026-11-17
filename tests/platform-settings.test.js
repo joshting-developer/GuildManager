@@ -6,8 +6,6 @@ import { tmpdir } from 'node:os';
 import { createRepository } from '../server/repository.js';
 import { createApp } from '../server/app.js';
 import { createPlatformSettingsClient } from '../src/api/platform-settings.js';
-import { gasRuntime, cloudResult, cloudSession } from './helpers/gas-runtime.js';
-import { setGasSession } from '../src/api/gas.js';
 
 const secret = 'test-password-2026';
 test('local platform settings enforce admin/CSRF and preserve changes after restart', async () => {
@@ -106,108 +104,6 @@ test('local platform settings enforce admin/CSRF and preserve changes after rest
     await new Promise((resolve) => server.close(resolve));
     repo.close();
     rmSync(directory, { recursive: true, force: true });
-  }
-});
-
-test('compiled GAS settings use public read, admin-only write and committed Sheets persistence', async () => {
-  const env = await gasRuntime();
-  env.setup();
-  const context = cloudSession(
-    cloudResult(env.raw('login', [{ username: 'admin', password: 'initial-password-123' }])),
-  );
-  const call = (op, args = [], ctx = context) => cloudResult(env.raw(op, args, ctx));
-  assert.deepEqual(call('getPlatformSettings', [], {}), {
-    platform: { name: '逆水寒', revision: 1 },
-  });
-  call('setMemberToken', [{ password: 'Member123', revision: 0 }]);
-  call('createManager', [{ username: 'manager', password: secret }]);
-  const member = cloudSession(cloudResult(env.raw('loginMember', [{ password: 'Member123' }])));
-  const manager = cloudSession(
-    cloudResult(env.raw('login', [{ username: 'manager', password: secret }])),
-  );
-  const input = { name: '=仗劍平台', revision: 1 };
-  assert.equal(env.raw('updatePlatformSettings', [input], {}).error.code, 'AUTH_REQUIRED');
-  for (const ctx of [member, manager])
-    assert.equal(env.raw('updatePlatformSettings', [input], ctx).error.code, 'ADMIN_REQUIRED');
-  assert.equal(
-    env.raw('updatePlatformSettings', [input], {
-      sessionToken: context.sessionToken,
-    }).error.code,
-    'CSRF_INVALID',
-  );
-  assert.deepEqual(call('updatePlatformSettings', [input]), {
-    platform: { name: '=仗劍平台', revision: 2 },
-  });
-  assert.deepEqual(call('updatePlatformSettings', [input]), {
-    platform: { name: '=仗劍平台', revision: 2 },
-  });
-  assert.equal(
-    env.raw('updatePlatformSettings', [{ name: '不同名稱', revision: 1 }], context).error.code,
-    'STALE_SETTINGS',
-  );
-  assert.equal(
-    env.raw('updatePlatformSettings', [{ name: '字'.repeat(31), revision: 2 }], context).error.code,
-    'INVALID_PLATFORM_NAME',
-  );
-  env.setup();
-  assert.deepEqual(call('getPlatformSettings', [], {}), {
-    platform: { name: '=仗劍平台', revision: 2 },
-  });
-  assert.equal(call('getHomeData').guild.name, '測試幫會');
-  env.sandbox.ScriptApp = { getScriptId: () => 'platform-test-script' };
-  env.sandbox.HtmlService = {
-    createHtmlOutputFromFile: () => ({ getContent: () => '<head></head>' }),
-    createHtmlOutput: () => ({
-      setTitle(title) {
-        this.title = title;
-        return this;
-      },
-      addMetaTag() {
-        return this;
-      },
-    }),
-  };
-  assert.equal(env.sandbox.doGet().title, '=仗劍平台 · 幫會管理平台');
-
-  // Use the same asynchronous runner contract as the real frontend adapter.
-  function runner(success, failure) {
-    return new Proxy(
-      {},
-      {
-        get(_target, operation) {
-          if (operation === 'withSuccessHandler') return (handler) => runner(handler, failure);
-          if (operation === 'withFailureHandler') return (handler) => runner(success, handler);
-          return (...args) =>
-            queueMicrotask(() => {
-              try {
-                success(env.raw(operation, args.slice(0, -1), args.at(-1)));
-              } catch (error) {
-                failure(error);
-              }
-            });
-        },
-      },
-    );
-  }
-  setGasSession({ user: { role: 'admin' }, ...context });
-  try {
-    const client = createPlatformSettingsClient({
-      source: 'gas',
-      googleRun: runner(),
-    });
-    assert.deepEqual(await client.getSettings(), {
-      platform: { name: '=仗劍平台', revision: 2 },
-    });
-    assert.deepEqual(await client.updateSettings({ name: '雲端幫會', revision: 2 }), {
-      platform: { name: '雲端幫會', revision: 3 },
-    });
-    setGasSession({ user: { role: 'member' }, ...member });
-    await assert.rejects(client.updateSettings({ name: '無權限', revision: 3 }), {
-      code: 'ADMIN_REQUIRED',
-    });
-    assert.equal(call('getPlatformSettings', [], {}).platform.name, '雲端幫會');
-  } finally {
-    setGasSession(null);
   }
 });
 

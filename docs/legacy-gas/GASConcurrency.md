@@ -1,6 +1,8 @@
+> 歷史參考：此文件描述移除前 GAS，所有命令與狀態均非現行操作流程。來源見 [索引](README.md)。
+
 # GAS 功能與鎖範圍盤點
 
-> 閱讀順序：本文件前段是 v1.0.18 的原始盤點與改善前驗證, 其中「全部 RPC 持鎖」「沒有 BUSY 自動重試」等敘述屬歷史。v1.0.19 起的實際做法見文末「v1.0.19 實作結果」；後續開發預設遵循 [GAS 效能與併發契約](docs/gas-performance-contracts.md), 新增 RPC 時同步更新本文件的讀寫依賴。既有程式同步／部署紀錄見 [GASDeployment.md](GASDeployment.md), 不能由程式同步推測 Web App 已發布
+> 閱讀順序：本文件前段是 v1.0.18 的原始盤點與改善前驗證, 其中「全部 RPC 持鎖」「沒有 BUSY 自動重試」等敘述屬歷史。v1.0.19 起的實際做法見文末「v1.0.19 實作結果」；後續開發預設遵循 [GAS 效能與併發契約](gas-performance-contracts.md), 新增 RPC 時同步更新本文件的讀寫依賴。既有程式同步／部署紀錄見 [GASDeployment.md](GASDeployment.md), 不能由程式同步推測 Web App 已發布
 
 2026-10-19；盤點來源 `efe13f9`／v1.0.18。以下「目前／現況」指盤點基準；後續 v1.0.19 已完成的調整見文末，程式已同步 GAS，尚未更新 Web App 部署。
 
@@ -204,13 +206,13 @@
 
 ## 來源定位
 
-- [backend.js](gas/src/backend.js)：全 RPC 鎖、角色／CSRF、Drive 服務、通知發送、初始化與復原。
-- [storage.js](gas/src/storage.js)：追加版本、提交標記、分段登入資料及清理。
-- [participation.js](gas/src/participation.js)：整場報名 revision、個人回應 revision、外援及取消請假。
-- [members-events.js](gas/src/members-events.js)、[member-maintenance.js](gas/src/member-maintenance.js)、[member-battle-links.js](gas/src/member-battle-links.js)：名冊、活動與跨功能關聯。
-- [lineups.js](gas/src/lineups.js)、[battles.js](gas/src/battles.js)、[battle-member-sync.js](gas/src/battle-member-sync.js)：排表、戰績及同步的驗證與提交。
-- [auth.js](gas/src/auth.js)、[common.js](gas/src/common.js)、[videos.js](gas/src/videos.js)、[lottery.js](gas/src/lottery.js)：登入寫入、共用 requestId、延遲建表。
-- [Code.gs](gas/Code.gs)：61 個 RPC wrapper 及編輯器入口；[gas.js](src/api/gas.js)、[ParticipationDialog.vue](src/pages/ParticipationDialog.vue)：前端目前沒有 BUSY 自動重試，也沒有跨人版本衝突的自動處理。
+- `gas/src/backend.js`（[移除前原始碼](README.md#移除前原始碼)）：全 RPC 鎖、角色／CSRF、Drive 服務、通知發送、初始化與復原。
+- `gas/src/storage.js`（[移除前原始碼](README.md#移除前原始碼)）：追加版本、提交標記、分段登入資料及清理。
+- `gas/src/participation.js`（[移除前原始碼](README.md#移除前原始碼)）：整場報名 revision、個人回應 revision、外援及取消請假。
+- `gas/src/members-events.js`（[移除前原始碼](README.md#移除前原始碼)）、`gas/src/member-maintenance.js`（[移除前原始碼](README.md#移除前原始碼)）、`gas/src/member-battle-links.js`（[移除前原始碼](README.md#移除前原始碼)）：名冊、活動與跨功能關聯。
+- `gas/src/lineups.js`（[移除前原始碼](README.md#移除前原始碼)）、`gas/src/battles.js`（[移除前原始碼](README.md#移除前原始碼)）、`gas/src/battle-member-sync.js`（[移除前原始碼](README.md#移除前原始碼)）：排表、戰績及同步的驗證與提交。
+- `gas/src/auth.js`（[移除前原始碼](README.md#移除前原始碼)）、`gas/src/common.js`（[移除前原始碼](README.md#移除前原始碼)）、`gas/src/videos.js`（[移除前原始碼](README.md#移除前原始碼)）、`gas/src/lottery.js`（[移除前原始碼](README.md#移除前原始碼)）：登入寫入、共用 requestId、延遲建表。
+- `gas/Code.gs`（[移除前原始碼](README.md#移除前原始碼)）：61 個 RPC wrapper 及編輯器入口；`src/api/gas.js`（[移除前原始碼](README.md#移除前原始碼)）、[ParticipationDialog.vue](../../src/pages/ParticipationDialog.vue)：前端目前沒有 BUSY 自動重試，也沒有跨人版本衝突的自動處理。
 
 ## v1.0.19 實作結果（已同步 GAS，尚未更新部署）
 

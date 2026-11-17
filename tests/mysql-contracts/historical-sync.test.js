@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createTestRepository as createRepository, repositoryDatabase } from '../helpers/mysql-repository.js';
 import { createMysqlRepository } from '../../server/mysql/repository.js';
-import { fixtureCsv } from '../helpers/gas-runtime.js';
+import { fixtureCsv } from '../helpers/battle-csv.js';
 
 const person = (uid, name) => ({ uid, name, primaryProfessionId: 3 });
 let uploadMinute = 0;

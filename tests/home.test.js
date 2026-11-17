@@ -71,56 +71,6 @@ test('local API returns the home contract and rejects unsupported writes', async
   }
 });
 
-test('GAS adapter resolves the same contract without an HTTP request', async () => {
-  const repository = createRepository({ filename: ':memory:' });
-  try {
-    const data = repository.readHome();
-    let success;
-    const run = {
-      withSuccessHandler(handler) {
-        success = handler;
-        return this;
-      },
-      withFailureHandler() {
-        return this;
-      },
-      getHomeData() {
-        success(data);
-      },
-    };
-    const client = createHomeClient({
-      source: 'gas',
-      googleRun: run,
-      fetchImpl: () => {
-        throw new Error('HTTP must not be called');
-      },
-    });
-    assert.deepEqual(await client.getHomeData(), data);
-  } finally {
-    repository.close();
-  }
-});
-
-test('GAS failure rejects without falling back to demonstration data', async () => {
-  let failure;
-  const run = {
-    withSuccessHandler() {
-      return this;
-    },
-    withFailureHandler(handler) {
-      failure = handler;
-      return this;
-    },
-    getHomeData() {
-      failure(new Error('not authorized'));
-    },
-  };
-  await assert.rejects(
-    createHomeClient({ source: 'gas', googleRun: run }).getHomeData(),
-    /not authorized/,
-  );
-});
-
 test('local transport rejects malformed payloads and HTTP errors', async () => {
   await assert.rejects(
     createHomeClient({ fetchImpl: async () => ({ ok: false }) }).getHomeData(),

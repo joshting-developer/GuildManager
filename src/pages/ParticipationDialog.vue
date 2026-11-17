@@ -10,8 +10,7 @@ import { isPastBattleEvent, taipeiToday } from '../domain/battle-events.js';
 const props = defineProps({ modelValue: Boolean, event: { type: Object, required: true }, today: { type: String, default: () => taipeiToday() }, showCounts: Boolean });
 const pastEvent = computed(() => isPastBattleEvent(props.event, props.today));
 const emit = defineEmits(['update:modelValue', 'closed', 'event-refreshed']);
-const source = import.meta.env.VITE_DATA_SOURCE || 'local';
-const client = createParticipationClient({ source, onBusyRetry: () => { retrying.value = true; } });
+const client = createParticipationClient();
 const calendarAuth = inject('calendarAuth', null);
 const authLoading = computed(() => !!calendarAuth?.loading.value);
 const members = ref([]),
@@ -27,7 +26,6 @@ const professions = ref([]),
   revision = ref('');
 const loading = ref(true),
   busy = ref(false),
-  retrying = ref(false),
   loadError = ref(''),
   error = ref(''),
   notice = ref('');
@@ -94,7 +92,7 @@ function resetForm() {
   attempt = null;
 }
 // After a submit only this battle's responses change; professions and the roster are
-// reused so the dialog makes one backend call instead of three (each GAS call ≈ 2 s).
+// reused so the dialog makes one backend call instead of three.
 async function load({ participationOnly = false } = {}) {
   if (authLoading.value) return;
   const videoOnly = pastEvent.value;
@@ -226,7 +224,6 @@ async function submit() {
     return;
   }
   busy.value = true;
-  retrying.value = false;
   const input = {
     name: name.value.trim(),
     professionId: status.value === 'registered' ? professionId.value : null,
@@ -262,7 +259,6 @@ async function submit() {
     error.value = cause.message;
   } finally {
     busy.value = false;
-    retrying.value = false;
   }
 }
 </script>
@@ -382,7 +378,7 @@ async function submit() {
               :disabled="busy"
               hide-details
             />
-            <DataLoading v-if="busy" compact :spinner="false">{{ retrying ? '正在等候送出，內容已保留，請稍候…' : status === 'registered' ? '正在送出報名…' : '正在送出請假…' }}</DataLoading>
+            <DataLoading v-if="busy" compact :spinner="false">{{ status === 'registered' ? '正在送出報名…' : '正在送出請假…' }}</DataLoading>
             <v-btn type="submit" color="primary" :loading="busy" :disabled="busy">{{
               status === 'registered' ? '送出報名' : '送出請假'
             }}</v-btn>

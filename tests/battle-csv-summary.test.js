@@ -2,7 +2,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { BATTLE_COLUMNS, parseBattleCsv } from '../src/domain/battle-records.js';
 import { createRepository } from '../server/repository.js';
-import { gasRuntime, cloudResult, cloudSession } from './helpers/gas-runtime.js';
 
 const header = BATTLE_COLUMNS.map(([title]) => `"${title}"`).join(',');
 // Match the reported export's shape without keeping real player names in Git.
@@ -81,24 +80,4 @@ test('SQLite imports mismatched summaries with actual counts, unchanged CSV and 
   } finally {
     repository.close();
   }
-});
-
-test('compiled GAS RPC imports mismatched summaries with actual counts, unchanged CSV and safe retries', async () => {
-  const environment = await gasRuntime();
-  environment.setup();
-  const login = cloudResult(environment.raw('login', [{
-    username: 'admin', password: 'initial-password-123',
-  }]));
-  const context = cloudSession(login);
-  const call = (operation, args = []) => cloudResult(environment.raw(operation, args, context));
-  const event = call('createEvent', [eventInput]).event;
-  const csvText = exportedCsv();
-  const input = upload(event, csvText);
-  const result = call('saveBattleRecords', [input]);
-  const record = call('getBattleRecord', [result.records[0].id]).record;
-  savedRecord(record);
-  const attachment = call('getBattleAttachment', [record.id, 'csv']);
-  assert.equal(Buffer.from(attachment.base64, 'base64').toString('utf8'), csvText);
-  assert.deepEqual(call('saveBattleRecords', [input]), result);
-  assert.equal(call('getBattleRecords', [1, event.id]).total, 1);
 });

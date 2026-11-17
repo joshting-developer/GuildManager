@@ -8,8 +8,7 @@ import { eventDisplayTitle } from '../domain/event-types.js';
 import { battleEventLabel } from '../domain/battle-events.js';
 import { VIDEO_GROUP_OPTIONS } from '../domain/event-videos.js';
 import { VIDEO_TABLE_HEADERS, videoTableRow, videoTableCsv } from '../domain/video-table-csv.js';
-const source = import.meta.env.VITE_DATA_SOURCE || 'local';
-const videoClient = createEventVideoClient({ source });
+const videoClient = createEventVideoClient();
 const events = shallowRef([]),
   eventId = ref(null),
   videos = shallowRef([]);

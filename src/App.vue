@@ -39,7 +39,7 @@ import {
 import { createAuthClient } from './api/auth.js';
 import { forgetEventList } from './api/events.js';
 import { createPlatformSettingsClient } from './api/platform-settings.js';
-import { createPlatformCache, normalizeCachedPlatform } from './api/platform-cache.js';
+import { createPlatformCache } from './api/platform-cache.js';
 import { setCsrfToken } from './api/session.js';
 import LoginDialog from './components/LoginDialog.vue';
 import DataLoading from './components/DataLoading.vue';
@@ -60,7 +60,6 @@ import LotteryPage from './pages/lottery/LotteryPage.vue';
 import ReleaseNotesPage from './pages/ReleaseNotesPage.vue';
 import releaseNotes from './content/release-notes.json';
 
-const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 const vuetifyTheme = useTheme();
 const colorTheme = ref(readTheme());
 const fontScale = ref(readFontScale());
@@ -80,17 +79,13 @@ function chooseFontScale(name) {
 const appVersion = __APP_VERSION__;
 const versionLabel = releaseNotes.some((release) => release.version === 'Unreleased')
   ? '未發布' : `v${appVersion}`;
-const authClient = createAuthClient({ source });
-const platformClient = createPlatformSettingsClient({ source });
-const platformCache = createPlatformCache({ source, namespace: globalThis.__GUILD_GAS_KEY__ });
-const initialPlatform = source === 'gas'
-  ? normalizeCachedPlatform(globalThis.__GUILD_PLATFORM__)
-  : null;
-const cachedPlatform = initialPlatform || platformCache.read();
+const authClient = createAuthClient();
+const platformClient = createPlatformSettingsClient();
+const platformCache = createPlatformCache();
+const cachedPlatform = platformCache.read();
 const platformName = ref(cachedPlatform?.name || ''),
   platformIcon = ref(cachedPlatform?.iconSrc || null),
   platformError = ref('');
-if (initialPlatform) platformCache.write(initialPlatform);
 if (cachedPlatform) document.title = `${cachedPlatform.name} · 幫會管理平台`;
 let platformLoadVersion = 0;
 function applyPlatform(platform) {
@@ -405,7 +400,7 @@ onMounted(() => {
   window.addEventListener('guild-auth-required', expireSession);
   document.addEventListener('visibilitychange', checkSession);
   restoreSession();
-  if (!initialPlatform) loadPlatform();
+  loadPlatform();
 });
 onUnmounted(() => {
   mobileViewport?.removeEventListener('change', closeDesktopMenu);
@@ -504,7 +499,7 @@ function skipToMain() {
             </v-list>
           </v-menu>
           <span class="environment-tag"
-            ><span class="status-dot"></span>{{ source === 'gas' ? '雲端環境' : '本機開發' }}</span
+            ><span class="status-dot"></span>網站服務</span
           >
           <template v-if="user">
             <v-btn
@@ -627,7 +622,6 @@ function skipToMain() {
     </main>
     <LoginDialog
       v-model="loginOpen"
-      :source="source"
       :busy="authBusy"
       :error="loginError"
       @login="login"

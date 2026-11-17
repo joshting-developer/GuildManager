@@ -6,8 +6,7 @@ import { createMemberClient } from '../api/members.js';
 
 const props = defineProps({ video: { type: Object, required: true } });
 const emit = defineEmits(['close', 'updated', 'refreshed']);
-const source = import.meta.env.VITE_DATA_SOURCE || 'local';
-const client = createEventVideoClient({ source }), memberClient = createMemberClient({ source });
+const client = createEventVideoClient(), memberClient = createMemberClient();
 const id = useId(), open = ref(true), select = ref(null);
 const record = shallowRef(props.video), professionId = ref(props.video.professionId ?? null);
 const professions = shallowRef([]), loading = ref(true), saving = ref(false);

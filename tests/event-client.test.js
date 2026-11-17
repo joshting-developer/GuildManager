@@ -29,38 +29,7 @@ test('event client preserves fields and request ID, never automatically retrying
   assert.equal(requests[0].url, '/api/events');
   assert.deepEqual(JSON.parse(requests[0].options.body), input);
 });
-test('GAS event client uses the bridge and propagates unconnected failures without HTTP fallback', async () => {
-  let success, failure, received;
-  const run = {
-    withSuccessHandler(handler) {
-      success = handler;
-      return this;
-    },
-    withFailureHandler(handler) {
-      failure = handler;
-      return this;
-    },
-    getEvents() {
-      success({ events: [] });
-    },
-    createEvent(input) {
-      received = input;
-      failure({ message: '雲端活動建立尚未串接' });
-    },
-  };
-  const client = createEventClient({
-    source: 'gas',
-    googleRun: run,
-    fetchImpl: () => assert.fail('no HTTP fallback'),
-  });
-  assert.deepEqual(await client.getEvents(), { events: [] });
-  await assert.rejects(client.createEvent({ requestId: 'request' }), /尚未串接/);
-  assert.deepEqual(received, { requestId: 'request' });
-  await assert.rejects(
-    createEventClient({ source: 'gas', googleRun: null }).getEvents(),
-    /Apps Script Web App/,
-  );
-});
+
 test('event client reports network and malformed JSON errors, and returns local event data', async () => {
   await assert.rejects(
     createEventClient({

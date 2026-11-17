@@ -5,9 +5,9 @@ import { emptyLineup } from '../src/domain/lineups.js';
 import { createRepository } from '../server/repository.js';
 import { createApp } from '../server/app.js';
 import { createBattleRecordClient } from '../src/api/battle-records.js';
-import { setGasSession } from '../src/api/gas.js';
+
 import { authenticatedFetch } from './helpers/authenticated-fetch.js';
-import { gasRuntime, cloudResult, cloudSession, fixtureCsv } from './helpers/gas-runtime.js';
+import { fixtureCsv } from './helpers/battle-csv.js';
 
 const player = (name, extra = {}) => ({ player: name, profession: '碎夢', side: 'red', kill: 10, ...extra });
 const record = (players, extra = {}) => ({ id: 'battle', eventId: 'event', roundNumber: 1, players, ...extra });
@@ -144,43 +144,6 @@ function contract({ add, event, confirm, save, analysis, rename, remove }) {
   assert.equal(group(analysis(second.id), 'attack2', 'blue').rows[0].name, '第二人');
   return first;
 }
-
-test('SQLite and GAS use latest saved snapshot, preserve archive/round/name links and identical public analysis', async () => {
-  const repo = createRepository({ filename: ':memory:' });
-  let localSides;
-  try {
-    const first = contract({
-      add: repo.addMember, event: () => repo.createEvent({ title: '分析約戰', type: 'scrimmage', dates: ['2026-10-05'], requestId: 'event' }),
-      confirm: repo.confirmLineup, save: repo.saveBattleRecords, analysis: repo.getBattleTeamAnalysis,
-      rename: repo.updateMember, remove: repo.deleteEvent,
-    });
-    localSides = repo.getBattleTeamAnalysis(first.id).sides;
-    assert.throws(() => repo.getBattleTeamAnalysis('missing'), (e) => e.code === 'BATTLE_NOT_FOUND');
-  } finally { repo.close(); }
-  const env = await gasRuntime(); env.setup();
-  const admin = cloudResult(env.raw('login', [{ username: 'admin', password: 'initial-password-123' }]));
-  const ctx = cloudSession(admin), call = (op, args = []) => cloudResult(env.raw(op, args, ctx));
-  const first = contract({
-    add: (input) => call('addMember', [input]),
-    event: () => call('createEvent', [{ title: '分析約戰', type: 'scrimmage', dates: ['2026-10-05'], requestId: 'event' }]).event,
-    confirm: (input) => call('confirmLineup', [input]), save: (input) => call('saveBattleRecords', [input]),
-    analysis: (id) => call('getBattleTeamAnalysis', [id]), rename: (uid, input) => call('updateMember', [uid, input]),
-    remove: (id, revision) => call('deleteEvent', [id, revision]),
-  });
-  assert.deepEqual(call('getBattleTeamAnalysis', [first.id]).sides, localSides);
-  call('setMemberToken', [{ password: 'Member123', revision: 0 }]);
-  const member = cloudResult(env.raw('loginMember', [{ password: 'Member123' }]));
-  assert.equal(env.raw('getBattleTeamAnalysis', [first.id]).error.code, 'AUTH_REQUIRED');
-  assert.equal(env.raw('getLineupHistory', [first.eventId], cloudSession(member)).error.code, 'MANAGEMENT_REQUIRED');
-  assert.equal(env.raw('getBattleTeamAnalysis', ['missing'], cloudSession(member)).error.code, 'BATTLE_NOT_FOUND');
-  setGasSession(member);
-  const run = { withSuccessHandler(fn) { this.success = fn; return this; }, withFailureHandler() { return this; },
-    getBattleTeamAnalysis(id, context) { this.success(env.raw('getBattleTeamAnalysis', [id], context)); },
-  };
-  const client = createBattleRecordClient({ source: 'gas', googleRun: run, fetchImpl: () => assert.fail('no HTTP fallback') });
-  assert.equal(group(await client.getTeamAnalysis(first.id), 'attack2').rows[0].name, '舊名');
-  setGasSession({ user: null });
-});
 
 test('HTTP permits member analysis GET only, retains lineup/write protection and returns missing-record/adapter errors', async () => {
   const repo = createRepository({ filename: ':memory:' });

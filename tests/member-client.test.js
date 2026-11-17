@@ -21,36 +21,7 @@ test('member client preserves backend field errors and never retries a failed wr
   );
   assert.equal(calls, 1);
 });
-test('GAS member transport passes UID/revision and propagates failures without local fallback', async () => {
-  let success;
-  let failure;
-  let args;
-  const run = {
-    withSuccessHandler(handler) {
-      success = handler;
-      return this;
-    },
-    withFailureHandler(handler) {
-      failure = handler;
-      return this;
-    },
-    updateMember(...input) {
-      args = input;
-      success({ member: { uid: input[0] } });
-    },
-    removeMember() {
-      failure({ message: '雲端成員移除尚未串接' });
-    },
-  };
-  const client = createMemberClient({
-    source: 'gas',
-    googleRun: run,
-    fetchImpl: () => assert.fail('must not fall back to HTTP'),
-  });
-  assert.equal((await client.updateMember('0001', { revision: 3 })).member.uid, '0001');
-  assert.deepEqual(args, ['0001', { revision: 3 }]);
-  await assert.rejects(client.removeMember('0001', 3), /尚未串接/);
-});
+
 test('member client reports network and invalid JSON failures', async () => {
   await assert.rejects(
     createMemberClient({
@@ -102,31 +73,4 @@ test('import client sends text/fingerprint to batch endpoints and retains row er
     { path: '/api/members/import/preview', body: { text } },
     { path: '/api/members/import', body: { text, fingerprint: 'preview-version' } },
   ]);
-});
-test('GAS import adapter passes batch input to named functions and reports unconnected backend', async () => {
-  let success;
-  let failure;
-  let received;
-  const run = {
-    withSuccessHandler(handler) {
-      success = handler;
-      return this;
-    },
-    withFailureHandler(handler) {
-      failure = handler;
-      return this;
-    },
-    previewMemberImport(input) {
-      received = input;
-      success({ fingerprint: 'version' });
-    },
-    importMembers() {
-      failure({ message: '雲端成員匯入尚未串接' });
-    },
-  };
-  const client = createMemberClient({ source: 'gas', googleRun: run });
-  const input = { text: '001 角色 碎夢 -' };
-  assert.equal((await client.previewMemberImport(input)).fingerprint, 'version');
-  assert.deepEqual(received, input);
-  await assert.rejects(client.importMembers({ ...input, fingerprint: 'version' }), /尚未串接/);
 });

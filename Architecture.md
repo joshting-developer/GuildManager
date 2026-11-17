@@ -1,3 +1,5 @@
+> GAS 相關段落僅為舊版行為與資料格式參考；現行版本只透過 Node HTTP API 運作，已移除 GAS 建置、RPC 與同步工具。舊資料尚未因此搬移，參見 [舊版來源](docs/legacy-gas/README.md)。
+
 # 本機開發與 GAS 部署架構
 
 ## 開發方向
@@ -50,7 +52,7 @@
 
 官方文件確認此架構具備可行性, 實際單檔編譯、本機 API、Docker 與首頁驗證結果記錄於 `plans/main/step.md` 與 `plans/main/members-step.md`
 
-GAS 資料函式與 Sheets store 已生成，使用 mock Google 服務及編譯 V8 沙盒驗證，尚未部署或寫入正式資料。初始化及部署步驟見 [GASDeployment.md](GASDeployment.md)。
+GAS 資料函式與 Sheets store 已生成，使用 mock Google 服務及編譯 V8 沙盒驗證，尚未部署或寫入正式資料。初始化及部署步驟見 [GASDeployment.md](docs/legacy-gas/GASDeployment.md)。
 
 ## 場次參與與無 UID 排表
 
@@ -153,11 +155,9 @@ App 提供 calendarAuth 的使用者及確認登入狀態；三種戰鬥名稱�
 
 開發中兩角色 schema 升級支援 member 時, 先以 VACUUM INTO 備份完整資料庫（記憶體測試除外）, 再暫停 FK enforcement 並於同一交易換表, 防止 DROP TABLE 的 ON DELETE CASCADE 刪掉 session。交換後檢查 foreign_key_check, 失敗回滾, 最終恢復 FK enforcement。既有帳號 ID／hash／role／revision 與 session 不變, 重啟不重複備份。
 
-
 ## 共用成員通行密碼
 
 member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admin 在帳號管理設定／修改 6–128 個英文字母或數字的通行密碼（區分大小寫，純數字仍可使用），初次不提供預設值，前導零保留。右上登入預設成員通行密碼；三種戰鬥的行事曆與報名均公開，報名視窗不提供登入表單。`POST /api/auth/member-login` 由後端指定帳號，與管理登入共用限流；`PATCH /api/admin/member-token` 須 admin、CSRF 及 revision。修改密碼撤銷共用 member 全部 session。舊個別 member 資料保留但不能再登入或沿用舊 session；舊新增／改名 member API 停用。admin／manager 密碼為 6–128 字元，CLI 建帳號、GAS 初始與復原沿用相同下限；既有雜湊與長密碼不重設，manager 修改留空保留原密碼。GAS 已生成對應資料功能，尚未部署驗證。
-
 
 ## 個人戰績
 
@@ -175,13 +175,11 @@ member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admi
 
 右上登入視窗包含「成員登入」「管理者登入」兩個 tab；前者只填 admin 發行的通行密碼（英數 6–128 字），後者沿用 Manager／Admin 帳號密碼。共用視窗一律預選成員登入，首頁登入後留在行事曆，直接開啟戰績／個人分析或管理連結成功後保留原目標及權限；切換 tab 清除密碼及登入錯誤。
 
-
 ## 行事曆可見性與登入入口
 
 右上登入預設「成員登入」，管理者可切換「管理者登入」。首頁一般活動、約戰、幫戰與龍虎戰均公開可見；三種戰鬥皆可匿名報名／請假、選取成員及上傳影片。GET /api/events 不再依 session 隱藏幫戰／龍虎戰；管理頁、完整名冊、出勤閱覽與影片閱覽仍沿用原角色限制。
 
 報名視窗不含登入表單，三種戰鬥都有「直接輸入名稱／幫會成員名單／龍虎戰成員名單」。登入過期或撤銷後仍可使用公開場次操作；有效登入寫入維持 CSRF，登入狀態變動時重讀資料並拒絕過期回應，不清除未送出草稿。
-
 
 ## 場次影片連結
 
@@ -251,7 +249,6 @@ SQLite `member_maintenance_requests` 保存管理操作結果；`member_uid_revi
 
 影片團別選項與顯示共用 `VIDEO_GROUP_OPTIONS`／`videoGroupLabel`：進攻團對應既有值進攻一、機動團對應進攻二、防守團不變。上傳選擇、閱覽篩選及表格／CSV 使用同一對應；儲存值、SQLite CHECK、舊影片與 requestId 內容保持相容，不遷移或覆寫資料。
 
-
 ## GAS 上傳數據診斷
 
 `saveBattleRecords` 的未知例外由 `battle-upload-diagnostics.js` 追蹤失敗步驟、固定表別與耗時，RPC 回傳保留 `GAS_ERROR` 並附步驟／類型／診斷碼的訊息。執行紀錄只含固定分類及耗時，不記錄原始錯誤文字、stack、輸入、玩家、檔名、資源 ID 或憑證；原始錯誤只用來選擇固定類型。已知業務／權限錯誤維持原回應；紀錄失敗不改操作結果。
@@ -306,7 +303,6 @@ SQLite 為 event_video_submissions 追加 revision=0，另建 event_video_profes
 
 VideoProfessionDialog 首次掛載才讀同 transport 的共用職業快取，未更動影片頁首載 RPC；重試失敗選項不黏住。草稿與版本不跨請求快取；正常送出一次修改，成功回應替換該列，原篩選與排序不變，不整頁重讀。衝突由明確操作重讀本場 getEventVideos 更新版本，保留已選更正供確認；失敗保留草稿，相同內容用相同 requestId。視窗卸載／關閉淘汰過期回應，儲存中不能重複送出或關閉，取消先確認未儲存變更，焦點回入口。詳見 Style.md／GASConcurrency.md，尚未同步或部署。
 
-
 ## 上傳前數據歸屬（Unreleased）
 
 GET /api/battle-upload/roster／GAS getBattleUploadRoster() 限 admin／manager，回 `{ members: [{ uid, name, revision, isInGuild, isInClub, profession }] }`。SQLite 單次 JOIN，GAS 同次唯讀快照只讀 members／professions／commits；不讀名稱歷史、報名、排表、戰績或 Drive，不取業務寫入鎖。前端進頁背景一次；當頁 Map 分類／搜尋，無跨請求快取，HTTP no-store；明確重載／失敗重試取得新資料，離頁 token 丟棄舊回應。名冊未確認不阻擋解析／普通上傳。
@@ -318,7 +314,6 @@ GET /api/battle-upload/roster／GAS getBattleUploadRoster() 限 admin／manager�
 歸屬參與原 requestId 指紋，內容變更同 ID 拒絕；contentHash 排除 attributions，避免以換歸屬重複匯入。SQLite 一次讀名冊建索引，在同交易重驗全部記錄後寫快照／links／receipts。GAS 鎖外 prepare 在有手動歸屬時先讀名冊驗證，未指定時不增加 prepare 名冊讀取；獨立 Drive 建檔後，最終 Script Lock 內重新讀名冊／驗權及原唯一性、場次版本、requestId，再一起提交快照／links／requests／commits，保留 flush。最終衝突不提交業務資料，鎖外未引用檔保留原復原策略。
 
 前端草稿獨立於解析快照，key 為 roundNumber＋file.id，列用原 playerIndex，不用分頁位置；調整不使預覽回第一頁。僅待上傳可調整，搜尋視窗按需掛載；跨頁／雙場保留，換場／檔案替換清除，普通失敗保留，名冊更新後失效的指定標示待確認並重新套用。選人與清除零 RPC，和原上傳同一請求保存，不新增逐列 API、資料表或永久別名。既有歷史更正不在此範圍。
-
 
 ## 分析未分類玩家臨時分隊（Unreleased）
 

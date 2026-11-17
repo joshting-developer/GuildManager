@@ -1,12 +1,14 @@
+> 歷史參考：此文件描述移除前 GAS，所有命令與狀態均非現行操作流程。來源見 [索引](README.md)。
+
 # GAS 效能與併發契約
 
-本文保留既有產品契約, 供相關修改時按需查閱；實作協議另見 [Architecture](../Architecture.md), 介面依 [Style](../Style.md)。原文的版本、驗證及「尚未部署」敘述是當時紀錄, 不代表目前遠端狀態；現行同步方式見 [GAS 發布流程](gas-release.md)
+本文保留既有產品契約, 供相關修改時按需查閱；實作協議另見 [Architecture](../../Architecture.md), 介面依 [Style](../../Style.md)。原文的版本、驗證及「尚未部署」敘述是當時紀錄, 不代表目前遠端狀態；現行同步方式見 [GAS 發布流程](gas-release.md)
 
 ## 效能與併發開發規則（後續功能預設適用）
 
-以下是已驗證優化的常態要求；新增功能、修改及 review 都需檢查，不能只留在版本交接。計畫記錄本次的讀寫範圍、預期請求次數、快取生命週期及鎖需求；不適用的策略由實作證據說明取捨，不為套用規則擴張使用者需求或重構無關功能。細節見 [Architecture.md](../Architecture.md#gas-最新已提交版本讀取v1020)、[GASConcurrency.md](../GASConcurrency.md#v1019-實作結果已同步-gas尚未更新部署) 及 [Style.md](../Style.md)。歷史盤點與舊版待辦不是目前實作要求；交付狀態以 [GASDeployment.md](../GASDeployment.md) 最新狀態為準。
+以下是已驗證優化的常態要求；新增功能、修改及 review 都需檢查，不能只留在版本交接。計畫記錄本次的讀寫範圍、預期請求次數、快取生命週期及鎖需求；不適用的策略由實作證據說明取捨，不為套用規則擴張使用者需求或重構無關功能。細節見 [Architecture.md](../../Architecture.md#gas-最新已提交版本讀取v1020)、[GASConcurrency.md](GASConcurrency.md#v1019-實作結果已同步-gas尚未更新部署) 及 [Style.md](../../Style.md)。歷史盤點與舊版待辦不是目前實作要求；交付狀態以 [GASDeployment.md](GASDeployment.md) 最新狀態為準。
 
-2026/10/27 的官方文件、開發者實務與後續可行性研究見 [GASPerformanceSurvey.md](../GASPerformanceSurvey.md)。其中 batchGet、最新排表目錄、通知 outbox 等是待量測／待選定的提案，不是已實作或可直接套用的現行規則；採用後須另補驗證與協議。
+2026/10/27 的官方文件、開發者實務與後續可行性研究見 [GASPerformanceSurvey.md](GASPerformanceSurvey.md)。其中 batchGet、最新排表目錄、通知 outbox 等是待量測／待選定的提案，不是已實作或可直接套用的現行規則；採用後須另補驗證與協議。
 
 ### 資料載入與快取
 

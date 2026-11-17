@@ -13,7 +13,7 @@ const props = defineProps({
   event: { type: Object, default: null },
 });
 const emit = defineEmits(['update:modelValue', 'created', 'updated', 'after-leave']);
-const client = createEventClient({ source: import.meta.env.VITE_DATA_SOURCE || 'local' });
+const client = createEventClient();
 const calendarKey = ref(0);
 const editing = computed(() => Boolean(props.event));
 const dialogTitle = computed(() => (editing.value ? '修改安排' : '建立安排'));

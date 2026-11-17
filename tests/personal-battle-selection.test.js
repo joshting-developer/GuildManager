@@ -4,8 +4,8 @@ import { createRepository } from '../server/repository.js';
 import { createApp } from '../server/app.js';
 import { createMemberClient } from '../src/api/members.js';
 import { authenticatedFetch } from './helpers/authenticated-fetch.js';
-import { gasRuntime, cloudResult, cloudSession, fixtureCsv } from './helpers/gas-runtime.js';
-import { createSheetStore } from '../gas/src/storage.js';
+import { fixtureCsv } from './helpers/battle-csv.js';
+
 import { latestPersonalSelection, personalBattleKey, selectedPersonalBattles, personalKillEfficiency, summarizeKillEfficiency, personalTrendPoints } from '../src/domain/personal-battle-selection.js';
 import { filterPersonalBattles } from '../src/domain/personal-battle-filters.js';
 import { summarizePersonalBattles } from '../src/domain/personal-battle-statistics.js';
@@ -79,40 +79,4 @@ test('local all=true returns complete history in one authorized adapter call and
     assert.equal((await authFetch(`${base}/api/members/a/battle-records?all=invalid`)).status, 422);
     assert.throws(() => repo.getMemberBattleRecords('a', { all: 'true' }), { code: 'BATTLE_FILTER_INVALID' });
   } finally { await new Promise(r => server.close(r)); repo.close(); }
-});
-
-test('compiled GAS all history remains authorized, lock-free and read-only, reading only linked battle payloads', async () => {
-  const env = await gasRuntime();
-  env.setup();
-  const context = cloudSession(cloudResult(env.raw('login', [{ username: 'admin', password: 'initial-password-123' }])));
-  const store = createSheetStore(env);
-  store.transaction(s => {
-    s.put('members', 'a', { uid: 'a', name: '城', primaryProfessionId: 1, revision: 1, isInGuild: true, isInClub: false });
-    for (const row of entries()) {
-      const { player, playerIndex, recordId, ...metadata } = row;
-      s.put('battles', recordId, { id: recordId, createdAt: `${row.playedAt}T00:00:00Z`, ...metadata });
-      s.put('battle_players', recordId, { players: [player, { ...player, player: '其他人' }] });
-      s.put('battle_links', recordId, { recordId, playerIndex, memberUid: 'a' });
-    }
-    s.put('battles', 'unrelated', { id: 'unrelated', playedAt: '2026-11-01', createdAt: '2026-11-01T00:00:00Z' });
-    s.put('battle_players', 'unrelated', { players: [{ player: '隱私' }] });
-  });
-  const snapshot = () => JSON.stringify({ sheets: [...env.sheets].map(([name,s]) => [name,s.data]), properties: [...env.properties], files: [...env.files.keys()], notifications: env.fetches });
-  const before = snapshot();
-  // Any attempt to obtain a writer lock or read Drive is a test failure.
-  assert.equal(env.lock.tryLock(0), true);
-  env.lock.tryLock = () => assert.fail('personal history must not acquire the writer lock');
-  env.globals.DriveApp.getFileById = () => assert.fail('personal history must not read Drive');
-  const decoded = [], decode = env.utilities.base64Decode;
-  env.utilities.base64Decode = payload => { decoded.push(Buffer.from(payload,'base64').toString()); return decode(payload); };
-  const data = cloudResult(env.raw('getMemberBattleRecords', ['a', 1, { all: true }], context));
-  assert.equal(data.entries.length, 25);
-  assert.equal(data.summary, undefined);
-  assert.equal(data.entries[0].playedAt, '2026-10-25');
-  assert.ok(data.entries.every(e => e.player.player === '城' && !e.player.memberUid));
-  assert.ok(!decoded.some(text => text.includes('unrelated') || text.includes('隱私')));
-  assert.equal(snapshot(), before);
-  assert.equal(cloudResult(env.rpc('getMemberBattleRecords', ['a', 2, {}], context)).entries.length, 5);
-  assert.equal(env.rpc('getMemberBattleRecords', ['a', 1, { all: true }]).error.code, 'AUTH_REQUIRED');
-  assert.equal(env.rpc('getMemberBattleRecords', ['a', 1, { all: 'true' }], context).error.code, 'BATTLE_FILTER_INVALID');
 });

@@ -5,7 +5,7 @@ import { createApp } from '../server/app.js';
 import { createEventVideoClient } from '../src/api/event-videos.js';
 import { isBattleEvent, orderBattleEvents, taipeiToday } from '../src/domain/battle-events.js';
 import { videoTableCsv } from '../src/domain/video-table-csv.js';
-import { gasRuntime, cloudResult, cloudSession } from './helpers/gas-runtime.js';
+
 import { authenticatedFetch } from './helpers/authenticated-fetch.js';
 
 const video = (event, extra = {}) => ({ name: '=長名稱', professionId: 3,
@@ -78,65 +78,4 @@ test('HTTP browser adapter performs one uncached read and retains management per
       await assert.rejects(bad.getBrowser());
     }
   } finally { await new Promise(resolve => server.close(resolve)); repo.close(); }
-});
-
-async function fixture() {
-  const env = await gasRuntime(); env.setup();
-  const context = cloudSession(cloudResult(env.raw('login', [{ username: 'admin', password: 'initial-password-123' }])));
-  const call = (op, args = [], ctx = context) => cloudResult(env.raw(op, args, ctx));
-  call('setMemberToken', [{ password: '001234', revision: 0 }]);
-  const member = cloudSession(cloudResult(env.raw('loginMember', [{ password: '001234' }])));
-  call('createManager', [{ username: 'manager', password: 'manager-password' }]);
-  const manager = cloudSession(cloudResult(env.raw('login', [{ username: 'manager', password: 'manager-password' }])));
-  const events = [['過去', 'scrimmage', '2020-01-01'], ['今天', 'guild_war', taipeiToday()],
-    ['未來', 'dragon_tiger', '2099-01-01'], ['活動', 'activity', taipeiToday()]].map(([title, type, date]) => {
-    const r = call('createEvent', [{ title, type, dates: [date], requestId: type }]); return r.event || r.events[0];
-  });
-  for (const event of events.slice(0, 3)) call('submitEventVideo', [event.id, video(event)]);
-  return { env, context, call, manager, member, events };
-}
-
-test('compiled GAS browser reuses events and commits, matches legacy results under writer lock and reads no unrelated tables', async t => {
-  const { env, call, manager, member, events } = await fixture();
-  let reads = [];
-  for (const [name, sheet] of env.sheets) {
-    const getRange = sheet.getRange.bind(sheet);
-    sheet.getRange = (...args) => { const range = getRange(...args), values = range.getValues;
-      range.getValues = () => { reads.push(name); return values(); }; return range; };
-  }
-  const legacyEvents = orderBattleEvents(call('getEvents').events.filter(isBattleEvent), { prefer: 'recent' });
-  const legacySelected = call('getEventVideos', [events[1].id]), legacyReads = reads.length; reads = [];
-  const before = JSON.stringify({ sheets: [...env.sheets].map(([n, s]) => [n, s.data]), properties: [...env.properties], files: [...env.files], fetches: env.fetches });
-  env.lock.tryLock(); env.lock.tryLock = () => assert.fail('browser must be read-only');
-  const result = call('getVideoBrowser', [null]), browserReads = reads.length;
-  assert.deepEqual(result, { events: legacyEvents, selected: legacySelected });
-  assert.ok(reads.every(name => ['GM_commits', 'GM_events', 'GM_videos'].includes(name)), reads.join(','));
-  assert.ok(browserReads < legacyReads);
-  assert.equal(call('getVideoBrowser', [events[0].id], manager).selected.eventId, events[0].id);
-  assert.equal(env.raw('getVideoBrowser', [null]).error.code, 'AUTH_REQUIRED');
-  assert.equal(env.raw('getVideoBrowser', [null], member).error.code, 'MANAGEMENT_REQUIRED');
-  let success; const googleRun = { withSuccessHandler(fn) { success = fn; return this; }, withFailureHandler() { return this; },
-    getVideoBrowser(id) { success(env.raw('getVideoBrowser', [id], manager)); } };
-  assert.deepEqual(await createEventVideoClient({ source: 'gas', googleRun }).getBrowser(events[0].id), call('getVideoBrowser', [events[0].id]));
-  assert.equal(JSON.stringify({ sheets: [...env.sheets].map(([n, s]) => [n, s.data]), properties: [...env.properties], files: [...env.files], fetches: env.fetches }), before);
-  t.diagnostic(JSON.stringify({ legacySheetsReads: legacyReads, browserSheetsReads: browserReads }));
-});
-
-test('compiled GAS browser handles empty selection and serializes optional-table creation only after management validation', async () => {
-  const empty = await gasRuntime(); empty.setup();
-  const ctx = cloudSession(cloudResult(empty.raw('login', [{ username: 'admin', password: 'initial-password-123' }])));
-  empty.sheets.delete('GM_videos');
-  assert.deepEqual(cloudResult(empty.raw('getVideoBrowser', [null], ctx)), { events: [], selected: null });
-  assert.equal(empty.sheets.has('GM_videos'), false);
-  const { env, call, context, member, events } = await fixture();
-  env.sheets.delete('GM_videos');
-  assert.equal(env.raw('getVideoBrowser', [null]).error.code, 'AUTH_REQUIRED');
-  assert.equal(env.raw('getVideoBrowser', [null], member).error.code, 'MANAGEMENT_REQUIRED');
-  assert.equal(env.sheets.has('GM_videos'), false);
-  assert.deepEqual(call('getVideoBrowser', [null]).selected.videos, []);
-  assert.equal(env.sheets.has('GM_videos'), true);
-  assert.equal(env.raw('getVideoBrowser', [{}], context).error.code, 'VIDEO_INVALID');
-  call('deleteEvent', [events[1].id, 1]);
-  assert.notEqual(call('getVideoBrowser', [events[1].id]).selected.eventId, events[1].id);
-  assert.equal(env.raw('getEventVideos', [events[1].id], context).ok, false);
 });

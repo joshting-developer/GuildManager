@@ -1,33 +1,13 @@
-import { callGas } from './gas.js';
 import { sessionFetch } from './session.js';
 
-// Calendar, lineups, uploads, videos and management all start by listing events, and each
-// cloud call costs ~2 s. Within one page session the list is reused for a minute; any event
-// write on this transport, or a sign-in/out (visibility depends on the role), clears it.
+// Reuse event lists for one minute; writes and sign-in/out invalidate them.
 const EVENT_LIST_TTL_MS = 60 * 1000;
 const eventListCache = new Map();
-const DEFAULT_GAS = {};
 export function forgetEventList() {
   eventListCache.clear();
 }
-export function createEventClient({ source = 'local', fetchImpl = sessionFetch, googleRun } = {}) {
-  if (!['local', 'gas'].includes(source)) throw new Error('未知的資料來源設定');
+export function createEventClient({ fetchImpl = sessionFetch } = {}) {
   async function call(method, input, id) {
-    if (source === 'gas') {
-      const operation = {
-        GET: id === undefined ? 'getEvents' : 'getEvent',
-        POST: 'createEvent',
-        PATCH: 'updateEvent',
-        DELETE: 'deleteEvent',
-      }[method];
-      const args =
-        method === 'GET'
-          ? id === undefined ? [] : [id]
-          : method === 'POST'
-            ? [input]
-            : [id, method === 'DELETE' ? input.revision : input];
-      return callGas(operation, args, googleRun);
-    }
     let response;
     try {
       response = await fetchImpl(
@@ -56,7 +36,7 @@ export function createEventClient({ source = 'local', fetchImpl = sessionFetch, 
     }
     return data;
   }
-  const cacheKey = source === 'gas' ? googleRun || DEFAULT_GAS : fetchImpl;
+  const cacheKey = fetchImpl;
   function writing(request) {
     eventListCache.delete(cacheKey);
     // A write finishing later must not leave a list cached in the meantime.

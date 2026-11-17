@@ -2,7 +2,7 @@
 
 圖文操作手冊：[PDF](docs/操作手冊.pdf)／[離線網頁版](docs/操作手冊.html)／[Markdown](docs/操作手冊.md)。涵蓋成員、管理者與 admin 操作，附 26 張最新版示範畫面；圖片來源與更新方式見 [文件說明](docs/README.md)。
 
-Vue 3／Vuetify 管理介面, 本機透過 Node.js／Express API 讀寫 MySQL（2.0.0 遷移中, 舊 SQLite 程式保留對照）, GAS／Google 試算表版本已上傳至指定專案，尚未初始化或發布 Web App
+Vue 3／Vuetify 管理介面, 本機透過 Node.js／Express API 讀寫 MySQL（2.0.0 遷移中, 舊 SQLite 程式保留對照）, GAS 專用程式與套件已移除，舊資料與線上服務尚未因此搬移或停用
 
 首頁直接顯示活動行事曆與場次報名／請假, 右上預設成員通行密碼登入，另一分頁供管理帳號登入。manager／admin 可使用管理總覽、成員清單、活動安排、戰場排表與上傳數據；member 可閱覽戰績與個人分析，管理頁與管理 API 都檢查角色。雲端版沿用應用程式帳密／通行密碼，Google OAuth 尚未實作；正式試算表未執行初始化
 
@@ -18,7 +18,7 @@ docker compose up --build -d
 
 開啟 [首頁](http://localhost:5173)、[成員清單](http://localhost:5173/#/members) 、[活動安排](http://localhost:5173/#/events) 或 [戰場排表](http://localhost:5173/#/lineups), 前端支援熱更新, API 使用 Node watch
 
-原首頁總覽改為 [管理總覽](http://localhost:5173/#/magament), `magament` 沿用使用者指定拼字, 也接受 `#/management`。未登入時直接開管理網址會回到首頁並開啟登入視窗；網址使用 hash 以支援單一 GAS HTML。
+原首頁總覽改為 [管理總覽](http://localhost:5173/#/magament), `magament` 沿用使用者指定拼字, 也接受 `#/management`。未登入時直接開管理網址會回到首頁並開啟登入視窗；網址使用 hash 供同源網站導覽。
 
 - API／MySQL 就緒檢查：`http://localhost:3001/api/health`（成功 200, 無法連線或逾時 503）
 - API 存活檢查：`http://localhost:3001/api/live`（不讀資料庫）
@@ -63,7 +63,6 @@ docker compose exec -T api node server/create-account.js < data/local-admin.json
 - 登入失敗訊息不區分帳號不存在或密碼錯誤, 同一來源 5 分鐘最多 10 次嘗試
 - admin 與 manager 均可使用既有管理功能；只有 admin 可開啟 `#/admin` 管理帳號。第一個 CLI 帳號預設 admin, 後續預設 manager, 沒有公開註冊。舊帳號升級時優先將名稱 admin（不分大小寫）設為 admin, 否則選最早建立者, 其他設為 manager, 不重設密碼。
 - 所有行事曆場次公開，約戰／幫戰／龍虎戰可匿名報名、請假、選人及上傳影片；有效登入寫入仍須 CSRF。舊 /api/calendar/members 及完整名冊仍須登入，帳號不綁遊戲 UID。
-- GAS 已提供獨立帳密／通行密碼登入，後端驗證私有 token 與角色；與本機帳號、cookie 無關，沒有 Google OAuth 登入
 
 | 方法 | 路徑 | 用途 |
 | --- | --- | --- |
@@ -72,7 +71,7 @@ docker compose exec -T api node server/create-account.js < data/local-admin.json
 | POST | `/api/auth/logout` | 驗證 session／CSRF 後登出 |
 | GET | `/api/calendar/members` | 登入後的舊 UID／名稱選單（不在畫面顯示 UID） |
 
-本機 cookie 使用 HTTP loopback；正式 Node 網站使用 HTTPS、`NODE_ENV=production` 與明確的 `APP_ORIGIN`, 設定方式見下方「同源網站與 HTTPS」。GAS 使用不同身分／通訊機制, 不直接搬入 Node session 或 scrypt；初始化及部署設定見 [GASDeployment.md](GASDeployment.md)，Google OAuth 仍為後續選項。[Google 身分服務](https://developers.google.com/identity/gsi/web/guides/overview)、[GAS Session 身分限制](https://developers.google.com/apps-script/reference/base/session#getActiveUser())
+本機 cookie 使用 HTTP loopback；正式 Node 網站使用 HTTPS、`NODE_ENV=production` 與明確的 `APP_ORIGIN`, 設定方式見下方「同源網站與 HTTPS」。
 
 ## 同源網站與 HTTPS
 
@@ -85,7 +84,7 @@ docker compose exec -T api node server/create-account.js < data/local-admin.json
 - 寫入 Origin 採精確比對, 不根據 Host 或轉送標頭自動放行；無 Origin 的 CLI 請求沿用既有契約, 仍須 JSON 與對應 Session／CSRF／角色驗證。未設定 `APP_ORIGIN` 的非 production 環境保留原本 localhost 開發來源
 - 網址保留 `#/members` 等 hash 路由, `#/magament` 與 `#/management` 均可使用。未知 API 與缺少的靜態資源不會改回首頁 HTML
 
-Dockerfile 預設產出 production 映像, Compose 明確使用 development target。實際代理、TLS 與 DNS 仍需另行配置及驗收。舊 GAS build 與登入方式獨立, 不套用 Node Cookie 或網站 Origin 設定
+Dockerfile 預設產出 production 映像, Compose 明確使用 development target。實際代理、TLS 與 DNS 仍需另行配置及驗收。
 
 ## 正式 Docker 映像
 
@@ -154,30 +153,23 @@ API 可透過 `DB_*`、`API_PORT`、`API_HOST` 設定；Discord 通知另見下�
 ```sh
 npm test
 npm run build
-npm run build:gas
 ```
 
 - `npm test`：需指定四個隔離 MySQL 設定檔（見 [MySQL 開發說明](docs/mysql-development.md)）, 使用 Node.js 內建 `node:test` 驗證 MySQL 保存、成員 CRUD、歷史交易回滾、職業擴充、舊欄位遷移、活動日期規則、排表資格／唯一 UID／不可變快照／範本、版本與重複提交、API 與 adapter 錯誤處理
 - `npm run build`：一般本機前端 build, 輸出到 `dist/`
-- `npm run build:gas`：GAS 模式, 輸出單一前端 `build/gas/Index.html`, 以及 `Code.gs`、打包後端 `Backend.gs` 和 `appsscript.json`
-- GAS 打包指令會檢查是否仍有外部 JS／CSS 檔案或多餘輸出
 - 編譯產物不納入 Git, 原始碼與 lockfile 納入 Git
 
-目前桌面／手機的瀏覽器驗證與手冊截圖使用 Playwright 操作 Chrome，開啟編譯後前端並使用隔離示範資料／模擬 GAS RPC；圖片保存於 `docs/manual-images/`。這些驗證與截圖腳本目前放在臨時目錄，未納入專案的可重跑套件，`npm test` 不包含瀏覽器測試或自動截圖，也沒有正式的 Playwright 設定或圖片比對測試。
+目前桌面／手機的瀏覽器驗證與手冊截圖使用 Playwright 操作 Chrome，開啟編譯後前端並使用隔離示範資料；舊版截圖含模擬 RPC，不代表現行 HTTP 整合已驗收；圖片保存於 `docs/manual-images/`。這些驗證與截圖腳本目前放在臨時目錄，未納入專案的可重跑套件，`npm test` 不包含瀏覽器測試或自動截圖，也沒有正式的 Playwright 設定或圖片比對測試。
 
 ## 更新紀錄與定版
 
-更新紀錄由 `src/content/release-notes.json` 靜態編譯進網站及 GAS，線上不讀 GitHub。開發期間把變更累積在唯一置頂的 `version: "Unreleased"`、`date: null` 條目，頁面及頁尾顯示「未發布」；package／lockfile 保持最近正式版本。
+更新紀錄由 `src/content/release-notes.json` 靜態編譯進網站，線上不讀 GitHub。開發期間把變更累積在唯一置頂的 `version: "Unreleased"`、`date: null` 條目，頁面及頁尾顯示「未發布」；package／lockfile 保持最近正式版本。
 
-使用者要求同步 GAS 時, 才在編譯前升一次 patch（`npm version patch --no-git-tag-version --ignore-scripts`）, 把同一筆 Unreleased 改成正式版號與當天台北日期, 核對、提交後執行同步。`gas:push` 不會自動定版；同批重試不再升版。成功同步程式與正式 Web App 發布是不同狀態, 操作規則見 [GAS 發布流程](docs/gas-release.md)
+正式定版與發布分開執行；只有明確要求定版時才更新版本及日期。歷史 GAS 發布流程不再適用現行版本。
 
-## GAS 匯入方式
+## 舊版資料來源
 
-已配置指定指令碼的自動上傳。首次執行 `npm run gas:login` 完成 Google 授權；之後 `npm run gas:push` 自動編譯、備份遠端、上傳四檔並讀回比對。憑證及備份保存在被忽略的 `data/`，不需 Git 遠端。上傳不初始化試算表或發布 Web App，詳細設定見 [自動上傳](GASDeployment.md#本機自動上傳)。
-
-完整步驟見 [GAS 初始化與部署](GASDeployment.md)。執行 `npm run build:gas`，將 `build/gas/Index.html`、`Code.gs`、`Backend.gs` 及 `appsscript.json` 放入同一 Apps Script 專案。設定私有 Script Properties，先使用測試試算表並於編輯器執行 `setupGas()`，再建立測試 Web App。
-
-目前全部既有資料介面已生成，使用 GM_ 專用工作表、私人 Drive 原始檔與 Script Properties 帳號／session；尚未部署或寫入正式試算表。本機 SQLite 資料與帳號不會自動匯入雲端。
+GAS 程式、RPC adapter、建置與同步工具已移除。工作表／Drive 格式、歷史部署文件與移除前原始碼位置見 [舊版 GAS 參考](docs/legacy-gas/README.md)，供後續資料搬移使用。私人憑證與備份保留，不執行線上停用、同步或切站。
 
 ## R2 私有檔案服務
 
@@ -188,10 +180,8 @@ Node 後端的可注入檔案讀寫服務與隔離驗證見 [R2 私有檔案服�
 首頁目前直接顯示待開發, 尚未使用保留的 `src/api/home.js` 首頁資料介面
 
 - 本機模式：HTTP `GET /api/home`
-- GAS 模式：`google.script.run.getHomeData()`, 包裝成 Promise
 - 新版 `dev`／`build` 與其他非 `gas` mode 固定使用同源 `/api`；舊的 `VITE_DATA_SOURCE` 環境值不再切換新版來源
-- 舊版僅明確的 `--mode gas` 使用 `google.script.run`, 保留至舊來源退役；不放任何憑證
-- 兩端回傳相同格式, `meta.mode` 使用 `demo`、`empty` 或後續正式資料的 `live`
+- HTTP 回傳格式, `meta.mode` 使用 `demo`、`empty` 或後續正式資料的 `live`
 
 ```json
 {
@@ -245,7 +235,7 @@ Node 後端的可注入檔案讀寫服務與隔離驗證見 [R2 私有檔案服�
 
 相容介面 `DELETE /api/members/:uid` 與 `removeMember(uid, revision)` 現在表示移至編外, 回傳 `{ uid, member }`；新操作不再隱藏紀錄。
 
-`src/api/members.js` 在本機呼叫 HTTP, GAS 模式呼叫同名 `google.script.run` 函式, 不會將失敗寫入自動重試或退回本機資料
+`src/api/members.js` 透過同源 HTTP API 呼叫 Node，保留錯誤處理與資料驗證。
 
 ## 幫派與俱樂部狀態
 
@@ -288,7 +278,6 @@ UID Name 主職業 副職業
 - 預覽不寫入, 確認時重新驗證並檢查預覽版本, 整批寫入使用交易
 - 輸入或相關成員資料改變後需重新預覽；提交中停用重複操作, 失敗保留輸入
 - 完成後彈窗顯示實際新增／重新加入／跳過數量；全部跳過時顯示「沒有新增成員」
-- GAS 匯入資料層已生成，尚未部署或寫入正式試算表
 
 ## 活動安排
 
@@ -332,7 +321,7 @@ UID Name 主職業 副職業
 - 修改資料：`{ title, type, dates, revision }`, 回傳 `{ event }`；幫戰／龍虎戰恰好一天。
 - 刪除資料：`{ revision }`, 回傳 `{ id }`。
 
-`src/api/events.js` 統一呼叫本機 API 或 GAS `getEvents()`／`createEvent(input)`／`updateEvent(id, input)`／`deleteEvent(id, revision)`；GAS 已提供同契約的試算表資料層，需初始化並實測部署
+`src/api/events.js` 透過同源 HTTP API 呼叫 Node，保留錯誤處理與資料驗證。
 
 ## 報名與請假
 
@@ -386,7 +375,7 @@ UID Name 主職業 副職業
 - 未儲存修改保留在目前頁面, 切換場次、套用範本取代、離開頁面或關閉分頁會提醒；沒有自動儲存。
 - 檢查內部版本與活動 revision 防止覆寫, 儲存失敗保留輸入, 更新成員清單保留目前排表；重試使用同一 requestId 避免重複儲存。
 - `lineup_versions` 保留既有版本／JSON 快照作相容及並行檢查, 以 event_id 關聯場次, 禁止 UPDATE／DELETE；`lineup_templates` 獨立保存可復用配置, 不自動把舊版本轉為範本, 空位用 null、UID 用文字。
-- 本機 SQLite 表透過新增初始化, 不搬移或覆寫既有成員／活動資料；GAS 排表資料函式已生成，尚未部署驗證。
+- 本機 SQLite 表透過新增初始化, 不搬移或覆寫既有成員／活動資料。
 
 | 方法 | 路徑 | 用途 |
 | --- | --- | --- |
@@ -398,7 +387,7 @@ UID Name 主職業 副職業
 
 `teams` 依固定版型傳十隊 `{ id, name, slots }`, 每隊六位置 `{ uid: string | null, profession: 'primary' | 'secondary', secondRound: { uid: string, profession: 'primary' | 'secondary' } | null, dutyIds: string[], note }`；uid／profession 為第一場, secondRound 為第二場且舊資料缺值視為 null。前端不提供可信的姓名或職業快照。
 
-`src/api/lineups.js` 統一呼叫 HTTP 或 GAS `getLineupIndex()`／`getLineupHistory(eventId)`／`confirmLineup(input)`／`createLineupTemplate(input)`／`applyLineupTemplate(templateId, eventId)`。
+`src/api/lineups.js` 透過同源 HTTP API 呼叫 Node，保留錯誤處理與資料驗證。
 
 ## 職責分配清單
 
@@ -419,15 +408,14 @@ UID Name 主職業 副職業
 | POST | `/api/duties` | 新增, `{ name, requestId }` |
 | PATCH | `/api/duties/:id` | 修改名稱與狀態, `{ name, active, revision }` |
 
-`src/api/duties.js` 包裝 HTTP 與 GAS `getDuties()`／`addDuty(input)`／`updateDuty(id, input)`；GAS 資料函式已生成，尚未部署驗證。範本套用回應另含 `skippedDuties`, 每筆帶名稱、隊伍與位置及原因。
+`src/api/duties.js` 透過同源 HTTP API 呼叫 Node，保留錯誤處理與資料驗證。
 
 ## 專案結構
 
 ```text
 src/              Vue 首頁、成員清單、活動安排、戰場排表、共用樣式與前端資料 adapter
 server/           Express 入口、MySQL repository（server/mysql）與保留對照的舊 SQLite repository
-gas/              GAS 頁面入口、業務後端原始碼與 manifest
-tools/            GAS 打包工具
+tools/            MySQL、資料維護與文件工具
 tests/            資料與 adapter 測試
 ```
 
@@ -453,7 +441,7 @@ tests/            資料與 adapter 測試
 | GET | `/api/battle-records/:id/attachments/csv` | 原始 CSV 下載 |
 | GET | `/api/battle-records/:id/attachments/image` | 舊陣容圖片下載 |
 
-SQLite 追加 `battle_uploads`／`battle_records`, `round_number` 記錄場序、`our_side` 選填敵我、`winner` 可空、`is_internal` 保存內推 boolean；舊場序不回填, 舊勝方保存不變。附件存入原有資料 volume 的 SQLite, 不另依賴容器暫存檔。後端保留獨立戰績匯入相容契約, 新頁面一律選擇活動場次。GAS 已實作 `getBattleRecords`／`getBattleRecord`／`saveBattleRecords`／`getBattleAttachment`；摘要及玩家快照保存於試算表，原始檔存私人 Drive，尚未部署驗證。
+SQLite 追加 `battle_uploads`／`battle_records`, `round_number` 記錄場序、`our_side` 選填敵我、`winner` 可空、`is_internal` 保存內推 boolean；舊場序不回填, 舊勝方保存不變。附件存入原有資料 volume 的 SQLite, 不另依賴容器暫存檔。後端保留獨立戰績匯入相容契約, 新頁面一律選擇活動場次。
 
 ## 數據分析
 
@@ -463,40 +451,37 @@ SQLite 追加 `battle_uploads`／`battle_records`, `round_number` 記錄場序�
 - 下半切換紅／藍方, 使用職業選單篩選, 可切換「總計／一命」；一命＝原數值 ÷ 重傷次數, 0 次以 1 計算, 重傷欄保留次數, 缺少原數值或重傷時顯示「—」。資源欄在最右。點擊名稱、職業或數值表頭切換升降排序, 使用當前模式的未四捨五入值先篩選／排序整個陣營再每頁 20 筆；換條件回第一頁, 表格不影響上半合計。
 - 內推、未填敵我／結果與舊未指定場序保留原狀, 不推算勝敗；以當時上傳快照呈現, 活動改名或刪除不影響閱讀。
 - 「團隊分析」彈窗依關聯活動最後儲存的排表及本筆場序分進攻1／進攻2／防守12隊／防守34隊，紅藍分開，未歸類另外列出。各格顯示數值、團內％與同陣營全場％（含未歸類）；缺值、零分母不產生比例。member／manager／admin 均可讀；未關聯活動、未指定場序、無排表或排表日期／類型不符不推測。重新儲存排表會更新分析，不固定為上傳數據當時版本。
-- 返回清單保留頁碼, 支援直接連結、重新整理、載入失敗重試及手機表格橫向捲動。閱覽不修改名冊／排表／戰績, GAS 資料層已生成，尚未部署驗證。
+- 返回清單保留頁碼, 支援直接連結、重新整理、載入失敗重試及手機表格橫向捲動。閱覽不修改名冊／排表／戰績。
 
 ## Admin 帳號管理
 
 登入 admin 後點右上帳號（手機於導覽選單選「帳號管理」）開啟 `#/admin`。可輸入目前密碼並確認新密碼修改 admin 密碼, 以及建立／修改 manager 帳號與共用 member 通行密碼。member 可使用行事曆、報名、完整成員清單（「移至編外」及三項成員維護限管理者）及數據分析／個人分析，不可上傳戰績或使用其他管理功能。manager 修改密碼留空時保留原密碼, 帳號不可重複（不分大小寫）, 不提供角色提升或刪除。修改 manager／member 撤銷其全部登入；admin 改密碼保留目前登入並撤銷其他登入。
 
-所有帳號管理 API 僅 admin 可用且寫入須 CSRF, 不只隱藏入口。帳號保存 revision 並拒絕過期修改, 密碼不回傳前端, 失敗保留輸入。私有 `data/local-admin.json` 不會隨網頁改密碼同步更新, 需自行保管新密碼。GAS 帳號管理已生成，使用私有 Script Properties，尚未部署驗證。
+所有帳號管理 API 僅 admin 可用且寫入須 CSRF, 不只隱藏入口。帳號保存 revision 並拒絕過期修改, 密碼不回傳前端, 失敗保留輸入。私有 `data/local-admin.json` 不會隨網頁改密碼同步更新, 需自行保管新密碼。
 
 三種戰鬥報名讀寫與舊成員回應／外援 API 均可匿名操作；有效登入修改仍須 CSRF。登入到期後保留公開操作，完整名冊及管理功能仍須有效登入。同名成員從場次名單選擇可用內部 UID 區分，直接填名仍拒絕歧義，一般活動不提供報名。
 
 若本機已安裝僅 admin／manager 的舊角色限制, 啟動時先備份完整 SQLite 至資料庫同目錄的 `*.before-member-role-*.sqlite`, 再於交易中擴充 member 角色；不更動既有密碼、角色、revision 或登入。Docker 的備份保存在 `guild_data` volume, 不提交至 Git。
 
-
 ## 共用成員通行密碼
 
-member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admin 在帳號管理設定／修改 6–128 個英文字母或數字的通行密碼（區分大小寫，純數字仍可使用），初次不提供預設值，前導零保留。右上登入預設成員通行密碼；三種戰鬥的行事曆與報名均公開，報名視窗不提供登入表單。`POST /api/auth/member-login` 由後端指定帳號，與管理登入共用限流；`PATCH /api/admin/member-token` 須 admin、CSRF 及 revision。修改密碼撤銷共用 member 全部 session。舊個別 member 資料保留但不能再登入或沿用舊 session；舊新增／改名 member API 停用。admin／manager 密碼維持 6–128 字元。GAS 已生成對應資料功能，尚未部署驗證。
-
+member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admin 在帳號管理設定／修改 6–128 個英文字母或數字的通行密碼（區分大小寫，純數字仍可使用），初次不提供預設值，前導零保留。右上登入預設成員通行密碼；三種戰鬥的行事曆與報名均公開，報名視窗不提供登入表單。`POST /api/auth/member-login` 由後端指定帳號，與管理登入共用限流；`PATCH /api/admin/member-token` 須 admin、CSRF 及 revision。修改密碼撤銷共用 member 全部 session。舊個別 member 資料保留但不能再登入或沿用舊 session；舊新增／改名 member API 停用。admin／manager 密碼維持 6–128 字元。
 
 ## 個人戰績
 
 成員清單（含編外人員）提供「查看數據」；數據分析中已關聯的人名可開啟 `#/member-records/:uid`，已登入 member／manager／admin 均可使用。UID 只作路由及內部引用，頁面、名稱、標籤與 title 不顯示。未關聯人名保持純文字。
 
-上傳數據的同一交易以當時名冊現在名稱精確比對，包含編外；唯一符合才保存 UID，不以職業、敵我、過去名稱或模糊搜尋推測。同名／未知名稱不關聯。`battle_player_links(record_id, player_index, member_uid)` 使用外鍵、逐列唯一索引及 member_uid 查詢索引，保留不可變的 players_json、原始 CSV、requestId／content_hash；詳情回應在讀取時加入 memberUid。單筆新增與 CSV 匯入共用成員建立流程；新增後依現在名稱精確比對尚未關聯的歷史玩家列，唯一同名才寫入關聯，已歸屬他人的資料不轉移。CSV 先完成整批建立再判斷唯一性，包含既有及同批同名；成員與關聯於同一 SQLite 交易／GAS 提交中保存。既有 UID 匯入仍跳過；改名、移至編外及重啟不觸發回填。原始 CSV、玩家快照與請求雜湊保持不變，戰績重試不重新比對名稱；本機詳情與重試讀取最新關聯，GAS 已保存的重試回應保持原樣。
+上傳數據的同一交易以當時名冊現在名稱精確比對，包含編外；唯一符合才保存 UID，不以職業、敵我、過去名稱或模糊搜尋推測。同名／未知名稱不關聯。`battle_player_links(record_id, player_index, member_uid)` 使用外鍵、逐列唯一索引及 member_uid 查詢索引，保留不可變的 players_json、原始 CSV、requestId／content_hash；詳情回應在讀取時加入 memberUid。單筆新增與 CSV 匯入共用成員建立流程；新增後依現在名稱精確比對尚未關聯的歷史玩家列，唯一同名才寫入關聯，已歸屬他人的資料不轉移。CSV 先完成整批建立再判斷唯一性，包含既有及同批同名；成員與關聯於同一交易中保存。既有 UID 匯入仍跳過；改名、移至編外及重啟不觸發回填。原始 CSV、玩家快照與請求雜湊保持不變，戰績重試不重新比對名稱；本機詳情與重試讀取最新關聯。
 
 `GET /api/members/:uid/battle-records?page=1&startDate=2026-10-01&endDate=2026-10-31&profession=碎夢` 支援選填的台北起訖日期（含當天、可只填一邊）與當場職業名稱。日期須為有效 YYYY-MM-DD、結束不得早於開始；職業依不可變玩家快照精確篩選，選項涵蓋該成員全部已關聯紀錄。回傳現在名稱／職業、篩選條件、職業選項、全部符合條件參戰的統計，以及每頁 20 筆最新優先明細。包含保存的場次類型、日期、場序、當時姓名／職業、陣營、對手與十二欄數據，點日期可回對戰詳情。無資料、找不到成員、載入／失敗／重試均有提示，直接連結登入後保留目標。
 
-個人統計提供參戰場數、勝／敗／內推或未判定場數、十項合計、每筆平均及一命貢獻。平均僅使用各欄已知數值；一命貢獻使用有該欄數值及重傷的紀錄合計，除以這些紀錄各筆 max(重傷, 1) 的總和；重傷欄仍保留合計。缺值顯示 — 並標示缺少筆數，不當作 0。不依隊名或其他數據推測勝敗，內推及結果未填不計勝敗。同場重複玩家列均保留且場數只計一次；兩邊結果衝突時歸未判定。明細可切總計／一命，資源維持最右。統計涵蓋全部符合篩選條件的紀錄，不受明細分頁影響。套用或清除條件回第一頁，無符合資料明確提示，原有 member／manager／admin 讀取權限不變。GAS `getMemberBattleRecords` 已實作相同分析契約，未部署或寫入正式試算表。
+個人統計提供參戰場數、勝／敗／內推或未判定場數、十項合計、每筆平均及一命貢獻。平均僅使用各欄已知數值；一命貢獻使用有該欄數值及重傷的紀錄合計，除以這些紀錄各筆 max(重傷, 1) 的總和；重傷欄仍保留合計。缺值顯示 — 並標示缺少筆數，不當作 0。不依隊名或其他數據推測勝敗，內推及結果未填不計勝敗。同場重複玩家列均保留且場數只計一次；兩邊結果衝突時歸未判定。明細可切總計／一命，資源維持最右。統計涵蓋全部符合篩選條件的紀錄，不受明細分頁影響。套用或清除條件回第一頁，無符合資料明確提示，原有 member／manager／admin 讀取權限不變。
 
 ## 成員數據分析權限
 
 已登入 member／manager／admin 可使用戰績清單、對戰詳情、原始 CSV／既有附件下載及個人數據分析。各角色的導覽皆提供「回首頁」返回行事曆，member 另顯示成員清單與數據分析，點左上平台名稱亦可返回，從對戰表格點已關聯人名可開啟個人頁；成員清單開放 member／manager／admin，「移至編外」按鈕及端點僅供 admin／manager，其他管理功能仍只供 admin／manager。共用 member 通行密碼不綁遊戲 UID，因此可查看所有已關聯成員的數據，不限制為本人。匿名不可讀，member 不可上傳／修改戰績、活動、排表或帳號。後端分別放行明確戰績 GET 路徑及成員清單的讀寫路徑／方法，不以 URL 前綴放寬其他管理操作。
 
 右上登入視窗包含「成員登入」「管理者登入」兩個 tab；前者只填 admin 發行的通行密碼（英數 6–128 字），後者沿用 Manager／Admin 帳號密碼。共用視窗一律預選成員登入，首頁登入後留在行事曆，直接開啟戰績／個人分析或管理連結成功後保留原目標及權限；切換 tab 清除密碼及登入錯誤。
-
 
 ## 行事曆可見性與登入入口
 
@@ -506,11 +491,9 @@ member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admi
 
 ## 平台名稱
 
-admin 可在「帳號管理 → 平台設定」修改左上角「逆水寒」，名稱最多 30 個字。保存後更新頂欄、頁尾及頁面標題，重新載入保留；manager／member／訪客僅可讀取。設定獨立於幫會名稱與戰績快照，本機保存在 SQLite、GAS 保存在專用工作表。舊 GAS 專案更新時須重跑 `setupGas()` 補上 `GM_settings`，再同步部署版本，詳見 [部署文件](GASDeployment.md#平台名稱)。
+admin 可在「帳號管理 → 平台設定」修改左上角「逆水寒」，名稱最多 30 個字。保存後更新頂欄、頁尾及頁面標題，重新載入保留；manager／member／訪客僅可讀取。設定獨立於幫會名稱與戰績快照，現行設定由 Node API 保存。
 
-同一分頁可上傳／預覽／替換／移除平台圖示，支援 PNG、JPEG、WebP，最多 256 KB。選檔後按「儲存設定」才正式保存並顯示於頂欄；移除後亦需儲存，還原可放棄圖示草稿。未設定時只顯示名稱。本機圖片存 SQLite，GAS 圖片存私人 Google Drive，無需 R2 或公開分享圖片。
-
-GAS 的初始 admin 使用初始化時設定的帳密，須選「管理者登入」；`AUTH_SECRET` 不是登入密碼。無法登入時，可在私有指令碼屬性填 `RECOVERY_ADMIN_PASSWORD`（6–128 字元），由 Google 部署者在編輯器執行 `resetAdminPassword`；成功紀錄顯示實際帳號，之後用新密碼登入。重設只影響 admin 密碼及其舊登入，其他帳號和業務資料保留。詳見 [登入復原步驟](GASDeployment.md#無法登入-admin-時)。
+同一分頁可上傳／預覽／替換／移除平台圖示，支援 PNG、JPEG、WebP，最多 256 KB。選檔後按「儲存設定」才正式保存並顯示於頂欄；移除後亦需儲存，還原可放棄圖示草稿。未設定時只顯示名稱。本機圖片存 SQLite。
 
 成員清單與編外人員可同時篩選主職業及副職業，副職業含「無副職業」；未選時不篩選。職業、所屬與搜尋條件取交集，改條件回第一頁，「清除篩選」同時重設全部條件。
 
@@ -524,38 +507,33 @@ admin／manager 可使用「影片閱覽」`#/videos`，選擇場次後顯示角
 
 SQLite 追加 `event_video_submissions` 保存雙場連結／團別／備註，`event_video_requests` 保存重試結果。舊 `event_videos` 逐場紀錄及舊團別保留並整合顯示，不按同名合併；未記錄的場次網址顯示 —，未記錄團別顯示「未記錄」。重啟保留資料，刪除或改為一般活動後停止讀寫但不刪資料。
 
-本機及 GAS 共用影片介面、權限及 CSV 匯出。GAS 使用 getEventVideos／submitEventVideo RPC；GM_videos 保存提交，GM_requests 保存重試結果，在 script lock 內透過既有提交標記同次生效。舊已初始化專案首次有效使用會補建 GM_videos，無須為影片重新執行 setupGas；不覆寫其他表或自動遷移 SQLite 影片。驗證使用隔離 SQLite、模擬 Google 服務與編譯 HTML，真實 Google 授權、試算表寫入及 iframe 下載仍需 Web App 實測。
-
 影片閱覽提供「匯出 CSV」，依目前團別／名稱篩選與表格順序輸出六欄（含職業），不讀取其他場次。UTF-8 BOM 保留中文，備註換行及引號正確轉義，公式字首以文字保存；載入、錯誤或無符合資料時停用匯出，失敗可重試。
 
 ## 管理出勤閱覽
 
 管理總覽當日安排視窗與活動安排清單的約戰／幫戰／龍虎戰提供「出勤閱覽」。預設請假；約戰保留請假／報名分頁與實際人數，幫戰／龍虎戰只顯示請假分頁。表格顯示名稱、當場職業、備註，不顯示 UID；未回應及舊 none 不計入，有效外援歸報名，已取消外援歸請假。只有 admin／manager 可用，公開行事曆與 member 不提供名單入口。
 
-`GET /api/events/:id/attendance` 與 GAS `getEventAttendance` 共用 DTO，回傳 eventId、leave、registered；列含 name／profession／colorcode／note，source／id／revision 僅供操作識別及版本檢查，不呈現在畫面。每次開啟重讀，包含載入、空名單、失敗／重試、手動重載及過期回應保護，成功後才顯示人數。
+`GET /api/events/:id/attendance` 共用 DTO，回傳 eventId、leave、registered；列含 name／profession／colorcode／note，source／id／revision 僅供操作識別及版本檢查，不呈現在畫面。每次開啟重讀，包含載入、空名單、失敗／重試、手動重載及過期回應保護，成功後才顯示人數。
 
-請假列提供「取消請假」，透過 `PATCH /api/events/:id/attendance`／GAS `cancelEventLeave`。成員回應改回 none，保留職業、備註與名冊所屬狀態，幫會／俱樂部成員恢復可排表資格；外援恢復原報名 ID 及有效狀態。成員自行再次報名則改為 registered，也會解除請假，不轉成編外或建立外援。修改檢查 revision，資料已更新必須重載；相同成功操作可安全重試。本機使用 SQLite 交易，GAS 在 script lock 內透過現有提交標記生效；API 僅限管理角色，寫入檢查 CSRF，不加入公開 participation 白名單。
-
-沿用現有資料表，不需要新增工作表或重新初始化。本次生成 GAS 套件，未同步或發布新部署。
+請假列提供「取消請假」，透過 `PATCH /api/events/:id/attendance`。成員回應改回 none，保留職業、備註與名冊所屬狀態，幫會／俱樂部成員恢復可排表資格；外援恢復原報名 ID 及有效狀態。成員自行再次報名則改為 registered，也會解除請假，不轉成編外或建立外援。修改檢查 revision，資料已更新必須重載；相同成功操作可安全重試。本機使用 SQLite 交易。
 
 ## 已上傳對戰資訊編輯
 
 admin／manager 可由上傳數據已保存卡片，或數據分析詳情的「編輯對戰資訊」後補雙方名稱、我方及獲勝方。約戰可逐場開啟內推，保存時清除敵我／勝方；幫戰與龍虎戰不可設內推。member 只可閱讀，結果修改後重新讀取個人分析及清單會使用最新值。
 
-本機 `PATCH /api/battle-records/:id` 與 GAS `updateBattleRecord` 共用欄位驗證，檢查管理角色、CSRF、revision 及 requestId；SQLite 追加 revision（舊資料初值 0）與 battle_metadata_requests，交易保存修改和重試結果。GAS 舊戰績 revision 缺值視為 0，GM_battles 及 GM_requests 沿用既有鎖定與提交標記，不需新增工作表。原 CSV、Drive 檔案、玩家快照及成員連結、日期／類型／場序與原上傳重試資料保留；不重算或覆寫原 content hash。
+本機 `PATCH /api/battle-records/:id` 共用欄位驗證，檢查管理角色、CSRF、revision 及 requestId；SQLite 追加 revision（舊資料初值 0）與 battle_metadata_requests，交易保存修改和重試結果。
 
-編輯視窗每次開啟讀最新資料，儲存成功更新卡片／詳情及快取；失敗保留草稿，衝突須重新載入，相同請求重試不重複修改。兩場各自修改，不清除另一場待上傳 CSV。GAS 套件已生成，本次未同步或發布新部署。
+編輯視窗每次開啟讀最新資料，儲存成功更新卡片／詳情及快取；失敗保留草稿，衝突須重新載入，相同請求重試不重複修改。兩場各自修改，不清除另一場待上傳 CSV。
 
 ## member 成員清單權限
 
 member／manager／admin 均可進入 `#/members`，成員與編外分類、UID、過去名稱、主副職業／所屬篩選及查看數據皆可使用；新增、修改、匯入預覽／確認維持既有權限；member 隱藏「移至編外」按鈕，該端點僅供 admin／manager。UID 仍只在成員管理清單及相關表單／匯入／歷史視窗顯示，其他頁面規則不變。
 
-本機允許有效 member session 呼叫成員清單對應 GET／POST／PATCH 路徑；GAS 開放 getMembers／addMember／updateMember／previewMemberImport／importMembers。DELETE /api/members/:uid 與 GAS removeMember 僅供 admin／manager；一般編輯所屬狀態維持現況，不額外限制。寫入維持 CSRF、格式、revision 及匯入版本檢查；共用 member 帳號角色不變，不綁本人 UID。其他管理總覽、活動、排表、戰績寫入、影片／出勤閱覽及帳號／平台設定沿用原權限。匿名仍不能讀寫完整名冊，通行密碼變更撤銷 session 後不能操作。
-
+本機允許有效 member session 呼叫成員清單對應 GET／POST／PATCH 路徑。
 
 ## API 載入與送出提示
 
-本機與 GAS 共用相同等待介面：行事曆在登入確認及安排讀取完成前顯示區塊遮罩；場次及需要讀取資料的選單顯示進度並停用。清單、詳情、報名／出勤／設定視窗提供轉圈與文字，讀取完成前不提前呈現空資料或未上傳狀態。
+介面使用相同等待提示：行事曆在登入確認及安排讀取完成前顯示區塊遮罩；場次及需要讀取資料的選單顯示進度並停用。清單、詳情、報名／出勤／設定視窗提供轉圈與文字，讀取完成前不提前呈現空資料或未上傳狀態。
 
 新增／修改／刪除、匯入、報名／請假、影片與上傳數據、排表及設定儲存，在操作位置持續顯示進度並停用重複操作，不使用全頁寫入遮罩。失敗保留輸入及重試方式；沒有新增人為 API 延遲或自動重送。
 
@@ -583,9 +561,6 @@ DISCORD_WEBHOOK_LEAVE=https://discord.com/api/webhooks/…
 DISCORD_WEBHOOK_MEMBER=https://discord.com/api/webhooks/…
 ```
 
-GAS 改在 Script Properties 填同名屬性，見 [GASDeployment.md](GASDeployment.md#2-設定私有-script-properties)。未設定的頻道維持靜默停用；只接受 Discord 官方 Webhook 網址。Webhook 網址等同密碼，不要提交到 Git 或貼在公開頻道。通知失敗不影響原操作。本機正常停機會在整體 10 秒期限內等待已排通知；佇列不持久化, 強制終止或超時仍可能未送達, 詳見 [通知契約](docs/platform-contracts.md)。GAS 執行紀錄可查看設定名稱、固定錯誤分類（WEBHOOK_INVALID／HTTP_ERROR／REQUEST_EXCEPTION）及 HTTP 狀態；不包含網址、例外原文或玩家資料，429 重試成功不記為失敗。授權／網路例外需由部署者確認 Google 授權與執行紀錄。
-
-
 ### 成員資料維護
 
-admin／manager 可在成員清單永久刪除錯誤資料、開啟 UID 修正，以及直接新增／修改／刪除過去名稱。member 保留原有成員功能。操作說明與保留範圍見 [成員資料維護](docs/成員資料維護.md)；v1.0.11 已同步 GAS 程式並讀回核對，Web App 尚未更新部署，見 [交付狀態](GASDeployment.md)。
+admin／manager 可在成員清單永久刪除錯誤資料、開啟 UID 修正，以及直接新增／修改／刪除過去名稱。member 保留原有成員功能。操作說明與保留範圍見 [成員資料維護](docs/成員資料維護.md)。

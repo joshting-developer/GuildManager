@@ -1,6 +1,6 @@
 import { eventDisplayTitle, eventTypeLabel } from './event-types.js';
 
-// Same property names for local env vars and GAS Script Properties.
+// Notification channels use the same names as environment variables.
 export const DISCORD_WEBHOOK_SETTINGS = {
   leave: 'DISCORD_WEBHOOK_LEAVE',
   member: 'DISCORD_WEBHOOK_MEMBER',

@@ -81,39 +81,6 @@ test('shared browser transport sends CSRF and cookies, and announces a revoked s
   }
 });
 
-test('GAS auth propagates unconfigured identity without HTTP fallback', async () => {
-  const calls = [];
-  const run = {
-    withSuccessHandler(fn) {
-      this.done = fn;
-      return this;
-    },
-    withFailureHandler(fn) {
-      this.fail = fn;
-      return this;
-    },
-    getAuthSession() {
-      calls.push('session');
-      this.fail({ message: 'Google 登入尚未設定' });
-    },
-    login(input) {
-      calls.push(input);
-      this.fail({ message: 'Google 登入尚未設定' });
-    },
-  };
-  const client = createAuthClient({
-    source: 'gas',
-    googleRun: run,
-    fetchImpl: () => assert.fail('no HTTP fallback'),
-  });
-  await assert.rejects(client.getSession(), /Google 登入尚未設定/);
-  await assert.rejects(
-    client.login({ username: 'admin', password: 'wrong' }),
-    /Google 登入尚未設定/,
-  );
-  assert.equal(calls.length, 2);
-});
-
 test('legacy member catalog uses a separate endpoint from the management roster', async () => {
   const paths = [];
   const client = createMemberClient({
@@ -151,18 +118,4 @@ test('a failed login does not expire an existing session or clear its CSRF token
     globalThis.window = oldWindow;
     setCsrfToken('');
   }
-});
-
-test('member login only transmits the password and accepts an anonymous account label', async () => {
-  let request;
-  const client = createAuthClient({ fetchImpl: async (path, init) => {
-    request = { path, body: JSON.parse(init.body) };
-    return { ok: true, json: async () => ({ ...session, user: { id: 'member', username: '', role: 'member' } }) };
-  } });
-  const result = await client.loginMember({ password: '001234', username: 'ignored', role: 'admin' });
-  assert.deepEqual(request, { path: '/api/auth/member-login', body: { password: '001234' } });
-  assert.equal(result.user.username, '');
-  const run = { withSuccessHandler(fn) { this.done = fn; return this; }, withFailureHandler(fn) { this.fail = fn; return this; }, loginMember(input) { assert.deepEqual(input, { password: '001234' }); this.fail({ message: '尚未串接' }); } };
-  await assert.rejects(createAuthClient({ source: 'gas', googleRun: run, fetchImpl: () => assert.fail('no HTTP') }).loginMember({ password: '001234' }), /尚未串接/);
-  setCsrfToken('');
 });
