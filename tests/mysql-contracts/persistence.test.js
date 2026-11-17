@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createTestRepository, repositoryDatabase } from '../helpers/mysql-repository.js';
+import { createTestRepository, repositoryDatabase, repositoryFileStorage } from '../helpers/mysql-repository.js';
 import { createMysqlRepository } from '../../server/mysql/repository.js';
 import { AuthError } from '../../server/auth-repository.js';
 import { emptyLotteryBoard } from '../../src/domain/lottery.js';
@@ -47,7 +47,7 @@ test('accounts store only hashes, preserve roles and sessions across repository 
 
 test('lottery draws once per prize, persists across instances, excludes winners and resets with revision checks', async () => {
   const repo = await createTestRepository();
-  const reopened = createMysqlRepository(repositoryDatabase(repo));
+  const reopened = createMysqlRepository(repositoryDatabase(repo), { fileStorage: repositoryFileStorage(repo) });
   try {
     assert.deepEqual((await repo.getLottery()).lottery, emptyLotteryBoard());
     let board = (await repo.saveLottery({ players: ['甲', '乙'], prizes: ['一獎', '二獎', '三獎'], revision: 0 })).lottery;
@@ -69,7 +69,7 @@ test('lottery draws once per prize, persists across instances, excludes winners 
 
 test('platform name and icon remain atomic and revision protected across repository instances', async () => {
   const repo = await createTestRepository();
-  const reopened = createMysqlRepository(repositoryDatabase(repo));
+  const reopened = createMysqlRepository(repositoryDatabase(repo), { fileStorage: repositoryFileStorage(repo) });
   try {
     const original = (await repo.getPlatformSettings()).platform;
     const saved = await repo.updatePlatformSettings({ name: '測試平台🌊', revision: original.revision });

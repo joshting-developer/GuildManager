@@ -1,3 +1,4 @@
+import { FileStorageError } from './storage/r2.js';
 import express from 'express';
 import { DatabaseError } from './database/mysql.js';
 import { reportError } from './error-log.js';
@@ -17,6 +18,11 @@ import { withDefaultLineupEvent } from '../src/domain/lineup-index.js';
 
 export function createApp(repository, { authNow, notifier = null, log = console, isStopping = () => false, healthTimeoutMs = 2000 } = {}) {
   const app = express();
+  const fileAccess = (request, roles) => ({ assertAccess: async () => {
+    const auth = await repository.getSession(request.sessionToken);
+    if (!auth) throw new AuthError(401, 'AUTH_REQUIRED', '請先登入後再使用此功能');
+    if (!roles.includes(auth.user.role)) throw new AuthError(403, 'MANAGEMENT_REQUIRED', '目前帳號無法操作這個檔案');
+  } });
   // Notifications are collected per operation and only handed to the notifier after the
   // MySQL transaction committed; a failed operation discards them.
   async function notifying(name, ...args) {
@@ -88,7 +94,7 @@ export function createApp(repository, { authNow, notifier = null, log = console,
     response.json(await repository.getPlatformSettings());
   });
   app.patch('/api/admin/platform-settings', async (request, response) => {
-    response.json(await repository.updatePlatformSettings(request.body));
+    response.json(await repository.updatePlatformSettings(request.body, fileAccess(request, ['admin'])));
   });
   app.get('/api/admin/accounts', async (request, response) => {
     response.json(await repository.getAccountSettings(request.auth.user.id));
@@ -164,7 +170,7 @@ export function createApp(repository, { authNow, notifier = null, log = console,
     response.json(await repository.syncBattleMembers(request.body));
   });
   app.post('/api/battle-records', async (request, response) => {
-    response.status(201).json(await repository.saveBattleRecords(request.body));
+    response.status(201).json(await repository.saveBattleRecords(request.body, fileAccess(request, ['admin', 'manager'])));
   });
   app.get('/api/battle-records/:id/metadata', async (request, response) => {
     response.set('Cache-Control', 'no-store').json({ record: await repository.getBattleMetadata(request.params.id) });
@@ -188,7 +194,7 @@ export function createApp(repository, { authNow, notifier = null, log = console,
     response.json(await repository.deleteBattleRecord(request.params.id, request.body?.revision));
   });
   app.get('/api/battle-records/:id/attachments/:kind', async (request, response) => {
-    const attachment = await repository.getBattleAttachment(request.params.id, request.params.kind);
+    const attachment = await repository.getBattleAttachment(request.params.id, request.params.kind, fileAccess(request, ['admin', 'manager', 'member']));
     response.set('X-Content-Type-Options', 'nosniff');
     response.set('Content-Type', attachment.mimeType);
     response.set(
@@ -374,6 +380,7 @@ export function createApp(repository, { authNow, notifier = null, log = console,
   });
   app.use((error, _request, response, _next) => {
     if (
+      error instanceof FileStorageError ||
       error instanceof PlatformSettingsError ||
       error instanceof AuthError ||
       error instanceof MemberError ||

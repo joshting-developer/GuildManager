@@ -12,3 +12,5 @@ await import('./mysql-http/account-cli.test.js');
 await import('./mysql-http/health.test.js');
 await import('./mysql-http/shutdown.test.js');
 await import('./mysql-http/notifications.test.js');
+
+await import('./mysql-http/file-metadata.test.js');

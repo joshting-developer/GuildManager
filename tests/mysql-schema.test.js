@@ -31,7 +31,7 @@ test('real MySQL initial schema preserves existing tables, constraints, snapshot
     assert.deepEqual((await migrateMysql(database, mysqlMigrations)).applied, []);
     const tables = await database.query('SELECT TABLE_NAME AS name, ENGINE AS engine, TABLE_COLLATION AS collation FROM information_schema.tables WHERE table_schema=DATABASE() ORDER BY TABLE_NAME');
     assert.deepEqual(tables.filter((row) => !['schema_migrations', 'repository_write_lock'].includes(row.name)).map((row) => row.name), tableNames);
-    assert.equal(tableNames.length, 32);
+    assert.equal(tableNames.length, 33);
     assert.ok(tables.every((row) => row.engine === 'InnoDB' && row.collation === 'utf8mb4_bin'));
     const columns = await database.query('SELECT TABLE_NAME AS tableName, COLUMN_NAME AS columnName FROM information_schema.columns WHERE table_schema=DATABASE()');
     for (const table of tableNames) {
@@ -109,7 +109,7 @@ test('real MySQL initial schema preserves existing tables, constraints, snapshot
     await assert.rejects(database.query('INSERT INTO event_video_submissions (id,event_id,name,first_url,second_url,note,created_at,group_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', ['video-empty', 'event-one', '測試影片', '', '', '', now, '進攻一']), { code: 'DATABASE_QUERY' });
   } finally {
     if (ownsSchema) {
-      for (const name of [...createdTables].reverse()) await database.query(`DROP TABLE IF EXISTS \`${name}\``);
+      for (const name of [...createdTables].reverse().filter(name => name !== 'file_metadata').concat('file_metadata')) await database.query(`DROP TABLE IF EXISTS \`${name}\``);
       await database.query('DROP TABLE IF EXISTS schema_migrations');
     }
     await database.close();

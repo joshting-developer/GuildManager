@@ -6,10 +6,22 @@ import { mysqlMigrations } from '../../server/database/migrations.js';
 import { createMysqlRepository } from '../../server/mysql/repository.js';
 
 const databases = new WeakMap();
+const storages = new WeakMap();
+export function repositoryFileStorage(repository) { return storages.get(repository); }
 export function repositoryDatabase(repository) { return databases.get(repository); }
 
 let gate = Promise.resolve();
 export async function createTestRepository(options = {}) {
+  // Most business contracts isolate the external object provider; dedicated R2 tests use the real adapter.
+  const objects = new Map();
+  const fileStorage = {
+    bucket: 'synthetic-local',
+    async put(key, bytes) { objects.set(key, Buffer.from(bytes)); },
+    async get(key) { assert.ok(objects.has(key), 'test object must exist'); return Buffer.from(objects.get(key)); },
+    async remove(key) { objects.delete(key); },
+    close() {},
+  };
+  options = { fileStorage, ...options };
   const configuration = JSON.parse(readFileSync(process.env.GUILD_MYSQL_REPOSITORY_TEST_CONFIG, 'utf8'));
   assert.equal(configuration.purpose, 'guildmanager-repository-test');
   const env = configuration.environment;
@@ -28,7 +40,7 @@ export async function createTestRepository(options = {}) {
     if (!closed) closed = (async () => {
       try {
         if (owns) {
-          for (const table of [...tables].reverse()) await database.query(`DROP TABLE IF EXISTS \`${table}\``);
+          for (const table of [...tables].reverse().filter(name => name !== 'file_metadata').concat('file_metadata')) await database.query(`DROP TABLE IF EXISTS \`${table}\``);
           await database.query('DROP TABLE IF EXISTS schema_migrations');
         }
       } finally { try { await database.close(); } finally { release(); } }
@@ -42,6 +54,7 @@ export async function createTestRepository(options = {}) {
     await migrateMysql(database, mysqlMigrations);
     const repository = { ...createMysqlRepository(database, options), close };
     databases.set(repository, database);
+    storages.set(repository, options.fileStorage);
     return repository;
   } catch (error) { await close(); throw error; }
 }

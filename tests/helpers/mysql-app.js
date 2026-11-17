@@ -6,9 +6,9 @@ export const ADMIN = { username: 'test_admin', password: 'test-password-2026' };
 
 // Boots the real Express app on an isolated MySQL schema. Every helper returns the raw
 // fetch Response so tests assert status, headers and JSON shape exactly as the frontend sees them.
-export async function createTestApp({ notifier = null, repository: wrap = (value) => value, ...appOptions } = {}) {
+export async function createTestApp({ notifier = null, repositoryOptions = {}, repository: wrap = (value) => value, ...appOptions } = {}) {
   let time = Date.now();
-  const repository = await createTestRepository({ authNow: () => time });
+  const repository = await createTestRepository({ ...repositoryOptions, authNow: () => time });
   const server = createApp(wrap(repository), { ...appOptions, authNow: () => time, notifier }).listen(0, '127.0.0.1');
   await new Promise((resolve, reject) => server.once('listening', resolve).once('error', reject));
   const base = `http://127.0.0.1:${server.address().port}/api`;

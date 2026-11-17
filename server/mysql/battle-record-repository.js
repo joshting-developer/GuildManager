@@ -1,3 +1,4 @@
+import { createFileMetadataRepository } from './file-metadata.js';
 import { asyncMap } from "./collections.js";
 import { createHash, randomUUID } from 'node:crypto';
 import {
@@ -51,6 +52,7 @@ function imageAttachment(input) {
   return { name, mimeType: input.mimeType, bytes };
 }
 export function createBattleRecordRepository(db, { project = (_kind, _id, value) => value } = {}) {
+  const files = createFileMetadataRepository(db);
   async function syncPlan() {
     return planBattleMemberSync(
       (await db.prepare('SELECT uid, name FROM members').all()),
@@ -295,7 +297,7 @@ export function createBattleRecordRepository(db, { project = (_kind, _id, value)
         pageSize: readAll ? entries.length : 20,
       };
     },
-    async saveBattleRecords(input) {
+    async saveBattleRecords(input, { preflight = false, fileReferences, assertAccess } = {}) {
       if (
         !input ||
         typeof input.requestId !== 'string' ||
@@ -369,6 +371,7 @@ export function createBattleRecordRepository(db, { project = (_kind, _id, value)
         }),
       );
       return (await db.transaction(async () => {
+        await assertAccess?.();
         const previous = (await db
           .prepare('SELECT id,input_hash FROM battle_uploads WHERE request_id=?')
           .get(input.requestId));
@@ -447,25 +450,30 @@ export function createBattleRecordRepository(db, { project = (_kind, _id, value)
         }
         for (const value of prepared)
           value.attribution = applyBattleAttributions(value.record.players, value.record.attributions || [], byUid);
+        if (preflight) return { requiresFiles: true };
+        if (!fileReferences || fileReferences.csv.length !== records.length) throw new Error('File staging required');
+        for (const file of fileReferences.csv) await files.insert(file);
+        if (fileReferences.image) await files.insert(fileReferences.image);
         const uploadId = randomUUID(),
           now = new Date().toISOString();
         (await db.prepare(
-          'INSERT INTO battle_uploads (id,request_id,input_hash,image_name,image_type,image_data,created_at) VALUES (?,?,?,?,?,?,?)',
+          'INSERT INTO battle_uploads (id,request_id,input_hash,image_name,image_type,image_data,created_at,image_file_id) VALUES (?,?,?,?,?,?,?,?)',
         ).run(
           uploadId,
           input.requestId,
           inputHash,
           image?.name || null,
           image?.mimeType || null,
-          image?.bytes || null,
+          null,
           now,
+          fileReferences.image?.id || null,
         ));
         const ids = [];
-        for (const { record, event, contentHash, attribution } of prepared) {
+        for (const [index, { record, event, contentHash, attribution }] of prepared.entries()) {
           const id = randomUUID();
           ids.push(id);
           (await db.prepare(
-            'INSERT INTO battle_records (id,upload_id,event_id,event_snapshot_json,battle_type,played_at,red_team,blue_team,winner,filename,csv_text,players_json,content_hash,created_at,round_number,our_side,is_internal) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            'INSERT INTO battle_records (id,upload_id,event_id,event_snapshot_json,battle_type,played_at,red_team,blue_team,winner,filename,csv_text,players_json,content_hash,created_at,round_number,our_side,is_internal,csv_file_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
           ).run(
             id,
             uploadId,
@@ -477,13 +485,14 @@ export function createBattleRecordRepository(db, { project = (_kind, _id, value)
             record.blueTeam,
             record.winner,
             record.filename,
-            record.csvText,
+            '',
             JSON.stringify(attribution.players),
             contentHash,
             now,
             record.roundNumber ?? null,
             record.ourSide ?? null,
             record.isInternal ? 1 : 0,
+            fileReferences.csv[index].id,
           ));
           const insertLink = db.prepare(
             'INSERT INTO battle_player_links (record_id, player_index, member_uid) VALUES (?, ?, ?)',
@@ -498,24 +507,24 @@ export function createBattleRecordRepository(db, { project = (_kind, _id, value)
       }));
     },
     async getBattleAttachment(id, kind) {
-      (await get(id));
       if (kind === 'csv') {
-        const row = (await db.prepare('SELECT filename,csv_text FROM battle_records WHERE id=?').get(id));
+        const row = (await db.prepare('SELECT filename,csv_text,csv_file_id FROM battle_records WHERE id=?').get(id));
+        if (!row) throw new BattleRecordError('找不到這筆戰績', 404, 'BATTLE_NOT_FOUND');
         return {
           name: row.filename,
           mimeType: 'text/csv; charset=utf-8',
-          bytes: Buffer.from(row.csv_text),
+          ...(row.csv_file_id ? { file: await files.get(row.csv_file_id) } : { bytes: Buffer.from(row.csv_text) }),
         };
       }
       if (kind !== 'image') throw new BattleRecordError('找不到這項附件', 404, 'BATTLE_NOT_FOUND');
       const row = (await db
         .prepare(
-          'SELECT u.image_name,u.image_type,u.image_data FROM battle_uploads u JOIN battle_records r ON r.upload_id=u.id WHERE r.id=?',
+          'SELECT u.image_name,u.image_type,u.image_data,u.image_file_id FROM battle_uploads u JOIN battle_records r ON r.upload_id=u.id WHERE r.id=?',
         )
         .get(id));
-      if (!row.image_data)
+      if (!row || (!row.image_data && !row.image_file_id))
         throw new BattleRecordError('這筆戰績沒有陣容圖片', 404, 'BATTLE_NOT_FOUND');
-      return { name: row.image_name, mimeType: row.image_type, bytes: row.image_data };
+      return { name: row.image_name, mimeType: row.image_type, ...(row.image_file_id ? { file: await files.get(row.image_file_id) } : { bytes: row.image_data }) };
     },
   };
 }

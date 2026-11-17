@@ -1,3 +1,4 @@
+import { createR2Storage } from './storage/r2.js';
 import { createMysqlDatabase } from './database/mysql.js';
 import { migrationStatus, MigrationError } from './database/migrate.js';
 import { mysqlMigrations } from './database/migrations.js';
@@ -22,7 +23,14 @@ try {
   process.exit(1);
 }
 
-const repository = createMysqlRepository(database);
+let repository;
+try {
+  repository = createMysqlRepository(database, { fileStorage: createR2Storage(process.env) });
+} catch (error) {
+  reportError(console, 'startup_failed', error);
+  await database.close().catch(() => {});
+  process.exit(1);
+}
 const host = process.env.API_HOST || '127.0.0.1';
 const port = Number(process.env.API_PORT || 3001);
 try {

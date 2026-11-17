@@ -159,3 +159,10 @@ HTTP 契約測試在 `tests/mysql-http/`, 由 `tests/mysql-http.test.js` 在同�
 通知透過 `repository.invoke` 回傳的操作專用 notices 發送, HTTP 不等待 Discord 網路完成。測試用另一條真 MySQL pool 連線確認資料已提交才進入合成 fetch, 並在交易已收集通知後注入 rollback, 驗證不送失敗通知；並行操作、無變更、一般報名與相同 requestId 重送都保留原有隔離／去重規則
 
 `server/discord-notifier.js` 提供 `drain()` 等待當前已排通知。停機先讓在途 HTTP 結束、關 pool, 再等待 drain, 仍受整體 10 秒期限限制；這是記憶體 best-effort 佇列, 不保證強制終止或超時後送達。429 只重試一次且不增加寫入, 其他失敗不重播；詳細規則見 [平台與整合契約](platform-contracts.md)
+
+
+## R2 metadata
+
+`0003_file_metadata` 新增檔案描述與戰績CSV／共用圖片／平台圖示的外鍵。新內容寫R2, SQL只保存bucket、key、檔名、MIME、bytes與SHA-256；原inline欄位保留作舊資料讀取相容。migration不搬舊資料或刪原欄位。API還需要 `config/r2.env.example` 的設定, 缺設定停止啟動；詳見 [R2私有檔案服務](r2-storage.md)。
+
+大部分業務測試用真MySQL與記憶體物件儲存替身, 重建Repository須注入同一儲存依賴；這不視為真R2通過。提供明確 `GUILD_R2_TEST_CONFIG` 後, HTTP檔案關聯案例另驗真MySQL＋R2, 只清理本次合成物件。

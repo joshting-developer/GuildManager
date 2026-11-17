@@ -75,6 +75,7 @@ export function createR2Storage(env, { client: injectedClient, timeoutMs = 15000
     }
   }
   return {
+    bucket,
     async put(key, bytes, mimeType) {
       if (!Buffer.isBuffer(bytes) || !bytes.length || bytes.length > maxBytes ||
           !['text/csv', 'image/png', 'image/jpeg', 'image/webp'].includes(mimeType)) throw new FileStorageError('INVALID_FILE', 422);

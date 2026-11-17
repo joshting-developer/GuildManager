@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createTestRepository, repositoryDatabase } from '../helpers/mysql-repository.js';
+import { createTestRepository, repositoryDatabase, repositoryFileStorage } from '../helpers/mysql-repository.js';
 import { createMysqlRepository } from '../../server/mysql/repository.js';
 import { fixtureCsv } from '../helpers/gas-runtime.js';
 import { participationTarget } from '../../src/domain/participation-target.js';
@@ -14,7 +14,7 @@ const deferred = () => {
 };
 
 // Inject at an actual transaction boundary; the real MySQL connection still rolls back.
-function failingRepository(database, shouldFail) {
+function failingRepository(database, shouldFail, fileStorage) {
   return createMysqlRepository({
     ...database,
     transaction: (work, options) => database.transaction((connection) => work({
@@ -23,7 +23,7 @@ function failingRepository(database, shouldFail) {
         return connection.query(sql, parameters);
       },
     }), options),
-  });
+  }, { fileStorage });
 }
 
 test('independent repository instances serialize conflicting edits and preserve both independent participants', async () => {
@@ -167,9 +167,9 @@ test('a failed player-link insert rolls back the entire upload and remains retry
     await repo.addMember(person('001', '城'));
     const input = { requestId: 'rollback-battle-links', records: [{ type: 'scrimmage', filename: 'synthetic.csv',
       csvText: fixtureCsv(), datetime: '2026-11-16', redTeam: '紅', blueTeam: '藍' }] };
-    const broken = failingRepository(database, (sql) => sql.startsWith('INSERT INTO battle_player_links'));
+    const broken = failingRepository(database, (sql) => sql.startsWith('INSERT INTO battle_player_links'), repositoryFileStorage(repo));
     await assert.rejects(broken.saveBattleRecords(input), /synthetic failure/);
-    for (const table of ['battle_uploads', 'battle_records', 'battle_player_links']) {
+    for (const table of ['battle_uploads', 'battle_records', 'battle_player_links', 'file_metadata']) {
       assert.equal(Number((await database.query(`SELECT COUNT(*) AS count FROM ${table}`))[0].count), 0);
     }
     const saved = await repo.saveBattleRecords(input);

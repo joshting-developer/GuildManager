@@ -20,6 +20,7 @@
     "event_video_submissions",
     "event_videos",
     "events",
+    "file_metadata",
     "home_settings",
     "lineup_templates",
     "lineup_versions",
@@ -280,14 +281,26 @@
       "revision",
       "updated_at",
       "deleted_at"
+    ],
+    "file_metadata": [
+      "id",
+      "bucket",
+      "object_key",
+      "name",
+      "mime_type",
+      "size_bytes",
+      "sha256",
+      "created_at"
     ]
   },
   "foreignKeys": [
     "auth_sessions.account_id.auth_accounts.id",
     "battle_player_links.member_uid.members.uid",
     "battle_player_links.record_id.battle_records.id",
+    "battle_records.csv_file_id.file_metadata.id",
     "battle_records.event_id.scheduled_events.id",
     "battle_records.upload_id.battle_uploads.id",
+    "battle_uploads.image_file_id.file_metadata.id",
     "event_batch_items.batch_request_id.event_batches.request_id",
     "event_batch_items.event_id.scheduled_events.id",
     "event_dates.event_id.scheduled_events.id",
@@ -306,6 +319,7 @@
     "lineup_versions.event_id.scheduled_events.id",
     "member_name_history.member_uid.members.uid",
     "members.primary_profession_id.professions.job_id",
-    "members.secondary_profession_id.professions.job_id"
+    "members.secondary_profession_id.professions.job_id",
+    "platform_settings.icon_file_id.file_metadata.id"
   ]
 }

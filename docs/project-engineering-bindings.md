@@ -2,7 +2,7 @@
 
 本專案是逆水寒幫會管理平台, 介面與操作訊息使用繁體中文, 日曆日期與顯示時區採 Asia/Taipei
 
-2.0.0 遷移以 Node／MySQL／R2 為目標, 保留既有介面與功能；已開始 [MySQL 開發與隔離驗證](mysql-development.md), 後端寫法依 [Node.js 分層規範](nodejs-architecture.md), HTTP 服務已接上 MySQL 非同步 Repository, 前端 adapter／R2／部署尚未切換。正式舊資料在最後階段才匯入, 不把開發中的元件當作已切站
+2.0.0 遷移以 Node／MySQL／R2 為目標, 保留既有介面與功能；已開始 [MySQL 開發與隔離驗證](mysql-development.md), 後端寫法依 [Node.js 分層規範](nodejs-architecture.md), HTTP 服務已接上 MySQL 非同步 Repository, 新檔案已接 R2 metadata, 前端 adapter／部署尚未切換。正式舊資料在最後階段才匯入, 不把開發中的元件當作已切站
 
 - 前端 Vue 3／Vuetify／Vite, 本機後端 Node.js／Express／MySQL（舊 SQLite 程式保留對照）, GAS 使用 V8／HTML Service／Google 試算表與私人 Drive。共用 MySQL／Redis 或 TaskTracker 的 Laravel 架構不代表本專案已遷移
 - 元件經 src/api adapter 呼叫 HTTP 或 google.script.run, SQL 留 repository。沿用 session／角色／CSRF、revision／requestId、不可變快照及 GAS commits／flush／script lock, 不因採用共用 Skill 更換登入、授權或資料模型
@@ -23,3 +23,5 @@
 | 介面與互動 | [Style](../Style.md)、相關領域契約 |
 
 契約修改時更新對應文件, 不把規則或卡片歷史累加回個人開發入口。公開產品文件不依賴個人的 Skill 絕對路徑；歷史交付與環境實際狀態由維護者的私人索引查閱
+
+Node 私有檔案、MySQL metadata 與既有 API 接線見 [R2 私有檔案服務](r2-storage.md), 正式舊檔案不自動移轉。

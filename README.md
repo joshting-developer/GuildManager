@@ -137,7 +137,7 @@ npm run build:gas
 
 ## R2 私有檔案服務
 
-Node 後端的可注入檔案讀寫服務與隔離驗證見 [R2 私有檔案服務](docs/r2-storage.md)。目前尚未接入既有功能與 MySQL metadata, 不代表正式檔案已移轉。
+Node 後端的可注入檔案讀寫服務與隔離驗證見 [R2 私有檔案服務](docs/r2-storage.md)。戰績原始 CSV／圖片與平台圖示的新寫入已改存 R2, MySQL 保存 metadata 與關聯；啟動 API 需要完整 R2 設定與 migration, 正式舊檔案尚未移轉。
 
 ## 資料介面
 

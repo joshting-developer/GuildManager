@@ -1,3 +1,4 @@
+import { withFileStorage } from '../services/file-backed-repository.js';
 import { createStore, exposeRepository } from './store.js';
 import { asyncMap } from "./collections.js";
 import { lineupEditorEventId } from '../../src/domain/lineup-index.js';
@@ -376,7 +377,7 @@ function createImplementation(store, authNow) {
   return repository;
 }
 
-export function createMysqlRepository(database, { authNow } = {}) {
+export function createMysqlRepository(database, { authNow, fileStorage } = {}) {
   const store = createStore(database);
-  return exposeRepository(createImplementation(store, authNow), store, database);
+  return withFileStorage(exposeRepository(createImplementation(store, authNow), store, database), fileStorage);
 }
