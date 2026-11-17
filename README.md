@@ -8,7 +8,7 @@ Vue 3／Vuetify 管理介面, 本機透過 Node.js／Express API 讀寫 SQLite, 
 
 ## 使用 Docker 開發
 
-2.0.0 的 MySQL 連線設定與隔離測試見 [MySQL 開發說明](docs/mysql-development.md)。目前 HTTP 服務仍使用下列 SQLite 流程, 新資料來源完成驗收後再切換
+2.0.0 的 MySQL 連線設定與隔離測試見 [MySQL 開發說明](docs/mysql-development.md), 後端分層與寫法見 [Node.js 分層規範](docs/nodejs-architecture.md), 其參考的上游 Skill 是 wshobson/agents 的 nodejs-backend-patterns, 只作開發參考, 不是執行依賴。目前 HTTP 服務仍使用下列 SQLite 流程, 新資料來源完成驗收後再切換
 
 需要 Docker Engine 與 Docker Compose v2
 

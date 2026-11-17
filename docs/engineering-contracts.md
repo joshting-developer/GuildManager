@@ -5,7 +5,7 @@
 ## 技術方向
 
 - 前端：Vue 3／Vuetify／Vite, 日常編輯 `.vue`、JS 與 CSS 原始碼
-- 本機後端：Node.js／Express, 由 SQLite repository 存取資料
+- 本機後端：Node.js／Express, 由 SQLite repository 存取資料；2.0.0 改為 MySQL 非同步 Repository, 分層與寫法見 [Node.js 分層規範](nodejs-architecture.md)
 - 本機環境：Docker Compose 的 frontend／api 服務, SQLite 使用獨立 volume 保存
 - GAS 後端：Google Apps Script, 採 V8 執行環境, 不直接搬入 Node.js 專用套件或 API
 - GAS 前端：以 HTML Service 提供 Vite 單檔編譯的 HTML
