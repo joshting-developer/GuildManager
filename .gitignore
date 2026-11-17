@@ -7,6 +7,7 @@ data/
 *.sqlite-wal
 .env
 .env.local
+.env.gas
 .env.*.local
 .DS_Store
 artifacts/

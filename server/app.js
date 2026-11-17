@@ -15,20 +15,19 @@ import { withDefaultLineupEvent } from '../src/domain/lineup-index.js';
 
 export function createApp(repository, { authNow, notifier = null } = {}) {
   const app = express();
-  // Writes run synchronously in one SQLite transaction, so notices queued during
-  // `work` belong to it; a thrown error leaves them to be discarded by the next call.
-  function notifying(work) {
-    repository.takeNotifications();
-    const result = work();
-    const notices = repository.takeNotifications();
-    if (notifier && notices.length) {
+  // Notifications are collected per operation and only handed to the notifier after the
+  // MySQL transaction committed; a failed operation discards them.
+  async function notifying(name, ...args) {
+    const { data, notifications } = await repository.invoke(name, args);
+    if (notifier && notifications.length) {
       try {
-        notifier.send(notices, { footer: repository.getPlatformSettings().platform.name });
+        const { platform } = await repository.getPlatformSettings();
+        notifier.send(notifications, { footer: platform.name });
       } catch (error) {
         console.error('Discord 通知排程失敗：', error.message);
       }
     }
-    return result;
+    return data;
   }
   app.disable('x-powered-by');
   app.use('/api', (request, response, next) => {
@@ -55,14 +54,14 @@ export function createApp(repository, { authNow, notifier = null } = {}) {
   app.use('/api/lottery', express.json({ limit: '128kb' }));
   app.use(express.json({ limit: '16kb' }));
   installAuth(app, repository, { now: authNow });
-  app.get('/api/platform-settings', (_request, response) => {
-    response.json(repository.getPlatformSettings());
+  app.get('/api/platform-settings', async (_request, response) => {
+    response.json(await repository.getPlatformSettings());
   });
-  app.patch('/api/admin/platform-settings', (request, response) => {
-    response.json(repository.updatePlatformSettings(request.body));
+  app.patch('/api/admin/platform-settings', async (request, response) => {
+    response.json(await repository.updatePlatformSettings(request.body));
   });
-  app.get('/api/admin/accounts', (request, response) => {
-    response.json(repository.getAccountSettings(request.auth.user.id));
+  app.get('/api/admin/accounts', async (request, response) => {
+    response.json(await repository.getAccountSettings(request.auth.user.id));
   });
   app.post('/api/admin/password', async (request, response) => {
     response.json({
@@ -92,78 +91,78 @@ export function createApp(repository, { authNow, notifier = null } = {}) {
       memberToken: await repository.setMemberToken(request.auth.user.id, request.body),
     });
   });
-  app.get('/api/calendar/members', (_request, response) => {
-    response.json(repository.listParticipationMembers());
+  app.get('/api/calendar/members', async (_request, response) => {
+    response.json(await repository.listParticipationMembers());
   });
-  app.get('/api/health', (_request, response) => {
-    repository.readHome();
+  app.get('/api/health', async (_request, response) => {
+    await repository.readHome();
     response.json({ status: 'ok' });
   });
-  app.get('/api/home', (_request, response) => {
-    response.set('Cache-Control', 'no-store').json(repository.readHome());
+  app.get('/api/home', async (_request, response) => {
+    response.set('Cache-Control', 'no-store').json(await repository.readHome());
   });
-  app.get('/api/events', (request, response) => {
-    const events = visibleCalendarEvents(repository.listEvents().events, request.auth?.user);
+  app.get('/api/events', async (request, response) => {
+    const events = visibleCalendarEvents((await repository.listEvents()).events, request.auth?.user);
     response.set('Cache-Control', 'no-store').json({ events });
   });
-  app.post('/api/events', (request, response) => {
+  app.post('/api/events', async (request, response) => {
     const result = ['guild_war', 'dragon_tiger'].includes(request.body?.type)
-      ? { events: repository.createEventBatch(request.body) }
-      : { event: repository.createEvent(request.body) };
+      ? { events: await repository.createEventBatch(request.body) }
+      : { event: await repository.createEvent(request.body) };
     response.status(201).json(result);
   });
-  app.get('/api/events/:id', (request, response) => {
-    response.json(repository.getEvent(request.params.id));
+  app.get('/api/events/:id', async (request, response) => {
+    response.json(await repository.getEvent(request.params.id));
   });
-  app.patch('/api/events/:id', (request, response) => {
-    response.json({ event: repository.updateEvent(request.params.id, request.body) });
+  app.patch('/api/events/:id', async (request, response) => {
+    response.json({ event: await repository.updateEvent(request.params.id, request.body) });
   });
-  app.delete('/api/events/:id', (request, response) => {
-    response.json(repository.deleteEvent(request.params.id, request.body?.revision));
+  app.delete('/api/events/:id', async (request, response) => {
+    response.json(await repository.deleteEvent(request.params.id, request.body?.revision));
   });
-  app.get('/api/professions', (_request, response) => {
-    response.set('Cache-Control', 'no-store').json(repository.listProfessions());
+  app.get('/api/professions', async (_request, response) => {
+    response.set('Cache-Control', 'no-store').json(await repository.listProfessions());
   });
-  app.get('/api/battle-records', (request, response) => {
+  app.get('/api/battle-records', async (request, response) => {
     response.json(
-      repository.listBattleRecords({
+      await repository.listBattleRecords({
         page: request.query.page === undefined ? 1 : Number(request.query.page),
         eventId: request.query.eventId,
       }),
     );
   });
-  app.get('/api/admin/battle-sync/preview', (_request, response) => {
-    response.set('Cache-Control', 'no-store').json(repository.previewBattleMemberSync());
+  app.get('/api/admin/battle-sync/preview', async (_request, response) => {
+    response.set('Cache-Control', 'no-store').json(await repository.previewBattleMemberSync());
   });
-  app.post('/api/admin/battle-sync', (request, response) => {
-    response.json(repository.syncBattleMembers(request.body));
+  app.post('/api/admin/battle-sync', async (request, response) => {
+    response.json(await repository.syncBattleMembers(request.body));
   });
-  app.post('/api/battle-records', (request, response) => {
-    response.status(201).json(repository.saveBattleRecords(request.body));
+  app.post('/api/battle-records', async (request, response) => {
+    response.status(201).json(await repository.saveBattleRecords(request.body));
   });
-  app.get('/api/battle-records/:id/metadata', (request, response) => {
-    response.set('Cache-Control', 'no-store').json({ record: repository.getBattleMetadata(request.params.id) });
+  app.get('/api/battle-records/:id/metadata', async (request, response) => {
+    response.set('Cache-Control', 'no-store').json({ record: await repository.getBattleMetadata(request.params.id) });
   });
-  app.get('/api/battle-upload/roster', (_request, response) => {
-    response.set('Cache-Control', 'no-store').json(repository.getBattleUploadRoster());
+  app.get('/api/battle-upload/roster', async (_request, response) => {
+    response.set('Cache-Control', 'no-store').json(await repository.getBattleUploadRoster());
   });
-  app.get('/api/battle-records/:id', (request, response) => {
-    response.json({ record: repository.getBattleRecord(request.params.id, {
+  app.get('/api/battle-records/:id', async (request, response) => {
+    response.json({ record: await repository.getBattleRecord(request.params.id, {
       includeTeamContext: request.query.includeTeamContext === undefined || request.query.includeTeamContext === 'false'
         ? false : request.query.includeTeamContext === 'true' ? true : request.query.includeTeamContext,
     }) });
   });
-  app.get('/api/battle-records/:id/team-analysis', (request, response) => {
-    response.json(repository.getBattleTeamAnalysis(request.params.id));
+  app.get('/api/battle-records/:id/team-analysis', async (request, response) => {
+    response.json(await repository.getBattleTeamAnalysis(request.params.id));
   });
-  app.patch('/api/battle-records/:id', (request, response) => {
-    response.json(repository.updateBattleRecord(request.params.id, request.body));
+  app.patch('/api/battle-records/:id', async (request, response) => {
+    response.json(await repository.updateBattleRecord(request.params.id, request.body));
   });
-  app.delete('/api/battle-records/:id', (request, response) => {
-    response.json(repository.deleteBattleRecord(request.params.id, request.body?.revision));
+  app.delete('/api/battle-records/:id', async (request, response) => {
+    response.json(await repository.deleteBattleRecord(request.params.id, request.body?.revision));
   });
-  app.get('/api/battle-records/:id/attachments/:kind', (request, response) => {
-    const attachment = repository.getBattleAttachment(request.params.id, request.params.kind);
+  app.get('/api/battle-records/:id/attachments/:kind', async (request, response) => {
+    const attachment = await repository.getBattleAttachment(request.params.id, request.params.kind);
     response.set('X-Content-Type-Options', 'nosniff');
     response.set('Content-Type', attachment.mimeType);
     response.set(
@@ -172,141 +171,138 @@ export function createApp(repository, { authNow, notifier = null } = {}) {
     );
     response.send(attachment.bytes);
   });
-  app.get('/api/events/:id/participation', (request, response) => {
+  app.get('/api/events/:id/participation', async (request, response) => {
     response
       .set('Cache-Control', 'no-store')
-      .json(repository.getEventParticipation(request.params.id));
+      .json(await repository.getEventParticipation(request.params.id));
   });
-  app.get('/api/events/:id/participation-form', (request, response) => {
-    response.json(repository.getEventParticipationForm(request.params.id));
+  app.get('/api/events/:id/participation-form', async (request, response) => {
+    response.json(await repository.getEventParticipationForm(request.params.id));
   });
-  app.get('/api/events/:id/video-form', (request, response) => {
-    response.json(repository.getEventVideoForm(request.params.id));
+  app.get('/api/events/:id/video-form', async (request, response) => {
+    response.json(await repository.getEventVideoForm(request.params.id));
   });
-  app.get('/api/events/:id/attendance', (request, response) => {
-    response.json(repository.getEventAttendance(request.params.id));
+  app.get('/api/events/:id/attendance', async (request, response) => {
+    response.json(await repository.getEventAttendance(request.params.id));
   });
-  app.patch('/api/events/:id/attendance', (request, response) => {
-    response.json(notifying(() => repository.cancelEventLeave(request.params.id, request.body)));
+  app.patch('/api/events/:id/attendance', async (request, response) => {
+    response.json(await notifying('cancelEventLeave', request.params.id, request.body));
   });
-  app.get('/api/videos/browser', (request, response) => {
-    response.json(repository.getVideoBrowser(request.query.eventId));
+  app.get('/api/videos/browser', async (request, response) => {
+    response.json(await repository.getVideoBrowser(request.query.eventId));
   });
-  app.get('/api/events/:id/videos', (request, response) => {
-    response.json(repository.listEventVideos(request.params.id));
+  app.get('/api/events/:id/videos', async (request, response) => {
+    response.json(await repository.listEventVideos(request.params.id));
   });
-  app.post('/api/events/:id/videos', (request, response) => {
-    response.status(201).json(repository.submitEventVideo(request.params.id, request.body));
+  app.post('/api/events/:id/videos', async (request, response) => {
+    response.status(201).json(await repository.submitEventVideo(request.params.id, request.body));
   });
-  app.patch('/api/events/:id/videos/:videoId/profession', (request, response) => {
-    response.json(repository.updateEventVideoProfession(request.params.id, request.params.videoId, request.body));
+  app.patch('/api/events/:id/videos/:videoId/profession', async (request, response) => {
+    response.json(await repository.updateEventVideoProfession(request.params.id, request.params.videoId, request.body));
   });
-  app.get('/api/events/:id/participation-members', (request, response) => {
-    response.json(repository.listEventParticipationMembers(request.params.id));
+  app.get('/api/events/:id/participation-members', async (request, response) => {
+    response.json(await repository.listEventParticipationMembers(request.params.id));
   });
-  app.patch('/api/events/:id/participation', (request, response) => {
+  app.patch('/api/events/:id/participation', async (request, response) => {
     response.json({
-      response: notifying(() => repository.saveMemberResponse(request.params.id, request.body)),
+      response: await notifying('saveMemberResponse', request.params.id, request.body),
     });
   });
-  app.post('/api/events/:id/participation', (request, response) => {
-    response.json(notifying(() => repository.submitParticipation(request.params.id, request.body)));
+  app.post('/api/events/:id/participation', async (request, response) => {
+    response.json(await notifying('submitParticipation', request.params.id, request.body));
   });
-  app.post('/api/events/:id/registrations', (request, response) => {
+  app.post('/api/events/:id/registrations', async (request, response) => {
     response
       .status(201)
-      .json({ registration: repository.addGuestRegistration(request.params.id, request.body) });
+      .json({ registration: await repository.addGuestRegistration(request.params.id, request.body) });
   });
   // Management-only (under /api/lineups): permanently removes a 本場外援 registration.
-  app.delete('/api/lineups/events/:id/guests/:registrationId', (request, response) => {
+  app.delete('/api/lineups/events/:id/guests/:registrationId', async (request, response) => {
     response.json(
-      repository.deleteGuestRegistration(
+      await repository.deleteGuestRegistration(
         request.params.id,
         request.params.registrationId,
         request.body?.revision,
       ),
     );
   });
-  app.delete('/api/events/:id/registrations/:registrationId', (request, response) => {
+  app.delete('/api/events/:id/registrations/:registrationId', async (request, response) => {
     response.json({
-      registration: notifying(() =>
-        repository.cancelGuestRegistration(
-          request.params.id,
-          request.params.registrationId,
-          request.body?.revision,
-        ),
-      ),
+      registration: await notifying('cancelGuestRegistration', request.params.id, request.params.registrationId, request.body?.revision),
     });
   });
-  app.get('/api/lineups/editor', (request, response) => {
-    response.set('Cache-Control', 'no-store').json(repository.getLineupEditor(request.query.eventId));
+  app.get('/api/lineups/editor', async (request, response) => {
+    response.set('Cache-Control', 'no-store').json(await repository.getLineupEditor(request.query.eventId));
   });
-  app.get('/api/lineups/templates', (_request, response) => {
-    response.set('Cache-Control', 'no-store').json(repository.getLineupTemplates());
+  app.get('/api/lineups/templates', async (_request, response) => {
+    response.set('Cache-Control', 'no-store').json(await repository.getLineupTemplates());
   });
-  app.get('/api/lineups/events/:id/current', (request, response) => {
+  app.get('/api/lineups/events/:id/current', async (request, response) => {
     const value = request.query.includeCatalogs;
     const includeCatalogs = value === undefined || value === 'false' ? false : value === 'true' ? true : value;
-    response.set('Cache-Control', 'no-store').json(repository.getLineupEvent(request.params.id, includeCatalogs));
+    response.set('Cache-Control', 'no-store').json(await repository.getLineupEvent(request.params.id, includeCatalogs));
   });
-  app.get('/api/lineups/events/:id/sources', (request, response) => {
-    response.set('Cache-Control', 'no-store').json(repository.getLineupSources(request.params.id));
+  app.get('/api/lineups/events/:id/sources', async (request, response) => {
+    response.set('Cache-Control', 'no-store').json(await repository.getLineupSources(request.params.id));
   });
-  app.get('/api/lineups', (request, response) => {
-    const index = repository.getLineupIndex();
-    response.set('Cache-Control', 'no-store').json(
-      request.query.include === 'default'
-        ? withDefaultLineupEvent(index, {
-            history: (id) => repository.getLineupHistory(id).versions,
-            participation: (id) => repository.getEventParticipation(id),
-          })
-        : index,
-    );
+  app.get('/api/lineups', async (request, response) => {
+    const index = await repository.getLineupIndex();
+    response.set('Cache-Control', 'no-store');
+    if (request.query.include !== 'default') return response.json(index);
+    const result = withDefaultLineupEvent(index, { history: () => [], participation: () => null });
+    if (result.selected) {
+      const { eventId } = result.selected;
+      result.selected.versions = (await repository.getLineupHistory(eventId)).versions;
+      if (!index.events.find((event) => event.id === eventId)?.archived) {
+        result.selected.participation = await repository.getEventParticipation(eventId);
+      }
+    }
+    response.json(result);
   });
-  app.get('/api/duties', (_request, response) => {
-    response.set('Cache-Control', 'no-store').json(repository.listDuties());
+  app.get('/api/duties', async (_request, response) => {
+    response.set('Cache-Control', 'no-store').json(await repository.listDuties());
   });
-  app.post('/api/duties', (request, response) => {
-    response.status(201).json({ duty: repository.addDuty(request.body) });
+  app.post('/api/duties', async (request, response) => {
+    response.status(201).json({ duty: await repository.addDuty(request.body) });
   });
-  app.patch('/api/duties/:id', (request, response) => {
-    response.json({ duty: repository.updateDuty(request.params.id, request.body) });
+  app.patch('/api/duties/:id', async (request, response) => {
+    response.json({ duty: await repository.updateDuty(request.params.id, request.body) });
   });
-  app.get('/api/lineups/events/:id', (request, response) => {
-    response.set('Cache-Control', 'no-store').json(repository.getLineupHistory(request.params.id));
+  app.get('/api/lineups/events/:id', async (request, response) => {
+    response.set('Cache-Control', 'no-store').json(await repository.getLineupHistory(request.params.id));
   });
-  app.post('/api/lineups/confirm', (request, response) => {
-    response.status(201).json({ version: repository.confirmLineup(request.body) });
+  app.post('/api/lineups/confirm', async (request, response) => {
+    response.status(201).json({ version: await repository.confirmLineup(request.body) });
   });
-  app.post('/api/lineups/templates', (request, response) => {
-    response.status(201).json({ template: repository.createLineupTemplate(request.body) });
+  app.post('/api/lineups/templates', async (request, response) => {
+    response.status(201).json({ template: await repository.createLineupTemplate(request.body) });
   });
-  app.delete('/api/lineups/templates/:id', (request, response) => {
-    response.json(repository.deleteLineupTemplate(request.params.id));
+  app.delete('/api/lineups/templates/:id', async (request, response) => {
+    response.json(await repository.deleteLineupTemplate(request.params.id));
   });
-  app.get('/api/lineups/templates/:id/apply/:eventId', (request, response) => {
+  app.get('/api/lineups/templates/:id/apply/:eventId', async (request, response) => {
     response
       .set('Cache-Control', 'no-store')
-      .json(repository.applyLineupTemplate(request.params.id, request.params.eventId));
+      .json(await repository.applyLineupTemplate(request.params.id, request.params.eventId));
   });
-  app.get('/api/members', (_request, response) => {
-    response.set('Cache-Control', 'no-store').json(repository.listMembers());
+  app.get('/api/members', async (_request, response) => {
+    response.set('Cache-Control', 'no-store').json(await repository.listMembers());
   });
-  app.get('/api/members/:uid/maintenance', (request, response) => {
-    response.set('Cache-Control', 'no-store').json(repository.getMemberMaintenance(request.params.uid));
+  app.get('/api/members/:uid/maintenance', async (request, response) => {
+    response.set('Cache-Control', 'no-store').json(await repository.getMemberMaintenance(request.params.uid));
   });
-  app.patch('/api/members/:uid/maintenance', (request, response) => {
-    response.json(notifying(() => repository.maintainMember(request.params.uid, request.body)));
+  app.patch('/api/members/:uid/maintenance', async (request, response) => {
+    response.json(await notifying('maintainMember', request.params.uid, request.body));
   });
-  app.patch('/api/members/:uid/history', (request, response) => {
-    response.json(repository.saveMemberNameHistory(request.params.uid, request.body));
+  app.patch('/api/members/:uid/history', async (request, response) => {
+    response.json(await repository.saveMemberNameHistory(request.params.uid, request.body));
   });
-  app.post('/api/members/:uid/permanent-delete', (request, response) => {
-    response.json(repository.deleteMemberPermanently(request.params.uid, request.body));
+  app.post('/api/members/:uid/permanent-delete', async (request, response) => {
+    response.json(await repository.deleteMemberPermanently(request.params.uid, request.body));
   });
-  app.get('/api/members/:uid/battle-records', (request, response) => {
+  app.get('/api/members/:uid/battle-records', async (request, response) => {
     response.json(
-      repository.getMemberBattleRecords(request.params.uid, {
+      await repository.getMemberBattleRecords(request.params.uid, {
         page: request.query.page === undefined ? 1 : Number(request.query.page),
         startDate: request.query.startDate,
         endDate: request.query.endDate,
@@ -316,38 +312,38 @@ export function createApp(repository, { authNow, notifier = null } = {}) {
       }),
     );
   });
-  app.post('/api/members/import/preview', (request, response) => {
-    response.set('Cache-Control', 'no-store').json(repository.previewMemberImport(request.body));
+  app.post('/api/members/import/preview', async (request, response) => {
+    response.set('Cache-Control', 'no-store').json(await repository.previewMemberImport(request.body));
   });
-  app.post('/api/members/import', (request, response) => {
-    response.json(notifying(() => repository.importMembers(request.body)));
+  app.post('/api/members/import', async (request, response) => {
+    response.json(await notifying('importMembers', request.body));
   });
-  app.post('/api/members', (request, response) => {
-    response.status(201).json({ member: notifying(() => repository.addMember(request.body)) });
+  app.post('/api/members', async (request, response) => {
+    response.status(201).json({ member: await notifying('addMember', request.body) });
   });
-  app.patch('/api/members/:uid', (request, response) => {
+  app.patch('/api/members/:uid', async (request, response) => {
     response.json({
-      member: notifying(() => repository.updateMember(request.params.uid, request.body)),
+      member: await notifying('updateMember', request.params.uid, request.body),
     });
   });
-  app.delete('/api/members/:uid', (request, response) => {
+  app.delete('/api/members/:uid', async (request, response) => {
     response.json(
-      notifying(() => repository.removeMember(request.params.uid, request.body?.revision)),
+      await notifying('removeMember', request.params.uid, request.body?.revision),
     );
   });
-  app.get('/api/lottery', (_request, response) => {
-    response.json(repository.getLottery());
+  app.get('/api/lottery', async (_request, response) => {
+    response.json(await repository.getLottery());
   });
-  app.patch('/api/lottery', (request, response) => {
-    response.json(repository.saveLottery(request.body));
+  app.patch('/api/lottery', async (request, response) => {
+    response.json(await repository.saveLottery(request.body));
   });
-  app.post('/api/lottery/draws', (request, response) => {
-    response.json(repository.drawLotteryPrize(request.body));
+  app.post('/api/lottery/draws', async (request, response) => {
+    response.json(await repository.drawLotteryPrize(request.body));
   });
-  app.delete('/api/lottery/draws', (request, response) => {
-    response.json(repository.resetLottery(request.body));
+  app.delete('/api/lottery/draws', async (request, response) => {
+    response.json(await repository.resetLottery(request.body));
   });
-  app.use('/api', (_request, response) => {
+  app.use('/api', async (_request, response) => {
     response.status(404).json({ error: { code: 'NOT_FOUND', message: '找不到這個資料介面' } });
   });
   app.use((error, _request, response, _next) => {

@@ -27,7 +27,7 @@ function memberManagementRequest(request) {
     return request.method === 'POST';
   return /^\/members\/[^/]+$/.test(request.path) && request.method === 'PATCH';
 }
-function publicRequest(request, repository) {
+async function publicRequest(request, repository) {
   const path = request.path;
   if (
     request.method === 'GET' &&
@@ -60,7 +60,7 @@ function publicRequest(request, repository) {
   } catch {
     throw new AuthError(422, 'INVALID_EVENT', '場次資料格式不正確');
   }
-  const requiresLogin = repository.participationRequiresLogin(eventId);
+  const requiresLogin = await repository.participationRequiresLogin(eventId);
   request.participationLoginRequired = requiresLogin;
   // All battle calendar operations are public; authenticated writes still require CSRF.
   return !requiresLogin && (!request.auth || request.method === 'GET');
@@ -68,11 +68,11 @@ function publicRequest(request, repository) {
 
 export function installAuth(app, repository, { now = Date.now } = {}) {
   const failures = new Map();
-  app.use('/api', (request, response, next) => {
+  app.use('/api', async (request, response, next) => {
     response.set('Cache-Control', 'no-store');
     request.sessionToken = readToken(request);
-    request.auth = repository.getSession(request.sessionToken);
-    if (publicRequest(request, repository)) return next();
+    request.auth = await repository.getSession(request.sessionToken);
+    if (await publicRequest(request, repository)) return next();
     if (!request.auth)
       return next(
         new AuthError(
@@ -134,7 +134,7 @@ export function installAuth(app, repository, { now = Date.now } = {}) {
       ? repository.authenticateMember(request.body)
       : repository.authenticate(request.body));
     failures.delete(key);
-    repository.revokeSession(request.sessionToken);
+    await repository.revokeSession(request.sessionToken);
     response.cookie(COOKIE_NAME, session.token, {
       ...cookieOptions(),
       maxAge: SESSION_SECONDS * 1000,
@@ -147,8 +147,8 @@ export function installAuth(app, repository, { now = Date.now } = {}) {
   };
   app.post('/api/auth/login', login(false));
   app.post('/api/auth/member-login', login(true));
-  app.post('/api/auth/logout', (request, response) => {
-    repository.revokeSession(request.sessionToken);
+  app.post('/api/auth/logout', async (request, response) => {
+    await repository.revokeSession(request.sessionToken);
     response.clearCookie(COOKIE_NAME, cookieOptions()).json({ user: null });
   });
 }

@@ -2,15 +2,15 @@
 
 圖文操作手冊：[PDF](docs/操作手冊.pdf)／[離線網頁版](docs/操作手冊.html)／[Markdown](docs/操作手冊.md)。涵蓋成員、管理者與 admin 操作，附 26 張最新版示範畫面；圖片來源與更新方式見 [文件說明](docs/README.md)。
 
-Vue 3／Vuetify 管理介面, 本機透過 Node.js／Express API 讀寫 SQLite, GAS／Google 試算表版本已上傳至指定專案，尚未初始化或發布 Web App
+Vue 3／Vuetify 管理介面, 本機透過 Node.js／Express API 讀寫 MySQL（2.0.0 遷移中, 舊 SQLite 程式保留對照）, GAS／Google 試算表版本已上傳至指定專案，尚未初始化或發布 Web App
 
 首頁直接顯示活動行事曆與場次報名／請假, 右上預設成員通行密碼登入，另一分頁供管理帳號登入。manager／admin 可使用管理總覽、成員清單、活動安排、戰場排表與上傳數據；member 可閱覽戰績與個人分析，管理頁與管理 API 都檢查角色。雲端版沿用應用程式帳密／通行密碼，Google OAuth 尚未實作；正式試算表未執行初始化
 
 ## 使用 Docker 開發
 
-2.0.0 的 MySQL 連線設定與隔離測試見 [MySQL 開發說明](docs/mysql-development.md), 後端分層與寫法見 [Node.js 分層規範](docs/nodejs-architecture.md), 其參考的上游 Skill 是 wshobson/agents 的 nodejs-backend-patterns, 只作開發參考, 不是執行依賴。目前 HTTP 服務仍使用下列 SQLite 流程, 新資料來源完成驗收後再切換
+2.0.0 的 MySQL 連線設定與隔離測試見 [MySQL 開發說明](docs/mysql-development.md), 後端分層與寫法見 [Node.js 分層規範](docs/nodejs-architecture.md), 其參考的上游 Skill 是 wshobson/agents 的 nodejs-backend-patterns, 只作開發參考, 不是執行依賴。HTTP 服務已改接 MySQL, `npm run server` 需要 MySQL 開發說明中的連線環境變數與已套用的 migration；下列 Docker 流程的 SQLite volume 暫時保留, 正式資料尚未移轉
 
-需要 Docker Engine 與 Docker Compose v2
+需要 Docker Engine 與 Docker Compose v2, 先依 [MySQL 開發說明](docs/mysql-development.md) 啟動共用 MySQL、提供專用連線設定並套用 migration
 
 ```sh
 docker compose up --build -d
@@ -26,7 +26,7 @@ docker compose up --build -d
 - 戰場排表：`http://localhost:3001/api/lineups`
 - 職責清單：`http://localhost:3001/api/duties`
 - 職業清單：`http://localhost:3001/api/professions`
-- SQLite 保存在 `guild_data` volume 的 `/data/guildmanager.sqlite`
+- API 服務由 compose.yaml 旁的 `.env`（忽略檔, 變數名稱依 `config/mysql.env.example`）取得 MySQL 連線, 預設指向共用服務的 `side-project-mysql`；舊 `guild_data` volume 的 SQLite 保留到正式資料移轉完成
 - 本機資料庫啟動時不自動加入示範資料, 重啟不覆寫既有設定
 - `src/` 與 `server/` 修改會反映至服務, 依賴或 Dockerfile 變更後重新執行 `docker compose up --build -d`
 - 若 Docker Desktop 的檔案事件通知不穩定, 再依需要開啟 polling
@@ -43,6 +43,8 @@ docker compose down
 
 ## 本機登入
 
+以下 CLI 建立帳號方式與 `data/local-admin.json` 紀錄屬舊 SQLite 環境, 不會寫入 MySQL；MySQL API 接線完成後, 帳號建立工具仍待遷移。既有 SQLite 資料保留, 不視為已匯入 MySQL
+
 首頁右上「登入」使用本機帳號密碼, 登入後顯示帳號、登出及管理導覽。登入維持 8 小時, 重新整理仍保留；登出立即撤銷伺服器 session。管理操作未儲存時沿用離開確認。
 
 此工作環境已建立 `admin` 帳號, 隨機密碼保存在 `data/local-admin.json`；這是本機私有檔案, 已由 `.gitignore` 排除, 不包含在提交中。其他開發環境第一次啟動 Docker 後可建立自己的帳號：
@@ -52,7 +54,7 @@ node --input-type=module -e 'import {mkdirSync,writeFileSync} from "node:fs"; im
 docker compose exec -T api node server/create-account.js < data/local-admin.json
 ```
 
-工具從 stdin 讀取帳號 JSON, 帳號為 3–32 個英數字／底線／點／減號, 密碼 6–128 字元。既有帳號拒絕覆寫；其他 manager 可由帳號管理頁建立, CLI 仍可新增帳號。直接使用 Node API 的環境改用 `npm run account:create < data/local-admin.json`, 需使用與 API 相同的 `DATABASE_PATH`。
+工具從 stdin 讀取帳號 JSON, 帳號為 3–32 個英數字／底線／點／減號, 密碼 6–128 字元。既有帳號拒絕覆寫；其他 manager 可由帳號管理頁建立, CLI 仍可新增帳號。直接使用 Node API 的環境改用 `npm run account:create < data/local-admin.json`, 目前此帳號 CLI 仍使用舊 SQLite Repository, 不會建立 MySQL 帳號；MySQL 帳號建立工具待後續遷移。
 
 - `auth_accounts` 保存 scrypt 密碼雜湊與獨立 salt, 不保存明文密碼
 - `auth_sessions` 保存 session token 的 SHA-256 雜湊及到期時間；瀏覽器使用 HttpOnly／SameSite=Lax cookie, 不使用 localStorage 保存登入憑證
@@ -98,9 +100,9 @@ npm run server
 npm run dev
 ```
 
-首頁仍在 `http://localhost:5173`, SQLite 位於 `data/guildmanager.sqlite`
+首頁仍在 `http://localhost:5173`, API 使用明確提供的 MySQL 連線設定與已套用的 migration
 
-API 可透過 `DATABASE_PATH`、`API_PORT`、`API_HOST` 設定；Discord 通知另見下方「Discord 通知」
+API 可透過 `DB_*`、`API_PORT`、`API_HOST` 設定；Discord 通知另見下方「Discord 通知」
 
 ## 驗證與編譯
 
@@ -110,7 +112,7 @@ npm run build
 npm run build:gas
 ```
 
-- `npm test`：使用 Node.js 內建 `node:test`，驗證 SQLite 保存、成員 CRUD、歷史交易回滾、職業擴充、舊欄位遷移、活動日期規則、排表資格／唯一 UID／不可變快照／範本、版本與重複提交、API 與 adapter 錯誤處理
+- `npm test`：需指定四個隔離 MySQL 設定檔（見 [MySQL 開發說明](docs/mysql-development.md)）, 使用 Node.js 內建 `node:test` 驗證 MySQL 保存、成員 CRUD、歷史交易回滾、職業擴充、舊欄位遷移、活動日期規則、排表資格／唯一 UID／不可變快照／範本、版本與重複提交、API 與 adapter 錯誤處理
 - `npm run build`：一般本機前端 build, 輸出到 `dist/`
 - `npm run build:gas`：GAS 模式, 輸出單一前端 `build/gas/Index.html`, 以及 `Code.gs`、打包後端 `Backend.gs` 和 `appsscript.json`
 - GAS 打包指令會檢查是否仍有外部 JS／CSS 檔案或多餘輸出
@@ -373,7 +375,7 @@ UID Name 主職業 副職業
 
 ```text
 src/              Vue 首頁、成員清單、活動安排、戰場排表、共用樣式與前端資料 adapter
-server/           Express 入口與 SQLite repository
+server/           Express 入口、MySQL repository（server/mysql）與保留對照的舊 SQLite repository
 gas/              GAS 頁面入口、業務後端原始碼與 manifest
 tools/            GAS 打包工具
 tests/            資料與 adapter 測試

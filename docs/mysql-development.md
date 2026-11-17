@@ -1,6 +1,6 @@
 # MySQL 開發與隔離驗證
 
-2.0.0 將 Node 後端資料來源改為 MySQL, 保留現有功能與 API。目前已完成連線、migration、資料表與各領域非同步 Repository, HTTP 服務仍走原本的 SQLite Repository；完成非同步 API 接線後才切換。GAS 舊來源在正式資料移轉與驗收前保留
+2.0.0 將 Node 後端資料來源改為 MySQL, 保留現有功能與 API。目前已完成連線、migration、資料表、各領域非同步 Repository 與 HTTP API 接線, `server/index.js` 只接 MySQL；舊 SQLite Repository 與測試保留在原位置供對照, 不再由服務或 `npm test` 使用。GAS 舊來源在正式資料移轉與驗收前保留
 
 ## 連線設定
 
@@ -125,4 +125,12 @@ migration `0002_repository_lock` 建立單列 `repository_write_lock`。業務�
 
 Repository 測試將既有業務斷言改成 async MySQL 呼叫, 不改掉原本預期行為；另驗兩個獨立 Repository 的版本衝突、不同成員並行送出、相同 requestId 重送、持鎖時唯讀、故障注入回滾、通知隔離及重新建立 Repository 後的持久化。每個案例只在空的專用 repositorytest 庫建表及使用人造資料, finally 移除自己建立的表, 不初始化或驗證 SQLite
 
-這些驗證涵蓋 Repository, HTTP 路由的 await／錯誤處理與通知接線仍是下一階段。GAS 編譯只驗封裝相容, 不代表 GAS RPC、正式站或 Oracle 已完成切換；Oracle 目標引擎與正式舊資料另行驗收
+Repository 與 HTTP 路由的 await／錯誤處理及提交後通知分別由業務契約與 HTTP 測試驗證。GAS 編譯只驗封裝相容, 不代表 GAS RPC、正式站或 Oracle 已完成切換；Oracle 目標引擎與正式舊資料另行驗收
+
+## HTTP API 接線
+
+`server/index.js` 啟動時依環境變數建立 pool、`probe` 連線, 再以 `migrationStatus` 核對所有版本都是 applied；有 pending 或連線失敗就輸出固定代碼並結束, 不自動建表。`server/app.js` 全部路由 `await` Repository, 回應格式、狀態碼與錯誤 envelope 維持原契約；需要通知的寫入改走 `repository.invoke(name, args)`, 只在交易提交後把該次操作的通知交給 notifier, 失敗操作不送。`server/auth.js` 的 session 讀取、公開路徑判斷與撤銷同樣 `await`
+
+Docker 的 API 服務加入共用 `side-project-environment` 網路, 沿用自己的 MySQL schema／帳號；需先啟動共用服務並明確套用 migration。遠端 TLS 連線可透過 `DB_SSL_CA_BASE64` 提供 CA, 不把主機私有檔案路徑直接傳入容器
+
+HTTP 契約測試在 `tests/mysql-http/`, 由 `tests/mysql-http.test.js` 在同一程序依序載入, 使用與 Repository 測試相同的 repositorytest 空庫；不要直接把多個檔案交給 `node --test` 平行跑, 會在同一個 schema 互相干擾。目前覆蓋存取／登入／錯誤 envelope、活動、成員與匯入、報名、排表／職責／範本、戰績上傳／附件／刪除、平台設定／抽獎／影片；完整的角色權限、健康檢查與 Discord 投遞行為另由後續卡片補
