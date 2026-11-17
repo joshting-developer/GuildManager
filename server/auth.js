@@ -6,11 +6,11 @@ function readToken(request) {
   const matches = cookies.filter((value) => value.startsWith(`${COOKIE_NAME}=`));
   return matches.length === 1 ? matches[0].slice(COOKIE_NAME.length + 1) : null;
 }
-function cookieOptions() {
+function cookieOptions(secure) {
   return {
     httpOnly: true,
     sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    secure,
     path: '/api',
   };
 }
@@ -66,7 +66,7 @@ async function publicRequest(request, repository) {
   return !requiresLogin && (!request.auth || request.method === 'GET');
 }
 
-export function installAuth(app, repository, { now = Date.now } = {}) {
+export function installAuth(app, repository, { now = Date.now, secureCookies = process.env.NODE_ENV === 'production' } = {}) {
   const failures = new Map();
   app.use('/api', async (request, response, next) => {
     response.set('Cache-Control', 'no-store');
@@ -137,7 +137,7 @@ export function installAuth(app, repository, { now = Date.now } = {}) {
     failures.delete(key);
     await repository.revokeSession(request.sessionToken);
     response.cookie(COOKIE_NAME, session.token, {
-      ...cookieOptions(),
+      ...cookieOptions(secureCookies),
       maxAge: SESSION_SECONDS * 1000,
     });
     response.json({
@@ -150,6 +150,6 @@ export function installAuth(app, repository, { now = Date.now } = {}) {
   app.post('/api/auth/member-login', login(true));
   app.post('/api/auth/logout', async (request, response) => {
     await repository.revokeSession(request.sessionToken);
-    response.clearCookie(COOKIE_NAME, cookieOptions()).json({ user: null });
+    response.clearCookie(COOKIE_NAME, cookieOptions(secureCookies)).json({ user: null });
   });
 }

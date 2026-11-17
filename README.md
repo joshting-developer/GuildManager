@@ -72,7 +72,20 @@ docker compose exec -T api node server/create-account.js < data/local-admin.json
 | POST | `/api/auth/logout` | 驗證 session／CSRF 後登出 |
 | GET | `/api/calendar/members` | 登入後的舊 UID／名稱選單（不在畫面顯示 UID） |
 
-本機 cookie 使用 HTTP loopback；後續正式 HTTP 後端須使用 HTTPS 並設 `NODE_ENV=production` 以啟用 Secure cookie。GAS 使用不同身分／通訊機制, 不直接搬入 Node session 或 scrypt；初始化及部署設定見 [GASDeployment.md](GASDeployment.md)，Google OAuth 仍為後續選項。[Google 身分服務](https://developers.google.com/identity/gsi/web/guides/overview)、[GAS Session 身分限制](https://developers.google.com/apps-script/reference/base/session#getActiveUser())
+本機 cookie 使用 HTTP loopback；正式 Node 網站使用 HTTPS、`NODE_ENV=production` 與明確的 `APP_ORIGIN`, 設定方式見下方「同源網站與 HTTPS」。GAS 使用不同身分／通訊機制, 不直接搬入 Node session 或 scrypt；初始化及部署設定見 [GASDeployment.md](GASDeployment.md)，Google OAuth 仍為後續選項。[Google 身分服務](https://developers.google.com/identity/gsi/web/guides/overview)、[GAS Session 身分限制](https://developers.google.com/apps-script/reference/base/session#getActiveUser())
+
+## 同源網站與 HTTPS
+
+一般 `npm run build` 產生 `dist/`, Node 在 `NODE_ENV=production` 時同時提供前端靜態檔案及 `/api`。正式啟動使用 `node server/index.js`, 除既有 MySQL／R2 設定外, HTTP 設定名稱見 [範本](config/http.env.example)。缺少 `dist/index.html` 或設定無效時拒絕啟動, 只記錄固定的 `HTTP_CONFIGURATION` 錯誤分類
+
+- `APP_ORIGIN` 是瀏覽器使用的完整來源, 例如 `https://guild.example.test`, 包含非預設埠時須一併指定；不接受路徑、結尾斜線、帳密、query 或 hash。production 必須是 HTTPS, 不沿用本機 Origin 白名單
+- HTTPS 由前置反向代理終止, 前端與 `/api` 經同一網站轉入 Node。Node 本身仍以 HTTP 監聽, 部署時應限制其只能由受信任入口存取；本設定不會建立憑證、DNS 或部署服務
+- `TRUSTED_PROXY_CIDRS` 預設空白, 不信任任何代理標頭。需要依真實訪客 IP 限流時, 按實際拓樸填入可信代理 IP／CIDR, 多個以逗號分隔；不支援 `true` 或跳數。代理必須覆寫或正確追加實際來源 IP, 不可直接透傳訪客提供的標頭；不要用全網 CIDR。實際代理路徑與限流須在部署時驗收
+- production 的登入及登出 Cookie 都使用 `Secure`、`HttpOnly`、`SameSite=Lax` 與 `Path=/api`, 不設定跨網域 Domain。登入維持 8 小時, 重新整理透過 `/api/auth/session` 恢復登入及 CSRF token
+- 寫入 Origin 採精確比對, 不根據 Host 或轉送標頭自動放行；無 Origin 的 CLI 請求沿用既有契約, 仍須 JSON 與對應 Session／CSRF／角色驗證。未設定 `APP_ORIGIN` 的非 production 環境保留原本 localhost 開發來源
+- 網址保留 `#/members` 等 hash 路由, `#/magament` 與 `#/management` 均可使用。未知 API 與缺少的靜態資源不會改回首頁 HTML
+
+Dockerfile 與 Compose 目前仍用於開發, production image、實際代理、TLS 與 DNS 需另行配置及驗收。舊 GAS build 與登入方式獨立, 不套用 Node Cookie 或網站 Origin 設定
 
 ## 建立示範成員
 

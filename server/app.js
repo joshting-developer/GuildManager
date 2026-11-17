@@ -1,5 +1,6 @@
 import { FileStorageError } from './storage/r2.js';
 import express from 'express';
+import { createHttpConfig, assertStaticBuild } from './http-config.js';
 import { DatabaseError } from './database/mysql.js';
 import { reportError } from './error-log.js';
 import { PlatformSettingsError } from '../src/domain/platform-settings.js';
@@ -16,8 +17,10 @@ import { EventVideoError } from '../src/domain/event-videos.js';
 import { LotteryError } from '../src/domain/lottery.js';
 import { withDefaultLineupEvent } from '../src/domain/lineup-index.js';
 
-export function createApp(repository, { authNow, notifier = null, log = console, isStopping = () => false, healthTimeoutMs = 2000 } = {}) {
+export function createApp(repository, { authNow, notifier = null, log = console, isStopping = () => false, healthTimeoutMs = 2000, httpConfig = createHttpConfig() } = {}) {
   const app = express();
+  app.set('trust proxy', httpConfig.trustProxy);
+  if (httpConfig.staticDir) assertStaticBuild(httpConfig.staticDir);
   const fileAccess = (request, roles) => ({ assertAccess: async () => {
     const auth = await repository.getSession(request.sessionToken);
     if (!auth) throw new AuthError(401, 'AUTH_REQUIRED', '請先登入後再使用此功能');
@@ -69,11 +72,11 @@ export function createApp(repository, { authNow, notifier = null, log = console,
   app.use('/api', (request, response, next) => {
     if (!['POST', 'PATCH', 'DELETE'].includes(request.method)) return next();
     const origin = request.get('Origin');
-    const allowed = /^http:\/\/(?:localhost|127\.0\.0\.1):(?:5173|5174|4173)$/.test(origin || '');
-    if (origin && !allowed) {
+    const allowed = httpConfig.allowedOrigins.includes(origin);
+    if (origin !== undefined && !allowed) {
       return response
         .status(403)
-        .json({ error: { code: 'ORIGIN_NOT_ALLOWED', message: '不允許此來源修改本機資料' } });
+        .json({ error: { code: 'ORIGIN_NOT_ALLOWED', message: '不允許此來源修改資料' } });
     }
     if (!request.is('application/json')) {
       return response
@@ -89,7 +92,7 @@ export function createApp(repository, { authNow, notifier = null, log = console,
   app.use('/api/admin/platform-settings', express.json({ limit: '360kb' }));
   app.use('/api/lottery', express.json({ limit: '128kb' }));
   app.use(express.json({ limit: '16kb' }));
-  installAuth(app, repository, { now: authNow });
+  installAuth(app, repository, { now: authNow, secureCookies: httpConfig.secureCookies });
   app.get('/api/platform-settings', async (_request, response) => {
     response.json(await repository.getPlatformSettings());
   });
@@ -378,6 +381,7 @@ export function createApp(repository, { authNow, notifier = null, log = console,
   app.use('/api', async (_request, response) => {
     response.status(404).json({ error: { code: 'NOT_FOUND', message: '找不到這個資料介面' } });
   });
+  if (httpConfig.staticDir) app.use(express.static(httpConfig.staticDir, { dotfiles: 'ignore', index: 'index.html' }));
   app.use((error, _request, response, _next) => {
     if (
       error instanceof FileStorageError ||

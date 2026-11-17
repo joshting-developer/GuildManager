@@ -1,3 +1,4 @@
+import { createHttpConfig } from './http-config.js';
 import { createR2Storage } from './storage/r2.js';
 import { createMysqlDatabase } from './database/mysql.js';
 import { migrationStatus, MigrationError } from './database/migrate.js';
@@ -10,7 +11,9 @@ import { createDiscordNotifier } from './discord-notifier.js';
 // Startup never creates or alters tables: the schema must already be at the expected version
 // (see docs/mysql-development.md). Any mismatch stops the process with a fixed code only.
 let database;
+let httpConfig;
 try {
+  httpConfig = createHttpConfig();
   database = createMysqlDatabase(process.env);
   await database.probe();
   const pending = (await migrationStatus(database, mysqlMigrations)).filter((migration) => migration.state !== 'applied');
@@ -34,7 +37,7 @@ try {
 const host = process.env.API_HOST || '127.0.0.1';
 const port = Number(process.env.API_PORT || 3001);
 try {
-  const runtime = await startApi({ repository, host, port, notifier: createDiscordNotifier() });
+  const runtime = await startApi({ repository, host, port, httpConfig, notifier: createDiscordNotifier() });
   console.log('GuildManager API: listening');
   const shutdown = () => { runtime.shutdown().then((code) => process.exit(code)); };
   process.on('SIGINT', shutdown);

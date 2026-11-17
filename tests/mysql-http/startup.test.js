@@ -41,6 +41,8 @@ test('HTTP startup requires explicit configuration and an applied migration ledg
     const environment = JSON.parse(readFileSync(process.env.GUILD_MYSQL_REPOSITORY_TEST_CONFIG, 'utf8')).environment;
     assert.equal(JSON.parse(await boot(environment)).code, 'STORAGE_UNAVAILABLE');
     Object.assign(environment, { R2_ENDPOINT: `https://${'a'.repeat(32)}.r2.cloudflarestorage.com`, R2_BUCKET: 'example-local', R2_ACCESS_KEY_ID: 'synthetic', R2_SECRET_ACCESS_KEY: 'synthetic' });
+    assert.equal(JSON.parse(await boot({ ...environment, NODE_ENV: 'production' })).code, 'HTTP_CONFIGURATION');
+    assert.equal(JSON.parse(await boot({ ...environment, NODE_ENV: 'production', APP_ORIGIN: 'https://user:synthetic-secret@example.test' })).code, 'HTTP_CONFIGURATION');
     assert.match(await boot(environment, true), /GuildManager API:/);
     assert.match(await boot(environment, true, 'SIGINT'), /GuildManager API:/);
     const db = repositoryDatabase(repository);

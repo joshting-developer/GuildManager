@@ -22,7 +22,7 @@ export function createAuthClient({ source = 'local', fetchImpl = sessionFetch, g
             : {}),
         });
       } catch {
-        throw new Error('無法連線, 請確認本機服務已啟動後重試');
+        throw new Error('無法連線, 請稍後重試');
       }
       try {
         data = await response.json();

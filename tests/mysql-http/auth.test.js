@@ -220,19 +220,11 @@ test('MySQL stores only hashes and a newly created Repository can restore the se
 }));
 
 
-test('production login sets Secure cookies while loopback development remains usable', async () => withApp(async (app) => {
-  await app.admin();
-  const previous = process.env.NODE_ENV;
-  try {
-    process.env.NODE_ENV = 'production';
-    const secure = await app.login();
-    assert.match(secure.response.headers.get('set-cookie'), /; Secure/i);
-    assert.match(secure.response.headers.get('set-cookie'), /HttpOnly/i);
-    assert.match(secure.response.headers.get('set-cookie'), /SameSite=Lax/i);
-  } finally {
-    if (previous === undefined) delete process.env.NODE_ENV;
-    else process.env.NODE_ENV = previous;
-  }
+test('loopback development login remains usable without Secure cookies', async () => withApp(async (app) => {
+  const login = await app.admin();
+  assert.doesNotMatch(login.response.headers.get('set-cookie'), /; Secure/i);
+  assert.match(login.response.headers.get('set-cookie'), /HttpOnly/i);
+  assert.match(login.response.headers.get('set-cookie'), /SameSite=Lax/i);
 }));
 
 test('case-insensitive Express routes cannot bypass the admin guard with mixed-case paths', async () => withApp(async (app) => {

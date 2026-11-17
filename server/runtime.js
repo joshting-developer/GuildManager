@@ -1,11 +1,11 @@
 import { createApp } from './app.js';
 import { reportError } from './error-log.js';
 
-export async function startApi({ repository, notifier = null, host = '127.0.0.1', port = 3001, shutdownTimeoutMs = 10000, log = console }) {
+export async function startApi({ repository, notifier = null, host = '127.0.0.1', port = 3001, shutdownTimeoutMs = 10000, log = console, httpConfig }) {
   let stopping = false;
-  const app = createApp(repository, { notifier, log, isStopping: () => stopping });
   let server;
   try {
+    const app = createApp(repository, { notifier, log, httpConfig, isStopping: () => stopping });
     server = app.listen(port, host);
     await new Promise((resolve, reject) => server.once('listening', resolve).once('error', reject));
   } catch (error) {
