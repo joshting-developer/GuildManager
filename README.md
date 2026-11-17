@@ -159,7 +159,7 @@ npm run build
 
 目前桌面／手機的瀏覽器驗證與手冊截圖使用 Playwright 操作 Chrome，開啟編譯後前端並使用隔離示範資料；舊版截圖含模擬 RPC，不代表現行 HTTP 整合已驗收；圖片保存於 `docs/manual-images/`。這些驗證與截圖腳本目前放在臨時目錄，未納入專案的可重跑套件，`npm test` 不包含瀏覽器測試或自動截圖，也沒有正式的 Playwright 設定或圖片比對測試。
 
-本機效能量測與重跑方式見 [效能開發說明](docs/performance-development.md)
+本機效能量測與重跑方式見 [效能開發說明](docs/performance-development.md)；本地備份／還原及健康檢查見 [復原說明](docs/local-recovery.md), 自動測試與建置見 [CI 說明](docs/ci.md)
 
 ## 更新紀錄與定版
 
