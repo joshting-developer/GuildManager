@@ -4,7 +4,7 @@ import { IMPORT_TABLES } from './transform.js';
 
 const SEED_DUTIES = ['duty-bodyguard', 'duty-mountain-oath', 'duty-aux-tide'];
 // Auth is imported separately later; every other business table must still be empty.
-const MUST_BE_EMPTY = [...Object.keys(IMPORT_TABLES).filter((table) => table !== 'duties'), 'events', 'battle_metadata_requests', 'battle_sync_requests', 'event_batches', 'event_batch_items', 'event_participation_requests', 'event_video_requests', 'event_video_profession_requests', 'event_video_profession_overrides', 'event_videos', 'member_maintenance_requests', 'file_metadata', 'file_staging'];
+const MUST_BE_EMPTY = [...Object.keys(IMPORT_TABLES).filter((table) => table !== 'duties'), 'events', 'battle_metadata_requests', 'battle_sync_requests', 'event_batches', 'event_batch_items', 'event_participation_requests', 'event_video_requests', 'event_video_profession_requests', 'event_video_profession_overrides', 'event_videos', 'member_maintenance_requests', 'file_metadata', 'file_staging', 'attendance_records', 'attendance_requests'];
 const BATCH_ROWS = 200;
 
 export class LegacyImportError extends Error {

@@ -48,3 +48,5 @@ await import('./mysql-contracts/video-browser.test.js');
 await import('./mysql-contracts/video-profession-edit.test.js');
 // HTTP contracts share the repositorytest schema, so they must run in this same process.
 await import('./mysql-http.test.js');
+
+await import('./mysql-contracts/attendance-history.test.js');

@@ -1,4 +1,5 @@
 <script setup>
+import ParticipationToasts from '../components/ParticipationToasts.vue';
 import DataLoading from '../components/DataLoading.vue';
 import { computed, ref, watch, inject, onUnmounted } from 'vue';
 import { createParticipationClient } from '../api/participation.js';
@@ -27,9 +28,9 @@ const professions = ref([]),
 const loading = ref(true),
   busy = ref(false),
   loadError = ref(''),
-  error = ref(''),
-  notice = ref('');
+  error = ref('');
 const tab = ref('form');
+const toastMessages = ref([]);
 watch(pastEvent, past => {
   if (past) tab.value = 'videos';
   else if (props.modelValue) load();
@@ -174,7 +175,7 @@ watch(
   () => props.modelValue,
   (open) => {
     if (open) {
-      notice.value = '';
+      toastMessages.value = [];
       tab.value = pastEvent.value ? 'videos' : 'form';
       status.value = 'registered';
       nameSource.value = 'manual';
@@ -210,7 +211,6 @@ async function submit() {
   }
   if (busy.value || loading.value || authLoading.value) return;
   error.value = '';
-  notice.value = '';
   if (!name.value.trim()) {
     error.value = '請填寫名稱';
     return;
@@ -253,7 +253,7 @@ async function submit() {
     )
       throw new Error('回應格式不正確, 請重試以確認結果');
     resetForm();
-    notice.value = input.status === 'registered' ? '報名成功' : '請假成功';
+    toastMessages.value = [input.status === 'registered' ? '報名成功' : '請假成功', ...(input.status === 'leave' && typeof result.care?.message === 'string' ? [result.care.message] : [])];
     await load({ participationOnly: true });
   } catch (cause) {
     error.value = cause.message;
@@ -264,6 +264,7 @@ async function submit() {
 </script>
 
 <template>
+  <ParticipationToasts :messages="toastMessages" />
   <v-dialog
     :model-value="modelValue"
     max-width="640"
@@ -448,9 +449,7 @@ async function submit() {
         <v-alert v-if="error && tab === 'form'" type="error" variant="tonal" role="alert">{{
           error
         }}</v-alert>
-        <v-alert v-if="notice && tab === 'form'" type="success" variant="tonal" role="status">{{
-          notice
-        }}</v-alert>
+
       </div>
       <div class="event-dialog-actions">
         <v-btn variant="outlined" :disabled="anyBusy" @click="close">關閉</v-btn>

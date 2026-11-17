@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { mdiChevronLeft, mdiChevronRight } from '@mdi/js';
 import './calendar.css';
 import { eventTypeLabel } from '../domain/event-types.js';
@@ -11,9 +11,10 @@ const props = defineProps({
   initialDate: { type: String, default: '' },
   multiple: Boolean,
   disabled: Boolean,
+  daySummary: { type: Function, default: null },
   events: { type: Array, default: () => [] },
 });
-const emit = defineEmits(['update:modelValue', 'open-day', 'create-date']);
+const emit = defineEmits(['update:modelValue', 'open-day', 'create-date', 'month-changed']);
 const eventsByDate = computed(() => {
   const result = new Map();
   for (const event of props.events)
@@ -48,6 +49,7 @@ const view = ref({
   year: initial ? Number(initial[1]) : today.year,
   month: initial ? Number(initial[2]) - 1 : today.month - 1,
 });
+watch(view, value => emit('month-changed', `${value.year}-${String(value.month+1).padStart(2,'0')}`), {immediate:true});
 const monthLabel = computed(() => `${view.value.year} 年 ${view.value.month + 1} 月`);
 const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
 function makeDate(year, month, day) {
@@ -151,7 +153,7 @@ function goToday() {
                 v-if="creatable || (browsable && eventsByDate.has(day.iso))"
                 type="button"
                 class="calendar-create-date"
-                :aria-label="`${day.label}，${creatable ? '建立安排' : '查看安排及報名／請假'}`"
+                :aria-label="daySummary && !creatable ? daySummary(day, eventsByDate.get(day.iso)) : `${day.label}，${creatable ? '建立安排' : '查看安排及報名／請假'}`"
                 :disabled="disabled || !/^[1-9]\d{3}-/.test(day.iso)"
                 @click="
                   creatable
@@ -173,9 +175,10 @@ function goToday() {
                 :type="browsable ? undefined : 'button'"
                 :disabled="browsable ? undefined : disabled"
                 class="calendar-day-events"
-                :aria-label="`${day.label}，${eventsByDate.get(day.iso).length} 筆安排，查看詳情`"
+                :aria-label="daySummary ? daySummary(day, eventsByDate.get(day.iso)) : `${day.label}，${eventsByDate.get(day.iso).length} 筆安排，查看詳情`"
                 @click="!disabled && emit('open-day', { date: day.iso, events: eventsByDate.get(day.iso) })"
               >
+                <slot name="day-content" :day="day" :events="eventsByDate.get(day.iso)">
                 <span class="calendar-event-count">{{ eventsByDate.get(day.iso).length }} 筆</span>
                 <span
                   v-for="event in eventsByDate.get(day.iso).slice(0, 2)"
@@ -187,6 +190,7 @@ function goToday() {
                 <span v-if="eventsByDate.get(day.iso).length > 2" class="calendar-event-more"
                   >另 {{ eventsByDate.get(day.iso).length - 2 }} 筆</span
                 >
+                </slot>
               </component>
             </template>
           </td>

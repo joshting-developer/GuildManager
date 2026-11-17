@@ -18,3 +18,5 @@ await import('./mysql-http/file-metadata.test.js');
 await import('./mysql-http/media-regression.test.js');
 
 await import('./mysql-http/site.test.js');
+
+await import('./mysql-http/attendance.test.js');

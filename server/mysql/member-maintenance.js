@@ -69,7 +69,7 @@ export function createMemberMaintenance(db, { getMember, updateMember, reference
           (await db.prepare(`INSERT INTO members (${columns.join(',')}) VALUES (${columns.map(() => '?').join(',')})`)
             .run(...columns.map((key) => key === 'uid' ? newUid : row[key])));
           for (const [table, column] of [['member_name_history', 'member_uid'],
-            ['event_member_responses', 'member_uid'], ['battle_player_links', 'member_uid']])
+            ['event_member_responses', 'member_uid'], ['battle_player_links', 'member_uid'], ['attendance_records', 'member_uid']])
             (await db.prepare(`UPDATE ${table} SET ${column}=? WHERE ${column}=?`).run(newUid, uid));
           (await db.prepare('UPDATE event_member_responses SET revision=revision+1 WHERE member_uid=?').run(newUid));
           (await references.remap(uid, newUid));
@@ -107,7 +107,7 @@ export function createMemberMaintenance(db, { getMember, updateMember, reference
         check(current, input.revision);
         (await references.remap(uid, null));
         (await references.retire(uid, current.revision));
-        for (const table of ['member_name_history', 'event_member_responses', 'battle_player_links'])
+        for (const table of ['attendance_records', 'member_name_history', 'event_member_responses', 'battle_player_links'])
           (await db.prepare(`DELETE FROM ${table} WHERE member_uid=?`).run(uid));
         (await db.prepare('DELETE FROM members WHERE uid=?').run(uid));
         return { uid, deleted: true };

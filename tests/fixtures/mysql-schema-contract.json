@@ -1,5 +1,7 @@
 {
   "tables": [
+    "attendance_records",
+    "attendance_requests",
     "auth_accounts",
     "auth_sessions",
     "battle_metadata_requests",
@@ -23,6 +25,7 @@
     "file_metadata",
     "file_staging",
     "home_settings",
+    "leave_settings",
     "lineup_templates",
     "lineup_versions",
     "lottery_boards",
@@ -299,9 +302,34 @@
       "object_key",
       "state",
       "expires_at"
+    ],
+    "attendance_records": [
+      "event_id",
+      "event_date",
+      "member_uid",
+      "member_name",
+      "status",
+      "note",
+      "revision",
+      "actor_id",
+      "updated_at"
+    ],
+    "attendance_requests": [
+      "request_id",
+      "actor_id",
+      "input_hash",
+      "result_json"
+    ],
+    "leave_settings": [
+      "id",
+      "threshold",
+      "message",
+      "revision"
     ]
   },
   "foreignKeys": [
+    "attendance_records.event_id.scheduled_events.id",
+    "attendance_records.member_uid.members.uid",
     "auth_sessions.account_id.auth_accounts.id",
     "battle_player_links.member_uid.members.uid",
     "battle_player_links.record_id.battle_records.id",

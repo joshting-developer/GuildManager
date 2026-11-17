@@ -93,6 +93,18 @@ export function createApp(repository, { authNow, notifier = null, log = console,
   app.use('/api/lottery', express.json({ limit: '128kb' }));
   app.use(express.json({ limit: '16kb' }));
   installAuth(app, repository, { now: authNow, secureCookies: httpConfig.secureCookies });
+  const attendanceAccess = (request, roles) => ({ assertAccess: async () => {
+    const session = await repository.getSession(request.sessionToken);
+    if (!session || !roles.includes(session.user.role)) throw new AuthError(403, 'MANAGEMENT_REQUIRED', '請重新登入有權限的管理帳號');
+    return session.user;
+  } });
+  app.get('/api/admin/leave-settings', async (_request, response) => response.json(await repository.getLeaveSettings()));
+  app.patch('/api/admin/leave-settings', async (request, response) => response.json(await repository.saveLeaveSettings(request.body, attendanceAccess(request, ['admin']))));
+  app.get('/api/attendance/calendar', async (request, response) => response.json(await repository.getLeaveCalendar(request.query.month)));
+  app.get('/api/attendance/members/:uid/leaves', async (request, response) => response.json(await repository.getMemberLeaveHistory(request.params.uid, request.query)));
+  app.get('/api/attendance/options', async (request, response) => response.json(await repository.getAttendanceOptions(request.query.month)));
+  app.get('/api/attendance', async (request, response) => response.json(await repository.getAttendanceHistory(request.query)));
+  app.patch('/api/attendance', async (request, response) => response.json(await repository.saveAttendance(request.body, attendanceAccess(request, ['admin','manager']))));
   app.get('/api/platform-settings', async (_request, response) => {
     response.json(await repository.getPlatformSettings());
   });

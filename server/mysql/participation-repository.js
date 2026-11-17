@@ -1,3 +1,4 @@
+import { createAttendanceRepository } from './attendance-repository.js';
 import { asyncMap } from "./collections.js";
 import { createHash, randomUUID } from 'node:crypto';
 import { LINEUP_TYPES } from '../../src/domain/lineups.js';
@@ -24,6 +25,7 @@ function revision(value) {
     throw new ParticipationError('資料版本不正確，請重新載入');
 }
 export function createParticipationRepository(db, { notify = () => {} } = {}) {
+  const attendance = createAttendanceRepository(db);
   async function checkEvent(id) {
     const event = (await db.prepare('SELECT type, deleted_at FROM scheduled_events WHERE id = ?').get(id));
     if (!event || event.deleted_at || !LINEUP_TYPES.includes(event.type)) {
@@ -295,7 +297,9 @@ export function createParticipationRepository(db, { notify = () => {} } = {}) {
             409,
             'PARTICIPATION_AMBIGUOUS',
           );
+        let care = null;
         if (members.length) {
+          const priorStatus = (await response(eventId, members[0].uid))?.status;
           const uid = members[0].uid;
           (await repository.saveMemberResponse(eventId, {
             uid,
@@ -304,6 +308,7 @@ export function createParticipationRepository(db, { notify = () => {} } = {}) {
             revision: (await response(eventId, uid))?.revision || 0,
             ...(status === 'registered' ? { professionId } : {}),
           }));
+          if (status === 'leave' && priorStatus !== 'leave') care = await attendance.getLeaveCare(eventId, uid);
         } else if (guest) {
           (await db.prepare(
             `UPDATE event_registrations SET active = ?, note = ?,
@@ -331,7 +336,7 @@ export function createParticipationRepository(db, { notify = () => {} } = {}) {
         } else {
           throw new ParticipationError('沒有報名或沒有資料', 404, 'PARTICIPATION_NOT_FOUND');
         }
-        const result = { eventId, name, status };
+        const result = { eventId, name, status, ...(care ? { care } : {}) };
         (await db.prepare('INSERT INTO event_participation_requests VALUES (?, ?, ?, ?)').run(
           input.requestId,
           eventId,

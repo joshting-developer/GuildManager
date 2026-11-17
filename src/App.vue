@@ -56,6 +56,7 @@ import BattleRecordsPage from './pages/BattleRecordsPage.vue';
 import AdminPage from './pages/AdminPage.vue';
 import MemberBattleRecordsPage from './pages/MemberBattleRecordsPage.vue';
 import VideosPage from './pages/VideosPage.vue';
+import AttendancePage from './pages/AttendancePage.vue';
 import LotteryPage from './pages/lottery/LotteryPage.vue';
 import ReleaseNotesPage from './pages/ReleaseNotesPage.vue';
 import releaseNotes from './content/release-notes.json';
@@ -128,6 +129,7 @@ const navigation = [
     adminOnly: true,
   },
   // Occasional tool: reachable from 管理總覽 and the drawer, keeping the desktop bar on one line.
+  { page: 'attendance', label: '出勤與請假', icon: mdiCalendarMonthOutline, drawerOnly: true },
   { page: 'lottery', label: '抽獎活動', icon: mdiGiftOutline, drawerOnly: true },
   { page: 'release-notes', label: '更新紀錄', icon: mdiHistory, drawerOnly: true },
 ];
@@ -600,6 +602,7 @@ function skipToMain() {
           :initial-event-id="battleUploadEventId"
         />
         <VideosPage v-else-if="view === 'videos'" />
+        <AttendancePage v-else-if="view === 'attendance'" />
         <LotteryPage v-else-if="view === 'lottery'" />
         <ReleaseNotesPage v-else-if="view === 'release-notes'" />
         <AdminPage

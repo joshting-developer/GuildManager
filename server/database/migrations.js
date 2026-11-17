@@ -5,4 +5,6 @@ import { fileMetadata } from './migrations/0003-file-metadata.js';
 
 import { fileStaging } from './migrations/0004-file-staging.js';
 
-export const mysqlMigrations = [initialSchema, repositoryLock, fileMetadata, fileStaging];
+import { attendance } from './migrations/0005-attendance.js';
+
+export const mysqlMigrations = [initialSchema, repositoryLock, fileMetadata, fileStaging, attendance];

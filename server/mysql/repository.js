@@ -13,6 +13,7 @@ import { createEventRepository } from './event-repository.js';
 import { createLineupRepository } from './lineup-repository.js';
 import { createParticipationRepository } from './participation-repository.js';
 import { createEventVideoRepository } from './event-video-repository.js';
+import { createAttendanceRepository } from './attendance-repository.js';
 import { createDutyRepository } from './duty-repository.js';
 import { createBattleRecordRepository } from './battle-record-repository.js';
 import { createLotteryRepository } from './lottery-repository.js';
@@ -128,6 +129,7 @@ function createImplementation(store, authNow) {
     ...createAuthRepository(db, { now: authNow }),
     ...createEventRepository(db),
     ...createDutyRepository(db),
+    ...createAttendanceRepository(db),
     ...createParticipationRepository(db, { notify }),
     ...createEventVideoRepository(db),
     ...createLineupRepository(db, { project: references.project }),

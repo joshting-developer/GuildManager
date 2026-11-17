@@ -55,6 +55,13 @@ const modules = [
     description: '查看對戰統計與排序玩家戰績。',
   },
   {
+    id: 'attendance',
+    title: '出勤與請假',
+    icon: mdiClipboardTextOutline,
+    color: 'blue',
+    description: '登記到場情況與查詢請假紀錄。',
+  },
+  {
     id: 'lottery',
     title: '抽獎活動',
     icon: mdiGiftOutline,
@@ -75,6 +82,7 @@ const openable = [
   'lineups',
   'battle-upload',
   'battle-records',
+  'attendance',
   'lottery',
   'release-notes',
 ];

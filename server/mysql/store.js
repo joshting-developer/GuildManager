@@ -75,6 +75,7 @@ export function exposeRepository(implementation, store, database) {
     'getLineupSources', 'getLineupEvent', 'getVideoBrowser', 'getEventVideoForm',
     'getEventParticipationForm', 'previewMemberImport', 'listProfessions',
     'listParticipationMembers', 'listMembers', 'readHome',
+    'getLeaveSettings', 'getLeaveCare', 'getAttendanceOptions', 'getAttendanceHistory', 'getLeaveCalendar', 'getMemberLeaveHistory',
   ]);
   const forceTransaction = new Set(['getSession', 'revokeSession', 'backfillMemberBattleRecords']);
   const invoke = async (name, args = []) => {
