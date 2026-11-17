@@ -1,0 +1,83 @@
+name: Deploy
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      image:
+        description: 'Optional existing app image digest for rollback; empty builds this commit'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fly-release
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    uses: ./.github/workflows/verify.yml
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: fly
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: superfly/flyctl-actions/setup-flyctl@98172f70657cb3e15db199af139be99bd3e61200
+        with:
+          version: '0.5.10'
+      - name: Prepare private configuration
+        env:
+          FLY_DEPLOY_CONFIG: ${{ secrets.FLY_DEPLOY_CONFIG }}
+          DEPLOY_IMAGE: ${{ inputs.image || '' }}
+        run: python3 tools/prepare-fly-deploy.py
+      - name: Deploy verified commit or explicit rollback digest
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          DEPLOY_IMAGE: ${{ inputs.image || '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(--config "$RUNNER_TEMP/fly.toml" --ha=false)
+          if [ -n "$DEPLOY_IMAGE" ]; then
+            args+=(--image "$DEPLOY_IMAGE")
+          else
+            args+=(--remote-only --image-label "git-${GITHUB_SHA}")
+          fi
+          if ! flyctl config validate --strict --config "$RUNNER_TEMP/fly.toml" > "$RUNNER_TEMP/fly-deploy.log" 2>&1 ||
+             ! flyctl deploy "${args[@]}" >> "$RUNNER_TEMP/fly-deploy.log" 2>&1; then
+            echo 'Fly deployment failed; inspect private platform logs. Configuration and provider output withheld.'
+            exit 1
+          fi
+          echo 'Fly deployment completed with platform health checks.'
+      - name: Check HTTPS API readiness
+        shell: bash
+        run: |
+          python3 - <<'PYTHON'
+          import json, os, sys, tomllib, urllib.request
+          from pathlib import Path
+          try:
+              config = tomllib.loads((Path(os.environ['RUNNER_TEMP']) / 'fly.toml').read_text())
+              origin = config['env']['APP_ORIGIN']
+              if not origin.startswith('https://'):
+                  raise ValueError('HTTPS required')
+              for path in ['/api/live', '/api/health']:
+                  with urllib.request.urlopen(origin + path, timeout=60) as response:
+                      if response.status != 200 or json.loads(response.read(4096)).get('status') != 'ok':
+                          raise ValueError('Not ready')
+          except Exception:
+              print('HTTPS readiness check failed; private details withheld', file=sys.stderr)
+              sys.exit(1)
+          print('HTTPS live and database readiness checks passed')
+          PYTHON
+      - name: Remove private runtime files
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/fly.toml" "$RUNNER_TEMP/fly-deploy.log"

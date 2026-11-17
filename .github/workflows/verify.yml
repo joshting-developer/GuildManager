@@ -1,6 +1,7 @@
 name: Verify
 
 on:
+  workflow_call:
   pull_request:
   push:
     branches: [main, patch-2.0.0]
@@ -10,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: verify-${{ github.ref }}
+  group: verify-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -54,6 +55,7 @@ jobs:
         run: docker cp '${{ job.services.mysql.id }}:/var/lib/mysql/ca.pem' .local/ci/mysql-ca.pem
       - run: npm test
       - run: python3 tests/backup-local.test.py
+      - run: python3 tests/prepare-fly-deploy.test.py
       - run: npm run build
       - run: docker build -t guild-manager:ci-production .
       - run: docker build --target development -t guild-manager:ci-development .
