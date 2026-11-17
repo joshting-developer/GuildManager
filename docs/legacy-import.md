@@ -75,4 +75,3 @@ node tools/import-legacy-files.js --source GuildManagerDataBase.xlsx --files 戰
 - Drive 重傳留下的 `名稱(1).csv` 這類檔案, 內容和已使用的檔案相同就列為 duplicate；內容不同但沒有戰績使用的列為 unreferenced, 都只寫進報告不上傳
 - 找不到檔案、內容不符、同名檔案或圖示候選不是剛好 1 個時, 結束碼為 3 且不寫入
 - 上傳沿用 GM-17 的暫存紀錄：先登記再 PUT, 每個檔案用一個短交易寫入 `file_metadata` 並連結；中途失敗可直接重跑, 已連結的會跳過, 沒連結的物件由 `tools/cleanup-staged-files.js` 回收
-
