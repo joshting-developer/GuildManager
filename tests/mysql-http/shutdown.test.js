@@ -87,3 +87,41 @@ test('shutdown deadline closes a stalled HTTP connection and still initiates poo
     await runtime.shutdown();
   }
 }));
+
+test('shutdown waits for already queued notifications after closing MySQL, within the existing deadline', async () => {
+  let release, entered;
+  const sending = new Promise((resolve) => { release = resolve; });
+  const draining = new Promise((resolve) => { entered = resolve; });
+  const events = [];
+  const runtime = await startApi({ port: 0, repository: { close: async () => events.push('pool-closed') },
+    notifier: { drain: async () => { entered(); await sending; events.push('notices-drained'); } } });
+  try {
+    const stopping = runtime.shutdown();
+    await draining;
+    assert.deepEqual(events, ['pool-closed']);
+    release();
+    assert.equal(await stopping, 0);
+    assert.deepEqual(events, ['pool-closed', 'notices-drained']);
+  } finally { release(); await runtime.shutdown(); }
+});
+
+test('notification drain cannot extend the shutdown deadline indefinitely', async () => {
+  const logger = log();
+  let closed = false;
+  const runtime = await startApi({ port: 0, shutdownTimeoutMs: 25, log: logger,
+    repository: { close: async () => { closed = true; } }, notifier: { drain: () => new Promise(() => {}) } });
+  assert.equal(await runtime.shutdown(), 1);
+  assert.equal(closed, true);
+  assert.equal(logger.entries[0].event, 'shutdown_timeout');
+});
+
+
+test('pool cleanup failure still waits for notification drain before returning a failure', async () => {
+  const events = [], logger = log();
+  const runtime = await startApi({ port: 0, log: logger,
+    repository: { close: async () => { events.push('pool-close-failed'); throw new Error('synthetic-secret'); } },
+    notifier: { drain: async () => events.push('notices-drained') } });
+  assert.equal(await runtime.shutdown(), 1);
+  assert.deepEqual(events, ['pool-close-failed', 'notices-drained']);
+  assert.equal(logger.entries[0].event, 'shutdown_failed');
+});

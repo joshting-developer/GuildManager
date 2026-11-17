@@ -22,9 +22,16 @@ export function createApp(repository, { authNow, notifier = null, log = console,
   async function notifying(name, ...args) {
     const { data, notifications } = await repository.invoke(name, args);
     if (notifier && notifications.length) {
+      let footer;
       try {
         const { platform } = await repository.getPlatformSettings();
-        notifier.send(notifications, { footer: platform.name });
+        footer = platform.name;
+      } catch (error) {
+        reportError(log, 'notification_footer_failed', error);
+      }
+      try {
+        Promise.resolve(notifier.send(notifications, { footer }))
+          .catch((error) => reportError(log, 'notification_schedule_failed', error));
       } catch (error) {
         reportError(log, 'notification_schedule_failed', error);
       }

@@ -45,5 +45,9 @@ admin 在帳號管理的「平台設定」分頁修改品牌名稱，預設「�
 - 名冊頻道：新增、實際有變更的修改（含原名稱）、移至編外；CSV 匯入合併為一則摘要。名冊通知含 UID（管理情境）。
 - Webhook 網址屬私密設定：本機環境變數、GAS Script Properties 的 `DISCORD_WEBHOOK_LEAVE`／`DISCORD_WEBHOOK_MEMBER`，未設定即不送，只接受 discord.com／discordapp.com 的 `/api/webhooks/` 網址，紀錄不得包含網址。
 - GAS 已填但無效網址、HTTP 失敗（含 429 重試後最終結果）與傳送例外，僅記錄設定名稱、固定錯誤分類及數字 HTTP 狀態；不輸出網址、Token、例外原文、回應本文或玩家資料。未設定選填頻道維持靜默停用；診斷本身失敗不影響已保存回應。
-- 只在資料成功保存後送出：本機在 SQLite 交易成功後非同步依序發送，GAS 在 script lock 釋放後以 UrlFetchApp 發送；失敗或 429 重試一次後放棄，不影響原操作。相同 requestId 重試、無變更的修改與失敗請求不通知。
+- 只在資料成功保存後送出：本機 2.0.0 在 MySQL 交易成功後非同步依序發送（舊 SQLite 留作對照），GAS 在 script lock 釋放後以 UrlFetchApp 發送；失敗或 429 重試一次後放棄，不影響原操作。相同 requestId 重試、無變更的修改與失敗請求不通知。
 - 訊息關閉 mentions 並跳脫玩家輸入的 markdown。GAS 新增 `script.external_request` 授權範圍，部署者需重新授權；真實 Discord 送達尚待使用者設定 Webhook 後驗證。
+
+- Node 通知沿用記憶體佇列與 best-effort 投遞。只對 429 重試一次, 依 retry_after 等待且最多 5 秒；其他 HTTP 錯誤、逾時或網路例外不自動重送, 避免結果不明時重複發送。fetch 不跟隨重新導向, 單次送出最多等待 10 秒
+- 已提交的通知不因平台頁尾名稱讀取失敗而省略, 改用預設頁尾。通知同步拋錯、Promise 失敗與診斷紀錄失敗都不能改變已保存結果或阻止後續佇列；無效通知格式只記固定 FORMAT_ERROR, 不印原始內容
+- Node 正常停機會在在途要求完成、MySQL pool 關閉後等待已排通知, 共用整體 10 秒停機期限。這不是持久化 outbox, 程序崩潰、強制終止或超過期限仍可能遺失未送通知, 不保證 exactly-once；如需更強的送達保證需另行設計與驗收

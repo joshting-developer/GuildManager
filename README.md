@@ -534,7 +534,7 @@ DISCORD_WEBHOOK_LEAVE=https://discord.com/api/webhooks/…
 DISCORD_WEBHOOK_MEMBER=https://discord.com/api/webhooks/…
 ```
 
-GAS 改在 Script Properties 填同名屬性，見 [GASDeployment.md](GASDeployment.md#2-設定私有-script-properties)。未設定的頻道維持靜默停用；只接受 Discord 官方 Webhook 網址。Webhook 網址等同密碼，不要提交到 Git 或貼在公開頻道。通知失敗不影響原操作。GAS 執行紀錄可查看設定名稱、固定錯誤分類（WEBHOOK_INVALID／HTTP_ERROR／REQUEST_EXCEPTION）及 HTTP 狀態；不包含網址、例外原文或玩家資料，429 重試成功不記為失敗。授權／網路例外需由部署者確認 Google 授權與執行紀錄。
+GAS 改在 Script Properties 填同名屬性，見 [GASDeployment.md](GASDeployment.md#2-設定私有-script-properties)。未設定的頻道維持靜默停用；只接受 Discord 官方 Webhook 網址。Webhook 網址等同密碼，不要提交到 Git 或貼在公開頻道。通知失敗不影響原操作。本機正常停機會在整體 10 秒期限內等待已排通知；佇列不持久化, 強制終止或超時仍可能未送達, 詳見 [通知契約](docs/platform-contracts.md)。GAS 執行紀錄可查看設定名稱、固定錯誤分類（WEBHOOK_INVALID／HTTP_ERROR／REQUEST_EXCEPTION）及 HTTP 狀態；不包含網址、例外原文或玩家資料，429 重試成功不記為失敗。授權／網路例外需由部署者確認 Google 授權與執行紀錄。
 
 
 ### 成員資料維護

@@ -101,7 +101,7 @@ test('local notifier posts to configured channels, retries one 429, logs failure
     log,
   });
   await broken.send([leave]);
-  assert.ok(logs.some((text) => text.includes('TypeError')));
+  assert.ok(logs.some((text) => text.includes('REQUEST_EXCEPTION')));
 });
 
 async function localFixture() {

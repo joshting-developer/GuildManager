@@ -98,5 +98,69 @@ test('local notifier posts to configured channels, retries one 429, logs failure
     log,
   });
   await broken.send([leave]);
-  assert.ok(logs.some((text) => text.includes('TypeError')));
+  assert.ok(logs.some((text) => text.includes('REQUEST_EXCEPTION')));
+});
+
+const notice = (name) => ({ type: 'member', action: 'add', member: { uid: name, name, primaryProfession: '素問', isInGuild: true } });
+
+test('notification queue preserves order across concurrent sends and keeps working after fetch or logger failures', async () => {
+  const calls = [];
+  const notifier = createDiscordNotifier({
+    env: { DISCORD_WEBHOOK_MEMBER: MEMBER_URL },
+    log: { error() { throw new Error('synthetic secret'); } },
+    fetchImpl: async (_url, init) => {
+      assert.equal(init.redirect, 'error');
+      calls.push(JSON.parse(init.body).embeds[0].fields[0].value);
+      if (calls.length === 1) throw Object.assign(new Error('synthetic secret'), { name: 'synthetic secret' });
+      return { ok: true, status: 204 };
+    },
+  });
+  notifier.send([notice('first')]);
+  notifier.send([notice('second'), notice('third')]);
+  await notifier.drain();
+  assert.deepEqual(calls, ['**first**', '**second**', '**third**']);
+});
+
+test('429 retry waits are bounded, retry only once, and never retry other HTTP errors', async () => {
+  for (const [retry_after, wait] of [[0, 250], [9999, 5000], [-1, 2000], ['invalid', 2000]]) {
+    const calls = [], waits = [], logs = [];
+    const notifier = createDiscordNotifier({
+      env: { DISCORD_WEBHOOK_MEMBER: MEMBER_URL },
+      sleepImpl: async (ms) => waits.push(ms),
+      log: { error: (message) => logs.push(message) },
+      fetchImpl: async (_url, init) => {
+        calls.push(init.body);
+        return { status: 429, ok: false, json: async () => ({ retry_after }) };
+      },
+    });
+    await notifier.send([notice('rate-limited')]);
+    assert.deepEqual(waits, [wait]);
+    assert.equal(calls.length, 2);
+    assert.equal(calls[0], calls[1], '429 retry uses the exact same payload');
+    assert.deepEqual(logs, ['Discord 通知失敗：HTTP_ERROR HTTP 429']);
+  }
+  let calls = 0;
+  const notifier = createDiscordNotifier({
+    env: { DISCORD_WEBHOOK_MEMBER: MEMBER_URL },
+    sleepImpl: async () => assert.fail('non-429 must not retry'),
+    log: { error() {} },
+    fetchImpl: async () => { calls++; return { status: 500, ok: false }; },
+  });
+  await notifier.send([notice('failed')]);
+  assert.equal(calls, 1);
+});
+
+test('disabled channels and malformed notices never leak content or prevent a later valid notice', async () => {
+  const logs = [], calls = [];
+  const notifier = createDiscordNotifier({
+    env: { DISCORD_WEBHOOK_MEMBER: MEMBER_URL, DISCORD_WEBHOOK_LEAVE: 'https://invalid.test/synthetic-secret' },
+    log: { warn: (message) => logs.push(message), error: (message) => logs.push(message) },
+    fetchImpl: async (_url, init) => { calls.push(init.body); return { ok: true, status: 204 }; },
+  });
+  assert.equal(notifier.enabled('leave'), false);
+  await notifier.send([{ type: 'synthetic-secret' }, notice('valid')]);
+  await notifier.drain();
+  assert.equal(calls.length, 1);
+  assert.equal(JSON.stringify(logs).includes('synthetic-secret'), false);
+  assert.deepEqual(logs, ['DISCORD_WEBHOOK_LEAVE WEBHOOK_INVALID', 'Discord 通知失敗：FORMAT_ERROR']);
 });

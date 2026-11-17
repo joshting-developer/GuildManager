@@ -22,6 +22,7 @@ export async function startApi({ repository, notifier = null, host = '127.0.0.1'
         let timer;
         const drained = new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
           .finally(() => repository.close())
+          .finally(() => notifier?.drain?.())
           .then(() => 0, (error) => { reportError(log, 'shutdown_failed', error); return 1; });
         const deadline = new Promise((resolve) => {
           timer = setTimeout(() => {
