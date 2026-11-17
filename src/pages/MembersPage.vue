@@ -1,4 +1,5 @@
 <script setup>
+import { VSwitch } from 'vuetify/components';
 import DataLoading from '../components/DataLoading.vue';
 import { computed, inject, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import {
