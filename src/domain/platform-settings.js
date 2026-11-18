@@ -1,4 +1,3 @@
-export const DEFAULT_PLATFORM_NAME = '逆水寒';
 export const MAX_PLATFORM_ICON_BYTES = 256 * 1024;
 
 export function validatePlatformIcon(icon) {

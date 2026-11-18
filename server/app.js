@@ -146,9 +146,6 @@ export function createApp(repository, { authNow, notifier = null, log = console,
   app.get('/api/calendar/members', async (_request, response) => {
     response.json(await repository.listParticipationMembers());
   });
-  app.get('/api/home', async (_request, response) => {
-    response.set('Cache-Control', 'no-store').json(await repository.readHome());
-  });
   app.get('/api/events', async (request, response) => {
     const result = await repository.listEvents(request.query);
     const events = visibleCalendarEvents(result.events, request.auth?.user);

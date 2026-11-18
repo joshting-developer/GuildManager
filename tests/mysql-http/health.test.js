@@ -13,7 +13,7 @@ test('liveness never needs MySQL; health only probes the database without sessio
     ...repo,
     probe: async () => { probes++; return repo.probe(); },
     getSession: async () => { throw new Error(secret); },
-    readHome: async () => { throw new Error(secret); },
+    listDuties: async () => { throw new Error(secret); },
   }) }, async ({ request }) => {
     const live = await request('/live');
     assert.equal(live.status, 200);

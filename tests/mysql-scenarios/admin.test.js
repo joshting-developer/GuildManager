@@ -200,7 +200,7 @@ test('shared member token is fixed, private, admin-only and revokes all sessions
     assert.equal(session.user.username, '');
     const headers = { Cookie: loginResponse.headers.get('set-cookie').split(';')[0], 'X-CSRF-Token': session.csrfToken };
     assert.equal((await f.request('/members', 'GET', undefined, headers)).status, 200);
-    for (const path of ['/home', '/lineups', '/admin/accounts'])
+    for (const path of ['/lineups', '/admin/accounts'])
       assert.equal((await f.request(path, 'GET', undefined, headers)).status, 403, path);
     assert.equal((await f.request('/auth/login', 'POST', { username: 'guild_member', password: '001234' })).status, 401);
     assert.equal((await f.request('/admin/members', 'POST', { username: 'other', password }, admin.headers)).status, 404);

@@ -81,7 +81,7 @@ export function exposeRepository(implementation, store, database) {
     'getPlatformSettings', 'getLottery', 'getLineupEditor', 'getLineupCatalogs',
     'getLineupSources', 'getLineupEvent', 'getVideoBrowser', 'getEventVideoForm',
     'getEventParticipationForm', 'previewMemberImport', 'listProfessions',
-    'listParticipationMembers', 'listMembers', 'readHome',
+    'listParticipationMembers', 'listMembers',
     'getLeaveSettings', 'getLeaveCare', 'getAttendanceOptions', 'getAttendanceHistory', 'getLeaveCalendar', 'getMemberLeaveHistory',
   ]);
   // getSession reads without a transaction and only writes when it removes an expired session.

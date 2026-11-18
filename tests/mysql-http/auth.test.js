@@ -48,7 +48,7 @@ test('MySQL sessions use private cookies, restore on reload and revoke on logout
 
 test('anonymous callers cannot read or mutate management routes and refusals leave MySQL unchanged', async () => withApp(async (app) => {
   for (const [path, method = 'GET'] of [
-    ['/home'], ['/members'], ['/members/'], ['/%6dembers'], ['/calendar/members'], ['/lineups'], ['/lineups/editor'], ['/duties'], ['/lottery'],
+    ['/members'], ['/members/'], ['/%6dembers'], ['/calendar/members'], ['/lineups'], ['/lineups/editor'], ['/duties'], ['/lottery'],
     ['/battle-records'], ['/battle-records/missing/attachments/csv'], ['/admin/accounts'],
     ['/members', 'POST'], ['/members/0001', 'PATCH'], ['/members/0001', 'DELETE'],
     ['/members/import/preview', 'POST'], ['/members/import', 'POST'], ['/members/0001/maintenance', 'PATCH'],
@@ -82,7 +82,7 @@ test('member retains roster edits and battle reads while management and admin re
   assert.equal((await member.request('/members/0001/battle-records')).status, 200);
   assert.equal((await member.request('/calendar/members')).status, 200);
   for (const [path, method = 'GET'] of [
-    ['/home'], ['/lineups'], ['/duties'], ['/lottery'], ['/admin/accounts'],
+    ['/lineups'], ['/duties'], ['/lottery'], ['/admin/accounts'],
     ['/members/0001/maintenance'], ['/members/0001', 'DELETE'], ['/members/0001/history', 'PATCH'],
     ['/members/0001/permanent-delete', 'POST'], ['/members/0001/maintenance', 'PATCH'],
     ['/events', 'POST'], ['/lineups/confirm', 'POST'], ['/battle-records', 'POST'], ['/battle-records/missing', 'DELETE'],
@@ -90,7 +90,7 @@ test('member retains roster edits and battle reads while management and admin re
   ]) await denied(await member.request(path, method, method === 'GET' ? undefined : {}), 403, 'MANAGEMENT_REQUIRED');
   assert.equal((await app.repository.listMembers()).members.find((m) => m.uid === '0001').revision, 2);
   for (const actor of [admin, manager]) {
-    for (const path of ['/home', '/lineups', '/duties', '/lottery', '/members/0001/maintenance']) {
+    for (const path of ['/lineups', '/duties', '/lottery', '/members/0001/maintenance']) {
       assert.equal((await actor.request(path)).status, 200, path);
     }
     const current = (await app.repository.listMembers()).members.find((m) => m.uid === person.uid);
@@ -135,9 +135,9 @@ test('admin manages fixed-role accounts, revisions and passwords, revoking other
   const session = await app.login(managerCredentials);
   const editPath = `/admin/managers/${manager.id}`;
   await denied(await first.request(editPath, 'PATCH', { ...managerCredentials, password: 'changed-password', revision: 99 }), 409, 'ACCOUNT_CHANGED');
-  assert.equal((await session.request('/home')).status, 200, 'failed edit does not revoke session');
+  assert.equal((await session.request('/duties')).status, 200, 'failed edit does not revoke session');
   assert.equal((await first.request(editPath, 'PATCH', { ...managerCredentials, password: 'changed-password', revision: 1 })).status, 200);
-  await denied(await session.request('/home'), 401, 'AUTH_REQUIRED');
+  await denied(await session.request('/duties'), 401, 'AUTH_REQUIRED');
   await denied(await app.request('/auth/login', 'POST', managerCredentials), 401, 'INVALID_CREDENTIALS');
   assert.equal((await app.login({ ...managerCredentials, password: 'changed-password' })).session.user.role, 'manager');
   const change = { currentPassword: ADMIN.password, password: 'new-admin-password', revision: 1 };
@@ -176,7 +176,7 @@ test('session reads use current database roles and reject legacy individual memb
   await db.query("UPDATE auth_accounts SET role='manager' WHERE id=?", [admin.session.user.id]);
   await denied(await admin.request('/admin/accounts'), 403, 'ADMIN_REQUIRED');
   await db.query("UPDATE auth_accounts SET role='member' WHERE id=?", [manager.session.user.id]);
-  await denied(await manager.request('/home'), 401, 'AUTH_REQUIRED');
+  await denied(await manager.request('/duties'), 401, 'AUTH_REQUIRED');
   await denied(await app.request('/auth/login', 'POST', managerCredentials), 401, 'INVALID_CREDENTIALS');
 }));
 

@@ -2,29 +2,7 @@
 
 整理目前各頁面的行為與權限, 修改功能時搭配[工程與產品契約入口](project-engineering-bindings.md)
 
-## 資料介面
-
-首頁目前直接顯示待開發, 尚未使用保留的 `src/api/home.js` 首頁資料介面
-
-- 本機模式：HTTP `GET /api/home`
-- `dev`／`build` 固定使用同源 `/api`；舊的 `VITE_DATA_SOURCE` 環境值不再切換新版來源
-- HTTP 回傳格式, `meta.mode` 使用 `demo`、`empty` 或後續正式資料的 `live`
-
-```json
-{
-  "guild": { "name": "你的幫會" },
-  "summary": {
-    "members": null,
-    "upcomingEvents": null,
-    "attendanceRate": null,
-    "pendingRegistrations": null
-  },
-  "events": [],
-  "meta": { "mode": "empty", "updatedAt": "ISO 8601 日期字串" }
-}
-```
-
-日期傳 ISO 8601 字串, 畫面以台北時區顯示；沒有出勤統計時使用 `null`, 不用 `0` 代替未知值
+## 首頁與管理總覽
 
 管理總覽保留上方一排管理入口, 「成員清單」「活動安排」與「戰場排表」可進入操作, 下方重複入口已移除；新首頁僅顯示行事曆。
 

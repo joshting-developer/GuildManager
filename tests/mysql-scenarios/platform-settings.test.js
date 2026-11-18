@@ -94,7 +94,6 @@ test('local platform settings enforce admin/CSRF and preserve changes after rest
     assert.deepEqual((await repo.getPlatformSettings()), {
       platform: { name: literal, revision: 3 },
     });
-    assert.equal((await repo.readHome()).guild.name, '你的幫會');
   } finally {
     await new Promise((resolve) => server.close(resolve));
     (await repo.close());

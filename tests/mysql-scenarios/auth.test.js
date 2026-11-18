@@ -47,7 +47,6 @@ test('anonymous callers cannot read or mutate any management API', async () => {
   const f = await fixture();
   try {
     for (const [method, path] of [
-      ['GET', '/home'],
       ['GET', '/members'],
       ['POST', '/members'],
       ['PATCH', '/members/test'],

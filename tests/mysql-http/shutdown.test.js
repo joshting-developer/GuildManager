@@ -14,16 +14,16 @@ test('shutdown drains active HTTP work before closing MySQL and repeated shutdow
   const released = new Promise((resolve) => { finish = resolve; });
   const runtime = await startApi({ port: 0, repository: {
     ...repository,
-    readHome: async () => {
+    listDuties: async () => {
       entered();
       await released;
-      const result = await repository.readHome();
+      const result = await repository.listDuties();
       events.push('completed');
       return result;
     },
     close: async () => { events.push('close'); await repository.close(); },
   } });
-  const response = fetch(base(runtime) + '/home', { headers });
+  const response = fetch(base(runtime) + '/duties', { headers });
   try {
     await started;
     const shutdown = runtime.shutdown();
@@ -72,10 +72,10 @@ test('shutdown deadline closes a stalled HTTP connection and still initiates poo
   const poolClosed = new Promise((resolve) => { closed = resolve; });
   const runtime = await startApi({ port: 0, shutdownTimeoutMs: 50, log: logger, repository: {
     ...repository,
-    readHome: async () => { entered(); await waiting; return {}; },
+    listDuties: async () => { entered(); await waiting; return {}; },
     close: async () => { await repository.close(); closed(); },
   } });
-  const response = fetch(base(runtime) + '/home', { headers }).then(() => 'answered', () => 'disconnected');
+  const response = fetch(base(runtime) + '/duties', { headers }).then(() => 'answered', () => 'disconnected');
   try {
     await started;
     assert.equal(await runtime.shutdown(), 1);

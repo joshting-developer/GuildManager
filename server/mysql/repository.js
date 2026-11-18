@@ -378,21 +378,6 @@ function createImplementation(store, authNow, participationNow) {
         return { uid, member: moved };
       }));
     },
-    async readHome() {
-      const row = (await db.prepare('SELECT guild_name, updated_at FROM home_settings WHERE id = 1').get());
-      return {
-        guild: { name: row.guild_name },
-        summary: {
-          members: null,
-          upcomingEvents: null,
-          attendanceRate: null,
-          pendingRegistrations: null,
-        },
-        events: [],
-        meta: { mode: 'empty', updatedAt: row.updated_at },
-      };
-    },
-
   };
   return repository;
 }

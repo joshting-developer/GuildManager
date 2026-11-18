@@ -88,7 +88,6 @@ test('signed-in member can read battles, attachments and personal analysis; memb
       ).json();
       assert.deepEqual(personal.member, { name: '城', profession: '碎夢' });
       for (const path of [
-        '/home',
         '/lineups',
         '/duties',
         '/admin/accounts',

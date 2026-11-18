@@ -112,7 +112,6 @@ test('member HTTP roster retains editing/import but denies move-to-external; adm
       assert.equal(moved.isInClub, false);
     }
     for (const [path, method] of [
-      ['/home', 'GET'],
       ['/lineups', 'GET'],
       ['/duties', 'GET'],
       ['/admin/accounts', 'GET'],

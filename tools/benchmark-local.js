@@ -65,7 +65,7 @@ try {
     await query(`INSERT IGNORE INTO battle_player_links (record_id,player_index,member_uid) SELECT id,0,'BENCH-0' FROM battle_records`);
     await query(fillBattlePlayerStats);
     const stage = { members, battles, playersPerBattle: 120, endpoints: [] };
-    for (const path of ['/home', '/members', '/events', '/lineups/editor', `/events/${event.id}/participation-form`, '/battle-records', `/battle-records/${battle.id}`, `/battle-records/${battle.id}?includeTeamContext=true`, '/members/BENCH-0/battle-records?all=true', `/battle-records/${battle.id}/attachments/csv`, `/battle-records/${battle.id}/attachments/image`, '/platform-settings']) {
+    for (const path of ['/members', '/events', '/lineups/editor', `/events/${event.id}/participation-form`, '/battle-records', `/battle-records/${battle.id}`, `/battle-records/${battle.id}?includeTeamContext=true`, '/members/BENCH-0/battle-records?all=true', `/battle-records/${battle.id}/attachments/csv`, `/battle-records/${battle.id}/attachments/image`, '/platform-settings']) {
       const times = [], sqlCounts = [], sqlTimes = [], rowCounts = [], bytes = [];
       for (let i = 0; i <= samples; i++) {
         queries = [];
