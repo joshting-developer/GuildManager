@@ -22,7 +22,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import { parseMemberImport } from '../member-import.js';
 import { MemberError, validateMember, validateRevision } from '../member-validation.js';
 
-function createImplementation(store, authNow) {
+function createImplementation(store, authNow, participationNow) {
   const db = store;
   const memberColumns = `m.uid, m.name, m.primary_profession_id AS primaryProfessionId,
     m.secondary_profession_id AS secondaryProfessionId,
@@ -137,7 +137,7 @@ function createImplementation(store, authNow) {
     ...createEventRepository(db),
     ...createDutyRepository(db),
     ...createAttendanceRepository(db),
-    ...createParticipationRepository(db, { notify }),
+    ...createParticipationRepository(db, { notify, now: participationNow }),
     ...createEventVideoRepository(db),
     ...createLineupRepository(db, { project: references.project }),
     ...createBattleRecordRepository(db, { project: references.project, projectAll: references.projectAll }),
@@ -397,7 +397,7 @@ function createImplementation(store, authNow) {
   return repository;
 }
 
-export function createMysqlRepository(database, { authNow, fileStorage } = {}) {
+export function createMysqlRepository(database, { authNow, fileStorage, participationNow } = {}) {
   const store = createStore(database);
-  return withFileStorage(exposeRepository(createImplementation(store, authNow), store, database), fileStorage, createFileStagingRepository(store));
+  return withFileStorage(exposeRepository(createImplementation(store, authNow, participationNow), store, database), fileStorage, createFileStagingRepository(store));
 }

@@ -74,7 +74,6 @@ export function createEventVideoRepository(db) {
       const event = (await checkEvent(eventId));
       return {
         eventId,
-        eventRevision: event.revision,
         videos: [
           ...(await db
             .prepare(`SELECT ${columns} FROM event_video_submissions WHERE event_id = ?`)
@@ -106,8 +105,6 @@ export function createEventVideoRepository(db) {
           return JSON.parse(previous.result_json);
         }
         const event = (await checkEvent(eventId));
-        if (event.revision !== input.eventRevision)
-          throw new EventVideoError('場次已修改，請重新載入場次後再送出', 409, 'EVENT_CHANGED');
         const profession = (await db.prepare('SELECT job_id, name, colorcode FROM professions WHERE job_id = ?').get(input.professionId));
         if (!profession)
           throw new EventVideoError('請選擇有效職業', 422, 'VIDEO_INVALID', { professionId: '職業已失效，請重新載入' });

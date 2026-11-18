@@ -1,6 +1,7 @@
+import { taipeiToday } from '../../src/domain/battle-events.js';
 import { createAttendanceRepository } from './attendance-repository.js';
 import { asyncMap } from "./collections.js";
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { LINEUP_TYPES } from '../../src/domain/lineups.js';
 import { eventAttendance } from '../../src/domain/event-attendance.js';
 import { leaveNotice } from '../../src/domain/discord-notifications.js';
@@ -24,7 +25,7 @@ function revision(value) {
   if (!Number.isSafeInteger(value) || value < 0)
     throw new ParticipationError('資料版本不正確，請重新載入');
 }
-export function createParticipationRepository(db, { notify = () => {} } = {}) {
+export function createParticipationRepository(db, { notify = () => {}, now = () => new Date() } = {}) {
   const attendance = createAttendanceRepository(db);
   async function checkEvent(id) {
     const event = (await db.prepare('SELECT type, deleted_at FROM scheduled_events WHERE id = ?').get(id));
@@ -40,6 +41,12 @@ export function createParticipationRepository(db, { notify = () => {} } = {}) {
     ) {
       throw new ParticipationError('報名／請假需要單日戰鬥場次');
     }
+  }
+  async function checkUpcomingEvent(id) {
+    await checkEvent(id);
+    const dates = await db.prepare('SELECT date FROM event_dates WHERE event_id=?').all(id);
+    if (dates.every(row => row.date < taipeiToday(now())))
+      throw new ParticipationError('過去場次無法報名或請假', 409, 'EVENT_UNAVAILABLE');
   }
   // Every participation write for one event queues on that event row, not on the whole site.
   async function lockEvent(id) {
@@ -63,19 +70,6 @@ export function createParticipationRepository(db, { notify = () => {} } = {}) {
       )
       .get(id));
     return row ? { ...row, active: Boolean(row.active) } : null;
-  }
-  async function participationRevision(eventId) {
-    const responses = (await db
-      .prepare(
-        'SELECT member_uid, revision FROM event_member_responses WHERE event_id = ? ORDER BY member_uid',
-      )
-      .all(eventId));
-    const registrations = (await db
-      .prepare('SELECT id, revision FROM event_registrations WHERE event_id = ? ORDER BY id')
-      .all(eventId));
-    return createHash('sha256')
-      .update(JSON.stringify([responses, registrations]))
-      .digest('hex');
   }
   // Notices are queued inside the transaction and only delivered after it commits.
   async function notifyLeave(eventId, action, person) {
@@ -102,6 +96,25 @@ export function createParticipationRepository(db, { notify = () => {} } = {}) {
     const guest = (await registration(id));
     return { name: guest.name, profession: guest.profession };
   };
+  async function withRequest(eventId, input, encoded, work) {
+    if (input.requestId === undefined) return db.transaction(work);
+    if (typeof input.requestId !== 'string' || !/^[a-zA-Z0-9_-]{1,64}$/.test(input.requestId))
+      throw new ParticipationError('缺少有效的操作識別碼, 請重新操作');
+    return db.transaction(async () => {
+      await lockEvent(eventId);
+      if (!(await db.prepare('SELECT id FROM scheduled_events WHERE id=?').get(eventId))) await checkEvent(eventId);
+      await db.prepare(`INSERT INTO event_participation_requests (request_id,event_id,input_json,result_json)
+        VALUES (?, ?, ?, 'null') ON DUPLICATE KEY UPDATE request_id=VALUES(request_id)`)
+        .run(input.requestId, eventId, encoded);
+      const prior = await db.prepare('SELECT event_id,input_json,result_json FROM event_participation_requests WHERE request_id=? FOR UPDATE').get(input.requestId);
+      if (prior.event_id !== eventId || prior.input_json !== encoded)
+        throw new ParticipationError('操作識別碼已用於其他回應, 請重新操作', 409, 'REQUEST_CONFLICT');
+      if (prior.result_json !== 'null') return JSON.parse(prior.result_json);
+      const result = await work();
+      await db.prepare('UPDATE event_participation_requests SET result_json=? WHERE request_id=?').run(JSON.stringify(result), input.requestId);
+      return result;
+    });
+  }
   const repository = {
     async getEventAttendance(eventId) {
       return eventAttendance((await repository.getEventParticipation(eventId)));
@@ -112,7 +125,7 @@ export function createParticipationRepository(db, { notify = () => {} } = {}) {
       if (input.revision < 1) throw new ParticipationError('資料版本不正確，請重新載入');
       if (!['member', 'registration'].includes(input?.source))
         throw new ParticipationError('人員來源不正確，請重新載入');
-      return (await db.transaction(async () => {
+      return (await withRequest(eventId, input, JSON.stringify({ operation: 'cancel-leave', id, source: input.source, revision: input.revision }), async () => {
         (await lockEvent(eventId));
         (await checkEvent(eventId));
         const changed = () => {
@@ -120,8 +133,6 @@ export function createParticipationRepository(db, { notify = () => {} } = {}) {
         };
         if (input.source === 'member') {
           const current = (await response(eventId, id));
-          if (current?.status === 'none' && current.revision === input.revision + 1)
-            return { eventId, cancelled: true };
           if (!current || current.status !== 'leave' || current.revision !== input.revision) changed();
           (await repository.saveMemberResponse(eventId, {
             uid: id, status: 'none', note: current.note, revision: input.revision,
@@ -129,8 +140,6 @@ export function createParticipationRepository(db, { notify = () => {} } = {}) {
         } else {
           const current = (await registration(id));
           if (!current || current.eventId !== eventId) changed();
-          if (current.active && current.revision === input.revision + 1)
-            return { eventId, cancelled: true };
           if (
             current.active || current.revision !== input.revision ||
             !(await repository.getEventParticipation(eventId)).registrationLeaves.some((row) => row.id === id)
@@ -168,7 +177,6 @@ export function createParticipationRepository(db, { notify = () => {} } = {}) {
       (await checkEvent(eventId));
       return {
         eventId,
-        revision: (await participationRevision(eventId)),
         responses: (await db
           .prepare(
             `SELECT r.event_id AS eventId, r.member_uid AS uid, r.status, r.note, r.revision,
@@ -208,35 +216,17 @@ export function createParticipationRepository(db, { notify = () => {} } = {}) {
         throw new ParticipationError('請選擇職業');
       if (typeof input?.requestId !== 'string' || !/^[a-zA-Z0-9_-]{1,64}$/.test(input.requestId))
         throw new ParticipationError('缺少有效的操作識別碼, 請重新操作');
-      if (typeof input?.revision !== 'string' || !/^[a-f0-9]{64}$/.test(input.revision))
-        throw new ParticipationError('資料版本不正確, 請重新載入');
-      if (input.expectedParticipant !== undefined && !validParticipationExpectation(input.expectedParticipant))
+      if (!validParticipationExpectation(input.expectedParticipant))
         throw new ParticipationError('人員資料版本不正確，請重新載入');
       const encoded = JSON.stringify({
         name,
         note,
         status,
         professionId,
-        revision: input.revision,
         ...(memberUid ? { memberUid } : {}),
         ...(input.expectedParticipant !== undefined ? { expectedParticipant: input.expectedParticipant } : {}),
       });
-      return (await db.transaction(async () => {
-        (await lockEvent(eventId));
-        const priorRequest = (await db
-          .prepare(
-            'SELECT event_id, input_json, result_json FROM event_participation_requests WHERE request_id = ?',
-          )
-          .get(input.requestId));
-        if (priorRequest) {
-          if (priorRequest.event_id === eventId && priorRequest.input_json === encoded)
-            return JSON.parse(priorRequest.result_json);
-          throw new ParticipationError(
-            '操作識別碼已用於其他回應, 請重新操作',
-            409,
-            'REQUEST_CONFLICT',
-          );
-        }
+      return (await withRequest(eventId, input, encoded, async () => {
         if (
           (await db.prepare('SELECT id FROM event_registrations WHERE request_id = ?').get(input.requestId))
         )
@@ -245,23 +235,15 @@ export function createParticipationRepository(db, { notify = () => {} } = {}) {
             409,
             'REQUEST_CONFLICT',
           );
-        (await checkEvent(eventId));
+        await checkUpcomingEvent(eventId);
         if (input.expectedParticipant !== undefined) {
-          const event = (await db.prepare('SELECT revision FROM scheduled_events WHERE id = ?').get(eventId));
-          if (event.revision !== input.expectedParticipant.eventRevision)
-            throw new ParticipationError('場次已修改，請重新載入場次後再送出', 409, 'EVENT_CHANGED');
           const person = participationTarget({ name, status, memberUid }, {
             ...(await repository.getEventParticipation(eventId)),
             ...(await repository.listEventParticipationMembers(eventId)),
           });
           if (!sameParticipationTarget(person, input.expectedParticipant.person))
             throw new ParticipationError('這位人員的資料已更新，請重新載入確認後再送出', 409, 'PARTICIPATION_CHANGED');
-        } else if ((await participationRevision(eventId)) !== input.revision)
-          throw new ParticipationError(
-            '本場報名資料已更新, 請重新載入後再送出',
-            409,
-            'PARTICIPATION_CHANGED',
-          );
+        }
         if (
           status === 'registered' &&
           !(await db.prepare('SELECT job_id FROM professions WHERE job_id = ?').get(professionId))
@@ -337,18 +319,12 @@ export function createParticipationRepository(db, { notify = () => {} } = {}) {
             name,
             note,
             professionId,
-            requestId: input.requestId,
+            requestId: randomUUID(),
           }));
         } else {
           throw new ParticipationError('沒有報名或沒有資料', 404, 'PARTICIPATION_NOT_FOUND');
         }
         const result = { eventId, name, status, ...(care ? { care } : {}) };
-        (await db.prepare('INSERT INTO event_participation_requests VALUES (?, ?, ?, ?)').run(
-          input.requestId,
-          eventId,
-          encoded,
-          JSON.stringify(result),
-        ));
         return result;
       }));
     },
@@ -359,9 +335,9 @@ export function createParticipationRepository(db, { notify = () => {} } = {}) {
       if (!['registered', 'leave', 'none'].includes(status))
         throw new ParticipationError('請選擇報名、請假或取消');
       revision(input?.revision);
-      return (await db.transaction(async () => {
+      return (await withRequest(eventId, input, JSON.stringify({ operation: 'member-response', uid, status, note, revision: input.revision, professionId: input.professionId ?? null }), async () => {
         (await lockEvent(eventId));
-        (await checkEvent(eventId));
+        await (status === 'none' ? checkEvent(eventId) : checkUpcomingEvent(eventId));
         if (!(await db.prepare('SELECT uid FROM members WHERE uid = ? AND removed_at IS NULL').get(uid))) {
           throw new ParticipationError('找不到這位成員，請重新選擇', 404, 'MEMBER_NOT_FOUND');
         }
@@ -375,13 +351,6 @@ export function createParticipationRepository(db, { notify = () => {} } = {}) {
         )
           throw new ParticipationError('職業不存在, 請重新載入職業清單');
         if ((prior?.revision || 0) !== input.revision) {
-          if (
-            prior?.revision === input.revision + 1 &&
-            prior.status === status &&
-            prior.note === note &&
-            prior.professionId === professionId
-          )
-            return prior;
           throw new ParticipationError(
             '這位成員的場次回應已更新，請重新載入再操作',
             409,
@@ -410,27 +379,8 @@ export function createParticipationRepository(db, { notify = () => {} } = {}) {
         throw new ParticipationError('請選擇職業');
       if (typeof requestId !== 'string' || !/^[a-zA-Z0-9_-]{1,64}$/.test(requestId))
         throw new ParticipationError('缺少有效的操作識別碼，請重新操作');
-      return (await db.transaction(async () => {
-        (await lockEvent(eventId));
-        const priorId = (await db
-          .prepare('SELECT id FROM event_registrations WHERE request_id = ?')
-          .get(requestId))?.id;
-        if (priorId) {
-          const prior = (await registration(priorId));
-          if (
-            prior.eventId === eventId &&
-            prior.name === name &&
-            prior.note === note &&
-            prior.professionId === professionId
-          )
-            return prior;
-          throw new ParticipationError(
-            '操作識別碼已用於其他報名，請重新操作',
-            409,
-            'REQUEST_CONFLICT',
-          );
-        }
-        (await checkEvent(eventId));
+      return (await withRequest(eventId, input, JSON.stringify({ operation: 'guest-registration', name, note, professionId }), async () => {
+        await checkUpcomingEvent(eventId);
         if (!(await db.prepare('SELECT job_id FROM professions WHERE job_id = ?').get(professionId)))
           throw new ParticipationError('職業不存在，請重新載入職業清單');
         if (
@@ -486,7 +436,6 @@ export function createParticipationRepository(db, { notify = () => {} } = {}) {
         const prior = (await registration(id));
         if (!prior || prior.eventId !== eventId)
           throw new ParticipationError('找不到本場報名', 404, 'REGISTRATION_NOT_FOUND');
-        if (!prior.active && prior.revision === expectedRevision + 1) return prior;
         if (!prior.active || prior.revision !== expectedRevision)
           throw new ParticipationError('報名已更新，請重新載入', 409, 'PARTICIPATION_CHANGED');
         (await db.prepare(

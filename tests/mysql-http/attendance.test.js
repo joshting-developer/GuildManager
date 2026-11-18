@@ -1,3 +1,4 @@
+import { participationTarget } from '../../src/domain/participation-target.js';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {withApp} from '../helpers/mysql-app.js';
@@ -14,8 +15,8 @@ test('attendance HTTP protects roles/CSRF, returns private history only to manag
  const settings=(await(await admin.request('/admin/leave-settings')).json()).settings;
  assert.equal((await admin.request('/admin/leave-settings','PATCH',{...settings,threshold:1,message:'辛苦了, 好好休息'})).status,200);
  await app.repository.addMember({uid:'001',name:'成員甲',primaryProfessionId:1,isInGuild:true,isInClub:true});const event=await app.repository.createEvent({title:'測試活動',type:'scrimmage',dates:['2026-11-18'],requestId:'http-event'});
- const participation=await app.repository.getEventParticipation(event.id);
- const leave=await app.request(`/events/${event.id}/participation`,'POST',{name:'成員甲',memberUid:'001',status:'leave',note:'休息',revision:participation.revision,requestId:'http-leave'});
+ const participation=await app.repository.getEventParticipationForm(event.id);
+ const leave=await app.request(`/events/${event.id}/participation`,'POST',{name:'成員甲',memberUid:'001',status:'leave',note:'休息',expectedParticipant:{person:participationTarget({name:'成員甲',memberUid:'001',status:'leave'},participation)},requestId:'http-leave'});
  assert.equal(leave.status,200);const saved=await leave.json();assert.deepEqual(saved.care,{message:'辛苦了, 好好休息'});assert.equal(saved.monthlyLeaveCount,undefined);
  const input={eventId:event.id,date:'2026-11-18',uid:'001',status:'absent',note:'',revision:0,requestId:'http-attendance'};
  assert.equal((await app.request('/attendance','PATCH',input,{Cookie:manager.headers.Cookie})).status,403);

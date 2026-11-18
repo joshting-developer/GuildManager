@@ -21,15 +21,13 @@ const selectedMemberUid = ref(null);
 const selectedMember = computed(() => props.members.find(member => member.uid === selectedMemberUid.value));
 const errors = ref({}),
   notice = ref('');
-const eventRevision = ref(props.event.revision);
 const busy = ref(false),
   reloading = ref(false),
   reloadError = ref('');
 let attempt = null;
 let disposed = false,
   reloadToken = 0;
-watch(() => props.event, (event) => {
-  eventRevision.value = event.revision;
+watch(() => props.event, () => {
   reloadError.value = '';
 });
 watch(nameSource, () => {
@@ -72,7 +70,6 @@ async function reloadEvent() {
     const event = data.event;
     if (!event || event.id !== props.event.id || !['scrimmage', 'guild_war', 'dragon_tiger'].includes(event.type))
       throw new Error('這個場次已無法上傳影片，請重新載入行事曆');
-    eventRevision.value = event.revision;
     emit('event-refreshed', event);
   } catch (cause) {
     if (!disposed && token === reloadToken) reloadError.value = cause.message;
@@ -101,7 +98,7 @@ async function submit() {
     return;
   }
   const input = {
-    ...details, eventRevision: eventRevision.value,
+    ...details,
     ...(nameSource.value !== 'manual' ? { memberUid: selectedMemberUid.value } : {}),
   };
   const encoded = JSON.stringify(input);

@@ -40,7 +40,7 @@ test('responses are scoped to one battle, retain revisions and allow retry, swit
   try {
     const input = { uid: '001', status: 'leave', note: '當天不在', revision: 0 };
     const saved = (await repo.saveMemberResponse(event.id, input));
-    assert.deepEqual((await repo.saveMemberResponse(event.id, input)), saved);
+    await assert.rejects(repo.saveMemberResponse(event.id, input), code('PARTICIPATION_CHANGED'));
     assert.equal((await repo.getEventParticipation(other.id)).responses.length, 0);
     (await assert.rejects(
       async () => (await repo.saveMemberResponse(event.id, { ...input, status: 'registered' })),
@@ -108,7 +108,7 @@ test('UID-less guests have stable IDs, explicit professions and notes; retries a
     ));
     const cancelled = (await repo.cancelGuestRegistration(event.id, first.id, first.revision));
     assert.equal(cancelled.active, false);
-    assert.deepEqual((await repo.cancelGuestRegistration(event.id, first.id, first.revision)), cancelled);
+    await assert.rejects(repo.cancelGuestRegistration(event.id, first.id, first.revision), code('PARTICIPATION_CHANGED'));
     assert.equal((await repo.getEventParticipation(event.id)).registrations.length, 0);
     assert.ok((await repo.addGuestRegistration(event.id, guest({ requestId: 're-register' }))).active);
   } finally {

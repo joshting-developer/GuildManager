@@ -25,7 +25,7 @@ async function setup(filename = ':memory:') {
   return { repo, events };
 }
 
-test('reject malformed links, fields, unavailable events and stale versions without saving', async () => {
+test('reject malformed links, fields, unavailable events, while title changes allow submission', async () => {
   const { repo, events } = (await setup());
   const event = events[0];
   try {
@@ -48,7 +48,6 @@ test('reject malformed links, fields, unavailable events and stale versions with
       { note: '\u0000' },
       { groupName: null },
       { groupName: '進攻團' },
-      { eventRevision: '1' },
       { requestId: '' },
       { professionId: null },
       { professionId: '3' },
@@ -64,8 +63,8 @@ test('reject malformed links, fields, unavailable events and stale versions with
     ));
     (await assert.rejects(async () => (await repo.submitEventVideo('missing', video(event))), code('EVENT_UNAVAILABLE')));
     const updated = (await repo.updateEvent(event.id, { ...event, title: '新的名稱' }));
-    (await assert.rejects(async () => (await repo.submitEventVideo(event.id, video(event))), code('EVENT_CHANGED')));
-    assert.equal((await repo.listEventVideos(event.id)).videos.length, 0);
+    await repo.submitEventVideo(event.id, video(event));
+    assert.equal((await repo.listEventVideos(event.id)).videos.length, 1);
     (await repo.submitEventVideo(event.id, video(updated, { name: '<script>測試</script>' })));
     (await repo.deleteEvent(event.id, updated.revision));
     (await assert.rejects(async () => (await repo.submitEventVideo(event.id, video(updated))), code('EVENT_UNAVAILABLE')));

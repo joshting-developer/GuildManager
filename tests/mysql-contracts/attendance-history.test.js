@@ -1,3 +1,4 @@
+import { submitFromCurrentForm } from '../helpers/participation-input.js';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createTestRepository,repositoryDatabase} from '../helpers/mysql-repository.js';
@@ -11,10 +12,10 @@ test('care counts only effective leaves in the event month, excludes cancelled e
  const {repo,events}=await setup();try{
   const settings=(await repo.getLeaveSettings()).settings;assert.equal(settings.threshold,3);
   await repo.saveLeaveSettings({...settings,threshold:2,message:'記得休息'},access);
-  const leave=async(i,key)=>repo.submitParticipation(events[i].id,{name:'成員甲',memberUid:'001',status:'leave',note:'測試原因',revision:(await repo.getEventParticipation(events[i].id)).revision,requestId:key});
+  const leave=async(i,key)=>submitFromCurrentForm(repo, events[i].id,{name:'成員甲',memberUid:'001',status:'leave',note:'測試原因',revision:(await repo.getEventParticipation(events[i].id)).revision,requestId:key});
   assert.equal((await leave(0,'leave-a')).care,undefined);
   const input={name:'成員甲',memberUid:'001',status:'leave',note:'測試原因',revision:(await repo.getEventParticipation(events[1].id)).revision,requestId:'leave-b'};
-  const result=await repo.submitParticipation(events[1].id,input);assert.equal(result.care.message,'記得休息');assert.deepEqual(await repo.submitParticipation(events[1].id,input),result);
+  const result=await submitFromCurrentForm(repo, events[1].id,input);assert.equal(result.care.message,'記得休息');assert.deepEqual(await submitFromCurrentForm(repo, events[1].id,input),result);
   assert.equal((await leave(3,'dec-leave')).care,undefined);
   await repo.saveMemberResponse(events[0].id,{uid:'001',status:'none',note:'',revision:1});assert.equal(await repo.getLeaveCare(events[1].id,'001'),null);
   await repo.deleteEvent(events[1].id,events[1].revision);assert.equal(await repo.getLeaveCare(events[0].id,'001'),null);

@@ -24,8 +24,7 @@ const selectedMember = computed(() =>
 const professions = ref([]),
   responses = ref([]),
   registrations = ref([]),
-  registrationLeaves = ref([]),
-  revision = ref('');
+  registrationLeaves = ref([]);
 const loading = ref(true),
   busy = ref(false),
   loadError = ref(''),
@@ -115,10 +114,8 @@ async function load({ participationOnly = false } = {}) {
       (videoOnly
         ? participation.event?.id !== props.event.id ||
           !['scrimmage', 'guild_war', 'dragon_tiger'].includes(participation.event?.type) ||
-          participation.event?.dates?.length !== 1 ||
-          !Number.isSafeInteger(participation.event?.revision)
-        : typeof participation.revision !== 'string' ||
-          !Array.isArray(participation.responses) ||
+          participation.event?.dates?.length !== 1
+        : !Array.isArray(participation.responses) ||
           !Array.isArray(participation.registrations) ||
           !Array.isArray(participation.registrationLeaves)) ||
       !Array.isArray(jobs.professions) ||
@@ -129,7 +126,6 @@ async function load({ participationOnly = false } = {}) {
     responses.value = videoOnly ? [] : participation.responses;
     registrations.value = videoOnly ? [] : participation.registrations;
     registrationLeaves.value = videoOnly ? [] : participation.registrationLeaves;
-    revision.value = videoOnly ? '' : participation.revision;
     members.value = roster.members;
     if (videoOnly) emit('event-refreshed', participation.event);
     if (selectedMemberUid.value && !memberEligible()) {
@@ -222,14 +218,13 @@ async function submit() {
     professionId: status.value === 'registered' ? professionId.value : null,
     status: status.value,
     note: note.value.trim(),
-    revision: revision.value,
     memberUid: selectedMemberUid.value,
   };
   const person = participationTarget(input, {
     members: members.value, responses: responses.value,
     registrations: registrations.value, registrationLeaves: registrationLeaves.value,
   });
-  if (person) input.expectedParticipant = { eventRevision: props.event.revision, person };
+  input.expectedParticipant = { person };
   const encoded = JSON.stringify(input);
   if (attempt?.encoded !== encoded) attempt = { encoded, requestId: crypto.randomUUID() };
   try {

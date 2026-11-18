@@ -5,6 +5,7 @@ import { migrateMysql } from '../../server/database/migrate.js';
 import { mysqlMigrations } from '../../server/database/migrations.js';
 import { createMysqlRepository } from '../../server/mysql/repository.js';
 
+export const participationTestNow = () => new Date('2026-01-01T00:00:00+08:00');
 const databases = new WeakMap();
 const storages = new WeakMap();
 export function repositoryFileStorage(repository) { return storages.get(repository); }
@@ -21,7 +22,7 @@ export async function createTestRepository(options = {}) {
     async remove(key) { objects.delete(key); },
     close() {},
   };
-  options = { fileStorage, ...options };
+  options = { fileStorage, participationNow: participationTestNow, ...options };
   const configuration = JSON.parse(readFileSync(process.env.GUILD_MYSQL_REPOSITORY_TEST_CONFIG, 'utf8'));
   assert.equal(configuration.purpose, 'guildmanager-repository-test');
   const env = configuration.environment;

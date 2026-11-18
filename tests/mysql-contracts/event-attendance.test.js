@@ -1,3 +1,4 @@
+import { submitFromCurrentForm } from '../helpers/participation-input.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createTestRepository as createRepository } from '../helpers/mysql-repository.js';
@@ -135,7 +136,7 @@ async function cancellationChecks(get, cancel, participation, save, eligible, ev
   ));
   const result = (await cancel(event.id, input(memberLeave)));
   assert.deepEqual(result, { eventId: event.id, cancelled: true });
-  assert.deepEqual((await cancel(event.id, input(memberLeave))), result);
+  await assert.rejects(cancel(event.id, input(memberLeave)), { code: 'PARTICIPATION_CHANGED' });
   assert.equal((await get(event.id)).leave.length, 1);
   assert.equal((await get(event.id)).registered.length, 2);
   assert.equal((await participation(event.id)).responses.find((row) => row.uid === '002').status, 'none');
@@ -144,7 +145,7 @@ async function cancellationChecks(get, cancel, participation, save, eligible, ev
   (await cancel(event.id, input(guestLeave)));
   assert.equal((await get(event.id)).leave.length, 0);
   assert.equal((await get(event.id)).registered.length, 3);
-  assert.deepEqual((await cancel(event.id, input(guestLeave))), result);
+  await assert.rejects(cancel(event.id, input(guestLeave)), { code: 'PARTICIPATION_CHANGED' });
   assert.equal(
     (await participation(event.id)).registrations.find((row) => row.name === '外援取消').id,
     guestLeave.id,
@@ -220,7 +221,7 @@ test('guild and club members can re-register after leave through the public form
         ['club', '俱樂部人員'],
       ]) {
         const submit = async (status) =>
-          (await repo.submitParticipation(event.id, {
+          (await submitFromCurrentForm(repo, event.id, {
             name,
             status,
             professionId: 3,

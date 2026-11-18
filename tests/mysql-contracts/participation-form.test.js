@@ -1,3 +1,4 @@
+import { submitFromCurrentForm } from '../helpers/participation-input.js';
 import { asyncMap } from "../../server/mysql/collections.js";
 import { test } from 'node:test';
 
@@ -24,7 +25,7 @@ async function setup() {
     }))));
   let request = 0;
   const submit = async (name, status, extra = {}, event = events[0]) =>
-    (await repo.submitParticipation(event.id, {
+    (await submitFromCurrentForm(repo, event.id, {
       name,
       status,
       note: '',
@@ -145,17 +146,17 @@ test('retries never reverse a newer leave and stale submissions or ambiguous nam
       requestId: 'retry',
       revision: (await repo.getEventParticipation(event.id)).revision,
     };
-    const receipt = (await repo.submitParticipation(event.id, input));
-    assert.deepEqual((await repo.submitParticipation(event.id, input)), receipt);
+    const receipt = (await submitFromCurrentForm(repo, event.id, input));
+    assert.deepEqual((await submitFromCurrentForm(repo, event.id, input)), receipt);
     (await assert.rejects(
-      async () => (await repo.submitParticipation(event.id, { ...input, requestId: 'stale', status: 'leave' })),
+      async () => (await submitFromCurrentForm(repo, event.id, { ...input, requestId: 'stale', status: 'leave' })),
       code('PARTICIPATION_CHANGED'),
     ));
     (await submit('外援', 'leave'));
-    assert.deepEqual((await repo.submitParticipation(event.id, input)), receipt);
+    assert.deepEqual((await submitFromCurrentForm(repo, event.id, input)), receipt);
     assert.equal((await repo.getEventParticipation(event.id)).registrations.length, 0);
     (await assert.rejects(
-      async () => (await repo.submitParticipation(event.id, { ...input, name: '另一人' })),
+      async () => (await submitFromCurrentForm(repo, event.id, { ...input, name: '另一人' })),
       code('REQUEST_CONFLICT'),
     ));
     (await repo.addMember({ uid: 'duplicate', name: '幫內成員', primaryProfessionId: 1 }));
@@ -211,7 +212,7 @@ test('member registrations retain their selected battle profession without chang
       revision: (await row()).revision,
     };
     const saved = (await repo.saveMemberResponse(event.id, input));
-    assert.deepEqual((await repo.saveMemberResponse(event.id, input)), saved);
+    await assert.rejects(repo.saveMemberResponse(event.id, input), code('PARTICIPATION_CHANGED'));
     (await assert.rejects(
       async () => (await repo.saveMemberResponse(event.id, { ...input, professionId: 3 })),
       code('PARTICIPATION_CHANGED'),

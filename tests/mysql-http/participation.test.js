@@ -34,7 +34,7 @@ test('calendar participation is public, waits for MySQL and notifies leave chang
     const data = await participation.json();
     assert.equal(data.responses.length, 1);
     assert.equal(data.registrations.length, 1);
-    const submitted = await request(`/events/${event.id}/participation`, 'POST', { name: '外援甲', status: 'registered', professionId: 2, requestId: 'submit', revision: data.revision });
+    const submitted = await request(`/events/${event.id}/participation`, 'POST', { name: '外援甲', status: 'registered', professionId: 2, requestId: 'submit', expectedParticipant: { person: null } });
     assert.equal(submitted.status, 200);
     const missing = await request('/events/missing/participation');
     assert.equal(missing.status, 409);

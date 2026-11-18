@@ -56,6 +56,7 @@ async function load() {
     if (token === loadToken) loading.value = false;
   }
 }
+const cancelRequests = new Map();
 async function cancelLeave(row) {
   if (saving.value) return;
   const eventId = props.event.id;
@@ -63,8 +64,11 @@ async function cancelLeave(row) {
   saving.value = `${row.source}:${row.id}`;
   actionError.value = '';
   notice.value = '';
+  const key = `${eventId}:${row.source}:${row.id}:${row.revision}`;
+  if (!cancelRequests.has(key)) cancelRequests.set(key, crypto.randomUUID());
   try {
     const result = await client.cancelLeave(eventId, {
+      requestId: cancelRequests.get(key),
       source: row.source,
       id: row.id,
       revision: row.revision,
@@ -72,6 +76,7 @@ async function cancelLeave(row) {
     if (token !== loadToken || !props.modelValue) return;
     if (result?.eventId !== eventId || result.cancelled !== true)
       throw new Error('取消請假的回應格式不正確，請重新載入確認');
+    cancelRequests.delete(key);
     notice.value = '已取消請假';
     await load();
   } catch (cause) {
@@ -84,6 +89,7 @@ watch(
   () => [props.modelValue, props.event.id],
   () => {
     loadToken++;
+    cancelRequests.clear();
     data.value = null;
     error.value = '';
     actionError.value = '';

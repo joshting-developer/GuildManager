@@ -51,3 +51,5 @@ await import('./mysql-contracts/video-profession-edit.test.js');
 await import('./mysql-http.test.js');
 
 await import('./mysql-contracts/attendance-history.test.js');
+
+await import('./mysql-contracts/participation-revisions.test.js');

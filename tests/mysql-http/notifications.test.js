@@ -1,3 +1,4 @@
+import { participationTarget } from '../../src/domain/participation-target.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { withApp, recordingNotifier } from '../helpers/mysql-app.js';
@@ -114,8 +115,8 @@ test('member no-ops, ordinary registration and replayed requestId do not duplica
     assert.equal(guest.status, 201);
     await notifier.drain();
     assert.equal(calls.length, 1, 'ordinary guest registration does not notify');
-    const participation = await repository.getEventParticipation(event.id);
-    const input = { name: '外援', status: 'leave', professionId: 1, requestId: 'guest-leave', revision: participation.revision };
+    const participation = await repository.getEventParticipationForm(event.id);
+    const input = { name: '外援', status: 'leave', professionId: 1, requestId: 'guest-leave', expectedParticipant: { person: participationTarget({ name: '外援', status: 'leave' }, participation) } };
     const response = await anonymous(path, 'POST', input);
     assert.equal(response.status, 200);
     const saved = await response.json();

@@ -1,3 +1,4 @@
+import { submitFromCurrentForm } from '../helpers/participation-input.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createTestRepository, repositoryDatabase, repositoryFileStorage } from '../helpers/mysql-repository.js';
@@ -31,7 +32,7 @@ function failingRepository(database, shouldFail, fileStorage) {
 
 test('independent repository instances serialize conflicting edits and preserve both independent participants', async () => {
   const repo = await createTestRepository();
-  const other = createMysqlRepository(repositoryDatabase(repo));
+  const other = createMysqlRepository(repositoryDatabase(repo), { participationNow: () => new Date('2026-01-01T00:00:00+08:00') });
   try {
     const original = await repo.addMember(person('001'));
     await repo.addMember(person('002'));
@@ -46,16 +47,16 @@ test('independent repository instances serialize conflicting edits and preserve 
     const input = (uid) => {
       const member = form.members.find((row) => row.uid === uid);
       const value = { name: member.name, memberUid: uid, status: 'leave', note: '', revision: form.revision, requestId: `leave-${uid}` };
-      value.expectedParticipant = { eventRevision: event.revision, person: participationTarget(value, form) };
+      value.expectedParticipant = { person: participationTarget(value, form) };
       return value;
     };
     const values = ['001', '002'].map(input);
     const saved = await Promise.all(values.map((value, index) => (index ? other : repo).submitParticipation(event.id, value)));
     assert.ok(saved.every((value) => value.status === 'leave'));
     assert.equal((await repo.getEventAttendance(event.id)).leave.length, 2);
-    const retries = await Promise.all([repo.submitParticipation(event.id, values[0]), other.submitParticipation(event.id, values[0])]);
+    const retries = await Promise.all([submitFromCurrentForm(repo, event.id, values[0]), submitFromCurrentForm(other, event.id, values[0])]);
     assert.deepEqual(retries[0], retries[1]);
-    await assert.rejects(other.submitParticipation(event.id, { ...values[0], requestId: 'stale' }), { code: 'PARTICIPATION_CHANGED' });
+    await assert.rejects(submitFromCurrentForm(other, event.id, { ...values[0], requestId: 'stale' }), { code: 'PARTICIPATION_CHANGED' });
   } finally { await repo.close(); }
 });
 
@@ -303,7 +304,7 @@ test('a write on one event or member does not block sessions, reads or writes el
 
 test('concurrent writers on the same row get one success and one conflict or the same replay', async () => {
   const repo = await createTestRepository();
-  const other = createMysqlRepository(repositoryDatabase(repo));
+  const other = createMysqlRepository(repositoryDatabase(repo), { participationNow: () => new Date('2026-01-01T00:00:00+08:00') });
   try {
     await repo.addMember(person('001'));
     const event = await repo.createEvent(arrangement('race-event'));
@@ -313,7 +314,8 @@ test('concurrent writers on the same row get one success and one conflict or the
     const guests = await both((target) => target.addGuestRegistration(event.id, { name: 'Guest', professionId: 3, requestId: randomId() }));
     assert.deepEqual(outcome(guests), ['REGISTRATION_EXISTS', 'ok']);
 
-    const responses = await both((target) => target.saveMemberResponse(event.id, { uid: '001', status: 'leave', note: '', revision: 0 }));
+    const responseRequestId = randomId();
+    const responses = await both((target) => target.saveMemberResponse(event.id, { uid: '001', status: 'leave', note: '', revision: 0, requestId: responseRequestId }));
     assert.equal(outcome(responses).filter((code) => code === 'ok').length, 2, 'the second identical save is treated as the first one replayed');
     assert.equal((await repo.getEventParticipation(event.id)).responses.find((row) => row.uid === '001').revision, 1);
     const edits = await both(async (target) => target.saveMemberResponse(event.id, { uid: '001', status: target === repo ? 'registered' : 'none', note: '', revision: 1 }));

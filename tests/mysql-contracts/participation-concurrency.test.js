@@ -25,7 +25,7 @@ async function fixture(source) {
 function submission(event, form, name, requestId, status = 'leave', extra = {}) {
   const input = { name, requestId, status, note: '不能出席，請保留', professionId: status === 'registered' ? 3 : null, revision: form.revision, ...extra };
   const person = participationTarget(input, form);
-  if (person) input.expectedParticipant = { eventRevision: event.revision, person };
+  input.expectedParticipant = { person };
   return input;
 }
 
@@ -46,7 +46,7 @@ for (const source of ['local']) {
       const beforeEventChange = (await call('getForm', event.id));
       const staleEvent = submission(event, beforeEventChange, '成員1', 'stale-event');
       (await call('updateEvent', event.id, { title: '改名場次', type: event.type, dates: event.dates, revision: 1 }));
-      (await assert.rejects(async () => (await call('submitParticipation', event.id, staleEvent)), { code: 'EVENT_CHANGED' }));
+      assert.equal((await call('submitParticipation', event.id, staleEvent)).status, 'leave');
     } finally { (await close()); }
   });
 
@@ -55,7 +55,7 @@ for (const source of ['local']) {
     try {
       const initial = (await call('getForm', event.id));
       const legacy = submission(event, initial, '新外援', 'guest-register', 'registered');
-      assert.equal(legacy.expectedParticipant, undefined);
+      assert.deepEqual(legacy.expectedParticipant, { person: null });
       (await call('submitParticipation', event.id, legacy));
       (await assert.rejects(async () => (await call('submitParticipation', event.id, { ...legacy, requestId: 'legacy-stale' })), { code: 'PARTICIPATION_CHANGED' }));
       const form = (await call('getForm', event.id));

@@ -78,10 +78,8 @@ export function validateVideoDetails(input, { allowMissingGroup = false, allowMi
 export function validateVideoSubmission(input) {
   const details = validateVideoDetails(input);
   const requestId = text(input.requestId, '提交識別碼', 128, 'requestId');
-  if (!Number.isSafeInteger(input.eventRevision) || input.eventRevision < 1)
-    throw new EventVideoError('場次版本不正確，請重新載入場次');
   const memberUid = input.memberUid === undefined ? null : text(input.memberUid, '成員資料', 64, 'name');
-  return { ...details, requestId, eventRevision: input.eventRevision, ...(memberUid ? { memberUid } : {}) };
+  return { ...details, requestId, ...(memberUid ? { memberUid } : {}) };
 }
 
 export function validateVideoProfessionUpdate(eventId, videoId, input) {

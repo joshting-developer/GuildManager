@@ -39,7 +39,7 @@ export function createEventVideoClient({
     const videos = input ? [data.video] : data.videos;
     if (
       !Array.isArray(videos) ||
-      (!input && (data.eventId !== eventId || !Number.isSafeInteger(data.eventRevision)))
+      (!input && data.eventId !== eventId)
     )
       throw new Error('影片資料回應格式不正確，請重試');
     for (const video of videos) {
