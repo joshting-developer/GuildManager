@@ -1,5 +1,4 @@
-// Scope optimistic concurrency to an identifiable person. Unknown/ambiguous
-// manual names keep the legacy whole-form check and backend identity validation.
+// An absent person also has an expectation: a concurrent new registration must conflict.
 export function participationTarget(input, snapshot) {
   const name = input.name.trim().toLowerCase();
   const roster = new Map(snapshot.members.map((member) => [member.uid, member]));
@@ -30,9 +29,9 @@ export function participationTarget(input, snapshot) {
 
 export function validParticipationExpectation(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value) ||
-      Object.keys(value).length !== 2 ||
-      !Number.isSafeInteger(value.eventRevision) || value.eventRevision < 1) return false;
+      Object.keys(value).length !== 1) return false;
   const person = value.person;
+  if (person === null) return true;
   if (!person || typeof person !== 'object' || Array.isArray(person) ||
       !['member', 'registration'].includes(person.kind)) return false;
   const keys = ['kind', 'id', 'name', 'revision',
@@ -48,6 +47,7 @@ export function validParticipationExpectation(value) {
 }
 
 export function sameParticipationTarget(left, right) {
+  if (left === null && right === null) return true;
   if (!left || !right) return false;
   const keys = Object.keys(left);
   return keys.length === Object.keys(right).length && keys.every((key) => left[key] === right[key]);

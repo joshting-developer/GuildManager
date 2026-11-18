@@ -1,10 +1,7 @@
-import { callGas } from './gas.js';
 import { sessionFetch } from './session.js';
 
-export function createBattleSyncClient({ source = 'local', fetchImpl = sessionFetch, googleRun } = {}) {
-  if (!['local', 'gas'].includes(source)) throw new Error('未知的資料來源設定');
+export function createBattleSyncClient({ fetchImpl = sessionFetch } = {}) {
   async function call(input) {
-    if (source === 'gas') return callGas(input ? 'syncBattleMembers' : 'previewBattleMemberSync', input ? [input] : [], googleRun);
     let response;
     try {
       response = await fetchImpl(input ? '/api/admin/battle-sync' : '/api/admin/battle-sync/preview', input ? {

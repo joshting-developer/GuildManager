@@ -16,7 +16,7 @@ import EventAttendanceDialog from './EventAttendanceDialog.vue';
 import { LINEUP_TYPES } from '../domain/lineups.js';
 import './events.css';
 import { EVENT_TYPE_OPTIONS, eventTypeLabel, eventDisplayTitle } from '../domain/event-types.js';
-const client = createEventClient({ source: import.meta.env.VITE_DATA_SOURCE || 'local' });
+const client = createEventClient();
 const events = ref([]);
 const loading = ref(true);
 const loadError = ref('');
@@ -48,7 +48,7 @@ async function load() {
   loading.value = true;
   loadError.value = '';
   try {
-    const data = await client.getEvents();
+    const data = await client.getAllEvents();
     if (!Array.isArray(data?.events)) throw new Error('資料回應格式不正確，請稍後再試');
     events.value = data.events;
     page.value = 1;

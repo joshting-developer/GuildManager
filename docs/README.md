@@ -1,30 +1,28 @@
-# 操作手冊檔案
+# 文件索引
 
-2026/10/19 新增的管理者功能另見 [成員資料維護](成員資料維護.md)：UID 修正、永久刪除及過去名稱新增／編輯／刪除。既有 PDF／HTML／Markdown 手冊保留原第 11 版與原截圖，尚未重製維護畫面。
+修改功能前先看[工程與產品契約入口](project-engineering-bindings.md), 再依修改範圍讀對應文件
 
-- [操作手冊.pdf](操作手冊.pdf)：可分享或列印，有目錄連結、書籤與頁碼。
-- [操作手冊.html](操作手冊.html)：單檔離線閱讀，圖片內嵌，不需要網路或另外攜帶圖片資料夾。點圖片放大，Esc 關閉；可由上方按鈕列印或另存 PDF。
-- [操作手冊.md](操作手冊.md)：可編輯來源，需搭配 `manual-images/` 的 36 張 PNG。
+## 開發與測試
 
-目前為 2026/10/05 第 11 版，團隊分析對照來源 `9974bcf`，更新本團合計／全場占比與個人明細排序。圖片以真實編譯的 `build/gas/Index.html` 在 Chrome 開啟，透過隔離模擬 `google.script.run` 讀寫示範資料；未存取正式 Google 試算表、Drive、帳號檔或 OAuth 憑證。角色名稱、UID、日期、影片連結及戰績均為示範，並非正式資料。
+- [本機開發](development.md)
+- [Node.js 分層規範](nodejs-architecture.md)
+- [MySQL 開發與隔離驗證](mysql-development.md)
+- [本機效能量測](performance-development.md)
+- [本地備份與還原](local-recovery.md)
+- [測試與建置 CI](ci.md)
 
-第 2 版對照 `5d0e5e3`：成員新增／CSV 匯入章節補上歷史關聯與檢查方式；個人分析增加日期／職業的逐步操作、實際篩選範例及常見問題。保留已更新的個人頁畫面，新增日期與碎夢職業交集截圖，該版共 27 張圖片；Markdown、離線 HTML 與 PDF 同步更新。
+## 部署與服務
 
-第 3 版對照 `80a4c86`：新增管理出勤閱覽與取消請假的操作步驟，更新活動安排清單截圖，增加幫戰請假及約戰報名分頁圖片，共 29 張圖片。本機與 GAS 套件已驗證，尚未同步至雲端。
+- [正式環境](production-environment.md)
+- [Fly.io 部署](fly-deployment.md)
+- [私有檔案服務](r2-storage.md)
+- [GAS 舊資料匯入](legacy-import.md)
 
-第 4 版對照 `0723c2b`：新增已上傳對戰資訊編輯，說明後補結果與約戰逐場內推，增加編輯及內推設定兩張圖片，共 31 張圖片。本機與 GAS 編譯及模擬操作已驗證；這次未同步 GAS。
+## 產品契約
 
-第 5 版對照 `e9c6b61`：更新 member 成員清單的權限表及操作說明，member 與管理者使用相同成員介面及全部操作；新增 member 桌面及手機導覽示範截圖，共 33 張圖片。這次未同步 GAS。
-
-圖片與內容包括登入、行事曆、報名／請假、職業統計、影片提交／閱覽、成員／匯入、活動、雙場排表／職責、戰績上傳／閱覽／個人數據、admin 設定及手機導覽。已檢查章節連結、全部圖片、離線讀取、圖片放大、手機排版與 PDF 產生；不宣稱這些圖片代表正式 GAS 授權或雲端資料已通過端到端測試。
-
-第 11 版保留 36 張圖片，重新拍攝團隊分析示範（圖 28／36-team-analysis.png）；說明合計表的兩列、個人排序方向、缺值與部分資料、合計不受明細分頁影響及未歸類排序。Markdown、離線 HTML、PDF 三種格式同步更新；GAS 上傳與發布狀態見專案 GASDeployment.md。
-
-## 更新方式
-
-1. 編輯 Markdown 內容，視功能修改補拍示範畫面，更新 `manual-images/`。
-2. 專案根目錄執行 `python3 tools/package-manual.py`，以 Python 標準函式庫產生單檔 HTML，不安裝額外套件。
-3. 用 Chrome 開啟 HTML，按「列印／儲存 PDF」：A4、正常直向、啟用背景圖形，另存覆蓋 PDF。手動列印的頁碼／書籤支援依瀏覽器而異；交付版另以 Chrome 自動產生標籤、書籤與頁碼。
-4. 確認三種格式與截圖日期一致，再提交文件及圖片。
-
-更新手冊不會自動同步 GAS 或更新 Web App；雲端功能是否已生效須依實際同步與部署版本確認。
+- [功能說明](product-features.md)
+- [工程契約](engineering-contracts.md)
+- [成員契約](member-contracts.md)
+- [活動與排表契約](event-lineup-contracts.md)
+- [戰績契約](battle-contracts.md)
+- [平台與整合契約](platform-contracts.md)

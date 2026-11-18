@@ -75,9 +75,8 @@ async function deleteRecord() {
     deleting.value = false;
   }
 }
-const source = import.meta.env.VITE_DATA_SOURCE || 'local';
-const client = createBattleRecordClient({ source }),
-  memberClient = createMemberClient({ source });
+const client = createBattleRecordClient(),
+  memberClient = createMemberClient();
 const record = shallowRef(null),
   loading = ref(true),
   error = ref('');

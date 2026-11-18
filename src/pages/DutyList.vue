@@ -10,7 +10,7 @@ const props = defineProps({
   selectedId: String,
 });
 const emit = defineEmits(['updated', 'select', 'busy-changed', 'unsaved-changed']);
-const client = createDutyClient({ source: import.meta.env.VITE_DATA_SOURCE || 'local' });
+const client = createDutyClient();
 const heading = ref(null);
 const showInactive = ref(false),
   search = ref(''),

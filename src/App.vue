@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick, provide, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick, provide, watch, defineAsyncComponent } from 'vue';
 import { useTheme } from 'vuetify';
 import {
   FONT_SCALES,
@@ -39,28 +39,32 @@ import {
 import { createAuthClient } from './api/auth.js';
 import { forgetEventList } from './api/events.js';
 import { createPlatformSettingsClient } from './api/platform-settings.js';
-import { createPlatformCache, normalizeCachedPlatform } from './api/platform-cache.js';
+import { createPlatformCache } from './api/platform-cache.js';
 import { setCsrfToken } from './api/session.js';
 import LoginDialog from './components/LoginDialog.vue';
 import DataLoading from './components/DataLoading.vue';
+import PageLoadError from './components/PageLoadError.vue';
 import PlatformBrand from './components/PlatformBrand.vue';
 import MobileNavigation from './components/MobileNavigation.vue';
 import SnowField from './components/SnowField.vue';
-import HomePage from './pages/HomePage.vue';
+function lazyPage(loader) {
+  return defineAsyncComponent({ loader, loadingComponent: DataLoading, errorComponent: PageLoadError, delay: 0, timeout: 30000 });
+}
+const HomePage = lazyPage(() => import('./pages/HomePage.vue'));
 import CalendarHomePage from './pages/CalendarHomePage.vue';
-import MembersPage from './pages/MembersPage.vue';
-import EventsPage from './pages/EventsPage.vue';
-import LineupsPage from './pages/LineupsPage.vue';
-import BattleUploadPage from './pages/BattleUploadPage.vue';
-import BattleRecordsPage from './pages/BattleRecordsPage.vue';
-import AdminPage from './pages/AdminPage.vue';
-import MemberBattleRecordsPage from './pages/MemberBattleRecordsPage.vue';
-import VideosPage from './pages/VideosPage.vue';
-import LotteryPage from './pages/lottery/LotteryPage.vue';
-import ReleaseNotesPage from './pages/ReleaseNotesPage.vue';
+const MembersPage = lazyPage(() => import('./pages/MembersPage.vue'));
+const EventsPage = lazyPage(() => import('./pages/EventsPage.vue'));
+const LineupsPage = lazyPage(() => import('./pages/LineupsPage.vue'));
+const BattleUploadPage = lazyPage(() => import('./pages/BattleUploadPage.vue'));
+const BattleRecordsPage = lazyPage(() => import('./pages/BattleRecordsPage.vue'));
+const AdminPage = lazyPage(() => import('./pages/AdminPage.vue'));
+const MemberBattleRecordsPage = lazyPage(() => import('./pages/MemberBattleRecordsPage.vue'));
+const VideosPage = lazyPage(() => import('./pages/VideosPage.vue'));
+const AttendancePage = lazyPage(() => import('./pages/AttendancePage.vue'));
+const LotteryPage = lazyPage(() => import('./pages/lottery/LotteryPage.vue'));
+const ReleaseNotesPage = lazyPage(() => import('./pages/ReleaseNotesPage.vue'));
 import releaseNotes from './content/release-notes.json';
 
-const source = import.meta.env.VITE_DATA_SOURCE || 'local';
 const vuetifyTheme = useTheme();
 const colorTheme = ref(readTheme());
 const fontScale = ref(readFontScale());
@@ -80,17 +84,13 @@ function chooseFontScale(name) {
 const appVersion = __APP_VERSION__;
 const versionLabel = releaseNotes.some((release) => release.version === 'Unreleased')
   ? '未發布' : `v${appVersion}`;
-const authClient = createAuthClient({ source });
-const platformClient = createPlatformSettingsClient({ source });
-const platformCache = createPlatformCache({ source, namespace: globalThis.__GUILD_GAS_KEY__ });
-const initialPlatform = source === 'gas'
-  ? normalizeCachedPlatform(globalThis.__GUILD_PLATFORM__)
-  : null;
-const cachedPlatform = initialPlatform || platformCache.read();
+const authClient = createAuthClient();
+const platformClient = createPlatformSettingsClient();
+const platformCache = createPlatformCache();
+const cachedPlatform = platformCache.read();
 const platformName = ref(cachedPlatform?.name || ''),
   platformIcon = ref(cachedPlatform?.iconSrc || null),
   platformError = ref('');
-if (initialPlatform) platformCache.write(initialPlatform);
 if (cachedPlatform) document.title = `${cachedPlatform.name} · 幫會管理平台`;
 let platformLoadVersion = 0;
 function applyPlatform(platform) {
@@ -133,6 +133,7 @@ const navigation = [
     adminOnly: true,
   },
   // Occasional tool: reachable from 管理總覽 and the drawer, keeping the desktop bar on one line.
+  { page: 'attendance', label: '出勤紀錄', icon: mdiCalendarMonthOutline, drawerOnly: true },
   { page: 'lottery', label: '抽獎活動', icon: mdiGiftOutline, drawerOnly: true },
   { page: 'release-notes', label: '更新紀錄', icon: mdiHistory, drawerOnly: true },
 ];
@@ -405,7 +406,7 @@ onMounted(() => {
   window.addEventListener('guild-auth-required', expireSession);
   document.addEventListener('visibilitychange', checkSession);
   restoreSession();
-  if (!initialPlatform) loadPlatform();
+  loadPlatform();
 });
 onUnmounted(() => {
   mobileViewport?.removeEventListener('change', closeDesktopMenu);
@@ -504,7 +505,7 @@ function skipToMain() {
             </v-list>
           </v-menu>
           <span class="environment-tag"
-            ><span class="status-dot"></span>{{ source === 'gas' ? '雲端環境' : '本機開發' }}</span
+            ><span class="status-dot"></span>網站服務</span
           >
           <template v-if="user">
             <v-btn
@@ -605,6 +606,7 @@ function skipToMain() {
           :initial-event-id="battleUploadEventId"
         />
         <VideosPage v-else-if="view === 'videos'" />
+        <AttendancePage v-else-if="view === 'attendance'" />
         <LotteryPage v-else-if="view === 'lottery'" />
         <ReleaseNotesPage v-else-if="view === 'release-notes'" />
         <AdminPage
@@ -627,7 +629,6 @@ function skipToMain() {
     </main>
     <LoginDialog
       v-model="loginOpen"
-      :source="source"
       :busy="authBusy"
       :error="loginError"
       @login="login"

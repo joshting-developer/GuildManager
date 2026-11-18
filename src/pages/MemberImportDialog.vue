@@ -7,7 +7,7 @@ import './member-import.css';
 
 const props = defineProps({ modelValue: Boolean, professions: { type: Array, default: () => [] } });
 const emit = defineEmits(['update:modelValue', 'imported', 'after-leave']);
-const client = createMemberClient({ source: import.meta.env.VITE_DATA_SOURCE || 'local' });
+const client = createMemberClient();
 const text = ref('');
 const fileName = ref('');
 const fileInput = ref(null);

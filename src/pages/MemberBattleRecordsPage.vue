@@ -17,9 +17,10 @@ const PersonalBattleTrend = defineAsyncComponent({
   delay: 0,
 });
 const props = defineProps({ memberUid: { type: String, required: true } });
-const client = createMemberClient({ source: import.meta.env.VITE_DATA_SOURCE || 'local' });
+const client = createMemberClient();
 const data = shallowRef(null), loading = ref(true), error = ref(''), page = ref(1);
 const selection = shallowRef(new Set());
+const pagedData = shallowRef(null);
 const trendOpen = ref(false), trendVisited = ref(false);
 const trendButton = ref(null), trendClose = ref(null), trendChart = ref(null);
 const summaryMode = ref('total'), tableMode = ref('total');
@@ -34,8 +35,8 @@ const entries = computed(() => filterPersonalBattles(data.value?.entries || [], 
 const selectedEntries = computed(() => selectedPersonalBattles(entries.value, selection.value));
 const summary = computed(() => summarizePersonalBattles(selectedEntries.value));
 const efficiency = computed(() => summarizeKillEfficiency(selectedEntries.value));
-const pageCount = computed(() => Math.ceil(entries.value.length / 20));
-const pageEntries = computed(() => entries.value.slice((page.value - 1) * 20, page.value * 20));
+const pageCount = computed(() => Math.ceil((pagedData.value?.total || 0) / 20));
+const pageEntries = computed(() => pagedData.value?.entries || []);
 const pageSelectedCount = computed(() => pageEntries.value.filter((entry) => selection.value.has(personalBattleKey(entry))).length);
 const summaryModes = [
   { value: 'total', label: '合計' },
@@ -83,21 +84,46 @@ async function load() {
   loading.value = true;
   error.value = '';
   try {
-    const result = await client.getBattleRecords(props.memberUid, 1, { all: true });
+    const [result, paged] = await Promise.all([
+      client.getBattleRecords(props.memberUid, 1, { all: true }),
+      client.getBattleRecords(props.memberUid, page.value, appliedFilters.value),
+    ]);
     if (disposed || current !== version) return;
     if (!result.member?.name || !Array.isArray(result.entries) || !Array.isArray(result.professions) ||
         !Number.isSafeInteger(result.total) || result.entries.length !== result.total)
       throw new Error('個人戰績未完整載入，請確認程式版本後重新載入');
     data.value = result;
+    pagedData.value = paged;
     const keys = new Set(result.entries.map(personalBattleKey));
     selection.value = previous ? new Set([...selection.value].filter((key) => keys.has(key))) : latestPersonalSelection(result.entries);
-    page.value = Math.min(page.value, Math.max(pageCount.value, 1));
+    const validPage = Math.min(page.value, Math.max(pageCount.value, 1));
+    if (page.value !== validPage) {
+      page.value = validPage;
+      const corrected = await client.getBattleRecords(props.memberUid, validPage, appliedFilters.value);
+      if (disposed || current !== version) return;
+      pagedData.value = corrected;
+    }
   } catch (cause) {
     if (!disposed && current === version) error.value = cause.message;
   } finally {
     if (!disposed && current === version) loading.value = false;
   }
 }
+async function loadPage() {
+  if (loading.value || !data.value) return;
+  const current = ++version;
+  loading.value = true;
+  error.value = '';
+  try {
+    const result = await client.getBattleRecords(props.memberUid, page.value, appliedFilters.value);
+    if (!disposed && current === version) pagedData.value = result;
+  } catch (cause) {
+    if (!disposed && current === version) error.value = cause.message;
+  } finally {
+    if (!disposed && current === version) loading.value = false;
+  }
+}
+watch([page, appliedFilters], loadPage);
 function applyFilters() {
   if (loading.value) return;
   try {
@@ -114,6 +140,7 @@ function clearFilters() {
 }
 watch(() => props.memberUid, () => {
   data.value = null;
+  pagedData.value = null;
   trendOpen.value = false;
   trendVisited.value = false;
   selection.value = new Set();

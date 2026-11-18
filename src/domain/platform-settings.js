@@ -1,4 +1,3 @@
-export const DEFAULT_PLATFORM_NAME = '逆水寒';
 export const MAX_PLATFORM_ICON_BYTES = 256 * 1024;
 
 export function validatePlatformIcon(icon) {
@@ -30,7 +29,7 @@ export function validatePlatformIcon(icon) {
     (padding === 1 && last & 3)
   )
     invalid();
-  // Decode only the signature, using the same implementation in browsers and GAS.
+  // Decode only the signature using the portable implementation.
   const bytes = [];
   for (let i = 0; i < Math.min(icon.base64.length, 32); i += 4) {
     const value =

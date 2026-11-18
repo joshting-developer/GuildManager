@@ -1,4 +1,5 @@
 <script setup>
+import { VSwitch } from 'vuetify/components';
 import DataLoading from '../components/DataLoading.vue';
 import { computed, inject, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import {
@@ -21,7 +22,7 @@ import './members.css';
 import MemberImportDialog from './MemberImportDialog.vue';
 import MemberMaintenanceDialog from './MemberMaintenanceDialog.vue';
 
-const client = createMemberClient({ source: import.meta.env.VITE_DATA_SOURCE || 'local' });
+const client = createMemberClient();
 const auth = inject('calendarAuth', null);
 const canMaintain = computed(() => ['admin', 'manager'].includes(auth?.user.value?.role));
 const members = ref([]);

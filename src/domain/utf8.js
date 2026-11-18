@@ -1,4 +1,4 @@
-// GAS V8 has no browser TextEncoder; keep byte validation portable.
+// Keep byte validation portable across runtimes.
 export function utf8Bytes(value) {
   const bytes = [];
   for (const character of value) {

@@ -1,11 +1,6 @@
-import { callGas } from './gas.js';
 import { sessionFetch } from './session.js';
-export function createLineupClient({ source = 'local', fetchImpl = sessionFetch, googleRun } = {}) {
-  if (!['local', 'gas'].includes(source)) throw new Error('未知的資料來源設定');
-  async function call(name, path, method = 'GET', input, args = []) {
-    if (source === 'gas') {
-      return callGas(name, input ? [input] : args, googleRun);
-    }
+export function createLineupClient({ fetchImpl = sessionFetch } = {}) {
+  async function call(path, method = 'GET', input) {
     let response;
     try {
       response = await fetchImpl(`/api/lineups${path}`, {
@@ -34,39 +29,26 @@ export function createLineupClient({ source = 'local', fetchImpl = sessionFetch,
     // { include: 'default' } also returns the nearest battle's versions and sign-ups.
     getIndex: (options) =>
       options
-        ? call('getLineupIndex', `?include=${encodeURIComponent(options.include)}`, 'GET', null, [options])
-        : call('getLineupIndex', ''),
-    getEditor: (eventId = null) => call('getLineupEditor',
-      `/editor${eventId ? `?eventId=${encodeURIComponent(eventId)}` : ''}`, 'GET', null, [eventId]),
-    getEvent: (id, { includeCatalogs = false } = {}) => call('getLineupEvent',
-      `/events/${encodeURIComponent(id)}/current?includeCatalogs=${includeCatalogs}`, 'GET', null, [id, includeCatalogs]),
-    getTemplates: () => call('getLineupTemplates', '/templates'),
-    getSources: (id) => call('getLineupSources', `/events/${encodeURIComponent(id)}/sources`, 'GET', null, [id]),
+        ? call(`?include=${encodeURIComponent(options.include)}`, 'GET', null)
+        : call(''),
+    getEditor: (eventId = null) => call(`/editor${eventId ? `?eventId=${encodeURIComponent(eventId)}` : ''}`, 'GET', null),
+    getEvent: (id, { includeCatalogs = false } = {}) => call(`/events/${encodeURIComponent(id)}/current?includeCatalogs=${includeCatalogs}`, 'GET', null),
+    getTemplates: () => call('/templates'),
+    getSources: (id) => call(`/events/${encodeURIComponent(id)}/sources`, 'GET', null),
     getHistory: (id) =>
-      call('getLineupHistory', `/events/${encodeURIComponent(id)}`, 'GET', null, [id]),
-    confirm: (input) => call('confirmLineup', '/confirm', 'POST', input),
+      call(`/events/${encodeURIComponent(id)}`, 'GET', null),
+    confirm: (input) => call('/confirm', 'POST', input),
     // Permanently removes a 本場外援 registration (managers only).
     deleteGuest: (eventId, id, revision) =>
-      source === 'gas'
-        ? callGas('deleteGuestRegistration', [eventId, id, revision], googleRun)
-        : call(
-            'deleteGuestRegistration',
-            `/events/${encodeURIComponent(eventId)}/guests/${encodeURIComponent(id)}`,
-            'DELETE',
-            { revision },
+      call(
+            `/events/${encodeURIComponent(eventId)}/guests/${encodeURIComponent(id)}`, 'DELETE', { revision },
           ),
-    createTemplate: (input) => call('createLineupTemplate', '/templates', 'POST', input),
+    createTemplate: (input) => call('/templates', 'POST', input),
     deleteTemplate: (id) =>
-      source === 'gas'
-        ? callGas('deleteLineupTemplate', [id], googleRun)
-        : call('deleteLineupTemplate', `/templates/${encodeURIComponent(id)}`, 'DELETE', {}),
+      call(`/templates/${encodeURIComponent(id)}`, 'DELETE', {}),
     applyTemplate: (id, eventId) =>
       call(
-        'applyLineupTemplate',
-        `/templates/${encodeURIComponent(id)}/apply/${encodeURIComponent(eventId)}`,
-        'GET',
-        null,
-        [id, eventId],
+        `/templates/${encodeURIComponent(id)}/apply/${encodeURIComponent(eventId)}`, 'GET', null,
       ),
   };
 }

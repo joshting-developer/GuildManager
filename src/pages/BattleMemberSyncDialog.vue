@@ -5,7 +5,7 @@ import { createBattleSyncClient } from '../api/battle-sync.js';
 
 const props = defineProps({ modelValue: Boolean });
 const emit = defineEmits(['update:modelValue']);
-const client = createBattleSyncClient({ source: import.meta.env.VITE_DATA_SOURCE || 'local' });
+const client = createBattleSyncClient();
 const id = useId();
 const preview = ref(null);
 const loading = ref(false);

@@ -9,7 +9,7 @@ import { eventTypeLabel } from '../domain/event-types.js';
 
 const props = defineProps({ modelValue: Boolean, recordId: { type: String, required: true } });
 const emit = defineEmits(['update:modelValue', 'updated']);
-const client = createBattleRecordClient({ source: import.meta.env.VITE_DATA_SOURCE || 'local' });
+const client = createBattleRecordClient();
 const id = useId();
 const record = ref(null);
 const form = ref(null);

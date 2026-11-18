@@ -1,21 +1,8 @@
-import { callGas } from './gas.js';
 import { sessionFetch } from './session.js';
 export function createParticipationClient({
-  source = 'local',
   fetchImpl = sessionFetch,
-  googleRun,
-  onBusyRetry,
 } = {}) {
-  if (!['local', 'gas'].includes(source)) throw new Error('未知的資料來源設定');
   async function call(operation, eventId, method = 'GET', input, registrationId) {
-    if (source === 'gas') {
-      const args = registrationId
-        ? [eventId, registrationId, input.revision]
-        : input
-          ? [eventId, input]
-          : [eventId];
-      return callGas(operation, args, googleRun, { onBusyRetry });
-    }
     const path = registrationId
       ? `registrations/${encodeURIComponent(registrationId)}`
       : ['getEventAttendance', 'cancelEventLeave'].includes(operation)

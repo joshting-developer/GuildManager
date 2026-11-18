@@ -1,16 +1,10 @@
-import { callGas } from './gas.js';
+import { unpackPersonalBattles } from '../domain/personal-battle-transport.js';
 import { sessionFetch } from './session.js';
 
-// The nine professions rarely change, yet several pages request them; each GAS call
-// costs ~2 s. Share one in-flight/settled request per transport for the page's lifetime.
+// Share profession reads per HTTP transport for the page lifetime.
 const professionCache = new WeakMap();
-const DEFAULT_GAS = {};
-export function createMemberClient({ source = 'local', fetchImpl = sessionFetch, googleRun } = {}) {
-  if (!['local', 'gas'].includes(source)) throw new Error('未知的資料來源設定');
-  async function call(method, path, body, operation, args = []) {
-    if (source === 'gas') {
-      return callGas(operation, args, googleRun);
-    }
+export function createMemberClient({ fetchImpl = sessionFetch } = {}) {
+  async function call(method, path, body) {
     let response;
     try {
       response = await fetchImpl(`/api/${path}`, {
@@ -37,20 +31,16 @@ export function createMemberClient({ source = 'local', fetchImpl = sessionFetch,
     return data;
   }
   return {
-    getParticipationMembers: () => call('GET', 'calendar/members', null, 'getParticipationMembers'),
-    getMembers: () => call('GET', 'members', null, 'getMembers'),
+    getParticipationMembers: () => call('GET', 'calendar/members', null),
+    getMembers: () => call('GET', 'members', null),
     getBattleRecords: (uid, page = 1, filters = {}) =>
       call(
-        'GET',
-        `members/${encodeURIComponent(uid)}/battle-records?${new URLSearchParams({ page, ...filters })}`,
-        null,
-        'getMemberBattleRecords',
-        [uid, page, filters],
-      ),
+        'GET', `members/${encodeURIComponent(uid)}/battle-records?${new URLSearchParams({ page, ...filters })}`, null,
+      ).then(unpackPersonalBattles),
     getProfessions() {
-      const key = source === 'gas' ? googleRun || DEFAULT_GAS : fetchImpl;
+      const key = fetchImpl;
       if (!professionCache.has(key)) {
-        const request = call('GET', 'professions', null, 'getProfessions');
+        const request = call('GET', 'professions', null);
         professionCache.set(key, request);
         // A failed read must not stick; the next caller retries.
         request.catch(() => professionCache.delete(key));
@@ -58,23 +48,20 @@ export function createMemberClient({ source = 'local', fetchImpl = sessionFetch,
       return professionCache.get(key);
     },
     previewMemberImport: (input) =>
-      call('POST', 'members/import/preview', input, 'previewMemberImport', [input]),
-    importMembers: (input) => call('POST', 'members/import', input, 'importMembers', [input]),
-    addMember: (input) => call('POST', 'members', input, 'addMember', [input]),
+      call('POST', 'members/import/preview', input),
+    importMembers: (input) => call('POST', 'members/import', input),
+    addMember: (input) => call('POST', 'members', input),
     updateMember: (uid, input) =>
-      call('PATCH', `members/${encodeURIComponent(uid)}`, input, 'updateMember', [uid, input]),
+      call('PATCH', `members/${encodeURIComponent(uid)}`, input),
     getMemberMaintenance: (uid) =>
-      call('GET', `members/${encodeURIComponent(uid)}/maintenance`, null, 'getMemberMaintenance', [uid]),
+      call('GET', `members/${encodeURIComponent(uid)}/maintenance`, null),
     maintainMember: (uid, input) =>
-      call('PATCH', `members/${encodeURIComponent(uid)}/maintenance`, input, 'maintainMember', [uid, input]),
+      call('PATCH', `members/${encodeURIComponent(uid)}/maintenance`, input),
     saveMemberNameHistory: (uid, input) =>
-      call('PATCH', `members/${encodeURIComponent(uid)}/history`, input, 'saveMemberNameHistory', [uid, input]),
+      call('PATCH', `members/${encodeURIComponent(uid)}/history`, input),
     deleteMemberPermanently: (uid, input) =>
-      call('POST', `members/${encodeURIComponent(uid)}/permanent-delete`, input, 'deleteMemberPermanently', [uid, input]),
+      call('POST', `members/${encodeURIComponent(uid)}/permanent-delete`, input),
     removeMember: (uid, revision) =>
-      call('DELETE', `members/${encodeURIComponent(uid)}`, { revision }, 'removeMember', [
-        uid,
-        revision,
-      ]),
+      call('DELETE', `members/${encodeURIComponent(uid)}`, { revision }),
   };
 }

@@ -26,9 +26,8 @@ import BattleAttributionDialog from './BattleAttributionDialog.vue';
 import { memberAffiliation, battlePlayerName, battlePlayerMember, battleRosterIndex } from '../domain/battle-attributions.js';
 const props = defineProps({ initialEventId: { type: String, default: null } });
 
-const source = import.meta.env.VITE_DATA_SOURCE || 'local';
-const client = createBattleRecordClient({ source }),
-  eventClient = createEventClient({ source });
+const client = createBattleRecordClient(),
+  eventClient = createEventClient();
 const csvInputs = {};
 const files = ref([]);
 const roster = shallowRef([]), rosterLoading = ref(true), rosterError = ref('');
@@ -379,7 +378,7 @@ async function loadEvents() {
   eventsLoading.value = true;
   eventError.value = '';
   try {
-    const result = await eventClient.getEvents();
+    const result = await eventClient.getAllEvents();
     if (!Array.isArray(result.events)) throw new Error('場次資料格式不正確, 請重新載入');
     if (!disposed && token === eventsToken) {
       // Data is uploaded after a battle: today or the latest past session comes first.

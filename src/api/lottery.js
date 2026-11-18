@@ -1,17 +1,11 @@
-import { callGas } from './gas.js';
 import { sessionFetch } from './session.js';
 
 export function createLotteryClient({
-  source = 'local',
   fetchImpl = sessionFetch,
-  googleRun,
 } = {}) {
-  if (!['local', 'gas'].includes(source)) throw new Error('未知的資料來源設定');
   async function call(method, path, input, operation) {
     const data =
-      source === 'gas'
-        ? await callGas(operation, input === undefined ? [] : [input], googleRun)
-        : await http(method, path, input);
+      await http(method, path, input);
     if (!validBoard(data?.lottery) || (operation === 'drawLotteryPrize' && !validDraw(data.draw)))
       throw new Error('抽獎資料回應格式不正確，請重新載入');
     return { ...data, lottery: normalizeBoard(data.lottery) };
@@ -53,7 +47,7 @@ export function createLotteryClient({
           prize &&
           typeof prize.id === 'string' &&
           typeof prize.name === 'string' &&
-          // google.script.run may drop null-valued fields, so a missing winner means undrawn.
+          // A missing winner means undrawn.
           (prize.winner == null || typeof prize.winner === 'string'),
       ) &&
       Number.isSafeInteger(board.revision)

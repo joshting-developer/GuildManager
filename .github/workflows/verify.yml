@@ -1,0 +1,61 @@
+name: Verify
+
+on:
+  workflow_call:
+  pull_request:
+  push:
+    branches: [main, patch-2.0.0]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: synthetic-ci-root-password
+          MYSQL_ROOT_HOST: '%'
+        ports:
+          - 3306/tcp
+        options: >-
+          --health-cmd="mysqladmin ping --protocol=TCP -h 127.0.0.1 -psynthetic-ci-root-password --silent"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=20
+    env:
+      GUILD_MYSQL_TEST_CONFIG: .local/ci/mysql-test.json
+      GUILD_MYSQL_MIGRATION_TEST_CONFIG: .local/ci/mysql-migration-test.json
+      GUILD_MYSQL_SCHEMA_TEST_CONFIG: .local/ci/mysql-schema-test.json
+      GUILD_MYSQL_REPOSITORY_TEST_CONFIG: .local/ci/mysql-repository-test.json
+      GUILD_MYSQL_TEST_CA: .local/ci/mysql-ca.pem
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - run: npm ci --no-audit --no-fund
+      - name: Create disposable test schemas
+        env:
+          CI_MYSQL_PORT: ${{ job.services.mysql.ports[3306] }}
+          CI_MYSQL_ROOT_PASSWORD: synthetic-ci-root-password
+        run: node tools/setup-ci-mysql.js
+      - name: Copy public test CA
+        run: docker cp '${{ job.services.mysql.id }}:/var/lib/mysql/ca.pem' .local/ci/mysql-ca.pem
+      - run: npm test
+      - run: python3 tests/backup-local.test.py
+      - run: python3 tests/prepare-fly-deploy.test.py
+      - run: npm run build
+      - run: docker build -t guild-manager:ci-production .
+      - run: docker build --target development -t guild-manager:ci-development .

@@ -38,7 +38,7 @@ const modules = [
     title: '出勤紀錄',
     icon: mdiClipboardTextOutline,
     color: 'green',
-    description: '活動參與與出勤紀錄。',
+    description: '登記到場情況與查詢請假紀錄。',
   },
   {
     id: 'battle-upload',
@@ -75,6 +75,7 @@ const openable = [
   'lineups',
   'battle-upload',
   'battle-records',
+  'attendance',
   'lottery',
   'release-notes',
 ];

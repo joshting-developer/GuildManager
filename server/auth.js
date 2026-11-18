@@ -1,4 +1,4 @@
-import { AuthError, SESSION_SECONDS, csrfToken } from './auth-repository.js';
+import { AuthError, SESSION_SECONDS, csrfToken } from './mysql/auth-repository.js';
 
 const COOKIE_NAME = 'guild_session';
 function readToken(request) {
@@ -6,11 +6,11 @@ function readToken(request) {
   const matches = cookies.filter((value) => value.startsWith(`${COOKIE_NAME}=`));
   return matches.length === 1 ? matches[0].slice(COOKIE_NAME.length + 1) : null;
 }
-function cookieOptions() {
+function cookieOptions(secure) {
   return {
     httpOnly: true,
     sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    secure,
     path: '/api',
   };
 }
@@ -27,7 +27,7 @@ function memberManagementRequest(request) {
     return request.method === 'POST';
   return /^\/members\/[^/]+$/.test(request.path) && request.method === 'PATCH';
 }
-function publicRequest(request, repository) {
+async function publicRequest(request, repository) {
   const path = request.path;
   if (
     request.method === 'GET' &&
@@ -60,19 +60,19 @@ function publicRequest(request, repository) {
   } catch {
     throw new AuthError(422, 'INVALID_EVENT', '場次資料格式不正確');
   }
-  const requiresLogin = repository.participationRequiresLogin(eventId);
+  const requiresLogin = await repository.participationRequiresLogin(eventId);
   request.participationLoginRequired = requiresLogin;
   // All battle calendar operations are public; authenticated writes still require CSRF.
   return !requiresLogin && (!request.auth || request.method === 'GET');
 }
 
-export function installAuth(app, repository, { now = Date.now } = {}) {
+export function installAuth(app, repository, { now = Date.now, secureCookies = process.env.NODE_ENV === 'production' } = {}) {
   const failures = new Map();
-  app.use('/api', (request, response, next) => {
+  app.use('/api', async (request, response, next) => {
     response.set('Cache-Control', 'no-store');
     request.sessionToken = readToken(request);
-    request.auth = repository.getSession(request.sessionToken);
-    if (publicRequest(request, repository)) return next();
+    request.auth = await repository.getSession(request.sessionToken);
+    if (await publicRequest(request, repository)) return next();
     if (!request.auth)
       return next(
         new AuthError(
@@ -98,7 +98,8 @@ export function installAuth(app, repository, { now = Date.now } = {}) {
           'member 登入可使用行事曆、成員清單與戰績閱覽，其他管理操作需要管理者帳號',
         ),
       );
-    if (request.path.startsWith('/admin') && request.auth.user.role !== 'admin')
+    // Express matches routes without case sensitivity; the authorization guard must agree.
+    if (request.path.toLowerCase().startsWith('/admin') && request.auth.user.role !== 'admin')
       return next(new AuthError(403, 'ADMIN_REQUIRED', '只有 admin 可以管理帳號'));
     if (
       ['POST', 'PATCH', 'DELETE'].includes(request.method) &&
@@ -134,9 +135,9 @@ export function installAuth(app, repository, { now = Date.now } = {}) {
       ? repository.authenticateMember(request.body)
       : repository.authenticate(request.body));
     failures.delete(key);
-    repository.revokeSession(request.sessionToken);
+    await repository.revokeSession(request.sessionToken);
     response.cookie(COOKIE_NAME, session.token, {
-      ...cookieOptions(),
+      ...cookieOptions(secureCookies),
       maxAge: SESSION_SECONDS * 1000,
     });
     response.json({
@@ -147,8 +148,8 @@ export function installAuth(app, repository, { now = Date.now } = {}) {
   };
   app.post('/api/auth/login', login(false));
   app.post('/api/auth/member-login', login(true));
-  app.post('/api/auth/logout', (request, response) => {
-    repository.revokeSession(request.sessionToken);
-    response.clearCookie(COOKIE_NAME, cookieOptions()).json({ user: null });
+  app.post('/api/auth/logout', async (request, response) => {
+    await repository.revokeSession(request.sessionToken);
+    response.clearCookie(COOKIE_NAME, cookieOptions(secureCookies)).json({ user: null });
   });
 }

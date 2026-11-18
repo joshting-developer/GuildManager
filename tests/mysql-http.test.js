@@ -1,0 +1,22 @@
+// HTTP contract checks against the real Express app on an isolated MySQL schema (one process, serialized).
+await import('./mysql-http/access.test.js');
+await import('./mysql-http/events.test.js');
+await import('./mysql-http/members.test.js');
+await import('./mysql-http/participation.test.js');
+await import('./mysql-http/lineups.test.js');
+await import('./mysql-http/battle-records.test.js');
+await import('./mysql-http/platform.test.js');
+await import('./mysql-http/startup.test.js');
+await import('./mysql-http/auth.test.js');
+await import('./mysql-http/account-cli.test.js');
+await import('./mysql-http/health.test.js');
+await import('./mysql-http/shutdown.test.js');
+await import('./mysql-http/notifications.test.js');
+
+await import('./mysql-http/file-metadata.test.js');
+
+await import('./mysql-http/media-regression.test.js');
+
+await import('./mysql-http/site.test.js');
+
+await import('./mysql-http/attendance.test.js');

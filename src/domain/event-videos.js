@@ -1,4 +1,4 @@
-// Keep persisted values stable for old videos, SQLite constraints and request retries.
+// Keep persisted values stable for old videos and request retries.
 export const VIDEO_GROUP_OPTIONS = [
   { title: '進攻團', value: '進攻一' },
   { title: '機動團', value: '進攻二' },
@@ -30,7 +30,7 @@ function text(value, label, max, field, required = true, multiline = false) {
     });
   return value.trim();
 }
-// Apps Script V8 has no Web URL constructor; keep validation identical on both backends.
+// Keep URL validation portable and consistent across runtimes.
 function isHttpVideoUrl(url) {
   const match = /^https?:\/\/([^/?#]+)(?:[/?#][^\s\\]*)?$/i.exec(url);
   if (!match || /[\s@\\%]/.test(match[1])) return false;
@@ -78,10 +78,8 @@ export function validateVideoDetails(input, { allowMissingGroup = false, allowMi
 export function validateVideoSubmission(input) {
   const details = validateVideoDetails(input);
   const requestId = text(input.requestId, '提交識別碼', 128, 'requestId');
-  if (!Number.isSafeInteger(input.eventRevision) || input.eventRevision < 1)
-    throw new EventVideoError('場次版本不正確，請重新載入場次');
   const memberUid = input.memberUid === undefined ? null : text(input.memberUid, '成員資料', 64, 'name');
-  return { ...details, requestId, eventRevision: input.eventRevision, ...(memberUid ? { memberUid } : {}) };
+  return { ...details, requestId, ...(memberUid ? { memberUid } : {}) };
 }
 
 export function validateVideoProfessionUpdate(eventId, videoId, input) {

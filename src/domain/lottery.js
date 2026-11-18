@@ -1,4 +1,4 @@
-// Shared by the SQLite API and the GAS backend; avoid Node or browser-only APIs.
+// Pure lottery rules; avoid runtime-specific APIs.
 export const LOTTERY_MAX_PLAYERS = 500;
 export const LOTTERY_MAX_PRIZES = 200;
 const PLAYER_MAX_LENGTH = 64;

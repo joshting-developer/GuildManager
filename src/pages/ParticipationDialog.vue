@@ -1,4 +1,5 @@
 <script setup>
+import ParticipationToasts from '../components/ParticipationToasts.vue';
 import DataLoading from '../components/DataLoading.vue';
 import { computed, ref, watch, inject, onUnmounted } from 'vue';
 import { createParticipationClient } from '../api/participation.js';
@@ -6,16 +7,16 @@ import { eventDisplayTitle, eventTypeLabel } from '../domain/event-types.js';
 import VideoUploadForm from './VideoUploadForm.vue';
 import NameSourcePicker from './NameSourcePicker.vue';
 import { participationTarget } from '../domain/participation-target.js';
+import { hasProfession, inNameSource } from '../domain/member-choices.js';
 import { isPastBattleEvent, taipeiToday } from '../domain/battle-events.js';
 const props = defineProps({ modelValue: Boolean, event: { type: Object, required: true }, today: { type: String, default: () => taipeiToday() }, showCounts: Boolean });
 const pastEvent = computed(() => isPastBattleEvent(props.event, props.today));
 const emit = defineEmits(['update:modelValue', 'closed', 'event-refreshed']);
-const source = import.meta.env.VITE_DATA_SOURCE || 'local';
-const client = createParticipationClient({ source, onBusyRetry: () => { retrying.value = true; } });
+const client = createParticipationClient();
 const calendarAuth = inject('calendarAuth', null);
 const authLoading = computed(() => !!calendarAuth?.loading.value);
 const members = ref([]),
-  nameSource = ref('manual'),
+  nameSource = ref('guild'),
   selectedMemberUid = ref(null);
 const selectedMember = computed(() =>
   members.value.find((member) => member.uid === selectedMemberUid.value),
@@ -23,15 +24,13 @@ const selectedMember = computed(() =>
 const professions = ref([]),
   responses = ref([]),
   registrations = ref([]),
-  registrationLeaves = ref([]),
-  revision = ref('');
+  registrationLeaves = ref([]);
 const loading = ref(true),
   busy = ref(false),
-  retrying = ref(false),
   loadError = ref(''),
-  error = ref(''),
-  notice = ref('');
+  error = ref('');
 const tab = ref('form');
+const toastMessages = ref([]);
 watch(pastEvent, past => {
   if (past) tab.value = 'videos';
   else if (props.modelValue) load();
@@ -94,7 +93,7 @@ function resetForm() {
   attempt = null;
 }
 // After a submit only this battle's responses change; professions and the roster are
-// reused so the dialog makes one backend call instead of three (each GAS call ≈ 2 s).
+// reused so the dialog makes one backend call instead of three.
 async function load({ participationOnly = false } = {}) {
   if (authLoading.value) return;
   const videoOnly = pastEvent.value;
@@ -115,10 +114,8 @@ async function load({ participationOnly = false } = {}) {
       (videoOnly
         ? participation.event?.id !== props.event.id ||
           !['scrimmage', 'guild_war', 'dragon_tiger'].includes(participation.event?.type) ||
-          participation.event?.dates?.length !== 1 ||
-          !Number.isSafeInteger(participation.event?.revision)
-        : typeof participation.revision !== 'string' ||
-          !Array.isArray(participation.responses) ||
+          participation.event?.dates?.length !== 1
+        : !Array.isArray(participation.responses) ||
           !Array.isArray(participation.registrations) ||
           !Array.isArray(participation.registrationLeaves)) ||
       !Array.isArray(jobs.professions) ||
@@ -129,16 +126,9 @@ async function load({ participationOnly = false } = {}) {
     responses.value = videoOnly ? [] : participation.responses;
     registrations.value = videoOnly ? [] : participation.registrations;
     registrationLeaves.value = videoOnly ? [] : participation.registrationLeaves;
-    revision.value = videoOnly ? '' : participation.revision;
     members.value = roster.members;
     if (videoOnly) emit('event-refreshed', participation.event);
-    if (
-      selectedMemberUid.value &&
-      (!selectedMember.value ||
-        (nameSource.value === 'guild'
-          ? !selectedMember.value.isInGuild
-          : !selectedMember.value.isInClub))
-    ) {
+    if (selectedMemberUid.value && !memberEligible()) {
       selectedMemberUid.value = null;
       name.value = '';
       error.value = '成員已不在此名單內, 請重新選擇';
@@ -152,18 +142,20 @@ async function load({ participationOnly = false } = {}) {
 watch(status, () => {
   error.value = '';
 });
-watch(nameSource, () => {
-  selectedMemberUid.value = null;
-  name.value = '';
-  professionId.value = null;
+function memberEligible() {
+  return !!selectedMember.value && inNameSource(selectedMember.value, nameSource.value) &&
+    hasProfession(selectedMember.value, professionId.value);
+}
+// A hidden selection must never be submitted after the roster or profession filter changes.
+watch([nameSource, professionId], () => {
   error.value = '';
+  if (!selectedMemberUid.value || memberEligible()) return;
+  selectedMemberUid.value = null;
   attempt = null;
 });
 watch(selectedMemberUid, () => {
-  if (!selectedMember.value) return;
-  name.value = selectedMember.value.name;
-  professionId.value = selectedMember.value.primaryProfessionId;
-  error.value = '';
+  name.value = selectedMember.value?.name || '';
+  if (selectedMember.value) error.value = '';
 });
 watch([() => calendarAuth?.user.value?.id, authLoading], () => {
   if (!props.modelValue) return;
@@ -176,10 +168,10 @@ watch(
   () => props.modelValue,
   (open) => {
     if (open) {
-      notice.value = '';
+      toastMessages.value = [];
       tab.value = pastEvent.value ? 'videos' : 'form';
       status.value = 'registered';
-      nameSource.value = 'manual';
+      nameSource.value = 'guild';
       loading.value = false;
       resetForm();
       videoSession.value++;
@@ -212,36 +204,27 @@ async function submit() {
   }
   if (busy.value || loading.value || authLoading.value) return;
   error.value = '';
-  notice.value = '';
-  if (!name.value.trim()) {
-    error.value = '請填寫名稱';
-    return;
-  }
-  if (nameSource.value !== 'manual' && !selectedMember.value) {
-    error.value = '請選擇成員';
-    return;
-  }
-  if (status.value === 'registered' && !professionId.value) {
+  if (!professionId.value) {
     error.value = '請選擇職業';
     return;
   }
+  if (!memberEligible()) {
+    error.value = '請選擇成員';
+    return;
+  }
   busy.value = true;
-  retrying.value = false;
   const input = {
     name: name.value.trim(),
     professionId: status.value === 'registered' ? professionId.value : null,
     status: status.value,
     note: note.value.trim(),
-    revision: revision.value,
-    ...(nameSource.value !== 'manual'
-      ? { memberUid: selectedMemberUid.value }
-      : {}),
+    memberUid: selectedMemberUid.value,
   };
   const person = participationTarget(input, {
     members: members.value, responses: responses.value,
     registrations: registrations.value, registrationLeaves: registrationLeaves.value,
   });
-  if (person) input.expectedParticipant = { eventRevision: props.event.revision, person };
+  input.expectedParticipant = { person };
   const encoded = JSON.stringify(input);
   if (attempt?.encoded !== encoded) attempt = { encoded, requestId: crypto.randomUUID() };
   try {
@@ -256,18 +239,18 @@ async function submit() {
     )
       throw new Error('回應格式不正確, 請重試以確認結果');
     resetForm();
-    notice.value = input.status === 'registered' ? '報名成功' : '請假成功';
+    toastMessages.value = [input.status === 'registered' ? '報名成功' : '請假成功', ...(input.status === 'leave' && typeof result.care?.message === 'string' ? [result.care.message] : [])];
     await load({ participationOnly: true });
   } catch (cause) {
     error.value = cause.message;
   } finally {
     busy.value = false;
-    retrying.value = false;
   }
 }
 </script>
 
 <template>
+  <ParticipationToasts :messages="toastMessages" />
   <v-dialog
     :model-value="modelValue"
     max-width="640"
@@ -337,15 +320,20 @@ async function submit() {
         >
           <DataLoading v-if="authLoading">正在確認登入狀態…</DataLoading>
           <DataLoading v-else-if="loading">正在載入本場報名資料…</DataLoading>
-          <v-alert v-else-if="loadError" type="error" variant="tonal" role="alert">{{ loadError }}</v-alert>
+          <v-alert v-else-if="loadError" type="error" variant="tonal" role="alert">
+            {{ loadError }}
+            <v-btn variant="text" @click="load()">重試</v-btn>
+          </v-alert>
           <form v-else class="participation-form" @submit.prevent="submit">
             <NameSourcePicker
               v-model:source="nameSource"
               v-model:name="name"
               v-model:member-uid="selectedMemberUid"
+              v-model:profession-id="professionId"
               :members="members"
               :professions="professions"
               :disabled="busy"
+              filter-by-profession
               id-prefix="participation-name"
             />
             <v-select
@@ -360,19 +348,6 @@ async function submit() {
               :disabled="busy"
               hide-details
             />
-            <v-select
-              v-if="status === 'registered'"
-              v-model="professionId"
-              :items="professions"
-              item-title="name"
-              item-value="job_id"
-              label="職業"
-              variant="outlined"
-              density="compact"
-              :disabled="busy"
-              hide-details
-              aria-required="true"
-            />
             <v-text-field
               v-model="note"
               label="備註（選填）"
@@ -382,7 +357,7 @@ async function submit() {
               :disabled="busy"
               hide-details
             />
-            <DataLoading v-if="busy" compact :spinner="false">{{ retrying ? '正在等候送出，內容已保留，請稍候…' : status === 'registered' ? '正在送出報名…' : '正在送出請假…' }}</DataLoading>
+            <DataLoading v-if="busy" compact :spinner="false">{{ status === 'registered' ? '正在送出報名…' : '正在送出請假…' }}</DataLoading>
             <v-btn type="submit" color="primary" :loading="busy" :disabled="busy">{{
               status === 'registered' ? '送出報名' : '送出請假'
             }}</v-btn>
@@ -452,9 +427,7 @@ async function submit() {
         <v-alert v-if="error && tab === 'form'" type="error" variant="tonal" role="alert">{{
           error
         }}</v-alert>
-        <v-alert v-if="notice && tab === 'form'" type="success" variant="tonal" role="status">{{
-          notice
-        }}</v-alert>
+
       </div>
       <div class="event-dialog-actions">
         <v-btn variant="outlined" :disabled="anyBusy" @click="close">關閉</v-btn>

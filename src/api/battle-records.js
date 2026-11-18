@@ -1,15 +1,8 @@
-import { callGas } from './gas.js';
 import { sessionFetch } from './session.js';
 export function createBattleRecordClient({
-  source = 'local',
   fetchImpl = sessionFetch,
-  googleRun,
 } = {}) {
-  if (!['local', 'gas'].includes(source)) throw new Error('未知的資料來源設定');
-  async function call(operation, path, input, args = [], method = 'POST') {
-    if (source === 'gas') {
-      return callGas(operation, args, googleRun);
-    }
+  async function call(path, input, method = 'POST') {
     let response;
     try {
       response = await fetchImpl(
@@ -41,15 +34,14 @@ export function createBattleRecordClient({
   return {
     async getUploadRoster() {
       let data;
-      if (source === 'gas') data = await callGas('getBattleUploadRoster', [], googleRun);
-      else {
-        let response;
-        try { response = await fetchImpl('/api/battle-upload/roster'); }
-        catch { throw new Error('名冊讀取失敗，請確認連線後重試'); }
-        try { data = await response.json(); }
-        catch { throw new Error('名冊格式不正確，請重試'); }
-        if (!response.ok) throw Object.assign(new Error(data.error?.message || '名冊讀取失敗，請重試'), { code: data.error?.code });
-      }
+
+      let response;
+      try { response = await fetchImpl('/api/battle-upload/roster'); }
+      catch { throw new Error('名冊讀取失敗，請確認連線後重試'); }
+      try { data = await response.json(); }
+      catch { throw new Error('名冊格式不正確，請重試'); }
+      if (!response.ok) throw Object.assign(new Error(data.error?.message || '名冊讀取失敗，請重試'), { code: data.error?.code });
+
       if (!Array.isArray(data?.members) || data.members.some(member => !member || typeof member.uid !== 'string' ||
           !member.uid || typeof member.name !== 'string' || !Number.isSafeInteger(member.revision) || member.revision < 1 ||
           typeof member.isInGuild !== 'boolean' || typeof member.isInClub !== 'boolean' || typeof member.profession !== 'string'))
@@ -58,29 +50,19 @@ export function createBattleRecordClient({
     },
     getRecords: (page = 1, eventId = null) =>
       call(
-        'getBattleRecords',
-        `?page=${page}${eventId ? `&eventId=${encodeURIComponent(eventId)}` : ''}`,
-        undefined,
-        [page, eventId],
+        `?page=${page}${eventId ? `&eventId=${encodeURIComponent(eventId)}` : ''}`, undefined,
       ),
-    getMetadata: (id) => call('getBattleMetadata', `/${encodeURIComponent(id)}/metadata`, undefined, [id]),
-    getRecord: (id, options) => call('getBattleRecord',
-      `/${encodeURIComponent(id)}${options ? `?${new URLSearchParams(options)}` : ''}`,
-      undefined, options ? [id, options] : [id]),
-    getTeamAnalysis: (id) => call('getBattleTeamAnalysis', `/${encodeURIComponent(id)}/team-analysis`, undefined, [id]),
-    saveRecords: (input) => call('saveBattleRecords', '', input, [input]),
+    getMetadata: (id) => call(`/${encodeURIComponent(id)}/metadata`, undefined),
+    getRecord: (id, options) => call(`/${encodeURIComponent(id)}${options ? `?${new URLSearchParams(options)}` : ''}`, undefined),
+    getTeamAnalysis: (id) => call(`/${encodeURIComponent(id)}/team-analysis`, undefined),
+    saveRecords: (input) => call('', input),
     updateRecord: (id, input) =>
-      call('updateBattleRecord', `/${encodeURIComponent(id)}`, input, [id, input], 'PATCH'),
+      call(`/${encodeURIComponent(id)}`, input, 'PATCH'),
     deleteRecord: (id, revision) =>
-      call('deleteBattleRecord', `/${encodeURIComponent(id)}`, { revision }, [id, revision], 'DELETE'),
+      call(`/${encodeURIComponent(id)}`, { revision }, 'DELETE'),
     async getAttachment(id, kind) {
       if (!['csv', 'image'].includes(kind)) throw new Error('未知附件類型');
-      if (source === 'gas') {
-        const result = await call('getBattleAttachment', '', undefined, [id, kind]);
-        return new Blob([Uint8Array.from(atob(result.base64), (char) => char.charCodeAt(0))], {
-          type: result.mimeType,
-        });
-      }
+
       let response;
       try {
         response = await fetchImpl(

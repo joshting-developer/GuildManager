@@ -51,10 +51,9 @@ function setFocusMode(value) {
     else if (focusOpener?.isConnected) focusOpener.focus();
   });
 }
-const source = import.meta.env.VITE_DATA_SOURCE || 'local';
-const client = createLineupClient({ source });
-const memberClient = createMemberClient({ source });
-const participationClient = createParticipationClient({ source });
+const client = createLineupClient();
+const memberClient = createMemberClient();
+const participationClient = createParticipationClient();
 const participation = ref({ responses: [], registrations: [] });
 const memberTab = ref('guild');
 const participantPeople = computed(() => lineupPeople(members.value, participation.value));

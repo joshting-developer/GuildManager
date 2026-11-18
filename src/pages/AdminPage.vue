@@ -7,10 +7,8 @@ import { createPlatformSettingsClient, readPlatformIcon } from '../api/platform-
 import { validatePlatformSettings, platformIconSource } from '../domain/platform-settings.js';
 const emit = defineEmits(['platform-updated']);
 const client = createAdminClient({
-  source: import.meta.env.VITE_DATA_SOURCE || 'local',
 });
 const platformClient = createPlatformSettingsClient({
-  source: import.meta.env.VITE_DATA_SOURCE || 'local',
 });
 const platform = ref(null),
   platformName = ref('');

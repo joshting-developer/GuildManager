@@ -50,8 +50,3 @@ export function filterPersonalBattles(entries, filters) {
     );
   });
 }
-
-export function personalBattleProfessions(entries) {
-  return [...new Set(entries.map((entry) => entry.player.profession).filter(Boolean))]
-    .sort((a, b) => a.localeCompare(b, 'zh-TW'));
-}
