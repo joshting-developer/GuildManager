@@ -2,7 +2,7 @@
 
 前端使用 Vue 3、Vuetify 與 Vite, 由 `src/api/` 透過同源 `/api` 呼叫 Node.js／Express。元件不直接讀寫資料庫或檔案服務
 
-後端以 Route／Service／Repository／Domain 分工, 沿用 JavaScript ESM。`server/index.js` 只接 MySQL 非同步 Repository, 不回退 SQLite。詳細分層、交易及錯誤處理見 [Node.js 分層規範](docs/nodejs-architecture.md)
+後端以 Route／Service／Repository／Domain 分工, 沿用 JavaScript ESM。`server/index.js` 只接 MySQL 非同步 Repository。詳細分層、交易及錯誤處理見 [Node.js 分層規範](docs/nodejs-architecture.md)
 
 ## 儲存與啟動
 

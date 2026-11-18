@@ -28,7 +28,6 @@ services:
     volumes:
       - ./server:/app/server
       - ./src/domain:/app/src/domain
-      - guild_data:/data
     healthcheck:
       test:
         [
@@ -62,9 +61,6 @@ services:
       api:
         condition: service_healthy
     init: true
-volumes:
-  guild_data:
-
 networks:
   side-project:
     external: true

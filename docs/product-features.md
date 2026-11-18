@@ -76,7 +76,7 @@
 - 編外人員編輯勾選任一狀態即可返回成員, 同 UID 重新新增仍拒絕重複。
 - 成員頁新增預設 isInGuild=true、isInClub=false, 編外頁新增預設兩者 false；前端可直接調整, API 只接受 boolean, 不接受字串或數字。
 - 舊資料初次加入狀態欄位時依原在會狀態初始化, 俱樂部原未記錄設為 false；原先 removed_at 隱藏紀錄轉為兩者 false 的編外人員, 保留 UID、名稱／職業與歷史, 增加 revision。
-- API 回傳真正 boolean, SQLite 使用 is_in_guild／is_in_club 的 0／1, 重啟不重設。
+- API 回傳真正 boolean, MySQL 使用 is_in_guild／is_in_club 的 0／1, 重啟不重設。
 - 修改狀態會增加 revision, 不產生名稱歷史；舊客戶端編輯省略這兩欄會保留原值。
 
 ## 匯入成員
@@ -127,7 +127,7 @@ UID Name 主職業 副職業
 - 保存後即時更新目前頁面, 首頁月曆保留瀏覽月份並在各日期顯示同一筆安排；點安排名稱或手機筆數查看詳情, 格子其他範圍可再建立安排。
 - 未修改表單直接取消不會詢問放棄；修改後取消需確認, 儲存失敗保留輸入, 關閉後焦點返回原入口。
 - 日期保存 `YYYY-MM-DD`, 畫面顯示 `YYYY/MM/DD`, 不經瀏覽器時區轉換。
-- `scheduled_events(id, title, type, request_id, created_at, updated_at, revision, deleted_at)` 與 `event_dates(event_id, date)` 用 ID 關聯, SQLite 以交易保存。
+- `scheduled_events(id, title, type, request_id, created_at, updated_at, revision, deleted_at)` 與 `event_dates(event_id, date)` 用 ID 關聯, MySQL 以交易保存。
 - 同一 requestId、相同內容重試會取得原安排 ID, 改變內容會拒絕並要求重新載入；前端不自動重試失敗寫入。
 - `event_batches` 與 `event_batch_items` 保存批次請求及場次 ID, 整批寫入採同一交易, 部分失敗全部回滾, 重試不重複新增；已刪除場次不因重試重建。
 - 舊 `events` 表中的示範資料保留但不讀取, 不更動既有成員資料。
@@ -202,7 +202,7 @@ UID Name 主職業 副職業
 - 未儲存修改保留在目前頁面, 切換場次、套用範本取代、離開頁面或關閉分頁會提醒；沒有自動儲存。
 - 檢查內部版本與活動 revision 防止覆寫, 儲存失敗保留輸入, 更新成員清單保留目前排表；重試使用同一 requestId 避免重複儲存。
 - `lineup_versions` 保留既有版本／JSON 快照作相容及並行檢查, 以 event_id 關聯場次, 禁止 UPDATE／DELETE；`lineup_templates` 獨立保存可復用配置, 不自動把舊版本轉為範本, 空位用 null、UID 用文字。
-- 本機 SQLite 表透過新增初始化, 不搬移或覆寫既有成員／活動資料。
+- 資料表由 migration 建立, 不搬移或覆寫既有成員／活動資料。
 
 | 方法 | 路徑 | 用途 |
 | --- | --- | --- |
@@ -258,7 +258,7 @@ UID Name 主職業 副職業
 | GET | `/api/battle-records/:id/attachments/csv` | 原始 CSV 下載 |
 | GET | `/api/battle-records/:id/attachments/image` | 舊陣容圖片下載 |
 
-SQLite 追加 `battle_uploads`／`battle_records`, `round_number` 記錄場序、`our_side` 選填敵我、`winner` 可空、`is_internal` 保存內推 boolean；舊場序不回填, 舊勝方保存不變。附件存入原有資料 volume 的 SQLite, 不另依賴容器暫存檔。後端保留獨立戰績匯入相容契約, 新頁面一律選擇活動場次。
+MySQL 的 `battle_uploads`／`battle_records` 中, `round_number` 記錄場序、`our_side` 選填敵我、`winner` 可空、`is_internal` 保存內推 boolean；舊場序不回填, 舊勝方保存不變。附件存入 R2, MySQL 保存檔案資訊, 不依賴容器暫存檔。後端保留獨立戰績匯入相容契約, 新頁面一律選擇活動場次。
 
 ## 數據分析
 
@@ -277,8 +277,6 @@ SQLite 追加 `battle_uploads`／`battle_records`, `round_number` 記錄場序�
 所有帳號管理 API 僅 admin 可用且寫入須 CSRF, 不只隱藏入口。帳號保存 revision 並拒絕過期修改, 密碼不回傳前端, 失敗保留輸入。私有 `data/local-admin.json` 不會隨網頁改密碼同步更新, 需自行保管新密碼。
 
 三種戰鬥報名讀寫與舊成員回應／外援 API 均可匿名操作；有效登入修改仍須 CSRF。登入到期後保留公開操作，完整名冊及管理功能仍須有效登入。同名成員從場次名單選擇可用內部 UID 區分，直接填名仍拒絕歧義，一般活動不提供報名。
-
-若本機已安裝僅 admin／manager 的舊角色限制, 啟動時先備份完整 SQLite 至資料庫同目錄的 `*.before-member-role-*.sqlite`, 再於交易中擴充 member 角色；不更動既有密碼、角色、revision 或登入。Docker 的備份保存在 `guild_data` volume, 不提交至 Git。
 
 ## 共用成員通行密碼
 
@@ -310,7 +308,7 @@ member 改為固定後端帳號，所有介面及登入回應隱藏名稱。admi
 
 admin 可在「帳號管理 → 平台設定」修改左上角「逆水寒」，名稱最多 30 個字。保存後更新頂欄、頁尾及頁面標題，重新載入保留；manager／member／訪客僅可讀取。設定獨立於幫會名稱與戰績快照，現行設定由 Node API 保存。
 
-同一分頁可上傳／預覽／替換／移除平台圖示，支援 PNG、JPEG、WebP，最多 256 KB。選檔後按「儲存設定」才正式保存並顯示於頂欄；移除後亦需儲存，還原可放棄圖示草稿。未設定時只顯示名稱。本機圖片存 SQLite。
+同一分頁可上傳／預覽／替換／移除平台圖示，支援 PNG、JPEG、WebP，最多 256 KB。選檔後按「儲存設定」才正式保存並顯示於頂欄；移除後亦需儲存，還原可放棄圖示草稿。未設定時只顯示名稱。圖示存入 R2, MySQL 保存檔案資訊。
 
 成員清單與編外人員可同時篩選主職業及副職業，副職業含「無副職業」；未選時不篩選。職業、所屬與搜尋條件取交集，改條件回第一頁，「清除篩選」同時重設全部條件。
 
@@ -318,11 +316,11 @@ admin 可在「帳號管理 → 平台設定」修改左上角「逆水寒」，
 
 行事曆戰鬥場次的「影片上傳」提供直接輸入／幫會成員名單／龍虎戰成員名單三個名稱分頁，選人帶入主職業且可改；接續為必填職業、第一場網址（選填）、第二場網址（選填）、團別、備註（選填）與送出。角色名稱及職業必填，兩場網址至少填一個；團別顯示為進攻團／機動團／防守團，備註最多 500 字並支援換行。影片只接收完整 HTTP／HTTPS 連結，不接收影片檔案，不修改報名狀態或名冊。切換外層分頁及重新載入保留草稿，成功清除表單，失敗保留；關閉有草稿時確認。
 
-一次送出保存一筆角色提交（可包含一場或兩場連結）。同名、同網址均可多次提交，不合併或覆寫；僅相同 requestId 的失敗重試不新增。`POST /api/events/:id/videos` 檢查場次 revision、職業、所選成員、團別、網址與備註，保存當場職業名稱／色彩，SQLite 交易保存整筆；沒有部分寫入。三種戰鬥皆可匿名提交，已登入寫入須 CSRF。
+一次送出保存一筆角色提交（可包含一場或兩場連結）。同名、同網址均可多次提交，不合併或覆寫；僅相同 requestId 的失敗重試不新增。`POST /api/events/:id/videos` 檢查職業、所選成員、團別、網址與備註，保存當場職業名稱／色彩，MySQL 交易保存整筆；沒有部分寫入。三種戰鬥皆可匿名提交，已登入寫入須 CSRF。
 
 admin／manager 可使用「影片閱覽」`#/videos`，選擇場次後顯示角色名稱／職業／第一場連結／第二場連結／團別／備註六欄表格，支援團別篩選及名稱搜尋。網址是可選取複製的文字，不提供直接前往按鈕或外連。`GET /api/events/:id/videos` 僅限 admin／manager，member 與匿名不可讀取清單。舊影片職業顯示「未記錄」，不回填。名稱由提交者填寫或選取，不代表本人已驗證。
 
-SQLite 追加 `event_video_submissions` 保存雙場連結／團別／備註，`event_video_requests` 保存重試結果。舊 `event_videos` 逐場紀錄及舊團別保留並整合顯示，不按同名合併；未記錄的場次網址顯示 —，未記錄團別顯示「未記錄」。重啟保留資料，刪除或改為一般活動後停止讀寫但不刪資料。
+MySQL 以 `event_video_submissions` 保存雙場連結／團別／備註，`event_video_requests` 保存重試結果。舊 `event_videos` 逐場紀錄及舊團別保留並整合顯示，不按同名合併；未記錄的場次網址顯示 —，未記錄團別顯示「未記錄」。重啟保留資料，刪除或改為一般活動後停止讀寫但不刪資料。
 
 影片閱覽提供「匯出 CSV」，依目前團別／名稱篩選與表格順序輸出六欄（含職業），不讀取其他場次。UTF-8 BOM 保留中文，備註換行及引號正確轉義，公式字首以文字保存；載入、錯誤或無符合資料時停用匯出，失敗可重試。
 
@@ -332,13 +330,13 @@ SQLite 追加 `event_video_submissions` 保存雙場連結／團別／備註，`
 
 `GET /api/events/:id/attendance` 共用 DTO，回傳 eventId、leave、registered；列含 name／profession／colorcode／note，source／id／revision 僅供操作識別及版本檢查，不呈現在畫面。每次開啟重讀，包含載入、空名單、失敗／重試、手動重載及過期回應保護，成功後才顯示人數。
 
-請假列提供「取消請假」，透過 `PATCH /api/events/:id/attendance`。成員回應改回 none，保留職業、備註與名冊所屬狀態，幫會／俱樂部成員恢復可排表資格；外援恢復原報名 ID 及有效狀態。成員自行再次報名則改為 registered，也會解除請假，不轉成編外或建立外援。修改檢查 revision，資料已更新必須重載；相同成功操作可安全重試。本機使用 SQLite 交易。
+請假列提供「取消請假」，透過 `PATCH /api/events/:id/attendance`。成員回應改回 none，保留職業、備註與名冊所屬狀態，幫會／俱樂部成員恢復可排表資格；外援恢復原報名 ID 及有效狀態。成員自行再次報名則改為 registered，也會解除請假，不轉成編外或建立外援。修改檢查 revision，資料已更新必須重載；相同成功操作可安全重試。寫入使用 MySQL 交易。
 
 ## 已上傳對戰資訊編輯
 
 admin／manager 可由上傳數據已保存卡片，或數據分析詳情的「編輯對戰資訊」後補雙方名稱、我方及獲勝方。約戰可逐場開啟內推，保存時清除敵我／勝方；幫戰與龍虎戰不可設內推。member 只可閱讀，結果修改後重新讀取個人分析及清單會使用最新值。
 
-本機 `PATCH /api/battle-records/:id` 共用欄位驗證，檢查管理角色、CSRF、revision 及 requestId；SQLite 追加 revision（舊資料初值 0）與 battle_metadata_requests，交易保存修改和重試結果。
+`PATCH /api/battle-records/:id` 共用欄位驗證，檢查管理角色、CSRF、revision 及 requestId；MySQL 以 revision（舊資料初值 0）與 battle_metadata_requests，在交易內保存修改和重試結果。
 
 編輯視窗每次開啟讀最新資料，儲存成功更新卡片／詳情及快取；失敗保留草稿，衝突須重新載入，相同請求重試不重複修改。兩場各自修改，不清除另一場待上傳 CSV。
 

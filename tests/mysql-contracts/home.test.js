@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { createTestRepository as createRepository } from '../helpers/mysql-repository.js';
 
-test('an unseeded SQLite database contains empty data with unknown attendance', async () => {
+test('an unseeded database contains empty data with unknown attendance', async () => {
   const repository = (await createRepository());
   try {
     const data = (await repository.readHome());

@@ -41,7 +41,7 @@ docker run -d --name guild-manager-production \
 - `APP_ORIGIN` 必須是精確 HTTPS origin, 外部 HTTPS 由可信反向代理提供；上例只綁本機 HTTP 埠供代理轉入。`TRUSTED_PROXY_CIDRS` 僅填實際可信入口, Docker 不會自動建立 HTTPS
 - production 的 MySQL 必須使用 `DB_SSL_MODE=verify_identity`, 提供可信 CA 與符合憑證的 hostname；CA 掛載檔須可由容器的 `node` 使用者讀取。資料庫若位於其他 Docker 網路, 另指定對應 `--network` 與可驗證的 hostname
 - 啟動前由具資格的獨立步驟套用 migration（見 MySQL 開發說明）, runtime 使用限庫 CRUD 帳號。啟動只核對連線及 migration, 不建表、不建帳號、不匯入資料
-- 資料保存在外部 MySQL／R2, 正式映像不使用 SQLite `/data` volume；開發 Compose 的既有 `guild_data` 保留
+- 資料保存在外部 MySQL／R2, 正式映像不需要掛載資料 volume
 - `docker stop --time 20 guild-manager-production` 直接傳送 `SIGTERM` 給 Node, 為服務的 10 秒關閉期限保留餘裕
 
 建置成功不代表 production 啟動、真 R2 存取或實際 HTTPS 代理已通過驗收；各項需使用隔離資料與對應環境另驗

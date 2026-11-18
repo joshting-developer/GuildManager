@@ -51,7 +51,7 @@
 ## 測試
 
 - 業務行為測試放 `tests/mysql-contracts/*.test.js`, 透過 `tests/helpers/mysql-repository.js` 在自己的隔離空庫跑真 MySQL；一個情境一個 `test`, 用 `node:test` 與 `node:assert/strict`, 不加測試框架
-- HTTP 層測試用 `createApp(repository)` 接隔離的 MySQL Repository 驗 status、JSON 形狀與錯誤碼；不用 SQLite 代替, 也不 mock Repository 來假裝交易通過
+- HTTP 層測試用 `createApp(repository)` 接隔離的 MySQL Repository 驗 status、JSON 形狀與錯誤碼；不用其他資料庫代替, 也不 mock Repository 來假裝交易通過
 - 多人操作、同 requestId 重送、持鎖時唯讀與故障回滾已有既有案例, 新寫入功能要照樣補一個並行案例
 - `npm test` 只接受四個隔離設定檔, 缺設定直接失敗, 不把 skip 當通過。指令與設定格式見 [MySQL 開發說明](mysql-development.md)
 

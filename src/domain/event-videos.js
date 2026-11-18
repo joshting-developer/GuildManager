@@ -1,4 +1,4 @@
-// Keep persisted values stable for old videos, SQLite constraints and request retries.
+// Keep persisted values stable for old videos and request retries.
 export const VIDEO_GROUP_OPTIONS = [
   { title: '進攻團', value: '進攻一' },
   { title: '機動團', value: '進攻二' },

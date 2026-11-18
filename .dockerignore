@@ -27,12 +27,9 @@
 **/*.py[cod]
 **/.env
 **/.env.*
-**/.clasp.json
-**/.clasprc.json
 **/AGENTS.md
 **/CLAUDE.md
 **/Memory.md
-**/*.sqlite*
 **/*.db
 **/*.sql
 **/*.pem

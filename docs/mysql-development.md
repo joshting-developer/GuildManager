@@ -1,6 +1,6 @@
 # MySQL 開發與隔離驗證
 
-2.0.0 將 Node 後端資料來源改為 MySQL, 保留現有功能與 API。目前已完成連線、migration、資料表、各領域非同步 Repository 與 HTTP API 接線, `server/index.js` 只接 MySQL；舊 SQLite Repository 與測試保留在原位置供對照, 不再由服務或 `npm test` 使用。舊來源另存歷史參考, 不隨目前分支維護
+2.0.0 將 Node 後端資料來源改為 MySQL, 保留現有功能與 API。目前已完成連線、migration、資料表、各領域非同步 Repository 與 HTTP API 接線, `server/index.js` 只接 MySQL
 
 ## 連線設定
 
@@ -61,7 +61,7 @@ npm run test:mysql
 
 第二個設定檔格式相同, purpose 改成 `guildmanager-migration-test`, DB_DATABASE 與帳密改用自己獨立的 migrationtest 庫。第三個 schema 設定 purpose 為 `guildmanager-schema-test`, 使用獨立 schematest 庫。第四個 Repository 設定 purpose 為 `guildmanager-repository-test`, 使用獨立 repositorytest 庫。migration、schema 與 Repository 測試都要求空庫, 有既有表就停止, 不重設或清空舊資料
 
-此入口缺任一設定會失敗, 不會將全部 skip 當成 MySQL 通過。`npm test` 與 `npm run test:mysql` 都執行這套 MySQL 驗證, 沒有明確的隔離設定就失敗, 不回退 SQLite。額外指定 `GUILD_MYSQL_TEST_CA` 可測試本機 MySQL 的自簽伺服器憑證主機名稱不符時會被拒絕
+此入口缺任一設定會失敗, 不會將全部 skip 當成 MySQL 通過。`npm test` 與 `npm run test:mysql` 都執行這套 MySQL 驗證, 沒有明確的隔離設定就失敗。額外指定 `GUILD_MYSQL_TEST_CA` 可測試本機 MySQL 的自簽伺服器憑證主機名稱不符時會被拒絕
 
 連線測試僅建立帶隨機名稱的人造表, 在 finally 移除自己的測試表並關閉 pool；驗證中文／emoji、前導零、BIGINT、交易回滾、單連線 pool 釋放、跨系統庫拒絕及錯誤不洩密。這些是開發與連線驗證, 不代表所有產品功能或正式站已切換 MySQL
 
@@ -91,13 +91,13 @@ MySQL 的 DDL 會隱含 commit, 不能假稱 rollback 可還原整批建表。�
 `0001_initial_schema` 明確建立 32 張業務表與必要索引, 使用 InnoDB／utf8mb4。僅寫入九個職業、三項固定職責及空平台設定, 不建立帳號、成員、活動、報名或戰績
 
 - 文字 UID 及關聯保留字串與前導零, 外鍵實際建立並驗證；角色、所屬布林、版本、場序與影片至少一個網址等規則保留 CHECK
-- 帳號名稱限定 ASCII 並不分大小寫。其他名稱與 ID 依原規則區分；有效外援的唯一鍵用 nullable binary generated column 保留 SQLite NOCASE 只折疊 ASCII 的語意, 取消外援不佔用有效名稱
+- 帳號名稱限定 ASCII 並不分大小寫。其他名稱與 ID 依原規則區分；有效外援的唯一鍵用 nullable binary generated column 保留只折疊 ASCII 大小寫的語意, 取消外援不佔用有效名稱
 - 同場已指定場序的戰績唯一, 未指定場序的舊戰績可多筆。舊影片完整 URL 用 SHA-256 generated key 參與唯一索引, 不以網址前綴去重
 - 不可變 JSON 快照與 requestId 的輸入／結果使用 LONGTEXT＋JSON_VALID, 不採用會重新排列內容的原生 JSON 儲存。缺值仍為 NULL, 不以空字串或 0 補未知勝敗／數據
-- 原查詢依 SQLite rowid 排序的帳號、職責、舊名、戰績與範本加 `created_order` 作明確插入次序。後續 Repository 使用明確欄位 INSERT, 不依賴實體列次序
+- 需要依建立順序排列的帳號、職責、舊名、戰績與範本加 `created_order` 作明確插入次序。後續 Repository 使用明確欄位 INSERT, 不依賴實體列次序
 - 過渡 schema 保留原始 CSV、舊圖片與品牌圖示欄位供既有 Node 契約對照；R2 階段會另設 metadata／關聯並驗證原始檔, 不表示最終正式架構將檔案內容存在 MySQL
 
-schema 測試以固定的 MySQL 契約清單核對所有表／原欄位／外鍵, 執行時不建立或讀取 SQLite, 再用真 MySQL 驗有效／無效寫入、中文與 emoji、前導零、ASCII／Unicode 名稱差異、JSON 原文、nullable 場序、重跑與排序。測試只刪除自己在專用空庫建立的表
+schema 測試以固定的 MySQL 契約清單核對所有表／原欄位／外鍵, 再用真 MySQL 驗有效／無效寫入、中文與 emoji、前導零、ASCII／Unicode 名稱差異、JSON 原文、nullable 場序、重跑與排序。測試只刪除自己在專用空庫建立的表
 
 目前實測引擎為本機 MySQL 8.4, 不等於正式環境引擎的 migration 實測。正式庫仍不自動建表或匯入, 後續部署前另核對目標引擎與發布資格
 
@@ -107,7 +107,7 @@ schema 測試以固定的 MySQL 契約清單核對所有表／原欄位／外鍵
 
 名冊以一次成員／職業 JOIN 加一次相關舊名查詢組裝, 單人成員只讀指定 UID 與其舊名, 均為兩次查詢；職業清單一次查詢。不做跨請求快取, 寫後重新查詢可讀最新已提交資料。BIGINT 版本、到期時間與計數按欄位轉成安全整數, UID 維持字串；超出安全範圍報錯
 
-`store.js` 只封裝參數化的 MySQL 查詢與交易, SQL 已明確改成 MySQL 語法, 不在執行期翻譯 SQLite SQL。原本 rowid 順序改用 created_order, 歷史戰績玩家關聯改用 JSON_TABLE, nullable 欄位與 JSON 快照原文維持原契約。UID 修正／刪除透過關聯及投影覆蓋層保留歷史快照原文, 不重寫快照
+`store.js` 只封裝參數化的 MySQL 查詢與交易, SQL 使用 MySQL 語法。建立順序用 created_order, 歷史戰績玩家關聯改用 JSON_TABLE, nullable 欄位與 JSON 快照原文維持原契約。UID 修正／刪除透過關聯及投影覆蓋層保留歷史快照原文, 不重寫快照
 
 ### 交易與多人操作
 
@@ -129,13 +129,13 @@ schema 測試以固定的 MySQL 契約清單核對所有表／原欄位／外鍵
 
 ### 驗證邊界
 
-Repository 測試將既有業務斷言改成 async MySQL 呼叫, 不改掉原本預期行為；另驗兩個獨立 Repository 的版本衝突、不同成員並行送出、相同 requestId 重送、持鎖時唯讀、故障注入回滾、通知隔離及重新建立 Repository 後的持久化。每個案例只在空的專用 repositorytest 庫建表及使用人造資料, finally 移除自己建立的表, 不初始化或驗證 SQLite
+Repository 測試以 async MySQL 呼叫驗證業務行為；另驗兩個獨立 Repository 的版本衝突、不同成員並行送出、相同 requestId 重送、持鎖時唯讀、故障注入回滾、通知隔離及重新建立 Repository 後的持久化。每個案例只在空的專用 repositorytest 庫建表及使用人造資料, finally 移除自己建立的表
 
 Repository 與 HTTP 路由的 await／錯誤處理及提交後通知分別由業務契約與 HTTP 測試驗證。正式環境引擎與舊資料另行驗收
 
 ## MySQL 帳號與權限
 
-`npm run account:create` 或 `docker compose exec -T api node server/create-account.js` 從 stdin 讀取帳號 JSON, 使用與 API 相同的明確 `DB_*` 設定與已完成的 migration, 不自動建表、不回退 SQLite、不覆寫同名帳號。第一個帳號預設 admin, 後續預設 manager；既有 SQLite 帳號未自動匯入
+`npm run account:create` 或 `docker compose exec -T api node server/create-account.js` 從 stdin 讀取帳號 JSON, 使用與 API 相同的明確 `DB_*` 設定與已完成的 migration, 不自動建表、不覆寫同名帳號。第一個帳號預設 admin, 後續預設 manager
 
 HTTP 權限回歸使用真實 MySQL 驗匿名／member／manager／admin, 涵蓋登入登出、cookie／session 輪替與到期、CSRF、角色與密碼變更撤銷、共用成員通行密碼、平行登入限流及 CLI 建帳號。授權範圍沿用 [成員契約](member-contracts.md) 與 [平台契約](platform-contracts.md), 不因換資料庫放寬
 

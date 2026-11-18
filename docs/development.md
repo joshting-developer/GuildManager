@@ -2,7 +2,7 @@
 
 ## 使用 Docker 開發
 
-2.0.0 的 MySQL 連線設定與隔離測試見 [MySQL 開發說明](mysql-development.md), 後端分層與寫法見 [Node.js 分層規範](nodejs-architecture.md), 其參考的上游 Skill 是 wshobson/agents 的 nodejs-backend-patterns, 只作開發參考, 不是執行依賴。HTTP 服務已改接 MySQL, `npm run server` 需要 MySQL 開發說明中的連線環境變數與已套用的 migration；下列 Docker 流程的 SQLite volume 暫時保留, 正式資料尚未移轉
+2.0.0 的 MySQL 連線設定與隔離測試見 [MySQL 開發說明](mysql-development.md), 後端分層與寫法見 [Node.js 分層規範](nodejs-architecture.md), 其參考的上游 Skill 是 wshobson/agents 的 nodejs-backend-patterns, 只作開發參考, 不是執行依賴。HTTP 服務已改接 MySQL, `npm run server` 需要 MySQL 開發說明中的連線環境變數與已套用的 migration
 
 需要 Docker Engine 與 Docker Compose v2, 先依 [MySQL 開發說明](mysql-development.md) 啟動本機 MySQL、提供專用連線設定並套用 migration
 
@@ -21,7 +21,7 @@ docker compose up --build -d
 - 戰場排表：`http://localhost:3001/api/lineups`
 - 職責清單：`http://localhost:3001/api/duties`
 - 職業清單：`http://localhost:3001/api/professions`
-- API 服務由 compose.yaml 旁的 `.env`（忽略檔, 變數名稱依 `config/mysql.env.example`）取得 MySQL 連線, 預設指向本機 Docker 網路的 `side-project-mysql`；舊 `guild_data` volume 的 SQLite 保留, 不作為目前服務資料來源
+- API 服務由 compose.yaml 旁的 `.env`（忽略檔, 變數名稱依 `config/mysql.env.example`）取得 MySQL 連線, 預設指向本機 Docker 網路的 `side-project-mysql`
 - 本機資料庫啟動時不自動加入示範資料, 重啟不覆寫既有設定
 - `src/` 與 `server/` 修改會反映至服務, 依賴或 Dockerfile 變更後重新執行 `docker compose up --build -d`
 - 若 Docker Desktop 的檔案事件通知不穩定, 再依需要開啟 polling
@@ -85,7 +85,7 @@ npm run seed:demo
 
 透過 `http://127.0.0.1:3001/api` 新增 100 位示範成員：80 位同時在幫派與俱樂部、20 位只在俱樂部, 因此示範俱樂部成員合計 100 位。主、副職業循環分配九種職業, 名稱含「示範資料」, UID 為 `DEMO-GUILD-001`～`080` 與 `DEMO-CLUB-001`～`020`。既有成員另計。
 
-重複執行會跳過已存在的 UID, 保留既有資料及後續編輯；中斷後可重試。此指令只操作上述本機 API, 不寫入 Google 試算表。成員清單搜尋「示範資料」即可單獨查看與篩選這批人員。
+重複執行會跳過已存在的 UID, 保留既有資料及後續編輯；中斷後可重試。此指令只操作上述本機 API。成員清單搜尋「示範資料」即可單獨查看與篩選這批人員。
 
 ## 不使用 Docker
 
@@ -131,7 +131,7 @@ npm run build
 
 ```text
 src/              Vue 首頁、成員清單、活動安排、戰場排表、共用樣式與前端資料 adapter
-server/           Express 入口、MySQL repository（server/mysql）與保留對照的舊 SQLite repository
+server/           Express 入口與 MySQL repository（server/mysql）
 tools/            MySQL、資料維護與文件工具
 tests/            資料與 adapter 測試
 ```
