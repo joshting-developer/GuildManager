@@ -6,6 +6,7 @@
     "auth_sessions",
     "battle_metadata_requests",
     "battle_player_links",
+    "battle_player_stats",
     "battle_records",
     "battle_sync_requests",
     "battle_uploads",
@@ -325,6 +326,12 @@
       "threshold",
       "message",
       "revision"
+    ],
+    "battle_player_stats": [
+      "record_id",
+      "player_index",
+      "player_json",
+      "profession"
     ]
   },
   "foreignKeys": [
@@ -333,6 +340,7 @@
     "auth_sessions.account_id.auth_accounts.id",
     "battle_player_links.member_uid.members.uid",
     "battle_player_links.record_id.battle_records.id",
+    "battle_player_stats.record_id.battle_records.id",
     "battle_records.csv_file_id.file_metadata.id",
     "battle_records.event_id.scheduled_events.id",
     "battle_records.upload_id.battle_uploads.id",

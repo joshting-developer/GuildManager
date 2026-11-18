@@ -124,3 +124,22 @@ test('personal analysis preserves missing values and unknown results; same battl
   assert.equal(summary.metrics.find((m) => m.key === 'heal').total, null);
   assert.equal(summarizePersonalBattles([]).battleCount, 0);
 });
+
+test('player projection migration backfills existing JSON without changing personal history', async () => {
+  const { repositoryDatabase } = await import('../helpers/mysql-repository.js');
+  const { migrateMysql } = await import('../../server/database/migrate.js');
+  const { mysqlMigrations } = await import('../../server/database/migrations.js');
+  const repo = await createRepository();
+  try {
+    await add(repo, 'migration-member', '空城');
+    await upload(repo);
+    const before = await repo.getMemberBattleRecords('migration-member', { all: true });
+    const db = repositoryDatabase(repo);
+    await db.query('DROP TABLE battle_player_stats');
+    await db.query("DELETE FROM schema_migrations WHERE id='0006_battle_player_stats'");
+    assert.deepEqual((await migrateMysql(db, mysqlMigrations)).applied, ['0006_battle_player_stats']);
+    assert.deepEqual(await repo.getMemberBattleRecords('migration-member', { all: true }), before);
+    const paged = await repo.getMemberBattleRecords('migration-member');
+    assert.deepEqual(paged.summary, summarizePersonalBattles(before.entries));
+  } finally { await repo.close(); }
+});

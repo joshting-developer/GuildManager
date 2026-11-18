@@ -1,3 +1,5 @@
+import { BATTLE_METRICS } from '../../src/domain/battle-statistics.js';
+import { fillBattlePlayerStats } from '../database/migrations/0006-battle-player-stats.js';
 import { createFileMetadataRepository } from './file-metadata.js';
 import { asyncMap } from "./collections.js";
 import { createHash, randomUUID } from 'node:crypto';
@@ -7,7 +9,6 @@ import {
   taipeiBattleTime,
   MAX_IMAGE_BYTES,
 } from '../../src/domain/battle-records.js';
-import { summarizePersonalBattles } from '../../src/domain/personal-battle-statistics.js';
 import { analyzeBattleTeams, battleTeamContext, includeBattleTeamContext } from '../../src/domain/team-battle-analysis.js';
 import { uniqueNewMemberNames } from '../../src/domain/battle-member-links.js';
 import { planBattleMemberSync, publicBattleSyncPlan, validateBattleSyncInput } from '../../src/domain/battle-member-sync.js';
@@ -15,8 +16,6 @@ import { battleEditingMetadata, validateBattleMetadata } from '../../src/domain/
 import { validateBattleAttributions, applyBattleAttributions } from '../../src/domain/battle-attributions.js';
 import {
   validatePersonalBattleFilters,
-  filterPersonalBattles,
-  personalBattleProfessions,
   personalBattleReadAll,
 } from '../../src/domain/personal-battle-filters.js';
 
@@ -280,38 +279,69 @@ export function createBattleRecordRepository(db, {
         .prepare('SELECT name, primary_profession AS profession FROM members WHERE uid = ?')
         .get(memberUid));
       if (!member) throw new BattleRecordError('找不到這位成員', 404, 'MEMBER_NOT_FOUND');
-      const links = (await db
-        .prepare(
-          `SELECT l.player_index, r.id, r.battle_type, r.played_at, r.round_number,
-        r.red_team, r.blue_team, r.winner, r.is_internal,
-        json_extract(r.players_json, CONCAT('$[', l.player_index, ']')) AS player_json
-        FROM battle_player_links l JOIN battle_records r ON r.id = l.record_id
-        WHERE l.member_uid = ? ORDER BY r.played_at DESC, r.created_at DESC, r.id, l.player_index`,
-        )
-        .all(memberUid));
-      const allEntries = links.map((row) => ({
-        recordId: row.id,
-        playerIndex: row.player_index,
-        type: row.battle_type,
-        playedAt: row.played_at,
-        roundNumber: row.round_number,
-        redTeam: row.red_team,
-        blueTeam: row.blue_team,
-        winner: row.winner,
-        isInternal: Boolean(row.is_internal),
+      const from = `FROM battle_player_links l
+        JOIN battle_player_stats p ON p.record_id=l.record_id AND p.player_index=l.player_index
+        JOIN battle_records r ON r.id=l.record_id`;
+      const clauses = ['l.member_uid = ?'];
+      const args = [memberUid];
+      if (filters.startDate) { clauses.push('r.played_at >= ?'); args.push(filters.startDate); }
+      if (filters.endDate) { clauses.push('r.played_at < ?'); args.push(new Date(Date.parse(filters.endDate) + 86400000).toISOString().slice(0, 10)); }
+      if (filters.profession) { clauses.push('BINARY p.profession = BINARY ?'); args.push(filters.profession); }
+      const where = 'WHERE ' + clauses.join(' AND ');
+      const professions = (await db.prepare(`SELECT DISTINCT p.profession ${from} WHERE l.member_uid=?`).all(memberUid))
+        .map(row => row.profession).filter(Boolean).sort((a, b) => a.localeCompare(b, 'zh-TW'));
+      const rows = await db.prepare(
+        `SELECT l.player_index, r.id, r.battle_type, r.played_at, r.round_number,
+          r.red_team, r.blue_team, r.winner, r.is_internal, p.player_json
+          ${from} ${where}
+          ORDER BY r.played_at DESC, r.created_at DESC, r.id, l.player_index LIMIT ? OFFSET ?`,
+      ).all(...args, readAll ? 10001 : 20, readAll ? 0 : (page - 1) * 20);
+      if (readAll && rows.length > 10000) throw new BattleRecordError('個人戰績超過完整讀取上限, 請縮小日期範圍');
+      const entries = rows.map(row => ({
+        recordId: row.id, playerIndex: row.player_index, type: row.battle_type,
+        playedAt: row.played_at, roundNumber: row.round_number, redTeam: row.red_team,
+        blueTeam: row.blue_team, winner: row.winner, isInternal: Boolean(row.is_internal),
         player: JSON.parse(row.player_json),
       }));
-      const entries = filterPersonalBattles(allEntries, filters);
-      return {
-        member,
-        filters,
-        professions: personalBattleProfessions(allEntries),
-        ...(readAll ? {} : { summary: summarizePersonalBattles(entries) }),
-        entries: readAll ? entries : entries.slice((page - 1) * 20, page * 20),
-        total: entries.length,
-        page: readAll ? 1 : page,
-        pageSize: readAll ? entries.length : 20,
-      };
+      let summary;
+      if (!readAll) {
+        const values = BATTLE_METRICS.map(([, key]) =>
+          `JSON_VALUE(p.player_json, '$.${key}' RETURNING DOUBLE NULL ON EMPTY NULL ON ERROR) AS \`${key}\``).join(', ');
+        const aggregates = BATTLE_METRICS.flatMap(([, key]) => [
+          `SUM(\`${key}\`) AS \`${key}Total\``, `COUNT(\`${key}\`) AS \`${key}Count\``,
+          `SUM(IF(\`${key}\` IS NOT NULL AND seriousInjury IS NOT NULL, \`${key}\`, 0)) AS \`${key}LifeTotal\``,
+          `SUM(IF(\`${key}\` IS NOT NULL AND seriousInjury IS NOT NULL, GREATEST(seriousInjury, 1), 0)) AS \`${key}Lives\``,
+          `SUM(\`${key}\` IS NOT NULL AND seriousInjury IS NOT NULL) AS \`${key}LifeCount\``,
+        ]).join(', ');
+        const stats = await db.prepare(`SELECT COUNT(*) AS rowCount, ${aggregates}
+          FROM (SELECT ${values} ${from} ${where}) metrics`).get(...args);
+        const results = await db.prepare(`SELECT COUNT(*) AS battleCount,
+          SUM(result=1) AS wins, SUM(result=-1) AS losses, SUM(result=0) AS unknown
+          FROM (SELECT r.id, CASE WHEN MIN(CASE WHEN r.is_internal=1 OR r.winner IS NULL THEN 0
+            WHEN r.winner=JSON_UNQUOTE(JSON_EXTRACT(p.player_json, '$.side')) THEN 1 ELSE -1 END)
+            = MAX(CASE WHEN r.is_internal=1 OR r.winner IS NULL THEN 0
+            WHEN r.winner=JSON_UNQUOTE(JSON_EXTRACT(p.player_json, '$.side')) THEN 1 ELSE -1 END)
+            THEN MIN(CASE WHEN r.is_internal=1 OR r.winner IS NULL THEN 0
+            WHEN r.winner=JSON_UNQUOTE(JSON_EXTRACT(p.player_json, '$.side')) THEN 1 ELSE -1 END) ELSE 0 END AS result
+            ${from} ${where} GROUP BY r.id) battles`).get(...args);
+        summary = {
+          ...Object.fromEntries(Object.entries(results).map(([key, value]) => [key, Number(value || 0)])),
+          rowCount: Number(stats.rowCount),
+          metrics: BATTLE_METRICS.map(([label, key]) => {
+            const count = Number(stats[key + 'Count']);
+            const total = count ? Number(stats[key + 'Total']) : null;
+            const lives = Number(stats[key + 'Lives']);
+            return { key, label, total, average: count ? total / count : null,
+              missing: Number(stats.rowCount) - count,
+              perLife: key === 'seriousInjury' ? total : lives ? Number(stats[key + 'LifeTotal']) / lives : null,
+              perLifeMissing: Number(stats.rowCount) - (key === 'seriousInjury' ? count : Number(stats[key + 'LifeCount'])),
+            };
+          }),
+        };
+      }
+      return { member, filters, professions, ...(readAll ? {} : { summary }), entries,
+        total: readAll ? entries.length : summary.rowCount, page: readAll ? 1 : page,
+        pageSize: readAll ? entries.length : 20 };
     },
     async saveBattleRecords(input, { preflight = false, fileReferences, assertAccess } = {}) {
       if (
@@ -514,6 +544,7 @@ export function createBattleRecordRepository(db, {
             record.isInternal ? 1 : 0,
             fileReferences.csv[index].id,
           ));
+          await db.prepare(fillBattlePlayerStats + ' WHERE r.id = ?').run(id);
           for (const [index, player] of record.players.entries()) {
             const target = attribution.targets.get(index);
             const matches = byName.get(player.player) || [];

@@ -1,3 +1,4 @@
+import { unpackPersonalBattles } from '../domain/personal-battle-transport.js';
 import { sessionFetch } from './session.js';
 
 // Share profession reads per HTTP transport for the page lifetime.
@@ -35,7 +36,7 @@ export function createMemberClient({ fetchImpl = sessionFetch } = {}) {
     getBattleRecords: (uid, page = 1, filters = {}) =>
       call(
         'GET', `members/${encodeURIComponent(uid)}/battle-records?${new URLSearchParams({ page, ...filters })}`, null,
-      ),
+      ).then(unpackPersonalBattles),
     getProfessions() {
       const key = fetchImpl;
       if (!professionCache.has(key)) {

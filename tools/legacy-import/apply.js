@@ -1,3 +1,4 @@
+import { fillBattlePlayerStats } from '../../server/database/migrations/0006-battle-player-stats.js';
 import { migrationStatus } from '../../server/database/migrate.js';
 import { mysqlMigrations } from '../../server/database/migrations.js';
 import { IMPORT_TABLES } from './transform.js';
@@ -55,6 +56,7 @@ export async function applyLegacyImport(database, { rows, settings }) {
       }
       counts[table] = values.length;
     }
+    await query(fillBattlePlayerStats);
     return counts;
   });
 }

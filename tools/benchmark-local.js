@@ -1,3 +1,4 @@
+import { fillBattlePlayerStats } from '../server/database/migrations/0006-battle-player-stats.js';
 // Synthetic local MySQL lab only; the helper refuses non-test schemas and requires an empty database.
 import assert from 'node:assert/strict';
 import { writeFileSync, mkdirSync } from 'node:fs';
@@ -62,6 +63,7 @@ try {
         SELECT ?,upload_id,NULL,NULL,battle_type,played_at,red_team,blue_team,winner,filename,csv_text,players_json,?,created_at,NULL,our_side,is_internal,csv_file_id FROM battle_records WHERE id=?`, [`BENCH-${battles}`, `bench-hash-${battles}`, battle.id]);
     }
     await query(`INSERT IGNORE INTO battle_player_links (record_id,player_index,member_uid) SELECT id,0,'BENCH-0' FROM battle_records`);
+    await query(fillBattlePlayerStats);
     const stage = { members, battles, playersPerBattle: 120, endpoints: [] };
     for (const path of ['/home', '/members', '/events', '/lineups/editor', `/events/${event.id}/participation-form`, '/battle-records', `/battle-records/${battle.id}`, `/battle-records/${battle.id}?includeTeamContext=true`, '/members/BENCH-0/battle-records?all=true', `/battle-records/${battle.id}/attachments/csv`, `/battle-records/${battle.id}/attachments/image`, '/platform-settings']) {
       const times = [], sqlCounts = [], sqlTimes = [], rowCounts = [], bytes = [];

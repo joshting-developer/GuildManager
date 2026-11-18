@@ -56,6 +56,10 @@ export async function benchmarkBrowser(origin) {
   } finally {
     socket?.close();
     if (chrome.exitCode === null) { const exited = new Promise(resolve => chrome.once('exit', resolve)); chrome.kill('SIGTERM'); await exited; }
-    rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    try { rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
+    catch (error) {
+      if (error.code !== 'ENOTEMPTY') throw error;
+      process.stderr.write('Chrome profile cleanup pending: ENOTEMPTY\n');
+    }
   }
 }

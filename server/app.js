@@ -1,3 +1,4 @@
+import { packPersonalBattles } from '../src/domain/personal-battle-transport.js';
 import { FileStorageError } from './storage/r2.js';
 import express from 'express';
 import { createHttpConfig, assertStaticBuild } from './http-config.js';
@@ -349,16 +350,15 @@ export function createApp(repository, { authNow, notifier = null, log = console,
     response.json(await repository.deleteMemberPermanently(request.params.uid, request.body));
   });
   app.get('/api/members/:uid/battle-records', async (request, response) => {
-    response.json(
-      await repository.getMemberBattleRecords(request.params.uid, {
+    const result = await repository.getMemberBattleRecords(request.params.uid, {
         page: request.query.page === undefined ? 1 : Number(request.query.page),
         startDate: request.query.startDate,
         endDate: request.query.endDate,
         profession: request.query.profession,
         all: request.query.all === undefined || request.query.all === 'false'
           ? false : request.query.all === 'true' ? true : request.query.all,
-      }),
-    );
+      });
+    response.json(request.query.all === 'true' ? packPersonalBattles(result) : result);
   });
   app.post('/api/members/import/preview', async (request, response) => {
     response.set('Cache-Control', 'no-store').json(await repository.previewMemberImport(request.body));
