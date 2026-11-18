@@ -133,7 +133,7 @@ const navigation = [
     adminOnly: true,
   },
   // Occasional tool: reachable from 管理總覽 and the drawer, keeping the desktop bar on one line.
-  { page: 'attendance', label: '出勤與請假', icon: mdiCalendarMonthOutline, drawerOnly: true },
+  { page: 'attendance', label: '出勤紀錄', icon: mdiCalendarMonthOutline, drawerOnly: true },
   { page: 'lottery', label: '抽獎活動', icon: mdiGiftOutline, drawerOnly: true },
   { page: 'release-notes', label: '更新紀錄', icon: mdiHistory, drawerOnly: true },
 ];

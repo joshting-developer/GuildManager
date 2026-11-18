@@ -38,7 +38,7 @@ const modules = [
     title: '出勤紀錄',
     icon: mdiClipboardTextOutline,
     color: 'green',
-    description: '活動參與與出勤紀錄。',
+    description: '登記到場情況與查詢請假紀錄。',
   },
   {
     id: 'battle-upload',
@@ -53,13 +53,6 @@ const modules = [
     icon: mdiChartBoxOutline,
     color: 'blue',
     description: '查看對戰統計與排序玩家戰績。',
-  },
-  {
-    id: 'attendance',
-    title: '出勤與請假',
-    icon: mdiClipboardTextOutline,
-    color: 'blue',
-    description: '登記到場情況與查詢請假紀錄。',
   },
   {
     id: 'lottery',

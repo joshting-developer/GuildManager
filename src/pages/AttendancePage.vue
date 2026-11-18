@@ -13,7 +13,7 @@ function closeSettings(open){if(open){settingsOpen.value=true;return;}if(setting
 </script>
 <template>
   <div>
-    <header class="attendance-page-heading"><h1 class="page-title">出勤與請假紀錄</h1><v-btn v-if="isAdmin" variant="outlined" @click="settingsOpen=true">關心提醒設定</v-btn></header>
+    <header class="attendance-page-heading"><h1 class="page-title">出勤紀錄</h1><v-btn v-if="isAdmin" variant="outlined" @click="settingsOpen=true">關心提醒設定</v-btn></header>
     <v-tabs v-model="tab" color="primary" aria-label="出勤與請假檢視" class="mb-6">
       <v-tab value="calendar" id="attendance-calendar-tab" aria-controls="attendance-calendar-panel">行事曆</v-tab>
       <v-tab value="table" id="attendance-table-tab" aria-controls="attendance-table-panel">紀錄表格</v-tab>
