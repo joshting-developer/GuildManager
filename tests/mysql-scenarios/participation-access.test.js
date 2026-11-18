@@ -157,3 +157,70 @@ test('selected roster identities resolve duplicate names, validate current membe
     await f.close();
   }
 });
+
+test('member can use both roster categories, register and leave with CSRF, can read the full roster while other management remains restricted; revoked/expired sessions retain public access', async () => {
+  const f = await setup();
+  try {
+    const headers = await f.login();
+    const client = createParticipationClient({
+      fetchImpl: (path, options = {}) =>
+        fetch(f.base + path, { ...options, headers: { ...options.headers, ...headers } }),
+    });
+    for (const event of f.events.slice(1)) {
+      const roster = await client.getMembers(event.id);
+      assert.equal(roster.eventId, event.id);
+      assert.equal(roster.members.filter((m) => m.isInGuild).length, 1);
+      assert.equal(roster.members.filter((m) => m.isInClub).length, 2);
+      assert.ok(
+        roster.members.every((m) => !('note' in m) && !('nameHistory' in m) && !('revision' in m)),
+      );
+      assert.equal(
+        (
+          await f.request(`/events/${event.id}/participation`, 'POST', await f.input(event), {
+            Cookie: headers.Cookie,
+          })
+        ).status,
+        403,
+      );
+      const saved = await client.submitParticipation(event.id, await f.input(event));
+      assert.equal(saved.status, 'registered');
+      const left = await client.submitParticipation(
+        event.id,
+        await f.input(event, { status: 'leave', professionId: null }),
+      );
+      assert.equal(left.status, 'leave');
+      assert.equal((await f.repo.getEventParticipation(event.id)).registrations.length, 0);
+      await assert.rejects(
+        client.submitParticipation(
+          event.id,
+          await f.input(event, { name: '未知', status: 'leave', professionId: null }),
+        ),
+        code('PARTICIPATION_NOT_FOUND'),
+      );
+    }
+    assert.equal((await f.request('/members', 'GET', undefined, headers)).status, 200);
+    for (const path of ['/lineups', '/admin/accounts'])
+      assert.equal((await f.request(path, 'GET', undefined, headers)).status, 403);
+    await (await f.repo.setMemberToken(f.admin.id, {
+      password: '654321',
+      revision: 1,
+    }));
+    assert.equal(
+      (await f.request(`/events/${f.events[1].id}/participation`, 'GET', undefined, headers))
+        .status,
+      200,
+    );
+    const response = await f.request('/auth/member-login', 'POST', {
+      password: '654321',
+    });
+    const current = { Cookie: response.headers.get('set-cookie').split(';')[0] };
+    f.advance(8 * 60 * 60 * 1000);
+    assert.equal(
+      (await f.request(`/events/${f.events[1].id}/participation`, 'GET', undefined, current))
+        .status,
+      200,
+    );
+  } finally {
+    await f.close();
+  }
+});

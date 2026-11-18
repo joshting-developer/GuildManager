@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { join } from 'node:path';
 
-import { createTestRepository as createRepository } from '../helpers/mysql-repository.js';
+import { createTestRepository as createRepository, reopenTestRepository, repositoryDatabase } from '../helpers/mysql-repository.js';
 
 import { BATTLE_COLUMNS } from '../../src/domain/battle-records.js';
 import { summarizePersonalBattles } from '../../src/domain/personal-battle-statistics.js';
@@ -31,6 +31,45 @@ async function upload(repo, extra = {}, requestId = crypto.randomUUID()) {
   };
   return { input, result: (await repo.saveBattleRecords(input)) };
 }
+
+test('upload matches unique exact current names; retries, duplicates and renames preserve identity and raw snapshots', async () => {
+  let repo = await createRepository();
+  try {
+    const original = await add(repo, '001', '空城');
+    await add(repo, '002', '同名');
+    await add(repo, '003', '同名');
+    const { input, result } = await upload(repo);
+    const record = result.records[0];
+    assert.equal(record.players[0].memberUid, '001');
+    assert.ok(!record.players[1].memberUid);
+    assert.ok(!record.players[2].memberUid);
+    const database = repositoryDatabase(repo);
+    const [snapshot] = await database.query('SELECT players_json FROM battle_records WHERE id = ?', [record.id]);
+    assert.ok(!JSON.stringify(snapshot.players_json).includes('memberUid'));
+    assert.deepEqual((await database.query('SELECT member_uid FROM battle_player_links')).map((row) => row.member_uid), ['001']);
+    await repo.updateMember('001', { name: '新名字', primaryProfessionId: 3, secondaryProfessionId: null, revision: original.revision });
+    await add(repo, '004', '敵人');
+    const replay = await repo.saveBattleRecords(input);
+    assert.equal(replay.records[0].id, record.id);
+    assert.equal(replay.records[0].players[0].memberUid, '001');
+    assert.equal(replay.records[0].players[2].memberUid, '004');
+    await assert.rejects(upload(repo), (error) => error.code === 'BATTLE_DUPLICATE');
+    assert.equal((await repo.getMemberBattleRecords('004')).total, 1);
+    assert.equal((await repo.getMemberBattleRecords('002')).total, 0);
+    const data = await repo.getMemberBattleRecords('001');
+    assert.equal(data.member.name, '新名字');
+    assert.equal(data.entries[0].player.player, '空城');
+    assert.equal(data.summary.battleCount, 1);
+    assert.equal(data.summary.wins, 1);
+    assert.equal(data.summary.metrics.find((metric) => metric.key === 'playerDamage').total, 100);
+    assert.equal(data.summary.metrics.find((metric) => metric.key === 'playerDamage').perLife, 50);
+    repo = reopenTestRepository(repo);
+    assert.equal((await repo.getMemberBattleRecords('001')).total, 1);
+    assert.equal((await repo.getBattleRecord(record.id)).players[0].memberUid, '001');
+  } finally {
+    await repo.close();
+  }
+});
 
 test('new members link older records; pages share full summary and failures roll back links', async () => {
   const repo = (await createRepository());

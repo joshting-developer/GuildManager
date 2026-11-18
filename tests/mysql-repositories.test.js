@@ -78,6 +78,7 @@ await import('./mysql-scenarios/lineup-index.test.js');
 await import('./mysql-scenarios/lineup-read-efficiency.test.js');
 await import('./mysql-scenarios/lineup-template-save.test.js');
 await import('./mysql-scenarios/lottery.test.js');
+await import('./mysql-scenarios/member-analysis-access.test.js');
 await import('./mysql-scenarios/member-import.test.js');
 await import('./mysql-scenarios/member-maintenance.test.js');
 await import('./mysql-scenarios/member-membership.test.js');
