@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick, provide, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick, provide, watch, defineAsyncComponent } from 'vue';
 import { useTheme } from 'vuetify';
 import {
   FONT_SCALES,
@@ -43,22 +43,26 @@ import { createPlatformCache } from './api/platform-cache.js';
 import { setCsrfToken } from './api/session.js';
 import LoginDialog from './components/LoginDialog.vue';
 import DataLoading from './components/DataLoading.vue';
+import PageLoadError from './components/PageLoadError.vue';
 import PlatformBrand from './components/PlatformBrand.vue';
 import MobileNavigation from './components/MobileNavigation.vue';
 import SnowField from './components/SnowField.vue';
-import HomePage from './pages/HomePage.vue';
+function lazyPage(loader) {
+  return defineAsyncComponent({ loader, loadingComponent: DataLoading, errorComponent: PageLoadError, delay: 0, timeout: 30000 });
+}
+const HomePage = lazyPage(() => import('./pages/HomePage.vue'));
 import CalendarHomePage from './pages/CalendarHomePage.vue';
-import MembersPage from './pages/MembersPage.vue';
-import EventsPage from './pages/EventsPage.vue';
-import LineupsPage from './pages/LineupsPage.vue';
-import BattleUploadPage from './pages/BattleUploadPage.vue';
-import BattleRecordsPage from './pages/BattleRecordsPage.vue';
-import AdminPage from './pages/AdminPage.vue';
-import MemberBattleRecordsPage from './pages/MemberBattleRecordsPage.vue';
-import VideosPage from './pages/VideosPage.vue';
-import AttendancePage from './pages/AttendancePage.vue';
-import LotteryPage from './pages/lottery/LotteryPage.vue';
-import ReleaseNotesPage from './pages/ReleaseNotesPage.vue';
+const MembersPage = lazyPage(() => import('./pages/MembersPage.vue'));
+const EventsPage = lazyPage(() => import('./pages/EventsPage.vue'));
+const LineupsPage = lazyPage(() => import('./pages/LineupsPage.vue'));
+const BattleUploadPage = lazyPage(() => import('./pages/BattleUploadPage.vue'));
+const BattleRecordsPage = lazyPage(() => import('./pages/BattleRecordsPage.vue'));
+const AdminPage = lazyPage(() => import('./pages/AdminPage.vue'));
+const MemberBattleRecordsPage = lazyPage(() => import('./pages/MemberBattleRecordsPage.vue'));
+const VideosPage = lazyPage(() => import('./pages/VideosPage.vue'));
+const AttendancePage = lazyPage(() => import('./pages/AttendancePage.vue'));
+const LotteryPage = lazyPage(() => import('./pages/lottery/LotteryPage.vue'));
+const ReleaseNotesPage = lazyPage(() => import('./pages/ReleaseNotesPage.vue'));
 import releaseNotes from './content/release-notes.json';
 
 const vuetifyTheme = useTheme();
