@@ -103,9 +103,9 @@
 
 ## 出勤與請假紀錄
 
-admin／manager 可由管理總覽或手機選單進入 `#/attendance`。預設「行事曆」依台北日曆月份顯示有效請假, 同日同成員多場只顯示一次人數, 點日期後按場次列出原因。「紀錄表格」才顯示月份／活動／成員篩選, 每頁 25 筆, 依日期降序、場次 ID、成員 UID 穩定排序
+admin／manager 可由管理總覽或手機選單進入 `#/attendance`。預設「行事曆」依台北日曆月份顯示有效請假, 同日同成員多場只顯示一次人數, 點日期後按場次列出原因。「紀錄表格」才顯示月份／活動／成員篩選, 僅列所選範圍有有效請假的成員, 一人一列, SQL 分組後每頁 25 人, 按姓名與 UID 穩定排序。第一欄只顯示姓名, 第二欄保留狀態、當月請假次數與備註, 狀態與備註取範圍內最新請假場次（日期降序、場次 ID 排序）, 第三欄為「看更多」
 
-表格主列可開啟右側抽屜, 以成員 UID 查詢跨月份的有效請假歷史, 每頁 25 筆。抽屜與當天名單均按需載入, 已取消的請假與已取消活動不列入有效次數。匿名與 member 不可讀取管理歷史；公開送出請假的回應只包含達門檻時的關心文案, 不回傳個人次數或歷史
+表格「看更多」可開啟右側抽屜, 以成員 UID 查詢跨月份的有效請假歷史, 每頁 25 筆。抽屜每場提供「銷假」, 沿用管理者取消請假的權限、CSRF、單人 revision 與 requestId 安全重試；允許活動結束後銷假, 過去日期不擋管理者取消。操作中停用重複提交與關閉, 失敗保留清單並可重新載入, 成功更新抽屜、表格與行事曆, 該範圍已無請假者不再列出。抽屜與當天名單均按需載入, 已取消的請假與已取消活動不列入有效次數。匿名與 member 不可讀取管理歷史；公開送出請假的回應只包含達門檻時的關心文案, 不回傳個人次數或歷史
 
 實際出勤由 admin／manager 另外登記「已到場／未到場／未登記」與選填備註, 不以報名、請假或未回覆自動推定實際到場。按日期與成員保留 revision, 寫入需 CSRF／requestId 並重驗當前 Session；並行修改會拒絕過期版本。成員 UID 修正同步移動出勤關聯, 明確永久刪除成員時一併移除該成員的出勤列
 
@@ -116,8 +116,8 @@ admin／manager 可由管理總覽或手機選單進入 `#/attendance`。預設�
 | API | 用途 | 讀取範圍 |
 | --- | --- | --- |
 | `GET /api/attendance/calendar?month=YYYY-MM` | 請假行事曆 | 最多 31 天, 每天 3 名預覽 |
-| `GET /api/attendance?month=YYYY-MM&eventId=&uid=&page=` | 出勤／請假明細 | SQL 篩選, 每頁 25 筆；可加 date 與 response=leave 查看某日請假 |
-| `GET /api/attendance/members/:uid/leaves?page=` | 個人有效請假歷史 | 僅指定 UID, 每頁 25 筆 |
+| `GET /api/attendance?month=YYYY-MM&eventId=&uid=&page=` | 出勤／請假明細 | SQL 篩選, 每頁 25 筆；groupBy=member 改為依有效請假成員分組分頁, 回傳最新請假場次狀態／備註及當月次數；可加 date 與 response=leave 查看某日逐場請假 |
+| `GET /api/attendance/members/:uid/leaves?page=` | 個人有效請假歷史 | 僅指定 UID, 每頁 25 筆, 含取消請假所需單人 revision |
 | `GET /api/attendance/options?month=YYYY-MM` | 登記與篩選選單 | 該月最多 500 日期場次、最多 1000 成員 UID／名稱 |
 | `PATCH /api/attendance` | 登記實際出勤 | 版本與 requestId 保護 |
 | `GET/PATCH /api/admin/leave-settings` | 關心提醒設定 | 僅 admin, 版本保護 |

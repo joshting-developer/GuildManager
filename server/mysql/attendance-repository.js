@@ -74,7 +74,7 @@ export function createAttendanceRepository(db) {
       if (!member) fail('找不到這位成員',404,'MEMBER_NOT_FOUND');
       const from = `FROM event_member_responses r JOIN scheduled_events e ON e.id=r.event_id JOIN event_dates d ON d.event_id=e.id WHERE r.member_uid=? AND r.status='leave' AND e.deleted_at IS NULL`;
       const total = (await db.prepare('SELECT COUNT(*) AS total '+from).get(uid)).total;
-      const rows = await db.prepare(`SELECT e.id AS eventId,e.title,e.type,d.date,r.note ${from} ORDER BY d.date DESC,e.id LIMIT 25 OFFSET ${(page-1)*25}`).all(uid);
+      const rows = await db.prepare(`SELECT e.id AS eventId,e.title,e.type,d.date,r.note,r.revision ${from} ORDER BY d.date DESC,e.id LIMIT 25 OFFSET ${(page-1)*25}`).all(uid);
       return {member,rows,total,page,pageSize:25};
     },
     async getAttendanceHistory(input = {}) {
@@ -86,6 +86,30 @@ export function createAttendanceRepository(db) {
       if (input.response !== undefined && input.response !== 'leave') fail('請假篩選不正確');
       const where = ' WHERE e.deleted_at IS NULL AND x.date>=? AND x.date<?' + (eventId ? ' AND x.event_id=?' : '') + (uid ? ' AND x.member_uid=?' : '') + (date ? ' AND x.date=?' : '') + (input.response === 'leave' ? " AND r.status='leave'" : '');
       const args = [range.start, range.end, ...(eventId ? [eventId] : []), ...(uid ? [uid] : []), ...(date ? [date] : [])];
+      if (input.groupBy !== undefined && input.groupBy !== 'member') fail('分組方式不正確');
+      if (input.groupBy === 'member') {
+        const from = `FROM event_member_responses r JOIN scheduled_events e ON e.id=r.event_id
+          JOIN event_dates d ON d.event_id=e.id JOIN members m ON m.uid=r.member_uid
+          WHERE r.status='leave' AND e.deleted_at IS NULL AND d.date>=? AND d.date<?`
+          + (eventId ? ' AND e.id=?' : '') + (uid ? ' AND r.member_uid=?' : '') + (date ? ' AND d.date=?' : '');
+        const counts = await db.prepare('SELECT COUNT(DISTINCT r.member_uid) AS total,COUNT(*) AS leaveCount ' + from).get(...args);
+        const rows = await db.prepare(`WITH ranked AS (
+          SELECT r.member_uid AS uid,m.name,e.id AS eventId,d.date,e.title,e.type,r.note AS leaveNote,
+            ROW_NUMBER() OVER(PARTITION BY r.member_uid ORDER BY d.date DESC,e.id) AS rowNumber,
+            COUNT(*) OVER(PARTITION BY r.member_uid) AS leaveCount ${from}
+        ) SELECT x.uid,x.name,x.eventId,x.date,x.title,x.type,x.leaveNote,x.leaveCount,
+          'leave' AS response,COALESCE(a.status,'unrecorded') AS attendance,COALESCE(a.note,'') AS note
+          FROM ranked x LEFT JOIN attendance_records a ON a.event_id=x.eventId AND a.event_date=x.date AND a.member_uid=x.uid
+          WHERE x.rowNumber=1 ORDER BY x.name,x.uid LIMIT 25 OFFSET ${(page-1)*25}`).all(...args);
+        const uids = rows.map(row=>row.uid);
+        const monthly = uids.length ? await db.prepare(`SELECT r.member_uid AS uid,COUNT(*) AS count
+          FROM event_member_responses r JOIN scheduled_events e ON e.id=r.event_id JOIN event_dates d ON d.event_id=e.id
+          WHERE r.status='leave' AND e.deleted_at IS NULL AND d.date>=? AND d.date<?
+          AND r.member_uid IN (${uids.map(()=>'?').join(',')}) GROUP BY r.member_uid LIMIT 25`).all(range.start,range.end,...uids) : [];
+        const byUid = new Map(monthly.map(row=>[row.uid,Number(row.count)]));
+        const {settings} = await getLeaveSettings();
+        return {month:input.month,rows:rows.map(row=>({...row,leaveCount:Number(row.leaveCount),monthlyLeaveCount:byUid.get(row.uid)||0})),total:Number(counts.total),page,pageSize:25,threshold:settings.threshold,summary:{leave:Number(counts.leaveCount)}};
+      }
       const counts = await db.prepare(history + `SELECT COUNT(*) AS total,COALESCE(SUM(r.status='leave'),0) AS leaveCount,COALESCE(SUM(a.status='present'),0) AS presentCount,COALESCE(SUM(a.status='absent'),0) AS absentCount ` + historyFrom + where).get(...args);
       const total = counts.total;
       const rows = await db.prepare(history + `SELECT x.event_id AS eventId,x.date,e.title,e.type,x.member_uid AS uid,

@@ -77,3 +77,45 @@ test('leave calendar deduplicates people per day and drawer history crosses mont
   await assert.rejects(()=>repo.getAttendanceHistory({month:'2026-11',date:'2026-12-01',response:'leave'}));
  }finally{await repo.close();}
 });
+
+test('member summary groups before pagination, uses latest matching leave and excludes unrelated responses and cancelled events',async()=>{
+ const {repo,events}=await setup();try{
+  const db=repositoryDatabase(repo);
+  for(let i=0;i<27;i++){
+   const uid='group-'+String(i).padStart(2,'0');
+   await repo.addMember({uid,name:'同名成員',primaryProfessionId:1,isInGuild:true,isInClub:true});
+   for(const event of events)await repo.saveMemberResponse(event.id,{uid,status:'leave',note:event.id,revision:0});
+  }
+  await repo.saveMemberResponse(events[0].id,{uid:'001',status:'registered',note:'只有報名',revision:0});
+  await repo.saveAttendance({eventId:events[0].id,date:'2026-11-01',uid:'001',status:'present',note:'只有出勤',revision:0,requestId:'summary-only-attendance'},access);
+  await repo.saveAttendance({eventId:events[2].id,date:'2026-11-03',uid:'group-00',status:'absent',note:'最新出勤備註',revision:0,requestId:'summary-latest'},access);
+  const query={month:'2026-11',groupBy:'member'};
+  const first=await repo.getAttendanceHistory(query),second=await repo.getAttendanceHistory({...query,page:2});
+  assert.equal(first.total,27);assert.equal(first.summary.leave,81);assert.equal(first.rows.length,25);assert.equal(second.rows.length,2);
+  assert.equal(new Set([...first.rows,...second.rows].map(row=>row.uid)).size,27);
+  const row=first.rows[0];assert.equal(row.uid,'group-00');assert.equal(row.leaveCount,3);assert.equal(row.monthlyLeaveCount,3);assert.equal(row.date,'2026-11-03');assert.equal(row.leaveNote,events[2].id);assert.equal(row.note,'最新出勤備註');assert.equal(row.attendance,'absent');
+  const filtered=await repo.getAttendanceHistory({...query,eventId:events[0].id,uid:'group-00'});
+  assert.equal(filtered.total,1);assert.equal(filtered.rows[0].leaveCount,1);assert.equal(filtered.rows[0].monthlyLeaveCount,3);assert.equal(filtered.rows[0].date,'2026-11-01');
+  await repo.deleteEvent(events[2].id,events[2].revision);
+  assert.equal((await repo.getAttendanceHistory({...query,uid:'group-00'})).rows[0].leaveCount,2);
+  assert.equal((await repo.getAttendanceHistory({...query,month:'2026-10'})).total,0);
+  await assert.rejects(()=>repo.getAttendanceHistory({...query,groupBy:'other'}));
+ }finally{await repo.close();}
+});
+
+test('management can cancel past leaves using drawer revision, retry safely and reject stale cancellation',async()=>{
+ const {repo,events}=await setup();try{
+  await repo.saveMemberResponse(events[0].id,{uid:'001',status:'leave',note:'歷史請假',revision:0});
+  const db=repositoryDatabase(repo);await db.query('UPDATE event_dates SET date=? WHERE event_id=?',['2025-11-01',events[0].id]);
+  const history=await repo.getMemberLeaveHistory('001');assert.equal(history.rows[0].revision,1);
+  const input={source:'member',id:'001',revision:history.rows[0].revision,requestId:'past-cancel'};
+  await repo.saveMemberResponse(events[0].id,{uid:'001',status:'none',note:'歷史請假',revision:1});
+  await assert.rejects(()=>repo.cancelEventLeave(events[0].id,input),e=>e.code==='PARTICIPATION_CHANGED');
+  // Restore a synthetic historical leave to exercise the real cancellation path after the date restriction.
+  await db.query("UPDATE event_member_responses SET status='leave',revision=3 WHERE event_id=? AND member_uid='001'",[events[0].id]);
+  const current={...input,revision:3,requestId:'past-current'};
+  const result=await repo.cancelEventLeave(events[0].id,current);assert.equal(result.cancelled,true);assert.deepEqual(await repo.cancelEventLeave(events[0].id,current),result);
+  assert.equal((await repo.getMemberLeaveHistory('001')).total,0);
+  assert.equal((await repo.getAttendanceHistory({month:'2025-11',groupBy:'member'})).total,0);
+ }finally{await repo.close();}
+});

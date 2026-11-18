@@ -8,7 +8,7 @@ test('attendance HTTP protects roles/CSRF, returns private history only to manag
  const managerCredentials={username:'attendance_manager',password:'manager-password'};
  await app.repository.createManager(admin.session.user.id,managerCredentials);const manager=await app.login(managerCredentials);
  await app.repository.setMemberToken(admin.session.user.id,{password:'member123',revision:0});const member=await app.login({password:'member123'},{path:'/auth/member-login'});
- for(const path of ['/attendance?month=2026-11','/attendance/options?month=2026-11','/attendance/calendar?month=2026-11']){
+ for(const path of ['/attendance?month=2026-11','/attendance?month=2026-11&groupBy=member','/attendance/options?month=2026-11','/attendance/calendar?month=2026-11']){
   assert.equal((await app.request(path)).status,401);assert.equal((await member.request(path)).status,403);assert.equal((await manager.request(path)).status,200);
  }
  assert.equal((await manager.request('/admin/leave-settings')).status,403);
@@ -25,6 +25,13 @@ test('attendance HTTP protects roles/CSRF, returns private history only to manag
  assert.equal((await member.request('/attendance/members/001/leaves')).status,403);
  assert.equal((await manager.request('/attendance/members/001/leaves')).status,200);
  const history=await(await manager.request('/attendance?month=2026-11&uid=001')).json();assert.equal(history.rows[0].response,'leave');assert.equal(history.rows[0].attendance,'absent');assert.equal(history.rows[0].monthlyLeaveCount,1);assert.equal(history.summary.leave,1);
+ const grouped=await(await manager.request('/attendance?month=2026-11&groupBy=member')).json();assert.equal(grouped.total,1);assert.equal(grouped.rows[0].uid,'001');
+ const leaves=await(await manager.request('/attendance/members/001/leaves')).json();assert.equal(leaves.rows[0].revision,1);
+ const cancel={id:'001',source:'member',revision:1,requestId:'http-drawer-cancel'};
+ assert.equal((await member.request(`/events/${event.id}/attendance`,'PATCH',cancel)).status,403);
+ assert.equal((await app.request(`/events/${event.id}/attendance`,'PATCH',cancel,{Cookie:manager.headers.Cookie})).status,403);
+ assert.equal((await manager.request(`/events/${event.id}/attendance`,'PATCH',cancel)).status,200);
+ assert.equal((await(await manager.request('/attendance?month=2026-11&groupBy=member')).json()).total,0);
  assert.equal((await manager.request('/attendance?month=not-a-month')).status,422);
  await manager.request('/auth/logout','POST',{});assert.equal((await manager.request('/attendance','PATCH',input)).status,401);
 }));
