@@ -1,6 +1,7 @@
 import { packPersonalBattles } from '../src/domain/personal-battle-transport.js';
 import { FileStorageError } from './storage/r2.js';
 import express from 'express';
+import { join } from 'node:path';
 import { createHttpConfig, assertStaticBuild } from './http-config.js';
 import { DatabaseError } from './database/mysql.js';
 import { reportError } from './error-log.js';
@@ -394,7 +395,15 @@ export function createApp(repository, { authNow, notifier = null, log = console,
   app.use('/api', async (_request, response) => {
     response.status(404).json({ error: { code: 'NOT_FOUND', message: '找不到這個資料介面' } });
   });
-  if (httpConfig.staticDir) app.use(express.static(httpConfig.staticDir, { dotfiles: 'ignore', index: 'index.html' }));
+  if (httpConfig.staticDir) {
+    app.use('/assets', express.static(join(httpConfig.staticDir, 'assets'), {
+      dotfiles: 'ignore', index: false, maxAge: '1y', immutable: true,
+    }));
+    app.use(express.static(httpConfig.staticDir, {
+      dotfiles: 'ignore', index: 'index.html',
+      setHeaders: (response) => response.setHeader('Cache-Control', 'no-store'),
+    }));
+  }
   app.use((error, _request, response, _next) => {
     if (
       error instanceof FileStorageError ||

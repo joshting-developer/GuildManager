@@ -58,14 +58,28 @@ test('production static serving exposes the build, keeps unknown API and missing
   try {
     assert.throws(() => createApp({}, { httpConfig: { ...production(), staticDir: directory } }), { code: 'HTTP_CONFIGURATION' });
     mkdirSync(join(directory, 'assets'));
-    writeFileSync(join(directory, 'index.html'), '<!doctype html><title>synthetic build</title>');
-    writeFileSync(join(directory, 'assets/app.js'), 'console.log("synthetic");');
+    writeFileSync(join(directory, 'index.html'), '<!doctype html><title>synthetic build</title><script src="/assets/app-abc123.js"></script>');
+    writeFileSync(join(directory, 'assets/app-abc123.js'), 'console.log("synthetic");');
     writeFileSync(join(directory, '.secret'), 'synthetic-private');
     await withApp({ httpConfig: { ...production(), staticDir: directory } }, async (app) => {
       const auth = await app.admin();
       const base = auth.response.url.replace('/api/auth/login', '');
-      assert.match(await (await fetch(base + '/')).text(), /synthetic build/);
-      assert.match(await (await fetch(base + '/assets/app.js')).text(), /console.log/);
+      for (const path of ['/', '/index.html']) {
+        const response = await fetch(base + path);
+        assert.equal(response.headers.get('cache-control'), 'no-store');
+        assert.match(await response.text(), /app-abc123.js/);
+      }
+      const asset = await fetch(base + '/assets/app-abc123.js');
+      assert.equal(asset.headers.get('cache-control'), 'public, max-age=31536000, immutable');
+      assert.match(await asset.text(), /console.log/);
+      // A new build changes the asset URL; refreshing the uncached HTML discovers it.
+      writeFileSync(join(directory, 'assets/app-def456.js'), 'console.log("updated");');
+      writeFileSync(join(directory, 'index.html'), '<script src="/assets/app-def456.js"></script>');
+      const refreshed = await fetch(base + '/');
+      assert.equal(refreshed.headers.get('cache-control'), 'no-store');
+      assert.match(await refreshed.text(), /app-def456.js/);
+      assert.match(await (await fetch(base + '/assets/app-def456.js')).text(), /updated/);
+      assert.equal((await auth.request('/auth/session')).headers.get('cache-control'), 'no-store');
       for (const path of ['/assets/missing.js', '/.secret', '/server/index.js', '/management']) assert.equal((await fetch(base + path)).status, 404, path);
       const unknown = await auth.request('/unknown');
       assert.equal(unknown.status, 404);
