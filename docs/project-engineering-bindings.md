@@ -14,7 +14,7 @@
 | --- | --- |
 | 架構、安全、角色、MySQL／物件儲存 與驗證 | [工程契約](engineering-contracts.md)、[Architecture](../Architecture.md) |
 | 2.0.0 的 Node.js 後端分層、async／交易／錯誤／驗證／測試寫法 | [Node.js 分層規範](nodejs-architecture.md)、[MySQL 開發說明](mysql-development.md) |
-| 成員名冊、匯入、UID、過去名稱及永久刪除 | [成員契約](member-contracts.md)、[維護操作](成員資料維護.md) |
+| 成員名冊、匯入、UID、過去名稱及永久刪除 | [成員契約](member-contracts.md) |
 | 活動、出勤、報名／請假、排表、範本、影片 | [活動與排表契約](event-lineup-contracts.md) |
 | 戰績上傳／刪除／編輯、歸屬、個人與分團分析 | [戰績契約](battle-contracts.md) |
 | 帳號密碼、品牌、導覽、等待、抽獎、Discord | [平台與整合契約](platform-contracts.md) |

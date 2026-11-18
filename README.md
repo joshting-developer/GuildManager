@@ -1,7 +1,5 @@
 # 逆水寒 · 幫會管理平台
 
-圖文操作手冊：[PDF](docs/操作手冊.pdf)／[離線網頁版](docs/操作手冊.html)／[Markdown](docs/操作手冊.md)。涵蓋成員、管理者與 admin 操作，附 26 張最新版示範畫面；圖片來源與更新方式見 [文件說明](docs/README.md)。
-
 首頁直接顯示活動行事曆與場次報名／請假, 右上預設成員通行密碼登入，另一分頁供管理帳號登入。manager／admin 可使用管理總覽、成員清單、活動安排、戰場排表與上傳數據；member 可閱覽戰績與個人分析，管理頁與管理 API 都檢查角色。雲端版沿用應用程式帳密／通行密碼，Google OAuth 尚未實作；正式試算表未執行初始化
 
 ## 使用 Docker 開發
@@ -165,7 +163,7 @@ npm run build
 - `npm run build`：一般本機前端 build, 輸出到 `dist/`
 - 編譯產物不納入 Git, 原始碼與 lockfile 納入 Git
 
-目前桌面／手機的瀏覽器驗證與手冊截圖使用 Playwright 操作 Chrome，開啟編譯後前端並使用隔離示範資料；舊版截圖含模擬 RPC，不代表現行 HTTP 整合已驗收；圖片保存於 `docs/manual-images/`。這些驗證與截圖腳本目前放在臨時目錄，未納入專案的可重跑套件，`npm test` 不包含瀏覽器測試或自動截圖，也沒有正式的 Playwright 設定或圖片比對測試。
+目前桌面／手機的瀏覽器驗證使用 Playwright 操作 Chrome，開啟編譯後前端並使用隔離示範資料。這些驗證腳本目前放在臨時目錄，未納入專案的可重跑套件，`npm test` 不包含瀏覽器測試，也沒有正式的 Playwright 設定或圖片比對測試。
 
 本機效能量測與重跑方式見 [效能開發說明](docs/performance-development.md)；本地備份／還原及健康檢查見 [復原說明](docs/local-recovery.md), 自動測試與建置見 [CI 說明](docs/ci.md)
 
@@ -567,7 +565,7 @@ DISCORD_WEBHOOK_MEMBER=https://discord.com/api/webhooks/…
 
 ### 成員資料維護
 
-admin／manager 可在成員清單永久刪除錯誤資料、開啟 UID 修正，以及直接新增／修改／刪除過去名稱。member 保留原有成員功能。操作說明與保留範圍見 [成員資料維護](docs/成員資料維護.md)。
+admin／manager 可在成員清單永久刪除錯誤資料、開啟 UID 修正，以及直接新增／修改／刪除過去名稱。member 保留原有成員功能。規則與保留範圍見 [成員契約](docs/member-contracts.md)。
 
 ### 出勤與請假紀錄
 
