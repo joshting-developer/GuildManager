@@ -132,3 +132,33 @@ test('import bounds and broken quotes are reported before writing', async () =>
     assert.ok(parseMemberImport('001,"名字"extra,碎夢,-', jobs).issues.length);
     assert.ok(parseMemberImport('001,"含\n換行",碎夢,-', jobs).issues.length);
   })));
+
+test('preview reads only imported UIDs in one query for 1, 100 and 500 rows and preserves fingerprints', async () => withRepo(async repo => {
+  const { repositoryDatabase } = await import('../helpers/mysql-repository.js');
+  const { createHash } = await import('node:crypto');
+  await repo.addMember({ uid: 'import-0', name: '既有', primaryProfessionId: 3 });
+  await repo.addMember({ uid: 'outside-import', name: '無關', primaryProfessionId: 3 });
+  const db = repositoryDatabase(repo);
+  const [rawState] = await db.query('SELECT revision, removed_at FROM members WHERE uid=?', ['import-0']);
+  const state = { revision: Number(rawState.revision), removed_at: rawState.removed_at };
+  const transaction = db.transaction.bind(db);let reads = [];
+  db.transaction = (work, options) => transaction(connection => work({ ...connection, query: async (sql, params) => {
+    const rows = await connection.query(sql, params);
+    if (sql.includes('FROM members')) reads.push({ sql, params, rows: rows.length });
+    return rows;
+  } }), options);
+  for (const count of [1, 100, 500]) {
+    reads = [];
+    const text = Array.from({ length: count }, (_, i) => `import-${i} 測試${i} 碎夢 -`).join('\n');
+    const preview = await repo.previewMemberImport({ text });
+    assert.equal(reads.length, 1);
+    assert.match(reads[0].sql, /WHERE uid IN/);
+    assert.equal(reads[0].params.length, count);
+    assert.ok(!reads[0].params.includes('outside-import'));
+    assert.equal(reads[0].rows, 1);
+    assert.deepEqual(preview.summary, { added: count - 1, restored: 0, skipped: 1 });
+    const states = Array.from({ length: count }, (_, i) => i === 0 ? state : null);
+    const expected = createHash('sha256').update(JSON.stringify({ rows: preview.rows, states })).digest('hex');
+    assert.equal(preview.fingerprint, expected);
+  }
+}));

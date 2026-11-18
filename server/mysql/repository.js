@@ -96,15 +96,17 @@ function createImplementation(store, authNow) {
     const parsed = parseMemberImport(input?.text, jobs);
     const states = [];
     const summary = { added: 0, restored: 0, skipped: 0 };
-    const rows = (await asyncMap(parsed.rows, async (row) => {
-      const existing = (await db
-        .prepare('SELECT revision, removed_at FROM members WHERE uid = ?')
-        .get(row.uid));
+    const existingRows = parsed.rows.length ? await db.prepare(
+      `SELECT uid, revision, removed_at FROM members WHERE uid IN (${parsed.rows.map(() => '?').join(', ')})`,
+    ).all(...parsed.rows.map(row => row.uid)) : [];
+    const byUid = new Map(existingRows.map(({ uid, revision, removed_at }) => [uid, { revision, removed_at }]));
+    const rows = parsed.rows.map(row => {
+      const existing = byUid.get(row.uid);
       const action = !existing ? 'add' : existing.removed_at === null ? 'skip' : 'restore';
       states.push(existing || null);
       summary[action === 'add' ? 'added' : action === 'restore' ? 'restored' : 'skipped'] += 1;
       return { ...row, action };
-    }));
+    });
     const fingerprint = parsed.issues.length
       ? null
       : createHash('sha256').update(JSON.stringify({ rows, states })).digest('hex');
