@@ -50,4 +50,3 @@ export function filterPersonalBattles(entries, filters) {
     );
   });
 }
-
