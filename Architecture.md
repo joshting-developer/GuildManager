@@ -11,7 +11,7 @@
 - migration 必須明確執行, HTTP 啟動只檢查連線與版本, 不自動建表或匯入資料
 - 本地使用本機 MySQL 的專用開發庫, 測試使用另外四組隔離庫, 詳見 [MySQL 開發說明](docs/mysql-development.md)
 - development 由 Vite `localhost:5173` 代理 `/api` 至 Express `localhost:3001`
-- production 由 Express 同時提供 `dist/` 與 `/api`, HTTPS 由可信反向代理終止, 設定見 [README](README.md)
+- production 由 Express 同時提供 `dist/` 與 `/api`, HTTPS 由可信反向代理終止, 設定見[正式環境](docs/production-environment.md)
 
 ## 安全與一致性
 

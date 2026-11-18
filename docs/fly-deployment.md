@@ -6,7 +6,7 @@
 
 1. 複製 `fly.toml.example` 為 `fly.toml`, 填入 App、HTTPS 網址（`APP_ORIGIN`）、MySQL 位址／資料庫與 R2 bucket。映像使用 Dockerfile 的 `runtime` target, Node 同一個 3001 埠提供前端與 `/api`
 2. 用 Fly Secrets 設定 `DB_USERNAME`、`DB_PASSWORD`、`DB_SSL_CA_BASE64`、`R2_ENDPOINT`、`R2_ACCESS_KEY_ID`、`R2_SECRET_ACCESS_KEY`。從 stdin 匯入, 不把值放在指令參數：`flyctl secrets import --stage -a <app> < 私人檔案`
-3. App 的 DB 帳號只給 runtime（限本 schema 的 DML）, migration 帳號不放進 App。部署前用 migration 帳號在受信任的機器執行 `npm run db:migrate`, 再依 [README](../README.md#本機登入) 用 bootstrap 檔建立 admin
+3. App 的 DB 帳號只給 runtime（限本 schema 的 DML）, migration 帳號不放進 App。部署前用 migration 帳號在受信任的機器執行 `npm run db:migrate`, 再依 [本機開發](development.md#本機登入) 用 bootstrap 檔建立 admin
 4. `flyctl deploy --config fly.toml -a <app> --ha=false`
 
 ## 設定說明

@@ -11,7 +11,7 @@
 
 `NSHM_history` 的 Laravel、Vue、Inertia 與資料庫架構只作背景參考, 本專案沿用其視覺語言, 不直接搬入這些框架
 
-前端採用 Vue／Vuetify, 後端採用 Node API／MySQL；開發與編譯方式見 [README.md](../README.md), 平台切換規則見 [Architecture.md](../Architecture.md)
+前端採用 Vue／Vuetify, 後端採用 Node API／MySQL；開發與編譯方式見[本機開發](development.md), 平台切換規則見 [Architecture.md](../Architecture.md)
 
 ## 建議檔案分工
 

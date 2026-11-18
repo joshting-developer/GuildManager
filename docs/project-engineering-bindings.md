@@ -18,6 +18,7 @@
 | 活動、出勤、報名／請假、排表、範本、影片 | [活動與排表契約](event-lineup-contracts.md) |
 | 戰績上傳／刪除／編輯、歸屬、個人與分團分析 | [戰績契約](battle-contracts.md) |
 | 帳號密碼、品牌、導覽、等待、抽獎、Discord | [平台與整合契約](platform-contracts.md) |
+| 目前頁面行為與權限總覽 | [功能說明](product-features.md) |
 | 介面與互動 | [Style](../Style.md)、相關領域契約 |
 
 契約修改時更新對應文件, 這裡只放現行規則, 不放開發歷史
