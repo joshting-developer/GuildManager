@@ -1,4 +1,4 @@
-# App creation must use the organization confirmed by Josh.
+# Create the Fly app under the organization that owns this deployment.
 app = "your-fly-app"
 primary_region = "nrt"
 kill_signal = "SIGTERM"

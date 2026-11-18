@@ -36,7 +36,7 @@ export function legacyFileEntries(zipEntries) {
 
 /**
  * Match battle CSVs by their stored filename and verify each one parses into the same players
- * already imported by GM-29, so a wrong or edited file cannot be attached silently.
+ * already imported by the database import, so a wrong or edited file cannot be attached silently.
  */
 export function planLegacyFiles(files, { records, platform }) {
   const anomalies = [];
@@ -104,7 +104,7 @@ function compareCsv(bytes, expected) {
 
 /**
  * Upload every planned file that is still missing and link it in its own short transaction.
- * Object IO stays outside MySQL; the staging ledger keeps unknown PUT results recoverable (GM-17).
+ * Object IO stays outside MySQL; the staging ledger keeps unknown PUT results recoverable.
  */
 export async function applyLegacyFiles(database, storage, plan) {
   const status = await migrationStatus(database, mysqlMigrations);
@@ -116,7 +116,7 @@ export async function applyLegacyFiles(database, storage, plan) {
   const missing = new Set((await store.prepare('SELECT id FROM battle_records WHERE csv_file_id IS NULL').all()).map((row) => row.id));
   const known = new Set((await store.prepare('SELECT id FROM battle_records').all()).map((row) => row.id));
   const unknown = plan.csv.filter((file) => !known.has(file.recordId));
-  if (unknown.length) throw new LegacyFilesError(`目標資料庫沒有 ${unknown.length} 筆戰績, 請先用同一份匯出檔完成 GM-29 匯入`);
+  if (unknown.length) throw new LegacyFilesError(`目標資料庫沒有 ${unknown.length} 筆戰績, 請先用同一份匯出檔完成資料庫匯入`);
 
   const result = { csvUploaded: 0, csvSkipped: 0, iconUploaded: 0, iconSkipped: 0 };
   for (const file of plan.csv) {

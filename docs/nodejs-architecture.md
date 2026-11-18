@@ -1,6 +1,6 @@
 # GM v2 Node.js 分層與開發方式
 
-2.0.0 的後端是 Node.js 22／Express 5／mysql2, 原始碼維持 JavaScript ESM。這份文件定義 Codex／Claude 與其他協作者寫 `server/` 時共同遵守的分層與寫法, 目標是讓後續功能用同一套簡單規則開發, 而不是每次各寫各的
+2.0.0 的後端是 Node.js 22／Express 5／mysql2, 原始碼維持 JavaScript ESM。這份文件定義所有協作者寫 `server/` 時共同遵守的分層與寫法, 目標是讓後續功能用同一套簡單規則開發, 而不是每次各寫各的
 
 參考來源是 wshobson/agents 的 [nodejs-backend-patterns](https://github.com/wshobson/agents/tree/main/plugins/javascript-typescript/skills/nodejs-backend-patterns) Agent Skill。它是開發時的參考文件, 不是 package.json 依賴；上游範例用 TypeScript、PostgreSQL、JWT 與 DI 容器, 這裡只取分層、錯誤處理與交易的觀念, 語言、資料庫、登入與 API 契約一律依本專案既有文件。本文與 [MySQL 開發說明](mysql-development.md)、[工程契約](engineering-contracts.md) 衝突時, 以安全與資料契約為準
 
@@ -20,7 +20,7 @@
 - Repository 每個公開方法都是 `async`, 每次查詢都 `await`；不保留同步版本, 不提供 callback 介面
 - Express 5 會把 async handler 的 rejected Promise 交給錯誤 middleware, 所以路由寫成 `async (request, response) => { response.json(await repository.getEvent(id)); }` 就好, 不需要每條都包 try／catch 或 asyncHandler
 - 不要 fire-and-forget。唯一允許在回應後繼續跑的是 Discord 通知佇列, 而且只在交易提交成功後才排入
-- 交易裡逐筆 `await` 是刻意的, 因為同一條連線要維持順序；`server/mysql/collections.js` 的 `asyncMap` 等工具就是做這件事。交易外的清單讀取優先一次 SQL 取回, 不用迴圈逐筆查；是否有 N+1 由 GM-37 量測後再處理, 不先猜
+- 交易裡逐筆 `await` 是刻意的, 因為同一條連線要維持順序；`server/mysql/collections.js` 的 `asyncMap` 等工具就是做這件事。交易外的清單讀取優先一次 SQL 取回, 不用迴圈逐筆查；是否有 N+1 先量測再處理, 不先猜
 
 ## 交易、鎖與版本
 
@@ -51,7 +51,7 @@
 ## 測試
 
 - 業務行為測試放 `tests/mysql-contracts/*.test.js`, 透過 `tests/helpers/mysql-repository.js` 在自己的隔離空庫跑真 MySQL；一個情境一個 `test`, 用 `node:test` 與 `node:assert/strict`, 不加測試框架
-- HTTP 層測試用 `createApp(repository)` 接隔離的 MySQL Repository 驗 status、JSON 形狀與錯誤碼（GM-7 補齊）；不用 SQLite 代替, 也不 mock Repository 來假裝交易通過
+- HTTP 層測試用 `createApp(repository)` 接隔離的 MySQL Repository 驗 status、JSON 形狀與錯誤碼；不用 SQLite 代替, 也不 mock Repository 來假裝交易通過
 - 多人操作、同 requestId 重送、持鎖時唯讀與故障回滾已有既有案例, 新寫入功能要照樣補一個並行案例
 - `npm test` 只接受四個隔離設定檔, 缺設定直接失敗, 不把 skip 當通過。指令與設定格式見 [MySQL 開發說明](mysql-development.md)
 

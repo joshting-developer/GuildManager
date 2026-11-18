@@ -167,7 +167,7 @@ export function transformLegacyStore({ tables }) {
     battleIds.add(id);
     const uploadId = legacyKey('upload', id);
     rows.battle_uploads.push({ id: uploadId, request_id: uploadId, input_hash: battle.contentHash, image_name: null, image_type: null, image_data: null, created_at: battle.createdAt, image_file_id: null });
-    // CSV bytes move to R2 in GM-30; until then csv_text stays empty like every v2 upload.
+    // CSV bytes move to R2 in the file import; until then csv_text stays empty like every v2 upload.
     rows.battle_records.push({
       id, upload_id: uploadId, event_id: battle.eventId ?? null, event_snapshot_json: battle.event ? JSON.stringify(battle.event) : null,
       battle_type: battle.type, played_at: battle.playedAt, red_team: battle.redTeam, blue_team: battle.blueTeam, winner: battle.winner ?? null,

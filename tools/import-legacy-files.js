@@ -24,7 +24,7 @@ try {
   if (values.apply && values.database !== process.env.DB_DATABASE) throw new Error('--database 必須與 DB_DATABASE 相同, 避免寫錯資料庫');
   if (values.apply && values.bucket !== process.env.R2_BUCKET) throw new Error('--bucket 必須與 R2_BUCKET 相同, 避免傳錯 bucket');
 
-  // Same export as GM-29, so record ids, filenames and players are the ones already imported.
+  // Same export as the database import, so record ids, filenames and players are the ones already imported.
   const { rows, settings } = transformLegacyStore(resolveGasStore(readWorkbook(await readFile(values.source))));
   const { files, anomalies: entryAnomalies } = legacyFileEntries(readZipEntries(await readFile(values.files)));
   const plan = planLegacyFiles(files, { records: rows.battle_records, platform: settings.platform });

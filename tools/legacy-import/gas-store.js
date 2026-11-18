@@ -1,4 +1,4 @@
-// Mirrors the retired GAS sheet store (gas/src/storage.js before GM-33): append-only generations,
+// Mirrors the retired GAS sheet store (the former gas/src/storage.js): append-only generations,
 // GM_commits as the only commit marker, base64 JSON payloads split into ordered parts.
 export const GAS_TABLES = [
   'settings', 'professions', 'members', 'name_history', 'events', 'duties', 'responses', 'registrations',

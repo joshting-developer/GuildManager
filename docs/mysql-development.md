@@ -14,7 +14,7 @@ node --env-file=.local/mysql.env tools/check-mysql.js
 
 - `DB_HOST`、`DB_DATABASE`、`DB_USERNAME`、`DB_PASSWORD` 必填, `DB_PORT` 預設 3306
 - `DB_SSL_MODE` 預設 `verify_identity`, 需提供 `DB_SSL_CA_FILE` 或 `DB_SSL_CA_BASE64` 其中一個。保留 CA、主機名稱與 TLS 1.2 以上驗證, 不提供略過憑證驗證的模式
-- 本機 loopback、`mysql` 或共用服務的 `side-project-mysql` 可明確使用 `DB_SSL_MODE=disabled`, production 一律禁止停用 TLS
+- 本機 loopback、`mysql` 或本機 Docker 網路的 `side-project-mysql` 可明確使用 `DB_SSL_MODE=disabled`, production 一律禁止停用 TLS
 - 每程序一個 pool, 預設 5 條連線及最多 20 個排隊要求, 可由 `DB_POOL_SIZE`／`DB_QUEUE_LIMIT` 調整；不接受無限佇列。`DB_CONNECT_TIMEOUT` 預設 10000ms
 - UTF-8 使用 utf8mb4, BIGINT、DECIMAL 與日期保持不失真的傳輸值, 由各 Repository 按 API 契約明確轉換；不能把 UID 或大整數統一轉 Number
 
@@ -32,7 +32,7 @@ node --env-file=.local/mysql.env tools/check-mysql.js
 
 ## 真實 MySQL 測試
 
-使用自己專用的隔離庫與限庫帳號, 不使用正式庫、TT 庫或使用者的日常開發資料。連線測試只接受 `sp_guildmanager_<agent>_test`, migration 測試另用 `sp_guildmanager_<agent>_migrationtest` 空庫, schema 契約另用 `sp_guildmanager_<agent>_schematest` 空庫, Repository 業務測試另用 `sp_guildmanager_<agent>_repositorytest` 空庫, agent 使用自己的小寫識別。主機須為本機或明確的本機 Docker MySQL, 不從 DB 環境自動推測測試目標
+使用自己專用的隔離庫與限庫帳號, 不使用正式庫、其他專案的資料庫或日常開發資料。連線測試只接受 `sp_guildmanager_<name>_test`, migration 測試另用 `sp_guildmanager_<name>_migrationtest` 空庫, schema 契約另用 `sp_guildmanager_<name>_schematest` 空庫, Repository 業務測試另用 `sp_guildmanager_<name>_repositorytest` 空庫, name 使用自己的小寫識別。主機須為本機或明確的本機 Docker MySQL, 不從 DB 環境自動推測測試目標
 
 將專用帳密填入忽略的 `.local/mysql-test.json`, 權限設為 0600。範例中的所有值皆為測試用途：
 
@@ -43,7 +43,7 @@ node --env-file=.local/mysql.env tools/check-mysql.js
     "NODE_ENV": "test",
     "DB_HOST": "127.0.0.1",
     "DB_PORT": "13306",
-    "DB_DATABASE": "sp_guildmanager_codex_test",
+    "DB_DATABASE": "sp_guildmanager_example_test",
     "DB_USERNAME": "example_test_user",
     "DB_PASSWORD": "replace-in-private-config",
     "DB_SSL_MODE": "disabled"
@@ -61,7 +61,7 @@ npm run test:mysql
 
 第二個設定檔格式相同, purpose 改成 `guildmanager-migration-test`, DB_DATABASE 與帳密改用自己獨立的 migrationtest 庫。第三個 schema 設定 purpose 為 `guildmanager-schema-test`, 使用獨立 schematest 庫。第四個 Repository 設定 purpose 為 `guildmanager-repository-test`, 使用獨立 repositorytest 庫。migration、schema 與 Repository 測試都要求空庫, 有既有表就停止, 不重設或清空舊資料
 
-此入口缺任一設定會失敗, 不會將全部 skip 當成 MySQL 通過。`npm test` 與 `npm run test:mysql` 都執行這套 MySQL 驗證, 沒有明確的隔離設定就失敗, 不回退 SQLite。額外指定 `GUILD_MYSQL_TEST_CA` 可測試共用 MySQL 的自簽伺服器憑證主機名稱不符時會被拒絕
+此入口缺任一設定會失敗, 不會將全部 skip 當成 MySQL 通過。`npm test` 與 `npm run test:mysql` 都執行這套 MySQL 驗證, 沒有明確的隔離設定就失敗, 不回退 SQLite。額外指定 `GUILD_MYSQL_TEST_CA` 可測試本機 MySQL 的自簽伺服器憑證主機名稱不符時會被拒絕
 
 連線測試僅建立帶隨機名稱的人造表, 在 finally 移除自己的測試表並關閉 pool；驗證中文／emoji、前導零、BIGINT、交易回滾、單連線 pool 釋放、跨系統庫拒絕及錯誤不洩密。這些是開發與連線驗證, 不代表所有產品功能或正式站已切換 MySQL
 
@@ -99,7 +99,7 @@ MySQL 的 DDL 會隱含 commit, 不能假稱 rollback 可還原整批建表。�
 
 schema 測試以固定的 MySQL 契約清單核對所有表／原欄位／外鍵, 執行時不建立或讀取 SQLite, 再用真 MySQL 驗有效／無效寫入、中文與 emoji、前導零、ASCII／Unicode 名稱差異、JSON 原文、nullable 場序、重跑與排序。測試只刪除自己在專用空庫建立的表
 
-目前實測引擎為共用 MySQL 8.4, 不把它當作 Oracle MySQL 8.0.46 的 migration 實測。正式庫仍不自動建表或匯入, 後續部署前另核對目標引擎與發布資格
+目前實測引擎為本機 MySQL 8.4, 不等於正式環境引擎的 migration 實測。正式庫仍不自動建表或匯入, 後續部署前另核對目標引擎與發布資格
 
 ## 非同步 Repository
 
@@ -131,7 +131,7 @@ schema 測試以固定的 MySQL 契約清單核對所有表／原欄位／外鍵
 
 Repository 測試將既有業務斷言改成 async MySQL 呼叫, 不改掉原本預期行為；另驗兩個獨立 Repository 的版本衝突、不同成員並行送出、相同 requestId 重送、持鎖時唯讀、故障注入回滾、通知隔離及重新建立 Repository 後的持久化。每個案例只在空的專用 repositorytest 庫建表及使用人造資料, finally 移除自己建立的表, 不初始化或驗證 SQLite
 
-Repository 與 HTTP 路由的 await／錯誤處理及提交後通知分別由業務契約與 HTTP 測試驗證。Oracle 目標引擎與正式舊資料另行驗收
+Repository 與 HTTP 路由的 await／錯誤處理及提交後通知分別由業務契約與 HTTP 測試驗證。正式環境引擎與舊資料另行驗收
 
 ## MySQL 帳號與權限
 
@@ -143,7 +143,7 @@ HTTP 權限回歸使用真實 MySQL 驗匿名／member／manager／admin, 涵蓋
 
 `server/index.js` 啟動時依環境變數建立 pool、`probe` 連線, 再以 `migrationStatus` 核對所有版本都是 applied；有 pending 或連線失敗就輸出固定代碼並結束, 不自動建表。`server/app.js` 全部路由 `await` Repository, 回應格式、狀態碼與錯誤 envelope 維持原契約；需要通知的寫入改走 `repository.invoke(name, args)`, 只在交易提交後把該次操作的通知交給 notifier, 失敗操作不送。`server/auth.js` 的 session 讀取、公開路徑判斷與撤銷同樣 `await`
 
-Docker 的 API 服務加入共用 `side-project-environment` 網路, 沿用自己的 MySQL schema／帳號；需先啟動共用服務並明確套用 migration。遠端 TLS 連線可透過 `DB_SSL_CA_BASE64` 提供 CA, 不把主機私有檔案路徑直接傳入容器
+Docker 的 API 服務加入外部 `side-project-environment` 網路, 沿用自己的 MySQL schema／帳號；需先啟動本機 MySQL 並明確套用 migration。遠端 TLS 連線可透過 `DB_SSL_CA_BASE64` 提供 CA, 不把主機私有檔案路徑直接傳入容器
 
 HTTP 契約測試在 `tests/mysql-http/`, 由 `tests/mysql-http.test.js` 在同一程序依序載入, 使用與 Repository 測試相同的 repositorytest 空庫；不要直接把多個檔案交給 `node --test` 平行跑, 會在同一個 schema 互相干擾。目前覆蓋存取／登入／錯誤 envelope、活動、成員與匯入、報名、排表／職責／範本、戰績上傳／附件／刪除、平台設定／抽獎／影片；角色／session／CSRF 的回歸另見 `auth.test.js`, CLI 回歸見 `account-cli.test.js`；健康與停機回歸見下節, 通知提交／重送／rollback／footer 故障與非同步投遞見 `notifications.test.js`, 使用合成 fetch, 不代表真 Discord 送達
 
@@ -156,7 +156,7 @@ HTTP 契約測試在 `tests/mysql-http/`, 由 `tests/mysql-http.test.js` 在同�
 - 啟動、健康探測、一般 API、通知排程與停機錯誤使用 JSON 紀錄, 僅包含固定 `event`、`component` 與白名單 `code`。不記 driver 原文、stack、SQL、URL、Cookie、帳密或玩家輸入；logger 自身失敗不改變 API 結果。Discord 實際投遞仍由 notifier 自己處理
 - 收到 `SIGTERM`／`SIGINT` 後停止接新連線, 重用連線送來的新工作回 503／`SERVICE_STOPPING`。已在處理的要求先完成, 再關 MySQL pool 並等待已排 Discord 通知, 正常退出碼 0；重複訊號共用同一次停機。關閉失敗或超過 10 秒會記固定分類、斷開剩餘 HTTP 連線並以非零碼退出, 不保證逾時中的寫入已完成或回滾, 呼叫端仍須沿原 requestId 核對結果
 
-`health.test.js` 在隔離 MySQL 驗 probe／寫鎖／真 pool 關閉, 並用故障注入驗錯誤不洩密；`startup.test.js` 驗實際啟動與兩種信號, `shutdown.test.js` 驗在途完成後關 pool、重複關閉、佔用埠、pool 關閉失敗與停機逾時。測試只關閉自己建立的 HTTP 與 pool, 不停共用 MySQL
+`health.test.js` 在隔離 MySQL 驗 probe／寫鎖／真 pool 關閉, 並用故障注入驗錯誤不洩密；`startup.test.js` 驗實際啟動與兩種信號, `shutdown.test.js` 驗在途完成後關 pool、重複關閉、佔用埠、pool 關閉失敗與停機逾時。測試只關閉自己建立的 HTTP 與 pool, 不停本機 MySQL
 
 ## 提交後通知驗證
 
@@ -172,8 +172,10 @@ HTTP 契約測試在 `tests/mysql-http/`, 由 `tests/mysql-http.test.js` 在同�
 
 ## 日常開發與隔離測試分開
 
-本機使用共用 MySQL 8.4, 日常開發庫與四個 Agent 測試庫分開。日常庫可用共用環境工具的 `--project guildmanager --agent local --purpose dev` 建立, 不沿用測試庫作為網站資料來源
+本機需要一個 MySQL 8.4, 對主機開放 `127.0.0.1:13306`, 並加入名為 `side-project-environment` 的外部 Docker 網路, 網路內的主機名稱是 `side-project-mysql`。備份工具和 Compose 會用到這些值
+
+日常開發庫和四個測試庫要分開, 各自使用限庫帳號。日常庫可命名為 `sp_guildmanager_local_dev`, 不沿用測試庫作為網站資料來源
 
 將專用連線與檔案服務設定放到忽略的 `.env`, 依序執行 migration、建立帳號及 `docker compose up --build -d`。Compose 使用容器主機名稱與埠, 主機執行 migration 時另外提供 `127.0.0.1:13306` 的私有設定。帳密不寫入產品文件
 
-網站為 `http://localhost:5173`, API 為 `http://localhost:3001`。重新啟動沿用原資料與帳號；不要使用 `down -v` 或刪除共用服務 volume
+網站為 `http://localhost:5173`, API 為 `http://localhost:3001`。重新啟動沿用原資料與帳號；不要使用 `down -v` 或刪除 MySQL volume

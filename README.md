@@ -6,7 +6,7 @@
 
 2.0.0 的 MySQL 連線設定與隔離測試見 [MySQL 開發說明](docs/mysql-development.md), 後端分層與寫法見 [Node.js 分層規範](docs/nodejs-architecture.md), 其參考的上游 Skill 是 wshobson/agents 的 nodejs-backend-patterns, 只作開發參考, 不是執行依賴。HTTP 服務已改接 MySQL, `npm run server` 需要 MySQL 開發說明中的連線環境變數與已套用的 migration；下列 Docker 流程的 SQLite volume 暫時保留, 正式資料尚未移轉
 
-需要 Docker Engine 與 Docker Compose v2, 先依 [MySQL 開發說明](docs/mysql-development.md) 啟動共用 MySQL、提供專用連線設定並套用 migration
+需要 Docker Engine 與 Docker Compose v2, 先依 [MySQL 開發說明](docs/mysql-development.md) 啟動本機 MySQL、提供專用連線設定並套用 migration
 
 ```sh
 docker compose up --build -d
@@ -14,7 +14,7 @@ docker compose up --build -d
 
 開啟 [首頁](http://localhost:5173)、[成員清單](http://localhost:5173/#/members) 、[活動安排](http://localhost:5173/#/events) 或 [戰場排表](http://localhost:5173/#/lineups), 前端支援熱更新, API 使用 Node watch
 
-原首頁總覽改為 [管理總覽](http://localhost:5173/#/magament), `magament` 沿用使用者指定拼字, 也接受 `#/management`。未登入時直接開管理網址會回到首頁並開啟登入視窗；網址使用 hash 供同源網站導覽。
+原首頁總覽改為 [管理總覽](http://localhost:5173/#/magament), `magament` 沿用既有拼字, 也接受 `#/management`。未登入時直接開管理網址會回到首頁並開啟登入視窗；網址使用 hash 供同源網站導覽。
 
 - API／MySQL 就緒檢查：`http://localhost:3001/api/health`（成功 200, 無法連線或逾時 503）
 - API 存活檢查：`http://localhost:3001/api/live`（不讀資料庫）
@@ -23,7 +23,7 @@ docker compose up --build -d
 - 戰場排表：`http://localhost:3001/api/lineups`
 - 職責清單：`http://localhost:3001/api/duties`
 - 職業清單：`http://localhost:3001/api/professions`
-- API 服務由 compose.yaml 旁的 `.env`（忽略檔, 變數名稱依 `config/mysql.env.example`）取得 MySQL 連線, 預設指向共用服務的 `side-project-mysql`；舊 `guild_data` volume 的 SQLite 保留, 不作為目前服務資料來源
+- API 服務由 compose.yaml 旁的 `.env`（忽略檔, 變數名稱依 `config/mysql.env.example`）取得 MySQL 連線, 預設指向本機 Docker 網路的 `side-project-mysql`；舊 `guild_data` volume 的 SQLite 保留, 不作為目前服務資料來源
 - 本機資料庫啟動時不自動加入示範資料, 重啟不覆寫既有設定
 - `src/` 與 `server/` 修改會反映至服務, 依賴或 Dockerfile 變更後重新執行 `docker compose up --build -d`
 - 若 Docker Desktop 的檔案事件通知不穩定, 再依需要開啟 polling

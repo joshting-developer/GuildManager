@@ -180,7 +180,7 @@ test('legacy files upload once, link metadata and read back through the v2 attac
 
     // Re-running after a partial or full success only fills what is still missing.
     assert.deepEqual(await applyLegacyFiles(database, storage, plan), { csvUploaded: 0, csvSkipped: 1, iconUploaded: 0, iconSkipped: 1 });
-    await assert.rejects(() => applyLegacyFiles(database, storage, { ...plan, csv: [{ ...plan.csv[0], recordId: 'missing' }] }), /GM-29/);
+    await assert.rejects(() => applyLegacyFiles(database, storage, { ...plan, csv: [{ ...plan.csv[0], recordId: 'missing' }] }), /資料庫匯入/);
   } finally {
     await repository.close();
   }

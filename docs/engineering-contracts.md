@@ -6,12 +6,12 @@
 
 - 前端：Vue 3／Vuetify／Vite, 日常編輯 `.vue`、JS 與 CSS 原始碼
 - 本機後端：Node.js／Express, 使用 MySQL 非同步 Repository, 分層與寫法見 [Node.js 分層規範](nodejs-architecture.md)
-- 本機環境：Docker Compose 的 frontend／api 服務, 資料保存在共用 MySQL 的專用資料庫
+- 本機環境：Docker Compose 的 frontend／api 服務, 資料保存在本機 MySQL 的專用資料庫
 - 日期顯示與專案時區統一採 `Asia/Taipei`
 
 `NSHM_history` 的 Laravel、Vue、Inertia 與資料庫架構只作背景參考, 本專案沿用其視覺語言, 不直接搬入這些框架
 
-使用者已確認採用 Vue／Vuetify 與 Node API／MySQL, 取代最初的原生 HTML 方向；開發與編譯方式見 [README.md](../README.md), 平台切換規則見 [Architecture.md](../Architecture.md)
+前端採用 Vue／Vuetify, 後端採用 Node API／MySQL；開發與編譯方式見 [README.md](../README.md), 平台切換規則見 [Architecture.md](../Architecture.md)
 
 ## 建議檔案分工
 

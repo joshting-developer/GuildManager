@@ -30,8 +30,8 @@ try {
     cleaning: report.summary(),
     pending: {
       accounts: '帳號／Session 不匯入；部署時建立 admin, manager 與成員通行密碼由 admin 重新設定',
-      battleCsv: `${counts.battle_records} 筆戰績 CSV 待 GM-30 上傳 R2 後補 csv_file_id`,
-      platformIcon: settings.platform?.icon ? '平台圖示待 GM-30 上傳 R2 後補 icon_file_id' : null,
+      battleCsv: `${counts.battle_records} 筆戰績 CSV 待檔案匯入工具上傳 R2 後補 csv_file_id`,
+      platformIcon: settings.platform?.icon ? '平台圖示待檔案匯入工具上傳 R2 後補 icon_file_id' : null,
     },
   };
   // The detailed report names members, so it belongs in an ignored private directory.
