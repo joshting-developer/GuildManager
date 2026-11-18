@@ -59,8 +59,6 @@ async function save() {
   finally { saving.value = false; }
   if (!edit.value && !disposed) await load();
 }
-const responseLabel = value => ({leave:'請假',registered:'報名',none:'未回覆'})[value] || '未回覆';
-const statusLabel = value => ATTENDANCE_STATUSES.find(s=>s.value===value)?.title || '未登記';
 async function leaveCancelled() { emit('changed'); await load(true); }
 onMounted(() => load());
 onUnmounted(() => { disposed = true; version++; });
@@ -85,10 +83,8 @@ onUnmounted(() => { disposed = true; version++; });
         <li v-for="row in result.rows" :key="row.uid">
           <strong class="attendance-identity">{{ row.name }}</strong>
           <div class="attendance-details">
-            <span>最近一筆：{{ responseLabel(row.response) }} · {{ statusLabel(row.attendance) }}</span>
             <span>當月請假 {{ row.monthlyLeaveCount }} 次 <v-chip v-if="result.threshold > 0 && row.monthlyLeaveCount >= result.threshold" size="small" variant="tonal">已達關心門檻</v-chip></span>
-            <span v-if="row.leaveNote">請假／報名備註：{{ row.leaveNote }}</span>
-            <span v-if="row.note">出勤備註：{{ row.note }}</span>
+            <span>最近一次請假：{{ row.date }} · {{ eventDisplayTitle(row) }}</span>
           </div>
           <v-btn variant="text" :disabled="saving" :aria-label="'看更多：'+row.name+' 的請假歷史'" :aria-expanded="historyOpen && historyUid===row.uid" @click="openHistory(row,$event)">看更多</v-btn>
         </li>

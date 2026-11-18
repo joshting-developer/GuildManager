@@ -96,6 +96,11 @@ test('member summary groups before pagination, uses latest matching leave and ex
   const row=first.rows[0];assert.equal(row.uid,'group-00');assert.equal(row.leaveCount,3);assert.equal(row.monthlyLeaveCount,3);assert.equal(row.date,'2026-11-03');assert.equal(row.leaveNote,events[2].id);assert.equal(row.note,'最新出勤備註');assert.equal(row.attendance,'absent');
   const filtered=await repo.getAttendanceHistory({...query,eventId:events[0].id,uid:'group-00'});
   assert.equal(filtered.total,1);assert.equal(filtered.rows[0].leaveCount,1);assert.equal(filtered.rows[0].monthlyLeaveCount,3);assert.equal(filtered.rows[0].date,'2026-11-01');
+  await repo.cancelEventLeave(events[2].id,{source:'member',id:'group-00',revision:1,requestId:'cancel-latest-summary'});
+  const afterCancel=await repo.getAttendanceHistory({...query,uid:'group-00'});
+  assert.equal(afterCancel.rows[0].monthlyLeaveCount,2);assert.equal(afterCancel.rows[0].leaveCount,2);assert.equal(afterCancel.summary.leave,2);
+  assert.equal(afterCancel.rows[0].eventId,events[1].id);assert.equal(afterCancel.rows[0].date,'2026-11-02');
+  assert.equal((await repo.getAttendanceHistory({...query,uid:'group-00',eventId:events[2].id})).total,0);
   await repo.deleteEvent(events[2].id,events[2].revision);
   assert.equal((await repo.getAttendanceHistory({...query,uid:'group-00'})).rows[0].leaveCount,2);
   assert.equal((await repo.getAttendanceHistory({...query,month:'2026-10'})).total,0);
