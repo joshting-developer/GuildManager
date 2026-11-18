@@ -1,10 +1,29 @@
-import { randomBytes, randomUUID, createHash } from 'node:crypto';
-import { AuthError, passwordHash, verifySecret, SESSION_SECONDS } from '../auth-repository.js';
-export { AuthError, passwordHash, verifySecret, SESSION_SECONDS, csrfToken } from '../auth-repository.js';
+import { randomBytes, randomUUID, scrypt as scryptCallback, timingSafeEqual, createHash } from 'node:crypto';
+import { promisify } from 'node:util';
 
+const scrypt = promisify(scryptCallback);
 const MEMBER_USERNAME = 'guild_member';
 const publicUser = (account) => ({ id: account.id, username: account.role === 'member' ? '' : account.username, role: account.role });
+export const SESSION_SECONDS = 8 * 60 * 60;
 const digest = (value) => createHash('sha256').update(value).digest('hex');
+export const csrfToken = (token) => digest(`csrf:${token}`);
+export class AuthError extends Error {
+  constructor(status, code, message) {
+    super(message);
+    Object.assign(this, { status, code });
+  }
+}
+export async function passwordHash(password, minimum = 6) {
+  if (typeof password !== 'string' || password.length < minimum || password.length > 128)
+    throw new AuthError(422, 'INVALID_PASSWORD', '密碼長度須為 6–128 個字元');
+  const salt = randomBytes(16).toString('hex');
+  return { salt, hash: (await scrypt(password, salt, 64)).toString('hex') };
+}
+export async function verifySecret(secret, salt, hash) {
+  if (typeof secret !== 'string' || secret.length > 128) return false;
+  const actual = await scrypt(secret, salt || 'unknown-account-salt', 64);
+  return timingSafeEqual(actual, Buffer.from(hash || '0'.repeat(128), 'hex'));
+}
 const accountChanged = () => new AuthError(409, 'ACCOUNT_CHANGED', '帳號資料已更新, 請重新載入');
 
 function validateUsername(username) {

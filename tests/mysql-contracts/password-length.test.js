@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { passwordHash, verifySecret } from '../../server/auth-repository.js';
+import { passwordHash, verifySecret } from '../../server/mysql/auth-repository.js';
 import { createTestRepository as createRepository } from '../helpers/mysql-repository.js';
 
 const invalid = { code: 'INVALID_PASSWORD' };

@@ -11,6 +11,15 @@ const storages = new WeakMap();
 export function repositoryFileStorage(repository) { return storages.get(repository); }
 export function repositoryDatabase(repository) { return databases.get(repository); }
 
+// A new Repository on the same schema stands in for a process restart; close still belongs to the original.
+export function reopenTestRepository(repository, options = {}) {
+  const database = databases.get(repository), fileStorage = storages.get(repository);
+  const reopened = { ...createMysqlRepository(database, { fileStorage, participationNow: participationTestNow, ...options }), close: repository.close };
+  databases.set(reopened, database);
+  storages.set(reopened, fileStorage);
+  return reopened;
+}
+
 let gate = Promise.resolve();
 export async function createTestRepository(options = {}) {
   // Most business contracts isolate the external object provider; dedicated R2 tests use the real adapter.

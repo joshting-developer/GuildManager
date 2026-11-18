@@ -2,7 +2,7 @@ import { createMysqlDatabase, DatabaseError } from './database/mysql.js';
 import { migrationStatus, MigrationError } from './database/migrate.js';
 import { mysqlMigrations } from './database/migrations.js';
 import { createMysqlRepository } from './mysql/repository.js';
-import { AuthError } from './auth-repository.js';
+import { AuthError } from './mysql/auth-repository.js';
 
 // Read credentials through stdin, not command arguments or application logs.
 let database;

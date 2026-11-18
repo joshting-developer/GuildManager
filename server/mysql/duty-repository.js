@@ -1,7 +1,6 @@
 import { asyncMap } from "./collections.js";
 import { randomUUID } from 'node:crypto';
-import { DutyError } from '../duty-repository.js';
-export { DutyError } from '../duty-repository.js';
+import { DutyError } from '../errors.js';
 
 function dutyName(value) {
   if (

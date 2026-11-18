@@ -22,7 +22,6 @@
   "dependencies": {
     "@aws-sdk/client-s3": "3.1170.0",
     "@mdi/js": "7.4.47",
-    "better-sqlite3": "12.11.1",
     "echarts": "6.1.0",
     "express": "5.2.1",
     "mysql2": "3.24.6",

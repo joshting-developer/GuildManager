@@ -1,4 +1,4 @@
-import { AuthError, SESSION_SECONDS, csrfToken } from './auth-repository.js';
+import { AuthError, SESSION_SECONDS, csrfToken } from './mysql/auth-repository.js';
 
 const COOKIE_NAME = 'guild_session';
 function readToken(request) {

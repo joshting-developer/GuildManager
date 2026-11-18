@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createTestRepository, repositoryDatabase, repositoryFileStorage } from '../helpers/mysql-repository.js';
 import { createMysqlRepository } from '../../server/mysql/repository.js';
-import { AuthError } from '../../server/auth-repository.js';
+import { AuthError } from '../../server/mysql/auth-repository.js';
 import { emptyLotteryBoard } from '../../src/domain/lottery.js';
 
 test('accounts store only hashes, preserve roles and sessions across repository recreation, expire and revoke safely', async () => {

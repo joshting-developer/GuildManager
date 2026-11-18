@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { attendanceMonth, ATTENDANCE_STATUSES } from '../../src/domain/attendance.js';
-import { ParticipationError } from '../participation-repository.js';
+import { ParticipationError } from '../errors.js';
 
 const fail = (message, status = 422, code = 'INVALID_ATTENDANCE') => { throw new ParticipationError(message, status, code); };
 function monthRange(month) { try { return attendanceMonth(month); } catch { fail('請選擇有效月份'); } }

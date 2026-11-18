@@ -7,8 +7,7 @@ import { eventAttendance } from '../../src/domain/event-attendance.js';
 import { leaveNotice } from '../../src/domain/discord-notifications.js';
 import { participationTarget, validParticipationExpectation, sameParticipationTarget } from '../../src/domain/participation-target.js';
 
-import { ParticipationError } from '../participation-repository.js';
-export { ParticipationError } from '../participation-repository.js';
+import { ParticipationError } from '../errors.js';
 
 function text(value, label, max, required = false) {
   if (
