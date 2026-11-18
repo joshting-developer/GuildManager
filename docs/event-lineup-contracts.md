@@ -121,3 +121,9 @@ admin／manager 可由管理總覽或手機選單進入 `#/attendance`。預設�
 | `GET /api/attendance/options?month=YYYY-MM` | 登記與篩選選單 | 該月最多 500 日期場次、最多 1000 成員 UID／名稱 |
 | `PATCH /api/attendance` | 登記實際出勤 | 版本與 requestId 保護 |
 | `GET/PATCH /api/admin/leave-settings` | 關心提醒設定 | 僅 admin, 版本保護 |
+
+## 場次清單讀取
+
+`GET /api/events` 支援成對的 `startDate`／`endDate`（YYYY-MM-DD, 含首尾, 最多相差366天）、`limit`（預設200, 1–1000）、`offset`（預設0, 0–10000）, 回傳 `events` 與 `hasMore`。SQL 先篩選任一日期落在範圍內的場次, 按最早日期／建立時間／ID穩定排序後分頁；回應保留該場完整日期供編輯。
+
+月曆只查目前42格範圍, 切月重新讀取並拒絕過期回應。活動管理、戰績上傳選場與影片閱覽需完整選單時, 每批200場、最多10000場, 超過上限顯示錯誤, 不默默省略。前端清單快取依日期與分頁參數區分, 保留一分鐘期限, 寫入與登入／登出清除所有範圍；最多保留24組查詢。

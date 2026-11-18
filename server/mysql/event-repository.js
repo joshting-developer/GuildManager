@@ -1,3 +1,4 @@
+import { eventListQuery } from '../../src/domain/event-list-query.js';
 import { asyncMap } from "./collections.js";
 import { randomUUID } from 'node:crypto';
 import { EventError, validateEvent } from '../../src/domain/event-validation.js';
@@ -43,21 +44,25 @@ export function createEventRepository(db) {
       if (!event) throw new EventError('找不到有效場次，請重新載入', {}, 404, 'EVENT_NOT_FOUND');
       return { event };
     },
-    async listEvents() {
-      const rows = (await db
-        .prepare(
-          `SELECT e.id, e.title, e.type, e.created_at AS createdAt, e.updated_at AS updatedAt, e.revision, d.date
-        FROM scheduled_events e JOIN event_dates d ON d.event_id = e.id
-        WHERE e.deleted_at IS NULL
-        ORDER BY d.date, e.created_at, e.id`,
-        )
-        .all());
+    async listEvents(input) {
+      const { startDate, endDate, limit, offset } = eventListQuery(input);
+      const range = startDate ? 'AND EXISTS (SELECT 1 FROM event_dates r WHERE r.event_id = e.id AND r.date BETWEEN ? AND ?)' : '';
+      const rows = await db.prepare(
+        `SELECT chosen.*, d.date FROM (
+          SELECT e.id, e.title, e.type, e.created_at AS createdAt, e.updated_at AS updatedAt, e.revision,
+            (SELECT MIN(date) FROM event_dates WHERE event_id = e.id) AS firstDate
+          FROM scheduled_events e WHERE e.deleted_at IS NULL ${range}
+          ORDER BY firstDate, e.created_at, e.id LIMIT ? OFFSET ?
+        ) chosen JOIN event_dates d ON d.event_id = chosen.id
+        ORDER BY chosen.firstDate, chosen.createdAt, chosen.id, d.date`,
+      ).all(...(startDate ? [startDate, endDate] : []), limit + 1, offset);
       const events = new Map();
-      for (const { date, ...event } of rows) {
+      for (const { date, firstDate, ...event } of rows) {
         if (!events.has(event.id)) events.set(event.id, { ...event, dates: [] });
         events.get(event.id).dates.push(date);
       }
-      return { events: [...events.values()] };
+      const values = [...events.values()];
+      return { events: values.slice(0, limit), ...(input ? { hasMore: values.length > limit } : {}) };
     },
     async createEvent(input) {
       const values = validateEvent(input);

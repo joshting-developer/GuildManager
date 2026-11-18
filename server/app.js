@@ -149,8 +149,9 @@ export function createApp(repository, { authNow, notifier = null, log = console,
     response.set('Cache-Control', 'no-store').json(await repository.readHome());
   });
   app.get('/api/events', async (request, response) => {
-    const events = visibleCalendarEvents((await repository.listEvents()).events, request.auth?.user);
-    response.set('Cache-Control', 'no-store').json({ events });
+    const result = await repository.listEvents(request.query);
+    const events = visibleCalendarEvents(result.events, request.auth?.user);
+    response.set('Cache-Control', 'no-store').json({ ...result, events });
   });
   app.post('/api/events', async (request, response) => {
     const result = ['guild_war', 'dragon_tiger'].includes(request.body?.type)

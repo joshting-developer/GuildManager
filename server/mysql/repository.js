@@ -3,6 +3,7 @@ import { withFileStorage } from '../services/file-backed-repository.js';
 import { createStore, exposeRepository } from './store.js';
 import { asyncMap } from "./collections.js";
 import { lineupEditorEventId } from '../../src/domain/lineup-index.js';
+import { EventError } from '../../src/domain/event-validation.js';
 import { LineupError } from '../../src/domain/lineup-validation.js';
 import { videoBrowserSelection } from '../../src/domain/video-browser.js';
 import { createMemberReferences, createMemberMaintenance } from './member-maintenance.js';
@@ -171,7 +172,14 @@ function createImplementation(store, authNow) {
     },
     async getVideoBrowser(preferredId = null) {
       return (await db.transaction(async () => {
-        const { events, eventId } = videoBrowserSelection((await repository.listEvents()).events, preferredId);
+        const source = [];
+        for (let offset = 0; offset < 10000; offset += 200) {
+          const result = await repository.listEvents({ limit: 200, offset });
+          source.push(...result.events);
+          if (!result.hasMore) break;
+          if (offset === 9800) throw new EventError('場次超過清單上限, 請縮小日期範圍');
+        }
+        const { events, eventId } = videoBrowserSelection(source, preferredId);
         return { events, selected: eventId ? (await repository.listEventVideos(eventId)) : null };
       }));
     },

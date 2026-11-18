@@ -80,3 +80,15 @@ test('retrying a successful request returns the same event, changing that reques
     ));
     assert.equal((await repo.listEvents()).events.length, 1);
   })));
+
+test('event lists filter in SQL before pagination and retain complete dates for editing', async () => withRepo(async repo => {
+  const outside = await repo.createEvent({ ...input, dates: ['2026-09-01'], requestId: 'range-outside' });
+  const spanning = await repo.createEvent({ ...input, dates: ['2026-09-30', '2026-10-08'], requestId: 'range-spanning' });
+  const inside = await repo.createEvent({ ...input, dates: ['2026-10-09'], requestId: 'range-inside' });
+  const options = { startDate: '2026-10-01', endDate: '2026-10-31', limit: 1 };
+  assert.deepEqual(await repo.listEvents(options), { events: [spanning], hasMore: true });
+  assert.deepEqual(await repo.listEvents({ ...options, offset: 1 }), { events: [inside], hasMore: false });
+  assert.ok(!(await repo.listEvents(options)).events.some(e => e.id === outside.id));
+  for (const invalid of [{ startDate: '2026-02-30', endDate: '2026-03-01' }, { startDate: '2026-01-01' }, { limit: 1001 }, { offset: -1 }])
+    await assert.rejects(repo.listEvents(invalid), e => e.code === 'VALIDATION_ERROR');
+}));

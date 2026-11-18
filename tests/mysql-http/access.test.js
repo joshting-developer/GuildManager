@@ -10,7 +10,7 @@ test('health and public reads answer after MySQL completes, management requires 
     const events = await request('/events');
     assert.equal(events.status, 200);
     assert.equal(events.headers.get('cache-control'), 'no-store');
-    assert.deepEqual(await events.json(), { events: [] });
+    assert.deepEqual(await events.json(), { events: [], hasMore: false });
     const professions = await request('/professions');
     assert.equal((await professions.json()).professions.length, 9);
     for (const [path, method, body] of [
@@ -69,3 +69,13 @@ test('body, origin, unknown route and unexpected failures map to the fixed JSON 
       assert.equal(body.error.code, 'OPERATION_FAILED');
       assert.ok(!JSON.stringify(body).includes('socket'), 'driver details never reach the client');
     }));
+
+test('public event ranges validate dates and page only matching events', async () => withApp(async ({ request, repository }) => {
+  const data = { type: 'activity', title: '範圍測試' };
+  await repository.createEvent({ ...data, dates: ['2026-10-01'], requestId: 'http-range-out' });
+  const inside = await repository.createEvent({ ...data, dates: ['2026-11-01'], requestId: 'http-range-in' });
+  const response = await request('/events?startDate=2026-11-01&endDate=2026-11-30&limit=1');
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { events: [inside], hasMore: false });
+  assert.equal((await request('/events?startDate=2026-02-30&endDate=2026-03-01')).status, 422);
+}));

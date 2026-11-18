@@ -48,7 +48,7 @@ async function load() {
   loading.value = true;
   loadError.value = '';
   try {
-    const data = await client.getEvents();
+    const data = await client.getAllEvents();
     if (!Array.isArray(data?.events)) throw new Error('資料回應格式不正確，請稍後再試');
     events.value = data.events;
     page.value = 1;

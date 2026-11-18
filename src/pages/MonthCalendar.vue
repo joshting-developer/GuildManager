@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted, onUnmounted, ref, watch, inject, computed } from 'vue';
 import DataLoading from '../components/DataLoading.vue';
+import { calendarDateRange } from '../domain/event-list-query.js';
 import { createEventClient } from '../api/events.js';
 import { createParticipationClient } from '../api/participation.js';
 import CalendarGrid from './CalendarGrid.vue';
@@ -60,13 +61,19 @@ const initialDate = ref('');
 const notice = ref('');
 let opener;
 let loadToken = 0;
+const displayedMonth = ref(taipeiToday().slice(0, 7));
+function changeMonth(month) {
+  if (month === displayedMonth.value) return;
+  displayedMonth.value = month;
+  load();
+}
 async function load() {
   if (props.management && calendarAuth?.loading.value) return;
   const currentToken = ++loadToken;
   loading.value = true;
   error.value = '';
   try {
-    const data = await client.getEvents();
+    const data = await client.getAllEvents(calendarDateRange(displayedMonth.value));
     if (currentToken !== loadToken) return;
     if (!Array.isArray(data?.events)) throw new Error('資料回應格式不正確，請稍後再試');
     events.value = data.events;
@@ -188,6 +195,7 @@ function restoreFocus() {
         :disabled="calendarLoading || !!error"
         :creatable="management && !calendarLoading && !error"
         :browsable="!management && !calendarLoading && !error"
+        @month-changed="changeMonth"
         @open-day="openDay"
         @create-date="openCreate"
       />

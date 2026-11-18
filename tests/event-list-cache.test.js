@@ -52,3 +52,23 @@ test('a failed list read is not cached and an expired list is fetched again', as
   await client.getEvents();
   assert.equal(reads, 3, 'older than a minute is refreshed');
 });
+
+test('ranges have separate cache entries and complete pickers follow bounded pages', async () => {
+  forgetEventList();
+  const calls = [];
+  const client = createEventClient({ fetchImpl: async url => {
+    calls.push(url);
+    const params = new URL(url, 'http://example.test').searchParams;
+    return { ok: true, json: async () => ({ events: [{ id: params.get('offset') || '0' }], hasMore: params.get('offset') === '0' }) };
+  } });
+  const first = { startDate: '2026-11-01', endDate: '2026-11-30' };
+  await client.getEvents(first);
+  await client.getEvents({ ...first });
+  await client.getEvents({ startDate: '2026-12-01', endDate: '2026-12-31' });
+  assert.equal(calls.length, 2);
+  assert.deepEqual((await client.getAllEvents()).events.map(e => e.id), ['0', '200']);
+  assert.equal(calls.length, 4);
+  await client.createEvent({});
+  await client.getEvents(first);
+  assert.equal(calls.length, 6, 'write invalidates every range');
+});
