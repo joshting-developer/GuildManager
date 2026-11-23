@@ -97,3 +97,5 @@ await import('./mysql-scenarios/video-browser.test.js');
 await import('./mysql-scenarios/video-profession-edit.test.js');
 await import('./mysql-scenarios/video-edit.test.js');
 await import('./mysql-contracts/profession-management.test.js');
+
+await import('./mysql-contracts/lineup-history-batch.test.js');

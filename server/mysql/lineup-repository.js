@@ -1,6 +1,5 @@
 import { taipeiToday } from '../../src/domain/battle-events.js';
 import { choiceCursor, choicePage, liveBattleSource } from './choice-pages.js';
-import { asyncMap } from "./collections.js";
 import { randomUUID } from 'node:crypto';
 import { editableLineup, eligibleMember, participantKey, LINEUP_TYPES } from "../../src/domain/lineups.js";
 
@@ -12,7 +11,10 @@ import {
 } from '../../src/domain/lineup-validation.js';
 export { LineupError, validateLineup } from '../../src/domain/lineup-validation.js';
 
-export function createLineupRepository(db, { project = (_kind, _id, value) => value } = {}) {
+export function createLineupRepository(db, {
+  project = (_kind, _id, value) => value,
+  projectMany = async (kind, rows) => Promise.all(rows.map((row) => project(kind, row.id, row.value))),
+} = {}) {
   // Confirmation snapshots deliberately do not reference mutable member/profession rows.
   async function event(id) {
     const row = (await db
@@ -194,16 +196,21 @@ export function createLineupRepository(db, { project = (_kind, _id, value) => va
       return { event: currentEvent, versions: latest ? [latest] : [] };
     },
     async getLineupIndex() {
+      const rows = await db.prepare('SELECT * FROM lineup_templates ORDER BY created_at DESC, created_order DESC').all();
+      const teams = await projectMany('template', rows.map((row) => ({ id: row.id, value: JSON.parse(row.teams_json) })));
       return {
-        events: (await repository.getLineupEvents()),
-        templates: (await asyncMap(await db.prepare('SELECT * FROM lineup_templates ORDER BY created_at DESC, created_order DESC').all(), template)),
+        events: await repository.getLineupEvents(),
+        templates: rows.map((row, index) => ({ id: row.id, name: row.name, teams: teams[index], createdAt: row.created_at })),
       };
     },
     async getLineupHistory(eventId) {
+      const rows = await db.prepare('SELECT * FROM lineup_versions WHERE event_id = ? ORDER BY version DESC').all(eventId);
+      // Every version's overrides arrive in one query instead of one per version.
+      const snapshots = await projectMany('lineup', rows.map((row) => ({ id: row.id, value: JSON.parse(row.snapshot_json) })));
       return {
-        versions: (await asyncMap(await db
-          .prepare('SELECT * FROM lineup_versions WHERE event_id = ? ORDER BY version DESC')
-          .all(eventId), version)),
+        versions: rows.map((row, index) => ({
+          id: row.id, eventId: row.event_id, version: row.version, createdAt: row.created_at, ...snapshots[index],
+        })),
       };
     },
     async confirmLineup(input) {

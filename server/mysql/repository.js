@@ -141,7 +141,7 @@ function createImplementation(store, authNow, participationNow) {
     ...createAttendanceRepository(db),
     ...createParticipationRepository(db, { notify, now: participationNow }),
     ...createEventVideoRepository(db),
-    ...createLineupRepository(db, { project: references.project }),
+    ...createLineupRepository(db, { project: references.project, projectMany: references.projectMany }),
     ...createBattleRecordRepository(db, { project: references.project, projectAll: references.projectAll }),
     ...createMemberMaintenance(db, { getMember, updateMember: async (...args) => (await repository.updateMember(...args)), references }),
     ...createPlatformSettingsRepository(db),
