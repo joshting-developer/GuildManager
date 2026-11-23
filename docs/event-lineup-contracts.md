@@ -78,9 +78,9 @@
 - 一次保存一筆雙場提交，同名、相同網址可多次新增，不合併或覆寫。
 - 切換外層分頁／重新載入保留草稿，成功清除表單、失敗保留，關閉有未送出資料先確認。
 - 三種戰鬥皆可匿名送出影片；有效登入修改仍檢查 CSRF。職業由後端驗證並保存當時名稱／色彩，選單成員驗證目前姓名及所屬狀態；手動填名／選人不作本人認證，舊影片職業顯示「未記錄」，不回填推測值。
-- 影片閱覽首載／重新載入使用 getVideoBrowser／GET /api/videos/browser?eventId=，同一唯讀快照帶戰鬥清單及選定本場影片，一次 API 呼叫；有效優先場次保留，否則沿用台北今天或最近過去、其次未來的排序。換場沿用 getEventVideos，一次本場讀取；新舊 API、排序、職業快照、超連結與 CSV 不變。
-- 閱覽資料為當頁不可變 shallowRef，只有顯式重載／換場取新資料，不跨請求快取影片。重載保留仍有效的場次／搜尋／團別，失效場次回退並重設篩選；離頁／過期回應丟棄。搜尋只正規化一次，空白且未選團別直接重用原陣列。正常不取寫入鎖，資料表由明確 migration 建立。
-- 影片閱覽每列可由 admin／manager「修改職業」，PATCH /api/events/:eventId/videos/:videoId/profession，只接受 professionId／revision／requestId。職業名稱與色彩更新為選項快照，其他欄位／名冊／報名／排表不改；舊缺職業可人工補正，缺 revision 視0。單筆版本與安全重試均在原寫入保護內，未登入／member 不可修改，有效登入檢查 CSRF。選項首次開視窗讀共用職業 API；成功以回應替換當頁一列、不新增重載，CSV反映新值。衝突保留選擇並提供本場重新載入取得新版本，關閉／卸載忽略過期回應。
+- 影片閱覽首載／重新載入使用 getVideoBrowser／GET /api/videos/browser?eventId=，同一唯讀快照帶戰鬥清單及選定本場影片，一次 API 呼叫；有效優先場次保留，否則沿用台北今天或最近過去、其次未來的排序。換場使用 getVideos，一次本場讀取。兩個讀取入口均接受 page（預設1）、limit（預設20、最多200）、search（名稱子字串、不分英文大小寫）與 group（團別）；SQL 合併新舊影片後依 createdAt 降冪、id 升冪分頁，回傳 videos／total／page／limit。CSV 按相同篩選逐批200筆讀完整結果，不只匯出當頁。
+- 閱覽資料為當頁不可變 shallowRef，重載／換場／換頁／篩選時取新資料，不跨請求快取影片。重載保留仍有效的場次／搜尋／團別，失效場次回退並重設篩選；離頁／過期回應丟棄。搜尋與團別變更回第一頁，過期結果不得覆蓋目前條件。正常不取寫入鎖，資料表由明確 migration 建立。
+- 影片閱覽每列可由 admin／manager「修改職業」，PATCH /api/events/:eventId/videos/:videoId/profession，只接受 professionId／revision／requestId。職業名稱與色彩更新為選項快照，其他欄位／名冊／報名／排表不改；舊缺職業可人工補正，缺 revision 視0。單筆版本與安全重試均在原寫入保護內，未登入／member 不可修改，有效登入檢查 CSRF。選項首次開視窗讀共用職業 API；成功以回應替換當頁一列、不新增重載，CSV反映新值。衝突保留選擇並以 videoId 定位單筆重新讀取新版本，關閉／卸載忽略過期回應。
 - 影片閱覽每列另有「更換場次」與紅色「刪除」, 給送錯天的影片改到正確場次或直接刪掉。更換場次用 PATCH /api/events/:eventId/videos/:videoId/event, 只接受 targetEventId／revision／requestId, 只改 event_id 並把 revision 加 1, 其他欄位不變；目標必須是另一個有效的單日戰鬥場次。重試結果存在 `0007_event_video_moves` 建立的 event_video_move_requests, 同一 requestId 換內容會拒絕。舊 event_videos 紀錄可一起換, 目標場次已有完全相同的舊紀錄時拒絕並建議刪除
 - `0007_event_video_moves` 是增量 migration, 只新增 event_video_move_requests, 不改既有影片資料；部署前要先另行套用, 不然啟動檢查會擋下
 - 刪除用 DELETE /api/events/:eventId/videos/:videoId, 只接受 revision, 確認視窗列出場次、名稱、團別與兩場網址；直接刪除資料列, 舊紀錄連同職業修正一起刪, 重複刪除回 VIDEO_NOT_FOUND。原上傳 requestId 重送只回原結果, 不會把影片建回來。兩個操作都只限 admin／manager 並檢查 CSRF, 成功後從本場清單移除該列
