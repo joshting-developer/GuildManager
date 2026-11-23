@@ -1,3 +1,5 @@
+import { taipeiToday } from '../../src/domain/battle-events.js';
+import { eventListQuery } from '../../src/domain/event-list-query.js';
 import { asyncMap } from "./collections.js";
 import { randomUUID } from 'node:crypto';
 import { editableLineup, eligibleMember, participantKey, LINEUP_TYPES } from "../../src/domain/lineups.js";
@@ -146,21 +148,35 @@ export function createLineupRepository(db, { project = (_kind, _id, value) => va
     };
   }
   const repository = {
+    async getLineupChoices(input = {}) {
+      const { limit, offset } = eventListQuery({ ...input, limit: 200 });
+      const today = taipeiToday();
+      // Project archived event metadata in SQL; never transfer the full team snapshot for a picker.
+      const rows = await db.prepare(`WITH choices AS (
+        SELECT e.id,e.title,e.type,e.revision,d.date,0 AS archived
+        FROM scheduled_events e JOIN event_dates d ON d.event_id=e.id
+        WHERE e.deleted_at IS NULL AND e.type IN ('scrimmage','guild_war','dragon_tiger')
+        UNION ALL
+        SELECT v.event_id,
+          JSON_UNQUOTE(JSON_EXTRACT(v.snapshot_json,'$.event.title')),
+          CONVERT(JSON_UNQUOTE(JSON_EXTRACT(v.snapshot_json,'$.event.type')) USING ascii) COLLATE ascii_bin,
+          CAST(JSON_UNQUOTE(JSON_EXTRACT(v.snapshot_json,'$.event.revision')) AS UNSIGNED),
+          CONVERT(JSON_UNQUOTE(JSON_EXTRACT(v.snapshot_json,'$.event.dates[0]')) USING ascii) COLLATE ascii_bin,1
+        FROM lineup_versions v
+        WHERE v.version=(SELECT MAX(version) FROM lineup_versions WHERE event_id=v.event_id)
+          AND NOT EXISTS (SELECT 1 FROM scheduled_events e WHERE e.id=v.event_id
+            AND e.deleted_at IS NULL AND e.type IN ('scrimmage','guild_war','dragon_tiger'))
+      ) SELECT * FROM choices
+        ORDER BY CASE WHEN date>=? THEN 0 ELSE 1 END,
+          CASE WHEN date>=? THEN date END ASC, CASE WHEN date<? THEN date END DESC,title,id
+        LIMIT ? OFFSET ?`).all(today, today, today, limit + 1, offset);
+      const events = rows.slice(0, limit).map(({ date, archived, ...event }) => ({
+        ...event, dates: [date], ...(Number(archived) === 1 ? { archived: true } : {}),
+      }));
+      return { events, hasMore: rows.length > limit, nextOffset: offset + events.length };
+    },
     async getLineupEvents() {
-      const events = (await asyncMap(await db.prepare(
-        "SELECT id FROM scheduled_events WHERE deleted_at IS NULL AND type IN ('scrimmage', 'guild_war', 'dragon_tiger')",
-      ).all(), async row => (await event(row.id))));
-      const live = new Set(events.map(value => value.id));
-      const archived = (await db.prepare(
-        `SELECT event_id, snapshot_json FROM lineup_versions v
-        WHERE version = (SELECT MAX(version) FROM lineup_versions WHERE event_id = v.event_id)
-        AND NOT EXISTS (SELECT 1 FROM scheduled_events e WHERE e.id = v.event_id AND e.deleted_at IS NULL
-          AND e.type IN ('scrimmage', 'guild_war', 'dragon_tiger')) ORDER BY created_at DESC`,
-      ).all()).filter(row => !live.has(row.event_id))
-        .map(row => ({ ...JSON.parse(row.snapshot_json).event, archived: true }));
-      return [...events, ...archived].sort(
-        (a, b) => b.dates[0].localeCompare(a.dates[0]) || a.title.localeCompare(b.title),
-      );
+      return (await repository.getLineupChoices()).events;
     },
     async getLineupTemplates() {
       return { templates: (await db.prepare(

@@ -74,7 +74,7 @@ export function exposeRepository(implementation, store, database) {
     'getMember', 'getAccountSettings', 'getMemberTokenSettings', 'getEvent', 'listEvents',
     'listDuties', 'getEventAttendance', 'participationRequiresLogin',
     'listEventParticipationMembers', 'getEventParticipation', 'listEventVideos',
-    'getLineupEvents', 'getLineupTemplates', 'getLineupCurrent', 'getLineupIndex',
+    'getLineupChoices', 'getLineupEvents', 'getLineupTemplates', 'getLineupCurrent', 'getLineupIndex',
     'getLineupHistory', 'applyLineupTemplate', 'getBattleUploadRoster', 'previewBattleMemberSync',
     'listBattleRecords', 'getBattleMetadata', 'getBattleRecord', 'getBattleTeamAnalysis',
     'getMemberBattleRecords', 'getBattleAttachment', 'getMemberMaintenance',

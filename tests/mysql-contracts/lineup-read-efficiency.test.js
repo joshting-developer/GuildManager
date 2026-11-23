@@ -65,3 +65,40 @@ test('editor handles no events, preserves requested nondefault event, and reads 
     (await assert.rejects(async () => (await repo.getLineupEvent(a.id, 'true')), { code: 'LINEUP_INVALID' }));
   } finally { (await repo.close()); }
 });
+
+test('lineup choices use bounded SQL batches, keep archived metadata and pin requested old events', async () => {
+  const { repositoryDatabase } = await import('../helpers/mysql-repository.js');
+  const repo = await createRepository();
+  const db = repositoryDatabase(repo);
+  try {
+    for (let i = 0; i < 205; i++) {
+      const id = `choice-${String(i).padStart(3, '0')}`;
+      await db.query(`INSERT INTO scheduled_events(id,title,type,request_id,created_at,updated_at)
+        VALUES (?,?,'scrimmage',?,'2026-01-01','2026-01-01')`, [id, id, id]);
+      await db.query("INSERT INTO event_dates(event_id,date) VALUES (?,'2020-01-01')", [id]);
+    }
+    const archived = await repo.createEvent({ type: 'guild_war', title: '歷史快照', dates: ['2019-01-01'], requestId: 'archived' });
+    await repo.confirmLineup({ eventId: archived.id, eventRevision: 1, expectedVersion: 0, requestId: 'save-archive', teams: emptyLineup() });
+    await repo.deleteEvent(archived.id, 1);
+    await repo.createEvent({ type: 'activity', title: '無關活動', dates: ['2026-11-23'], requestId: 'unrelated' });
+    const first = await repo.getLineupChoices();
+    const second = await repo.getLineupChoices({ offset: first.nextOffset });
+    assert.equal(first.events.length, 200);
+    assert.ok(first.events.every(event => event.archived === undefined));
+    assert.equal(first.hasMore, true);
+    assert.equal(second.events.length, 6);
+    assert.equal(second.hasMore, false);
+    const all = [...first.events, ...second.events];
+    assert.equal(new Set(all.map(event => event.id)).size, 206);
+    assert.ok(all.every(event => event.dates.length === 1 && !event.teams));
+    assert.equal(all.find(event => event.id === archived.id).archived, true);
+    const editor = await repo.getLineupEditor('choice-204');
+    assert.equal(editor.selected.eventId, 'choice-204');
+    assert.ok(editor.events.some(event => event.id === 'choice-204'));
+    assert.equal(editor.nextOffset, 200, 'pinned choice does not skip a pagination row');
+    const history = await repo.getLineupEditor(archived.id);
+    assert.equal(history.selected.event.archived, true);
+    assert.equal(history.selected.participation, null);
+    await assert.rejects(repo.getLineupChoices({ offset: -1 }));
+  } finally { await repo.close(); }
+});

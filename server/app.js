@@ -290,6 +290,9 @@ export function createApp(repository, { authNow, notifier = null, log = console,
       registration: await notifying('cancelGuestRegistration', request.params.id, request.params.registrationId, request.body?.revision),
     });
   });
+  app.get('/api/lineups/choices', async (request, response) => {
+    response.set('Cache-Control', 'no-store').json(await repository.getLineupChoices(request.query));
+  });
   app.get('/api/lineups/editor', async (request, response) => {
     response.set('Cache-Control', 'no-store').json(await repository.getLineupEditor(request.query.eventId));
   });

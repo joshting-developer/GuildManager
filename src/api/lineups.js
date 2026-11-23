@@ -31,6 +31,7 @@ export function createLineupClient({ fetchImpl = sessionFetch } = {}) {
       options
         ? call(`?include=${encodeURIComponent(options.include)}`, 'GET', null)
         : call(''),
+    getChoices: (offset) => call(`/choices?offset=${encodeURIComponent(offset)}`),
     getEditor: (eventId = null) => call(`/editor${eventId ? `?eventId=${encodeURIComponent(eventId)}` : ''}`, 'GET', null),
     getEvent: (id, { includeCatalogs = false } = {}) => call(`/events/${encodeURIComponent(id)}/current?includeCatalogs=${includeCatalogs}`, 'GET', null),
     getTemplates: () => call('/templates'),

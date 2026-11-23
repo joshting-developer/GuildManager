@@ -138,3 +138,7 @@ admin／manager 可由管理總覽或手機選單進入 `#/attendance`。預設�
 送出時依最新場次檢查：允許改標題後繼續送出；過去台北日期、非戰鬥類型、非單日或刪除的場次拒絕新報名／請假。低階成員回應及新增外援同樣檢查日期, 管理者取消請假仍可修正歷史紀錄。影片上傳保留歷史場次。
 
 `requestId` 以資料庫唯一鍵原子登記, 同一 ID 與相同有效內容回傳第一次結果, 換內容回 `REQUEST_CONFLICT`, 失敗整筆回滾。取消請假也帶 requestId, 網路失敗重試沿用原 ID。低階舊 API 未提供 requestId 時僅依單列版本判斷衝突, 不再以 revision 恰好多一推測成功。
+
+## 排表場次選項分批讀取
+
+排表編輯器以單次批次 SQL 讀取場次選項，每批最多 200 場，依即將到來優先、過去由近至遠及標題／ID 穩定排序。`GET /api/lineups/choices?offset=200` 僅 admin／manager 可讀，回傳 `events`、`hasMore`、`nextOffset`；前端由「載入更多場次」按需讀取。`/api/lineups/editor` 同步回傳分頁資訊，指定場次超出首批時另讀並保留選取，不影響下一批 offset。封存場次只讀快照中的場次 metadata，完整排表仍按需讀取。

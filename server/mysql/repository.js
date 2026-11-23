@@ -148,10 +148,21 @@ function createImplementation(store, authNow, participationNow) {
     ...createLotteryRepository(db),
     async getLineupEditor(preferredId = null) {
       return (await db.transaction(async () => {
-        const events = (await repository.getLineupEvents());
-        const eventId = lineupEditorEventId(events, preferredId);
-        return { events, ...(await repository.getLineupCatalogs()),
-          selected: eventId ? { eventId, ...(await repository.getLineupEvent(eventId)) } : null };
+        const choices = await repository.getLineupChoices();
+        const { events } = choices;
+        let eventId = lineupEditorEventId(events, preferredId);
+        let selected = null;
+        if (preferredId && !events.some(event => event.id === preferredId)) {
+          try {
+            selected = { eventId: preferredId, ...(await repository.getLineupEvent(preferredId)) };
+            events.push(selected.event);
+            eventId = preferredId;
+          } catch (error) {
+            if (error.code !== 'EVENT_UNAVAILABLE') throw error;
+          }
+        }
+        selected ||= eventId ? { eventId, ...(await repository.getLineupEvent(eventId)) } : null;
+        return { ...choices, ...(await repository.getLineupCatalogs()), selected };
       }));
     },
     async getLineupCatalogs() {
