@@ -192,14 +192,18 @@ export function createParticipationRepository(db, { notify = () => {}, now = () 
             WHERE r.event_id = ? AND r.active = 1 ORDER BY r.created_at, r.id`,
           )
           .all(eventId)).map(registrationRow),
+        // A cancelled guest stays listed only while it is the newest row for its ASCII-folded name
+        // and no row with that name is active again; the name is folded once per row.
         registrationLeaves: (await db
           .prepare(
-            `SELECT ${registrationColumns} FROM event_registrations r JOIN professions p ON p.job_id = r.profession_id WHERE r.event_id = ? AND r.active = 0
-          AND NOT EXISTS (SELECT 1 FROM event_registrations newer
-            WHERE newer.event_id = r.event_id AND CAST(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(newer.name, 0x41, 0x61), 0x42, 0x62), 0x43, 0x63), 0x44, 0x64), 0x45, 0x65), 0x46, 0x66), 0x47, 0x67), 0x48, 0x68), 0x49, 0x69), 0x4a, 0x6a), 0x4b, 0x6b), 0x4c, 0x6c), 0x4d, 0x6d), 0x4e, 0x6e), 0x4f, 0x6f), 0x50, 0x70), 0x51, 0x71), 0x52, 0x72), 0x53, 0x73), 0x54, 0x74), 0x55, 0x75), 0x56, 0x76), 0x57, 0x77), 0x58, 0x78), 0x59, 0x79), 0x5a, 0x7a) AS BINARY) = CAST(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(r.name, 0x41, 0x61), 0x42, 0x62), 0x43, 0x63), 0x44, 0x64), 0x45, 0x65), 0x46, 0x66), 0x47, 0x67), 0x48, 0x68), 0x49, 0x69), 0x4a, 0x6a), 0x4b, 0x6b), 0x4c, 0x6c), 0x4d, 0x6d), 0x4e, 0x6e), 0x4f, 0x6f), 0x50, 0x70), 0x51, 0x71), 0x52, 0x72), 0x53, 0x73), 0x54, 0x74), 0x55, 0x75), 0x56, 0x76), 0x57, 0x77), 0x58, 0x78), 0x59, 0x79), 0x5a, 0x7a) AS BINARY)
-            AND (newer.active = 1 OR newer.created_at > r.created_at
-              OR (newer.created_at = r.created_at AND newer.id > r.id)))
-          ORDER BY r.updated_at, r.id`,
+            `SELECT ${registrationColumns} FROM (
+              SELECT id, ROW_NUMBER() OVER (PARTITION BY folded ORDER BY created_at DESC, id DESC) AS newest,
+                MAX(active) OVER (PARTITION BY folded) AS anyActive
+              FROM (SELECT id, active, created_at, CAST(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(name, 0x41, 0x61), 0x42, 0x62), 0x43, 0x63), 0x44, 0x64), 0x45, 0x65), 0x46, 0x66), 0x47, 0x67), 0x48, 0x68), 0x49, 0x69), 0x4a, 0x6a), 0x4b, 0x6b), 0x4c, 0x6c), 0x4d, 0x6d), 0x4e, 0x6e), 0x4f, 0x6f), 0x50, 0x70), 0x51, 0x71), 0x52, 0x72), 0x53, 0x73), 0x54, 0x74), 0x55, 0x75), 0x56, 0x76), 0x57, 0x77), 0x58, 0x78), 0x59, 0x79), 0x5a, 0x7a) AS BINARY) AS folded
+                FROM event_registrations WHERE event_id = ?) named
+            ) latest JOIN event_registrations r ON r.id = latest.id JOIN professions p ON p.job_id = r.profession_id
+            WHERE latest.newest = 1 AND latest.anyActive = 0
+            ORDER BY r.updated_at, r.id`,
           )
           .all(eventId)).map(registrationRow),
       };
