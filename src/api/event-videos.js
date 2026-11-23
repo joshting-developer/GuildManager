@@ -1,6 +1,8 @@
 import { sessionFetch } from './session.js';
-import { validateVideoDetails, validateVideoProfessionUpdate } from '../domain/event-videos.js';
+import { validateVideoDetails, validateVideoProfessionUpdate, validateVideoMove, validateVideoDelete } from '../domain/event-videos.js';
 import { isBattleEvent } from '../domain/battle-events.js';
+
+const videoPath = (eventId, videoId) => `/api/events/${encodeURIComponent(eventId)}/videos/${encodeURIComponent(videoId)}`;
 
 export function createEventVideoClient({
   fetchImpl = sessionFetch,
@@ -80,6 +82,22 @@ export function createEventVideoClient({
           !data.video.professionName || typeof data.video.professionColorcode !== 'string')
         throw new Error('職業修改回應格式不正確，請重新載入確認');
       validateVideoDetails(data.video, { allowMissingGroup: true });
+      return data;
+    },
+    async moveVideo(eventId, videoId, input) {
+      const values = validateVideoMove(eventId, videoId, input);
+      const data = await request(`${videoPath(eventId, videoId)}/event`, values, 'PATCH');
+      if (!data?.video || data.fromEventId !== eventId || data.video.id !== videoId ||
+          data.video.eventId !== values.targetEventId || !Number.isSafeInteger(data.video.revision))
+        throw new Error('更換場次回應格式不正確，請重新載入確認');
+      validateVideoDetails(data.video, { allowMissingGroup: true, allowMissingProfession: true });
+      return data;
+    },
+    async deleteVideo(eventId, videoId, input) {
+      const values = validateVideoDelete(eventId, videoId, input);
+      const data = await request(videoPath(eventId, videoId), values, 'DELETE');
+      if (data?.deleted !== true || data.eventId !== eventId || data.videoId !== videoId)
+        throw new Error('刪除影片回應格式不正確，請重新載入確認');
       return data;
     },
   };

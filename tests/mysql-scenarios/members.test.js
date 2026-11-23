@@ -85,7 +85,7 @@ test('profession catalog uses supplied IDs/colors and accepts future jobs from t
   try {
     const jobs = (await repo.listProfessions()).professions;
     assert.equal(jobs.length, 9);
-    assert.deepEqual(jobs[0], { job_id: 1, colorcode: '#ffb6c1', name: '素問' });
+    assert.deepEqual(jobs[0], { job_id: 1, colorcode: '#ffb6c1', name: '素問', revision: 1 });
     assert.equal(jobs[8].name, '神相');
     await assert.rejects(repo.addMember({ ...initial, primaryProfessionId: 99 }), (error) => Boolean(error.fields.primaryProfessionId));
     await assert.rejects(repo.addMember({ ...initial, secondaryProfessionId: 99 }), (error) => Boolean(error.fields.secondaryProfessionId));

@@ -37,15 +37,28 @@ export function createMemberClient({ fetchImpl = sessionFetch } = {}) {
       call(
         'GET', `members/${encodeURIComponent(uid)}/battle-records?${new URLSearchParams({ page, ...filters })}`, null,
       ).then(unpackPersonalBattles),
-    getProfessions() {
+    getProfessions({ refresh = false } = {}) {
       const key = fetchImpl;
+      if (refresh) professionCache.delete(key);
       if (!professionCache.has(key)) {
         const request = call('GET', 'professions', null);
         professionCache.set(key, request);
         // A failed read must not stick; the next caller retries.
-        request.catch(() => professionCache.delete(key));
+        request.catch(() => {
+          if (professionCache.get(key) === request) professionCache.delete(key);
+        });
       }
       return professionCache.get(key);
+    },
+    async addProfession(input) {
+      const data = await call('POST', 'professions', input);
+      professionCache.delete(fetchImpl);
+      return data;
+    },
+    async updateProfession(id, input) {
+      const data = await call('PATCH', `professions/${encodeURIComponent(id)}`, input);
+      professionCache.delete(fetchImpl);
+      return data;
     },
     previewMemberImport: (input) =>
       call('POST', 'members/import/preview', input),

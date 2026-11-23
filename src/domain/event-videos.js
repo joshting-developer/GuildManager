@@ -96,3 +96,30 @@ export function validateVideoProfessionUpdate(eventId, videoId, input) {
     throw new EventVideoError('缺少有效的操作識別碼，請重新操作');
   return { professionId: input.professionId, revision: input.revision, requestId: input.requestId };
 }
+
+function videoEditTarget(eventId, videoId, input, allowed, message) {
+  text(eventId, '場次', 128, 'eventId');
+  text(videoId, '影片', 128, 'videoId');
+  if (!input || typeof input !== 'object' || Array.isArray(input) ||
+      Object.keys(input).some(key => !allowed.includes(key)))
+    throw new EventVideoError(message);
+  if (!Number.isSafeInteger(input.revision) || input.revision < 0)
+    throw new EventVideoError('影片版本不正確，請重新載入');
+}
+
+export function validateVideoMove(eventId, videoId, input) {
+  videoEditTarget(eventId, videoId, input, ['targetEventId', 'revision', 'requestId'], '只能更換這筆影片的場次');
+  if (typeof input.targetEventId !== 'string' || !input.targetEventId.trim() || input.targetEventId.length > 128 ||
+      /[\u0000-\u001f\u007f]/.test(input.targetEventId))
+    throw new EventVideoError('請選擇要更換的場次', 422, 'VIDEO_INVALID', { targetEventId: '請選擇場次' });
+  if (input.targetEventId === eventId)
+    throw new EventVideoError('請選擇與目前不同的場次', 422, 'VIDEO_INVALID', { targetEventId: '請選擇其他場次' });
+  if (typeof input.requestId !== 'string' || !/^[a-zA-Z0-9_-]{1,64}$/.test(input.requestId))
+    throw new EventVideoError('缺少有效的操作識別碼，請重新操作');
+  return { targetEventId: input.targetEventId, revision: input.revision, requestId: input.requestId };
+}
+
+export function validateVideoDelete(eventId, videoId, input) {
+  videoEditTarget(eventId, videoId, input, ['revision'], '刪除影片只需要版本資料');
+  return { revision: input.revision };
+}

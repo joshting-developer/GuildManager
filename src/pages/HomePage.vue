@@ -12,6 +12,7 @@ import {
 import MonthCalendar from './MonthCalendar.vue';
 const emit = defineEmits(['open-page']);
 const modules = [
+  { id: 'professions', title: '職業管理', icon: mdiSwordCross, color: 'blue', description: '維護職業名稱與顏色' },
   {
     id: 'members',
     title: '成員清單',
@@ -70,6 +71,7 @@ const modules = [
   },
 ];
 const openable = [
+  'professions',
   'members',
   'events',
   'lineups',

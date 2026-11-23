@@ -1,8 +1,10 @@
 <script setup>
 import DataLoading from '../components/DataLoading.vue';
-import { computed, onMounted, onUnmounted, ref, shallowRef } from 'vue';
-import { mdiRefresh, mdiDownload, mdiPencilOutline } from '@mdi/js';
+import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef } from 'vue';
+import { mdiRefresh, mdiDownload, mdiPencilOutline, mdiSwapHorizontal, mdiDeleteOutline } from '@mdi/js';
 import VideoProfessionDialog from './VideoProfessionDialog.vue';
+import VideoMoveDialog from './VideoMoveDialog.vue';
+import VideoDeleteDialog from './VideoDeleteDialog.vue';
 import { createEventVideoClient } from '../api/event-videos.js';
 import { eventDisplayTitle } from '../domain/event-types.js';
 import { battleEventLabel } from '../domain/battle-events.js';
@@ -18,7 +20,26 @@ const loading = ref(true),
   error = ref(''),
   exportError = ref('');
 const downloads = new Map();
-const editingVideo = shallowRef(null), notice = ref('');
+const editingVideo = shallowRef(null), movingVideo = shallowRef(null), deletingVideo = shallowRef(null), notice = ref('');
+const listHeading = ref(null);
+const selectedLabel = computed(() => {
+  const event = events.value.find((item) => item.id === eventId.value);
+  return event ? battleEventLabel(event) : '';
+});
+function removeRow(video, message) {
+  if (disposed || eventId.value !== video.eventId) return;
+  token++;
+  videos.value = videos.value.filter(item => item.id !== video.id);
+  notice.value = message;
+  // The row's buttons are gone, so keep keyboard focus inside the video section.
+  nextTick(() => listHeading.value?.focus({ preventScroll: true }));
+}
+function onVideoMoved({ fromEventId, video, targetLabel }) {
+  removeRow({ ...video, eventId: fromEventId }, `${video.name} 的影片已移到「${targetLabel}」`);
+}
+function onVideoDeleted(video) {
+  removeRow(video, `${video.name} 的影片已刪除`);
+}
 function onProfessionUpdated(video) {
   if (disposed || eventId.value !== video.eventId) return;
   token++;
@@ -167,7 +188,7 @@ onUnmounted(() => {
   </v-card>
   <v-card class="videos-card" :aria-busy="loading">
     <div class="section-header">
-      <h2>場次影片</h2>
+      <h2 ref="listHeading" tabindex="-1">場次影片</h2>
       <div class="video-table-actions">
         <span v-if="!loading && !error" class="videos-muted">{{ visibleVideos.length }} 筆</span>
         <v-btn
@@ -249,8 +270,14 @@ onUnmounted(() => {
               <template v-else>{{ value }}</template>
             </td>
             <td>
-              <v-btn variant="text" :prepend-icon="mdiPencilOutline" :aria-label="`修改 ${video.name} 的影片職業`"
-                @click="editingVideo = video">修改職業</v-btn>
+              <div class="video-actions">
+                <v-btn variant="text" size="small" :prepend-icon="mdiPencilOutline" :aria-label="`修改 ${video.name} 的影片職業`"
+                  @click="editingVideo = video">修改職業</v-btn>
+                <v-btn variant="text" size="small" :prepend-icon="mdiSwapHorizontal" :aria-label="`更換 ${video.name} 的影片場次`"
+                  @click="movingVideo = video">更換場次</v-btn>
+                <v-btn variant="text" size="small" color="error" class="video-delete" :prepend-icon="mdiDeleteOutline"
+                  :aria-label="`刪除 ${video.name} 的影片`" @click="deletingVideo = video">刪除</v-btn>
+              </div>
             </td>
           </tr>
         </tbody>
@@ -259,6 +286,10 @@ onUnmounted(() => {
   </v-card>
   <VideoProfessionDialog v-if="editingVideo" :key="editingVideo.id" :video="editingVideo"
     @close="editingVideo = null" @updated="onProfessionUpdated" @refreshed="onVideosRefreshed" />
+  <VideoMoveDialog v-if="movingVideo" :key="movingVideo.id" :video="movingVideo" :events="events"
+    @close="movingVideo = null" @moved="onVideoMoved" @refreshed="onVideosRefreshed" />
+  <VideoDeleteDialog v-if="deletingVideo" :key="deletingVideo.id" :video="deletingVideo" :event-label="selectedLabel"
+    @close="deletingVideo = null" @deleted="onVideoDeleted" @reload="loadVideos(eventId)" />
 </template>
 
 <style scoped>
@@ -325,6 +356,15 @@ onUnmounted(() => {
   width: 10%;
 }
 .videos-table th:last-child { width: 140px; }
+.video-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.video-delete {
+  margin-top: 8px;
+}
 .video-note {
   white-space: pre-wrap;
 }

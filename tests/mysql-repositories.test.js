@@ -46,6 +46,7 @@ await import('./mysql-contracts/team-battle-analysis.test.js');
 await import('./mysql-contracts/transactions.test.js');
 await import('./mysql-contracts/video-browser.test.js');
 await import('./mysql-contracts/video-profession-edit.test.js');
+await import('./mysql-contracts/video-edit.test.js');
 // HTTP contracts share the repositorytest schema, so they must run in this same process.
 await import('./mysql-http.test.js');
 
@@ -93,3 +94,5 @@ await import('./mysql-scenarios/platform-settings.test.js');
 await import('./mysql-scenarios/team-battle-analysis.test.js');
 await import('./mysql-scenarios/video-browser.test.js');
 await import('./mysql-scenarios/video-profession-edit.test.js');
+await import('./mysql-scenarios/video-edit.test.js');
+await import('./mysql-contracts/profession-management.test.js');

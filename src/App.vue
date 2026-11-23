@@ -52,6 +52,7 @@ function lazyPage(loader) {
 }
 const HomePage = lazyPage(() => import('./pages/HomePage.vue'));
 import CalendarHomePage from './pages/CalendarHomePage.vue';
+const ProfessionsPage = lazyPage(() => import('./pages/ProfessionsPage.vue'));
 const MembersPage = lazyPage(() => import('./pages/MembersPage.vue'));
 const EventsPage = lazyPage(() => import('./pages/EventsPage.vue'));
 const LineupsPage = lazyPage(() => import('./pages/LineupsPage.vue'));
@@ -133,6 +134,7 @@ const navigation = [
     adminOnly: true,
   },
   // Occasional tool: reachable from 管理總覽 and the drawer, keeping the desktop bar on one line.
+  { page: 'professions', label: '職業管理', icon: mdiSwordCross, drawerOnly: true },
   { page: 'attendance', label: '出勤紀錄', icon: mdiCalendarMonthOutline, drawerOnly: true },
   { page: 'lottery', label: '抽獎活動', icon: mdiGiftOutline, drawerOnly: true },
   { page: 'release-notes', label: '更新紀錄', icon: mdiHistory, drawerOnly: true },
@@ -599,6 +601,7 @@ function skipToMain() {
       <MembersPage v-else-if="canReadBattles && view === 'members'" />
       <template v-else-if="canManage">
         <HomePage v-if="view === 'magament'" @open-page="navigate" />
+        <ProfessionsPage v-else-if="view === 'professions'" />
         <EventsPage v-else-if="view === 'events'" />
         <LineupsPage v-else-if="view === 'lineups'" @focus-changed="lineupFocus = $event" />
         <BattleUploadPage

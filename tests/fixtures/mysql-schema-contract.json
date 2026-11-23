@@ -17,6 +17,7 @@
     "event_member_responses",
     "event_participation_requests",
     "event_registrations",
+    "event_video_move_requests",
     "event_video_profession_overrides",
     "event_video_profession_requests",
     "event_video_requests",
@@ -275,7 +276,10 @@
     "professions": [
       "job_id",
       "colorcode",
-      "name"
+      "name",
+      "revision",
+      "request_id",
+      "original_input"
     ],
     "scheduled_events": [
       "id",
@@ -332,6 +336,11 @@
       "player_index",
       "player_json",
       "profession"
+    ],
+    "event_video_move_requests": [
+      "request_id",
+      "input_json",
+      "result_json"
     ]
   },
   "foreignKeys": [

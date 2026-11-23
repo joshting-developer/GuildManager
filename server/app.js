@@ -1,3 +1,4 @@
+import { ProfessionError } from '../src/domain/professions.js';
 import { packPersonalBattles } from '../src/domain/personal-battle-transport.js';
 import { FileStorageError } from './storage/r2.js';
 import express from 'express';
@@ -169,6 +170,12 @@ export function createApp(repository, { authNow, notifier = null, log = console,
   app.get('/api/professions', async (_request, response) => {
     response.set('Cache-Control', 'no-store').json(await repository.listProfessions());
   });
+  app.post('/api/professions', async (request, response) => {
+    response.status(201).json({ profession: await repository.addProfession(request.body) });
+  });
+  app.patch('/api/professions/:id', async (request, response) => {
+    response.json({ profession: await repository.updateProfession(Number(request.params.id), request.body) });
+  });
   app.get('/api/battle-records', async (request, response) => {
     response.json(
       await repository.listBattleRecords({
@@ -245,6 +252,12 @@ export function createApp(repository, { authNow, notifier = null, log = console,
   });
   app.patch('/api/events/:id/videos/:videoId/profession', async (request, response) => {
     response.json(await repository.updateEventVideoProfession(request.params.id, request.params.videoId, request.body));
+  });
+  app.patch('/api/events/:id/videos/:videoId/event', async (request, response) => {
+    response.json(await repository.moveEventVideo(request.params.id, request.params.videoId, request.body));
+  });
+  app.delete('/api/events/:id/videos/:videoId', async (request, response) => {
+    response.json(await repository.deleteEventVideo(request.params.id, request.params.videoId, request.body));
   });
   app.get('/api/events/:id/participation-members', async (request, response) => {
     response.json(await repository.listEventParticipationMembers(request.params.id));
@@ -409,6 +422,7 @@ export function createApp(repository, { authNow, notifier = null, log = console,
       error instanceof EventError ||
       error instanceof LineupError ||
       error instanceof DutyError ||
+      error instanceof ProfessionError ||
       error instanceof ParticipationError ||
       error instanceof EventVideoError ||
       error instanceof LotteryError ||

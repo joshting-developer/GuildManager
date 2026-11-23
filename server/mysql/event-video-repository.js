@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { EventVideoError, validateVideoSubmission, validateVideoProfessionUpdate } from '../../src/domain/event-videos.js';
+import { EventVideoError, validateVideoSubmission, validateVideoProfessionUpdate, validateVideoMove, validateVideoDelete } from '../../src/domain/event-videos.js';
 
 export function createEventVideoRepository(db) {
   async function checkEvent(id) {
@@ -29,7 +29,80 @@ export function createEventVideoRepository(db) {
     p.profession_id AS professionId, p.profession_name AS professionName,
     p.profession_colorcode AS professionColorcode, COALESCE(p.revision, 0) AS revision`;
   const legacyFrom = 'event_videos v LEFT JOIN event_video_profession_overrides p ON p.video_id=v.id';
+  async function findVideo(eventId, videoId) {
+    const current = (await db.prepare(`SELECT ${columns} FROM event_video_submissions WHERE id=? AND event_id=?`).get(videoId, eventId));
+    if (current) return { current, legacy: false };
+    const legacy = (await db.prepare(`SELECT ${legacyColumns} FROM ${legacyFrom} WHERE v.id=? AND v.event_id=?`).get(videoId, eventId));
+    if (!legacy) throw new EventVideoError('找不到這筆影片，可能已被修改或刪除，請重新載入', 404, 'VIDEO_NOT_FOUND');
+    return { current: legacy, legacy: true };
+  }
+  function checkRevision(current, revision, action) {
+    if (current.revision !== revision)
+      throw new EventVideoError(`這筆影片已更新，請重新載入後再${action}`, 409, 'REVISION_CONFLICT');
+  }
+  // Lock both events in a fixed order so two opposite moves cannot deadlock.
+  async function lockEvents(...ids) {
+    for (const id of [...new Set(ids)].sort())
+      (await db.prepare('SELECT id FROM scheduled_events WHERE id = ? FOR UPDATE').get(id));
+  }
   return {
+    async moveEventVideo(eventId, videoId, rawInput) {
+      const input = validateVideoMove(eventId, videoId, rawInput);
+      const encoded = JSON.stringify({ eventId, videoId, ...input });
+      return (await db.transaction(async () => {
+        (await lockEvents(eventId, input.targetEventId));
+        const previous = (await db.prepare('SELECT * FROM event_video_move_requests WHERE request_id=?').get(input.requestId));
+        if (previous) {
+          if (previous.input_json !== encoded)
+            throw new EventVideoError('這次操作識別碼已用於其他內容，請重新操作', 409, 'REQUEST_CONFLICT');
+          return JSON.parse(previous.result_json);
+        }
+        (await checkEvent(eventId));
+        try {
+          (await checkEvent(input.targetEventId));
+        } catch (error) {
+          if (error.code !== 'EVENT_UNAVAILABLE') throw error;
+          throw new EventVideoError('要更換的場次已刪除或不是戰鬥場次，請重新選擇', 409, 'TARGET_UNAVAILABLE',
+            { targetEventId: '請重新選擇場次' });
+        }
+        const { current, legacy } = (await findVideo(eventId, videoId));
+        checkRevision(current, input.revision, '更換場次');
+        let revision = input.revision + 1;
+        if (legacy) {
+          const row = (await db.prepare('SELECT round_number, name, url, group_name FROM event_videos WHERE id=?').get(videoId));
+          const duplicate = (await db.prepare('SELECT id FROM event_videos WHERE event_id=? AND round_number=? AND name=? AND url=? AND group_name=?')
+            .get(input.targetEventId, row.round_number, row.name, row.url, row.group_name));
+          if (duplicate)
+            throw new EventVideoError('要更換的場次已有相同的舊影片紀錄，請改為刪除這筆', 409, 'VIDEO_DUPLICATE');
+          (await db.prepare('UPDATE event_videos SET event_id=? WHERE id=? AND event_id=?').run(input.targetEventId, videoId, eventId));
+          // Legacy rows keep their seven columns; only an existing correction row carries a revision.
+          const override = (await db.prepare('UPDATE event_video_profession_overrides SET revision=revision+1 WHERE video_id=?').run(videoId));
+          if (!override.changes) revision = current.revision;
+        } else {
+          (await db.prepare('UPDATE event_video_submissions SET event_id=?, revision=revision+1 WHERE id=? AND event_id=?')
+            .run(input.targetEventId, videoId, eventId));
+        }
+        const result = { fromEventId: eventId, video: { ...current, eventId: input.targetEventId, revision } };
+        (await db.prepare('INSERT INTO event_video_move_requests VALUES (?, ?, ?)').run(input.requestId, encoded, JSON.stringify(result)));
+        return result;
+      }));
+    },
+    async deleteEventVideo(eventId, videoId, rawInput) {
+      const input = validateVideoDelete(eventId, videoId, rawInput);
+      return (await db.transaction(async () => {
+        (await lockEvents(eventId));
+        (await checkEvent(eventId));
+        const { current, legacy } = (await findVideo(eventId, videoId));
+        checkRevision(current, input.revision, '刪除');
+        if (legacy) {
+          (await db.prepare('DELETE FROM event_video_profession_overrides WHERE video_id=?').run(videoId));
+          (await db.prepare('DELETE FROM event_videos WHERE id=? AND event_id=?').run(videoId, eventId));
+        } else {
+          (await db.prepare('DELETE FROM event_video_submissions WHERE id=? AND event_id=?').run(videoId, eventId));
+        }
+        return { eventId, videoId, deleted: true };
+      }));
+    },
     async updateEventVideoProfession(eventId, videoId, rawInput) {
       const input = validateVideoProfessionUpdate(eventId, videoId, rawInput);
       const encoded = JSON.stringify({ eventId, videoId, ...input });
