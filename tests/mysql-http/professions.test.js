@@ -1,0 +1,31 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { withApp } from '../helpers/mysql-app.js';
+
+test('profession HTTP writes require management and CSRF; public catalogue reflects saved colours', async () => withApp(async ({ request: anonymous, admin, login, repository }) => {
+  const input = { name: '新職業', colorcode: '#aabbcc', requestId: 'profession-create' };
+  assert.equal((await anonymous('/professions')).status, 200);
+  assert.equal((await anonymous('/professions', 'POST', input)).status, 401);
+  const adminSession = await admin();
+  const managerCredentials = { username: 'profession_manager', password: 'manager-password-2026' };
+  await repository.createManager(adminSession.session.user.id, managerCredentials);
+  const manager = await login(managerCredentials);
+  assert.equal((await anonymous('/professions', 'POST', input, { Cookie: manager.headers.Cookie })).status, 403);
+  await repository.setMemberToken(adminSession.session.user.id, { password: 'memberPassword1', revision: 0 });
+  const member = await login({ password: 'memberPassword1' }, { path: '/auth/member-login' });
+  assert.equal((await member.request('/professions', 'POST', input)).status, 403);
+  assert.equal((await member.request('/professions/1', 'PATCH', { name: '不應修改', colorcode: '#000000', revision: 1 })).status, 403);
+  const response = await manager.request('/professions', 'POST', input);
+  assert.equal(response.status, 201);
+  const { profession } = await response.json();
+  const path = `/professions/${profession.job_id}`;
+  const patch = { name: '改名職業', colorcode: '#123456', revision: profession.revision };
+  assert.equal((await manager.request(path, 'PATCH', patch)).status, 200);
+  const stale = await manager.request(path, 'PATCH', { ...patch, name: '舊修改' });
+  assert.equal(stale.status, 409); assert.equal((await stale.json()).error.code, 'PROFESSION_CONFLICT');
+  const invalid = await manager.request(path, 'PATCH', { ...patch, colorcode: 'red' });
+  assert.equal(invalid.status, 422); assert.equal((await invalid.json()).error.code, 'PROFESSION_INVALID');
+  assert.equal((await adminSession.request(path, 'PATCH', { ...patch, revision: 2 })).status, 200);
+  const jobs = (await (await anonymous('/professions')).json()).professions;
+  assert.equal(jobs.find(job => job.job_id === profession.job_id).colorcode, '#123456');
+}));

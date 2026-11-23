@@ -175,10 +175,11 @@ test('player projection migration backfills existing JSON without changing perso
     const before = await repo.getMemberBattleRecords('migration-member', { all: true });
     const db = repositoryDatabase(repo);
     // Later migrations must be rolled back too, otherwise the history has a gap.
+    await db.query('ALTER TABLE professions DROP COLUMN revision, DROP COLUMN request_id, DROP COLUMN original_input');
     await db.query('DROP TABLE event_video_move_requests');
     await db.query('DROP TABLE battle_player_stats');
-    await db.query("DELETE FROM schema_migrations WHERE id IN ('0006_battle_player_stats', '0007_event_video_moves')");
-    assert.deepEqual((await migrateMysql(db, mysqlMigrations)).applied, ['0006_battle_player_stats', '0007_event_video_moves']);
+    await db.query("DELETE FROM schema_migrations WHERE id IN ('0006_battle_player_stats', '0007_event_video_moves', '0008_profession_management')");
+    assert.deepEqual((await migrateMysql(db, mysqlMigrations)).applied, ['0006_battle_player_stats', '0007_event_video_moves', '0008_profession_management']);
     assert.deepEqual(await repo.getMemberBattleRecords('migration-member', { all: true }), before);
     const paged = await repo.getMemberBattleRecords('migration-member');
     assert.deepEqual(paged.summary, summarizePersonalBattles(before.entries));

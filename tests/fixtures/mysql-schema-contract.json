@@ -276,7 +276,10 @@
     "professions": [
       "job_id",
       "colorcode",
-      "name"
+      "name",
+      "revision",
+      "request_id",
+      "original_input"
     ],
     "scheduled_events": [
       "id",

@@ -1,3 +1,4 @@
+import { createProfessionRepository } from './profession-repository.js';
 import { createFileStagingRepository } from './file-staging-repository.js';
 import { withFileStorage } from '../services/file-backed-repository.js';
 import { createStore, exposeRepository } from './store.js';
@@ -136,6 +137,7 @@ function createImplementation(store, authNow, participationNow) {
     ...createAuthRepository(db, { now: authNow }),
     ...createEventRepository(db),
     ...createDutyRepository(db),
+    ...createProfessionRepository(db),
     ...createAttendanceRepository(db),
     ...createParticipationRepository(db, { notify, now: participationNow }),
     ...createEventVideoRepository(db),
@@ -226,13 +228,6 @@ function createImplementation(store, authNow, participationNow) {
         if (members.length) notify({ type: 'member-import', members, summary: preview.summary });
         return { members, summary: preview.summary };
       }));
-    },
-    async listProfessions() {
-      return {
-        professions: (await db
-          .prepare('SELECT job_id, colorcode, name FROM professions ORDER BY job_id')
-          .all()),
-      };
     },
     async listParticipationMembers() {
       return {
