@@ -6,7 +6,7 @@ import { mdiClose, mdiChartLine } from '@mdi/js';
 import { createMemberClient } from '../api/members.js';
 import { validatePersonalBattleFilters, filterPersonalBattles } from '../domain/personal-battle-filters.js';
 import { summarizePersonalBattles } from '../domain/personal-battle-statistics.js';
-import { personalBattleKey, latestPersonalSelection, selectedPersonalBattles, summarizeKillEfficiency, personalKillEfficiency } from '../domain/personal-battle-selection.js';
+import { personalBattleKey, latestPersonalSelection, comparePersonalBattles, summarizeKillEfficiency, personalKillEfficiency } from '../domain/personal-battle-selection.js';
 import { eventTypeLabel } from '../domain/event-types.js';
 import { battleDateLabel, battleRoundLabel, battlePlayerValue, BATTLE_TABLE_COLUMNS } from '../domain/battle-statistics.js';
 import './battle-record-view.css';
@@ -31,8 +31,18 @@ const professionOptions = computed(() => [
   ...(data.value?.professions || []).map((name) => ({ title: name, value: name })),
 ]);
 const hasFilters = computed(() => Object.values(appliedFilters.value).some(Boolean));
-const entries = computed(() => filterPersonalBattles(data.value?.entries || [], appliedFilters.value));
-const selectedEntries = computed(() => selectedPersonalBattles(entries.value, selection.value));
+// Only rows already read (pages, the newest page, re-read selections) are kept, never the full history.
+const known = shallowRef(new Map());
+function remember(list) {
+  const next = new Map(known.value);
+  for (const entry of list) next.set(personalBattleKey(entry), entry);
+  known.value = next;
+}
+const matchingTotal = computed(() => pagedData.value?.total || 0);
+const selectedEntries = computed(() => filterPersonalBattles(
+  [...selection.value].map((key) => known.value.get(key)).filter(Boolean).sort(comparePersonalBattles),
+  appliedFilters.value,
+));
 const summary = computed(() => summarizePersonalBattles(selectedEntries.value));
 const efficiency = computed(() => summarizeKillEfficiency(selectedEntries.value));
 const pageCount = computed(() => Math.ceil((pagedData.value?.total || 0) / 20));
@@ -84,24 +94,28 @@ async function load() {
   loading.value = true;
   error.value = '';
   try {
-    const [result, paged] = await Promise.all([
-      client.getBattleRecords(props.memberUid, 1, { all: true }),
-      client.getBattleRecords(props.memberUid, page.value, appliedFilters.value),
+    const filtered = hasFilters.value || page.value !== 1;
+    const [newest, paged, reread] = await Promise.all([
+      client.getBattleRecords(props.memberUid, 1),
+      filtered ? client.getBattleRecords(props.memberUid, page.value, appliedFilters.value) : null,
+      previous && selection.value.size ? client.getBattleRecordsByKeys(props.memberUid, [...selection.value]) : [],
     ]);
     if (disposed || current !== version) return;
-    if (!result.member?.name || !Array.isArray(result.entries) || !Array.isArray(result.professions) ||
-        !Number.isSafeInteger(result.total) || result.entries.length !== result.total)
+    if (!newest.member?.name || !Array.isArray(newest.entries) || !Array.isArray(newest.professions) ||
+        !Number.isSafeInteger(newest.total))
       throw new Error('個人戰績未完整載入，請確認程式版本後重新載入');
-    data.value = result;
-    pagedData.value = paged;
-    const keys = new Set(result.entries.map(personalBattleKey));
-    selection.value = previous ? new Set([...selection.value].filter((key) => keys.has(key))) : latestPersonalSelection(result.entries);
+    data.value = { member: newest.member, professions: newest.professions, total: newest.total };
+    pagedData.value = paged || newest;
+    known.value = new Map();
+    remember([...newest.entries, ...(paged?.entries || []), ...reread]);
+    selection.value = previous ? new Set(reread.map(personalBattleKey)) : latestPersonalSelection(newest.entries);
     const validPage = Math.min(page.value, Math.max(pageCount.value, 1));
     if (page.value !== validPage) {
       page.value = validPage;
       const corrected = await client.getBattleRecords(props.memberUid, validPage, appliedFilters.value);
       if (disposed || current !== version) return;
       pagedData.value = corrected;
+      remember(corrected.entries);
     }
   } catch (cause) {
     if (!disposed && current === version) error.value = cause.message;
@@ -116,7 +130,10 @@ async function loadPage() {
   error.value = '';
   try {
     const result = await client.getBattleRecords(props.memberUid, page.value, appliedFilters.value);
-    if (!disposed && current === version) pagedData.value = result;
+    if (!disposed && current === version) {
+      pagedData.value = result;
+      remember(result.entries);
+    }
   } catch (cause) {
     if (!disposed && current === version) error.value = cause.message;
   } finally {
@@ -141,6 +158,7 @@ function clearFilters() {
 watch(() => props.memberUid, () => {
   data.value = null;
   pagedData.value = null;
+  known.value = new Map();
   trendOpen.value = false;
   trendVisited.value = false;
   selection.value = new Set();
@@ -282,8 +300,8 @@ onUnmounted(() => { disposed = true; version++; });
           >
         </div>
       </div>
-      <p class="battle-view-muted mb-4" role="status" aria-live="polite">共 {{ data.total }} 筆，符合 {{ entries.length }} 筆，其中已勾選 {{ selectedEntries.length }} 筆；全部已勾選 {{ selection.size }} 筆。預設選取最新 10 筆，重新載入保留勾選。</p>
-      <p v-if="!entries.length" class="battle-view-state">沒有符合篩選條件的戰績</p>
+      <p class="battle-view-muted mb-4" role="status" aria-live="polite">共 {{ data.total }} 筆，符合 {{ matchingTotal }} 筆，其中已勾選 {{ selectedEntries.length }} 筆；全部已勾選 {{ selection.size }} 筆。預設選取最新 10 筆，重新載入保留勾選。</p>
+      <p v-if="!matchingTotal" class="battle-view-state">沒有符合篩選條件的戰績</p>
       <div v-else class="battle-view-scroll" tabindex="0" aria-label="個人各場戰績，可左右捲動">
         <table class="battle-view-table">
           <caption class="sr-only">

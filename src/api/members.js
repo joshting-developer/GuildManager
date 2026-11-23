@@ -37,6 +37,18 @@ export function createMemberClient({ fetchImpl = sessionFetch } = {}) {
       call(
         'GET', `members/${encodeURIComponent(uid)}/battle-records?${new URLSearchParams({ page, ...filters })}`, null,
       ).then(unpackPersonalBattles),
+    // Re-reads selected rows 100 keys per request; rows that no longer exist are simply absent.
+    async getBattleRecordsByKeys(uid, keys) {
+      const entries = [];
+      for (let index = 0; index < keys.length; index += 100) {
+        const data = await call('GET', `members/${encodeURIComponent(uid)}/battle-records?${new URLSearchParams({
+          keys: keys.slice(index, index + 100).join(','),
+        })}`, null);
+        if (!Array.isArray(data?.entries)) throw new Error('個人戰績回應格式不正確，請重新載入');
+        entries.push(...data.entries);
+      }
+      return entries;
+    },
     getProfessions({ refresh = false } = {}) {
       const key = fetchImpl;
       if (refresh) professionCache.delete(key);

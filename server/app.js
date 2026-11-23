@@ -376,6 +376,7 @@ export function createApp(repository, { authNow, notifier = null, log = console,
         profession: request.query.profession,
         all: request.query.all === undefined || request.query.all === 'false'
           ? false : request.query.all === 'true' ? true : request.query.all,
+        ...(request.query.keys === undefined ? {} : { keys: request.query.keys }),
       });
     response.json(request.query.all === 'true' ? packPersonalBattles(result) : result);
   });

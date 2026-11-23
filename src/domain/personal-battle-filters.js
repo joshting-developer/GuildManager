@@ -6,6 +6,18 @@ export function personalBattleReadAll(input = {}) {
   return input.all === true;
 }
 
+// Up to 100 "recordId:playerIndex" keys, comma separated; undefined means no key lookup.
+export function personalBattleKeys(value) {
+  if (value === undefined) return null;
+  const keys = typeof value === 'string' && value ? value.split(',') : [];
+  if (!keys.length || keys.length > 100 || keys.some((key) => !/^[A-Za-z0-9_-]{1,64}:\d{1,5}$/.test(key)))
+    throw new BattleRecordError('戰績選取格式不正確', 422, 'BATTLE_FILTER_INVALID');
+  return [...new Set(keys)].map((key) => {
+    const [recordId, index] = key.split(':');
+    return [recordId, Number(index)];
+  });
+}
+
 export function validatePersonalBattleFilters(input = {}) {
   const invalid = (message, field) => {
     const error = new BattleRecordError(message, 422, 'BATTLE_FILTER_INVALID');

@@ -17,6 +17,7 @@ import { validateBattleAttributions, applyBattleAttributions } from '../../src/d
 import {
   validatePersonalBattleFilters,
   personalBattleReadAll,
+  personalBattleKeys,
 } from '../../src/domain/personal-battle-filters.js';
 
 function text(value, label, limit = 120) {
@@ -280,8 +281,10 @@ export function createBattleRecordRepository(db, {
     },
     async getMemberBattleRecords(uid, { page = 1, ...input } = {}) {
       if (!Number.isSafeInteger(page) || page < 1) throw new BattleRecordError('頁碼不正確');
-      const filters = validatePersonalBattleFilters(input);
-      const readAll = personalBattleReadAll(input);
+      const { keys: rawKeys, ...filterInput } = input;
+      const keys = personalBattleKeys(rawKeys);
+      const filters = validatePersonalBattleFilters(keys ? {} : filterInput);
+      const readAll = personalBattleReadAll(filterInput);
       const memberUid = text(uid, '成員', 64);
       const member = (await db
         .prepare('SELECT name, primary_profession AS profession FROM members WHERE uid = ?')
@@ -295,22 +298,28 @@ export function createBattleRecordRepository(db, {
       if (filters.startDate) { clauses.push('r.played_at >= ?'); args.push(filters.startDate); }
       if (filters.endDate) { clauses.push('r.played_at < ?'); args.push(new Date(Date.parse(filters.endDate) + 86400000).toISOString().slice(0, 10)); }
       if (filters.profession) { clauses.push('BINARY p.profession = BINARY ?'); args.push(filters.profession); }
+      // Selected rows are re-read by key, so cross-page selections never need the full history.
+      if (keys) {
+        clauses.push(`(l.record_id, l.player_index) IN (${keys.map(() => '(?, ?)').join(', ')})`);
+        args.push(...keys.flat());
+      }
       const where = 'WHERE ' + clauses.join(' AND ');
       const professions = (await db.prepare(`SELECT DISTINCT p.profession ${from} WHERE l.member_uid=?`).all(memberUid))
         .map(row => row.profession).filter(Boolean).sort((a, b) => a.localeCompare(b, 'zh-TW'));
       const rows = await db.prepare(
         `SELECT l.player_index, r.id, r.battle_type, r.played_at, r.round_number,
-          r.red_team, r.blue_team, r.winner, r.is_internal, p.player_json
+          r.red_team, r.blue_team, r.winner, r.is_internal, r.created_at, p.player_json
           ${from} ${where}
           ORDER BY r.played_at DESC, r.created_at DESC, r.id, l.player_index LIMIT ? OFFSET ?`,
-      ).all(...args, readAll ? 10001 : 20, readAll ? 0 : (page - 1) * 20);
+      ).all(...args, readAll ? 10001 : keys ? keys.length : 20, readAll || keys ? 0 : (page - 1) * 20);
       if (readAll && rows.length > 10000) throw new BattleRecordError('個人戰績超過完整讀取上限, 請縮小日期範圍');
       const entries = rows.map(row => ({
         recordId: row.id, playerIndex: row.player_index, type: row.battle_type,
         playedAt: row.played_at, roundNumber: row.round_number, redTeam: row.red_team,
         blueTeam: row.blue_team, winner: row.winner, isInternal: Boolean(row.is_internal),
-        player: JSON.parse(row.player_json),
+        createdAt: row.created_at, player: JSON.parse(row.player_json),
       }));
+      if (keys) return { member, entries };
       let summary;
       if (!readAll) {
         const values = BATTLE_METRICS.map(([, key]) =>

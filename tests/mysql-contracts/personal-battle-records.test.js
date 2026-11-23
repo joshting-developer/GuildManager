@@ -87,6 +87,18 @@ test('new members link older records; pages share full summary and failures roll
     assert.deepEqual(first.summary, second.summary);
     assert.equal(first.summary.metrics.find((m) => m.key === 'kill').total, 44);
     assert.equal(first.entries[0].playedAt, '2026-10-24');
+    // Selected rows are re-read by key, in API order, scoped to this member, with no summary.
+    const all = (await repo.getMemberBattleRecords('001', { all: true })).entries;
+    const key = (entry) => `${entry.recordId}:${entry.playerIndex}`;
+    const picked = [all[21], all[0], all[5]];
+    const reread = await repo.getMemberBattleRecords('001', { keys: [...picked.map(key), 'missing:0'].join(',') });
+    assert.deepEqual(reread.entries, [all[0], all[5], all[21]]);
+    assert.equal(reread.summary, undefined);
+    assert.ok(all[0].createdAt);
+    await add(repo, '002', '旁人');
+    assert.deepEqual((await repo.getMemberBattleRecords('002', { keys: key(all[0]) })).entries, []);
+    for (const bad of ['', 'x', Array.from({ length: 101 }, (_, i) => `r:${i}`).join(',')])
+      await assert.rejects(repo.getMemberBattleRecords('001', { keys: bad }), (e) => e.code === 'BATTLE_FILTER_INVALID');
     (await assert.rejects(async () =>
       (await repo.saveBattleRecords({
         requestId: 'invalid-pair',
