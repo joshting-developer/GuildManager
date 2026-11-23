@@ -35,8 +35,7 @@ export function createApp(repository, { authNow, notifier = null, log = console,
     if (notifier && notifications.length) {
       let footer;
       try {
-        const { platform } = await repository.getPlatformSettings();
-        footer = platform.name;
+        footer = await repository.getPlatformName();
       } catch (error) {
         reportError(log, 'notification_footer_failed', error);
       }

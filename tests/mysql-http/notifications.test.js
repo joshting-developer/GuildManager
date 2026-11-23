@@ -75,7 +75,7 @@ test('failed footer lookup uses the default footer and rejected send promises do
     const notifier = createDiscordNotifier({ env: { DISCORD_WEBHOOK_MEMBER: MEMBER_URL }, log: logger,
       fetchImpl: async (_url, init) => { calls.push(JSON.parse(init.body)); return { ok: true, status: 204 }; } });
     const sender = rejectSend ? { send: () => Promise.reject(new Error('synthetic-secret')) } : notifier;
-    await withApp({ notifier: sender, log: logger, repository: (repo) => ({ ...repo, getPlatformSettings: async () => { throw new Error('synthetic-secret'); } }) }, async ({ admin, repository }) => {
+    await withApp({ notifier: sender, log: logger, repository: (repo) => ({ ...repo, getPlatformName: async () => { throw new Error('synthetic-secret'); } }) }, async ({ admin, repository }) => {
       const { request } = await admin();
       assert.equal((await request('/members', 'POST', person('001'))).status, 201);
       await notifier.drain();
@@ -90,6 +90,21 @@ test('failed footer lookup uses the default footer and rejected send promises do
       assert.equal(JSON.stringify(logger.entries).includes('synthetic-secret'), false);
     });
   }
+});
+
+test('notification footer reads only the platform name, never the icon settings', async () => {
+  const calls = [];
+  const notifier = createDiscordNotifier({ env: { DISCORD_WEBHOOK_MEMBER: MEMBER_URL },
+    fetchImpl: async (_url, init) => { calls.push(JSON.parse(init.body)); return { ok: true, status: 204 }; } });
+  await withApp({ notifier, repository: (repo) => ({ ...repo, getPlatformSettings: async () => { throw new Error('icon read'); } }) }, async ({ admin, repository }) => {
+    const { request } = await admin();
+    assert.equal((await request('/members', 'POST', person('001'))).status, 201);
+    await notifier.drain();
+    assert.equal(calls.length, 1);
+    const name = await repository.getPlatformName();
+    assert.notEqual(name, '幫會管理平台', 'the fallback footer must be distinguishable');
+    assert.equal(calls[0].embeds[0].footer.text, name);
+  });
 });
 
 test('member no-ops, ordinary registration and replayed requestId do not duplicate delivery', async () => {

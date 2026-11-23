@@ -20,11 +20,17 @@ export function withFileStorage(repository, storage, journal) {
     await journal.ready(file.id);
     return file;
   }
+  // Icon objects are immutable (a new upload gets a new file ID), so the verified data URL of the
+  // current icon is kept until the settings point at another file.
+  let cachedIcon = null;
   async function platformResult(result) {
     const { platform, iconFile } = result;
     if (!iconFile) return { platform };
-    const bytes = await read(iconFile);
-    return { platform: { ...platform, iconSrc: platformIconSource({ mimeType: iconFile.mimeType, base64: bytes.toString('base64') }) } };
+    if (!cachedIcon || cachedIcon.id !== iconFile.id || cachedIcon.sha256 !== iconFile.sha256) {
+      const bytes = await read(iconFile);
+      cachedIcon = { id: iconFile.id, sha256: iconFile.sha256, src: platformIconSource({ mimeType: iconFile.mimeType, base64: bytes.toString('base64') }) };
+    }
+    return { platform: { ...platform, iconSrc: cachedIcon.src } };
   }
   const methods = {
     /** Explicit maintenance operation; never exposed as a browser-selected object key API. */
