@@ -157,15 +157,23 @@ export function createBattleRecordRepository(db, {
       const total = (await db
         .prepare(`SELECT COUNT(*) AS total FROM battle_records r${where}`)
         .get(...args)).total;
-      // Summaries need side counts, not member UID projection or per-record link reads.
+      // Pick the page IDs from the date index first, then join metadata; side counts are
+      // computed in SQL so the full players JSON never leaves MySQL.
       const rows = await db.prepare(
         `SELECT r.id, r.event_id, r.event_snapshot_json, r.battle_type, r.played_at,
           r.red_team, r.blue_team, r.winner, r.our_side, r.is_internal, r.revision,
-          r.filename, r.created_at, r.round_number, r.players_json, u.image_name, u.image_type
-        FROM battle_records r JOIN battle_uploads u ON u.id=r.upload_id${where}
-        ORDER BY r.played_at DESC, r.created_at DESC, r.id LIMIT 20 OFFSET ?`,
+          r.filename, r.created_at, r.round_number, u.image_name, u.image_type,
+          sides.redCount, sides.blueCount
+        FROM (SELECT r.id FROM battle_records r${where}
+          ORDER BY r.played_at DESC, r.created_at DESC, r.id LIMIT 20 OFFSET ?) picked
+        JOIN battle_records r ON r.id=picked.id JOIN battle_uploads u ON u.id=r.upload_id
+        JOIN LATERAL (SELECT COALESCE(SUM(p.side='red'), 0) AS redCount, COALESCE(SUM(p.side='blue'), 0) AS blueCount
+          FROM JSON_TABLE(r.players_json, '$[*]' COLUMNS (side VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin PATH '$.side' NULL ON ERROR)) p) sides
+        ORDER BY r.played_at DESC, r.created_at DESC, r.id`,
       ).all(...args, (page - 1) * 20);
-      const records = rows.map(row => summary(row, JSON.parse(row.players_json)));
+      const records = rows.map(({ redCount, blueCount, ...row }) => ({
+        ...summary(row, []), redCount: Number(redCount), blueCount: Number(blueCount),
+      }));
       return { records, total, page, pageSize: 20 };
     },
     async getBattleMetadata(id) {
