@@ -103,3 +103,5 @@ await import('./mysql-contracts/lineup-history-batch.test.js');
 await import('./mysql-contracts/video-pagination.test.js');
 
 await import('./mysql-contracts/member-maintenance-batch.test.js');
+
+await import('./benchmark.test.js');

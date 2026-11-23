@@ -57,5 +57,10 @@ jobs:
       - run: python3 tests/backup-local.test.py
       - run: python3 tests/prepare-fly-deploy.test.py
       - run: npm run build
+      - name: Synthetic performance budgets
+        env:
+          BENCHMARK_SMOKE: 'true'
+          BENCHMARK_SAMPLES: '5'
+        run: CHROME_PATH="$(command -v google-chrome)" node tools/benchmark-local.js
       - run: docker build -t guild-manager:ci-production .
       - run: docker build --target development -t guild-manager:ci-development .
