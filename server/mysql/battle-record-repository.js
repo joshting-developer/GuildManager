@@ -268,16 +268,21 @@ export function createBattleRecordRepository(db, {
         (await db.prepare('SELECT uid, name FROM members').all()),
         newMembers,
       );
-      const insert =
-        db.prepare(`INSERT INTO battle_player_links (record_id, player_index, member_uid)
-        SELECT r.id, p.player_index - 1, ? FROM battle_records r
+      // One player scan per bounded batch, preserving unique-name and existing-link guards.
+      const entries = [...names];
+      const insert = db.prepare(`INSERT INTO battle_player_links (record_id, player_index, member_uid)
+        SELECT r.id, p.player_index - 1, n.uid FROM battle_records r
         JOIN JSON_TABLE(r.players_json, '$[*]' COLUMNS (
           player_index FOR ORDINALITY, player VARCHAR(64) PATH '$.player',
           member_uid VARCHAR(64) PATH '$.memberUid' NULL ON EMPTY
         )) p
+        JOIN JSON_TABLE(?, '$[*]' COLUMNS (
+          name VARCHAR(64) PATH '$[0]', uid VARCHAR(64) PATH '$[1]'
+        )) n ON BINARY p.player = BINARY n.name
         LEFT JOIN battle_player_links l ON l.record_id=r.id AND l.player_index=p.player_index-1
-        WHERE BINARY p.player = BINARY ? AND l.record_id IS NULL AND p.member_uid IS NULL`);
-      for (const [name, uid] of names) (await insert.run(uid, name));
+        WHERE l.record_id IS NULL AND p.member_uid IS NULL`);
+      for (let offset = 0; offset < entries.length; offset += 200)
+        await insert.run(JSON.stringify(entries.slice(offset, offset + 200)));
     },
     async getMemberBattleRecords(uid, { page = 1, ...input } = {}) {
       if (!Number.isSafeInteger(page) || page < 1) throw new BattleRecordError('頁碼不正確');
