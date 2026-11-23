@@ -377,7 +377,7 @@ function dropCsv(event, roundNumber) {
 // Battle choices arrive 200 at a time, recent sessions first; an explicitly opened
 // session is fetched on its own when it is outside the first batch.
 const choiceClient = createEventVideoClient();
-const moreEvents = ref(false), eventOffset = ref(0), moreEventsLoading = ref(false);
+const moreEvents = ref(false), eventCursor = ref(null), moreEventsLoading = ref(false);
 function mergeEvents(list) {
   const unique = new Map([...events.value, ...list].map((event) => [event.id, event]));
   events.value = orderBattleEvents([...unique.values()].filter(isBattleEvent), { prefer: 'recent' });
@@ -387,7 +387,7 @@ async function loadEvents() {
   eventsLoading.value = true;
   eventError.value = '';
   try {
-    const result = await choiceClient.getChoices(0);
+    const result = await choiceClient.getChoices();
     let initial = null;
     if (props.initialEventId && !result.events.some((event) => event.id === props.initialEventId)) {
       try {
@@ -400,7 +400,7 @@ async function loadEvents() {
       events.value = [];
       mergeEvents(initial ? [...result.events, initial] : result.events);
       moreEvents.value = result.hasMore;
-      eventOffset.value = result.nextOffset;
+      eventCursor.value = result.nextCursor;
       if (!selectedEventId.value)
         selectedEventId.value = events.value.some((event) => event.id === props.initialEventId)
           ? props.initialEventId
@@ -417,11 +417,11 @@ async function loadMoreEvents() {
   const token = eventsToken;
   moreEventsLoading.value = true;
   try {
-    const result = await choiceClient.getChoices(eventOffset.value);
+    const result = await choiceClient.getChoices(eventCursor.value);
     if (disposed || token !== eventsToken) return;
     mergeEvents(result.events);
     moreEvents.value = result.hasMore;
-    eventOffset.value = result.nextOffset;
+    eventCursor.value = result.nextCursor;
   } catch (cause) {
     if (!disposed && token === eventsToken) eventError.value = `場次清單讀取失敗: ${cause.message}`;
   } finally {

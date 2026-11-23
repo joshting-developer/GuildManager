@@ -1,5 +1,5 @@
 import { taipeiToday } from '../../src/domain/battle-events.js';
-import { eventListQuery } from '../../src/domain/event-list-query.js';
+import { choiceCursor, choicePage, liveBattleSource } from './choice-pages.js';
 import { asyncMap } from "./collections.js";
 import { randomUUID } from 'node:crypto';
 import { editableLineup, eligibleMember, participantKey, LINEUP_TYPES } from "../../src/domain/lineups.js";
@@ -149,31 +149,31 @@ export function createLineupRepository(db, { project = (_kind, _id, value) => va
   }
   const repository = {
     async getLineupChoices(input = {}) {
-      const { limit, offset } = eventListQuery({ ...input, limit: 200 });
-      const today = taipeiToday();
-      // Project archived event metadata in SQL; never transfer the full team snapshot for a picker.
-      const rows = await db.prepare(`WITH choices AS (
-        SELECT e.id,e.title,e.type,e.revision,d.date,0 AS archived
-        FROM scheduled_events e JOIN event_dates d ON d.event_id=e.id
-        WHERE e.deleted_at IS NULL AND e.type IN ('scrimmage','guild_war','dragon_tiger')
-        UNION ALL
-        SELECT v.event_id,
-          JSON_UNQUOTE(JSON_EXTRACT(v.snapshot_json,'$.event.title')),
-          CONVERT(JSON_UNQUOTE(JSON_EXTRACT(v.snapshot_json,'$.event.type')) USING ascii) COLLATE ascii_bin,
-          CAST(JSON_UNQUOTE(JSON_EXTRACT(v.snapshot_json,'$.event.revision')) AS UNSIGNED),
-          CONVERT(JSON_UNQUOTE(JSON_EXTRACT(v.snapshot_json,'$.event.dates[0]')) USING ascii) COLLATE ascii_bin,1
-        FROM lineup_versions v
-        WHERE v.version=(SELECT MAX(version) FROM lineup_versions WHERE event_id=v.event_id)
-          AND NOT EXISTS (SELECT 1 FROM scheduled_events e WHERE e.id=v.event_id
-            AND e.deleted_at IS NULL AND e.type IN ('scrimmage','guild_war','dragon_tiger'))
-      ) SELECT * FROM choices
-        ORDER BY CASE WHEN date>=? THEN 0 ELSE 1 END,
-          CASE WHEN date>=? THEN date END ASC, CASE WHEN date<? THEN date END DESC,title,id
-        LIMIT ? OFFSET ?`).all(today, today, today, limit + 1, offset);
-      const events = rows.slice(0, limit).map(({ date, archived, ...event }) => ({
+      const cursor = choiceCursor(input.cursor);
+      // Live battles walk the date index; archived event metadata is projected in SQL, never the
+      // full team snapshot. Upcoming battles come first, then past ones newest first.
+      const live = liveBattleSource(db, 'e.id,e.title,e.type,e.revision,0 AS archived');
+      const archived = ({ dates, keyset, direction, take }) => {
+        const range = dates('date'), position = keyset('date', 'title', 'id');
+        return db.prepare(`SELECT * FROM (
+          SELECT v.event_id AS id,
+            JSON_UNQUOTE(JSON_EXTRACT(v.snapshot_json,'$.event.title')) AS title,
+            CONVERT(JSON_UNQUOTE(JSON_EXTRACT(v.snapshot_json,'$.event.type')) USING ascii) COLLATE ascii_bin AS type,
+            CAST(JSON_UNQUOTE(JSON_EXTRACT(v.snapshot_json,'$.event.revision')) AS UNSIGNED) AS revision,
+            CONVERT(JSON_UNQUOTE(JSON_EXTRACT(v.snapshot_json,'$.event.dates[0]')) USING ascii) COLLATE ascii_bin AS date,
+            1 AS archived
+          FROM lineup_versions v
+          WHERE v.version=(SELECT MAX(version) FROM lineup_versions WHERE event_id=v.event_id)
+            AND NOT EXISTS (SELECT 1 FROM scheduled_events e WHERE e.id=v.event_id
+              AND e.deleted_at IS NULL AND e.type IN ('scrimmage','guild_war','dragon_tiger'))
+        ) c WHERE ${range.sql}${position.sql} ORDER BY date ${direction},title,id LIMIT ?`).all(...range.args, ...position.args, take);
+      };
+      const { rows, hasMore, nextCursor } = await choicePage([live, archived],
+        [{ operator: '>=', direction: 'ASC' }, { operator: '<', direction: 'DESC' }], taipeiToday(), cursor);
+      const events = rows.map(({ date, archived, ...event }) => ({
         ...event, dates: [date], ...(Number(archived) === 1 ? { archived: true } : {}),
       }));
-      return { events, hasMore: rows.length > limit, nextOffset: offset + events.length };
+      return { events, hasMore, nextCursor };
     },
     async getLineupEvents() {
       return (await repository.getLineupChoices()).events;

@@ -63,10 +63,10 @@ export function createEventVideoClient({
     return data;
   }
   return {
-    async getChoices(offset) {
-      const data = await request(`/api/videos/choices?offset=${encodeURIComponent(offset)}`);
+    async getChoices(cursor = null) {
+      const data = await request(`/api/videos/choices${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`);
       if (!Array.isArray(data?.events) || !data.events.every(isBattleEvent) ||
-        typeof data.hasMore !== 'boolean' || !Number.isSafeInteger(data.nextOffset))
+        typeof data.hasMore !== 'boolean' || (data.nextCursor !== null && typeof data.nextCursor !== 'string'))
         throw new Error('影片閱覽資料回應格式不正確，請重試');
       return data;
     },

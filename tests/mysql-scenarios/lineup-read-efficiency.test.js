@@ -34,15 +34,15 @@ test('HTTP new adapter uses one request per read and requires management without
     assert.equal((await client.getTemplates()).templates.length, 1);
     assert.ok((await client.getSources(event.id)).members.length);
     assert.equal(calls.length, 5);
-    const choices = await client.getChoices(0);
+    const choices = await client.getChoices();
     assert.equal(choices.events.length, 1);
     assert.equal(choices.hasMore, false);
-    assert.equal(choices.nextOffset, 1);
+    assert.equal(choices.nextCursor, null);
     assert.equal((await client.getHistory(event.id)).versions.length, 12);
     const admin = (await (await repo.authenticate({ username: 'test_admin', password: 'test-password-2026' }))).user;
     await (await repo.setMemberToken(admin.id, { password: '001234', revision: 0 }));
     const member = await (await repo.authenticateMember({ password: '001234' }));
-    for (const path of ['/choices?offset=0', '/editor', '/templates', `/events/${event.id}/current`, `/events/${event.id}/sources`]) {
+    for (const path of ['/choices', '/editor', '/templates', `/events/${event.id}/current`, `/events/${event.id}/sources`]) {
       assert.equal((await fetch(base + '/api/lineups' + path)).status, 401);
       assert.equal((await fetch(base + '/api/lineups' + path, { headers: { Cookie: `guild_session=${member.token}` } })).status, 403);
     }

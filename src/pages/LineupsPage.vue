@@ -396,7 +396,7 @@ function resetLineup(data) {
   selectedDutyId.value = '';
   saveAttempt = null;
 }
-const moreEvents = ref(false), eventOffset = ref(0), eventsLoading = ref(false), eventsError = ref('');
+const moreEvents = ref(false), eventCursor = ref(null), eventsLoading = ref(false), eventsError = ref('');
 let eventListToken = 0;
 async function loadMoreEvents() {
   if (eventsLoading.value) return;
@@ -404,12 +404,12 @@ async function loadMoreEvents() {
   eventsLoading.value = true;
   eventsError.value = '';
   try {
-    const data = await client.getChoices(eventOffset.value);
+    const data = await client.getChoices(eventCursor.value);
     if (disposed || token !== eventListToken) return;
     const choices = new Map([...events.value, ...data.events].map(event => [event.id, event]));
     events.value = orderBattleEvents([...choices.values()], { prefer: 'upcoming' });
     moreEvents.value = data.hasMore;
-    eventOffset.value = data.nextOffset;
+    eventCursor.value = data.nextCursor;
   } catch (cause) {
     if (!disposed && token === eventListToken) eventsError.value = cause.message;
   } finally {
@@ -434,7 +434,7 @@ async function load() {
     if (disposed || token !== operation) return;
     events.value = orderBattleEvents(data.events, { prefer: 'upcoming' });
     moreEvents.value = data.hasMore;
-    eventOffset.value = data.nextOffset;
+    eventCursor.value = data.nextCursor;
     updateCatalogs(data);
     if (data.selected) applyEvent(data.selected.eventId, data.selected, data.selected.participation);
     else {

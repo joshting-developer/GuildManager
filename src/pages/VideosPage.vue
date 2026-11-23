@@ -128,7 +128,7 @@ async function loadVideos(id) {
     if (!disposed && current === token) loading.value = false;
   }
 }
-const moreEvents = ref(false), eventOffset = ref(0), eventsLoading = ref(false), eventsError = ref('');
+const moreEvents = ref(false), eventCursor = ref(null), eventsLoading = ref(false), eventsError = ref('');
 let eventListToken = 0;
 async function loadMoreEvents() {
   if (eventsLoading.value) return;
@@ -136,12 +136,12 @@ async function loadMoreEvents() {
   eventsLoading.value = true;
   eventsError.value = '';
   try {
-    const data = await videoClient.getChoices(eventOffset.value);
+    const data = await videoClient.getChoices(eventCursor.value);
     if (disposed || current !== eventListToken) return;
     const choices = new Map([...events.value, ...data.events].map(event => [event.id, event]));
     events.value = orderBattleEvents([...choices.values()], { prefer: 'recent' });
     moreEvents.value = data.hasMore;
-    eventOffset.value = data.nextOffset;
+    eventCursor.value = data.nextCursor;
   } catch (cause) {
     if (!disposed && current === eventListToken) eventsError.value = cause.message;
   } finally {
@@ -163,7 +163,7 @@ async function load() {
     if (disposed || current !== token) return;
     events.value = data.events;
     moreEvents.value = data.hasMore;
-    eventOffset.value = data.nextOffset;
+    eventCursor.value = data.nextCursor;
     const selectedId = data.selected?.eventId || null;
     if (selectedId !== eventId.value) {
       group.value = null;

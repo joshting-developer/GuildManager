@@ -82,7 +82,7 @@ test('lineup choices use bounded SQL batches, keep archived metadata and pin req
     await repo.deleteEvent(archived.id, 1);
     await repo.createEvent({ type: 'activity', title: '無關活動', dates: ['2026-11-23'], requestId: 'unrelated' });
     const first = await repo.getLineupChoices();
-    const second = await repo.getLineupChoices({ offset: first.nextOffset });
+    const second = await repo.getLineupChoices({ cursor: first.nextCursor });
     assert.equal(first.events.length, 200);
     assert.ok(first.events.every(event => event.archived === undefined));
     assert.equal(first.hasMore, true);
@@ -95,10 +95,11 @@ test('lineup choices use bounded SQL batches, keep archived metadata and pin req
     const editor = await repo.getLineupEditor('choice-204');
     assert.equal(editor.selected.eventId, 'choice-204');
     assert.ok(editor.events.some(event => event.id === 'choice-204'));
-    assert.equal(editor.nextOffset, 200, 'pinned choice does not skip a pagination row');
+    assert.equal(editor.nextCursor, first.nextCursor, 'pinned choice does not skip a pagination row');
     const history = await repo.getLineupEditor(archived.id);
     assert.equal(history.selected.event.archived, true);
     assert.equal(history.selected.participation, null);
-    await assert.rejects(repo.getLineupChoices({ offset: -1 }));
+    await assert.rejects(repo.getLineupChoices({ cursor: 'not-a-cursor' }));
+    assert.equal(second.nextCursor, null);
   } finally { await repo.close(); }
 });
