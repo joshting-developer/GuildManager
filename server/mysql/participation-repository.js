@@ -1,6 +1,5 @@
 import { taipeiToday } from '../../src/domain/battle-events.js';
 import { createAttendanceRepository } from './attendance-repository.js';
-import { asyncMap } from "./collections.js";
 import { randomUUID } from 'node:crypto';
 import { LINEUP_TYPES } from '../../src/domain/lineups.js';
 import { eventAttendance } from '../../src/domain/event-attendance.js';
@@ -60,15 +59,17 @@ export function createParticipationRepository(db, { notify = () => {}, now = () 
       )
       .get(eventId, uid));
   }
+  const registrationColumns = `r.id, r.event_id AS eventId, r.name, r.profession_id AS professionId,
+      p.name AS profession, p.colorcode, r.note, r.active, r.revision, r.created_at AS createdAt,
+      r.updated_at AS updatedAt`;
+  const registrationRow = (row) => ({ ...row, active: Boolean(row.active) });
   async function registration(id) {
     const row = (await db
       .prepare(
-        `SELECT r.id, r.event_id AS eventId, r.name, r.profession_id AS professionId,
-      p.name AS profession, p.colorcode, r.note, r.active, r.revision, r.created_at AS createdAt,
-      r.updated_at AS updatedAt FROM event_registrations r JOIN professions p ON p.job_id = r.profession_id WHERE r.id = ?`,
+        `SELECT ${registrationColumns} FROM event_registrations r JOIN professions p ON p.job_id = r.profession_id WHERE r.id = ?`,
       )
       .get(id));
-    return row ? { ...row, active: Boolean(row.active) } : null;
+    return row ? registrationRow(row) : null;
   }
   // Notices are queued inside the transaction and only delivered after it commits.
   async function notifyLeave(eventId, action, person) {
@@ -185,21 +186,22 @@ export function createParticipationRepository(db, { notify = () => {}, now = () 
             WHERE r.event_id = ? ORDER BY r.member_uid`,
           )
           .all(eventId)),
-        registrations: (await asyncMap(await db
+        registrations: (await db
           .prepare(
-            'SELECT id FROM event_registrations WHERE event_id = ? AND active = 1 ORDER BY created_at, id',
+            `SELECT ${registrationColumns} FROM event_registrations r JOIN professions p ON p.job_id = r.profession_id
+            WHERE r.event_id = ? AND r.active = 1 ORDER BY r.created_at, r.id`,
           )
-          .all(eventId), async (row) => (await registration(row.id)))),
-        registrationLeaves: (await asyncMap(await db
+          .all(eventId)).map(registrationRow),
+        registrationLeaves: (await db
           .prepare(
-            `SELECT r.id FROM event_registrations r WHERE r.event_id = ? AND r.active = 0
+            `SELECT ${registrationColumns} FROM event_registrations r JOIN professions p ON p.job_id = r.profession_id WHERE r.event_id = ? AND r.active = 0
           AND NOT EXISTS (SELECT 1 FROM event_registrations newer
             WHERE newer.event_id = r.event_id AND CAST(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(newer.name, 0x41, 0x61), 0x42, 0x62), 0x43, 0x63), 0x44, 0x64), 0x45, 0x65), 0x46, 0x66), 0x47, 0x67), 0x48, 0x68), 0x49, 0x69), 0x4a, 0x6a), 0x4b, 0x6b), 0x4c, 0x6c), 0x4d, 0x6d), 0x4e, 0x6e), 0x4f, 0x6f), 0x50, 0x70), 0x51, 0x71), 0x52, 0x72), 0x53, 0x73), 0x54, 0x74), 0x55, 0x75), 0x56, 0x76), 0x57, 0x77), 0x58, 0x78), 0x59, 0x79), 0x5a, 0x7a) AS BINARY) = CAST(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(r.name, 0x41, 0x61), 0x42, 0x62), 0x43, 0x63), 0x44, 0x64), 0x45, 0x65), 0x46, 0x66), 0x47, 0x67), 0x48, 0x68), 0x49, 0x69), 0x4a, 0x6a), 0x4b, 0x6b), 0x4c, 0x6c), 0x4d, 0x6d), 0x4e, 0x6e), 0x4f, 0x6f), 0x50, 0x70), 0x51, 0x71), 0x52, 0x72), 0x53, 0x73), 0x54, 0x74), 0x55, 0x75), 0x56, 0x76), 0x57, 0x77), 0x58, 0x78), 0x59, 0x79), 0x5a, 0x7a) AS BINARY)
             AND (newer.active = 1 OR newer.created_at > r.created_at
               OR (newer.created_at = r.created_at AND newer.id > r.id)))
           ORDER BY r.updated_at, r.id`,
           )
-          .all(eventId), async (row) => (await registration(row.id)))),
+          .all(eventId)).map(registrationRow),
       };
     },
     async submitParticipation(eventId, input) {
