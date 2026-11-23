@@ -241,6 +241,9 @@ export function createApp(repository, { authNow, notifier = null, log = console,
   app.patch('/api/events/:id/attendance', async (request, response) => {
     response.json(await notifying('cancelEventLeave', request.params.id, request.body));
   });
+  app.get('/api/videos/choices', async (request, response) => {
+    response.set('Cache-Control', 'no-store').json(await repository.getVideoChoices(request.query));
+  });
   app.get('/api/videos/browser', async (request, response) => {
     response.json(await repository.getVideoBrowser(request.query.eventId));
   });

@@ -79,7 +79,7 @@ export function exposeRepository(implementation, store, database) {
     'listBattleRecords', 'getBattleMetadata', 'getBattleRecord', 'getBattleTeamAnalysis',
     'getMemberBattleRecords', 'getBattleAttachment', 'getMemberMaintenance',
     'getPlatformSettings', 'getLottery', 'getLineupEditor', 'getLineupCatalogs',
-    'getLineupSources', 'getLineupEvent', 'getVideoBrowser', 'getEventVideoForm',
+    'getLineupSources', 'getLineupEvent', 'getVideoChoices', 'getVideoBrowser', 'getEventVideoForm',
     'getEventParticipationForm', 'previewMemberImport', 'listProfessions',
     'listParticipationMembers', 'listMembers',
     'getLeaveSettings', 'getLeaveCare', 'getAttendanceOptions', 'getAttendanceHistory', 'getLeaveCalendar', 'getMemberLeaveHistory',

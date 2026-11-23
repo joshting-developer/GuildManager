@@ -7,7 +7,7 @@ import VideoMoveDialog from './VideoMoveDialog.vue';
 import VideoDeleteDialog from './VideoDeleteDialog.vue';
 import { createEventVideoClient } from '../api/event-videos.js';
 import { eventDisplayTitle } from '../domain/event-types.js';
-import { battleEventLabel } from '../domain/battle-events.js';
+import { battleEventLabel, orderBattleEvents } from '../domain/battle-events.js';
 import { VIDEO_GROUP_OPTIONS } from '../domain/event-videos.js';
 import { VIDEO_TABLE_HEADERS, videoTableRow, videoTableCsv } from '../domain/video-table-csv.js';
 const videoClient = createEventVideoClient();
@@ -118,7 +118,30 @@ async function loadVideos(id) {
     if (!disposed && current === token) loading.value = false;
   }
 }
+const moreEvents = ref(false), eventOffset = ref(0), eventsLoading = ref(false), eventsError = ref('');
+let eventListToken = 0;
+async function loadMoreEvents() {
+  if (eventsLoading.value) return;
+  const current = eventListToken;
+  eventsLoading.value = true;
+  eventsError.value = '';
+  try {
+    const data = await videoClient.getChoices(eventOffset.value);
+    if (disposed || current !== eventListToken) return;
+    const choices = new Map([...events.value, ...data.events].map(event => [event.id, event]));
+    events.value = orderBattleEvents([...choices.values()], { prefer: 'recent' });
+    moreEvents.value = data.hasMore;
+    eventOffset.value = data.nextOffset;
+  } catch (cause) {
+    if (!disposed && current === eventListToken) eventsError.value = cause.message;
+  } finally {
+    if (!disposed && current === eventListToken) eventsLoading.value = false;
+  }
+}
 async function load() {
+  eventListToken++;
+  eventsLoading.value = false;
+  eventsError.value = '';
   const current = ++token;
   loading.value = true;
   error.value = '';
@@ -129,6 +152,8 @@ async function load() {
     const data = await videoClient.getBrowser(eventId.value);
     if (disposed || current !== token) return;
     events.value = data.events;
+    moreEvents.value = data.hasMore;
+    eventOffset.value = data.nextOffset;
     const selectedId = data.selected?.eventId || null;
     if (selectedId !== eventId.value) {
       group.value = null;
@@ -185,6 +210,8 @@ onUnmounted(() => {
       hide-details
       no-data-text="尚無戰鬥場次"
     />
+    <v-btn v-if="moreEvents" variant="text" :loading="eventsLoading" :disabled="loading" @click="loadMoreEvents">載入更多場次</v-btn>
+    <p v-if="eventsError" role="alert">{{ eventsError }}</p>
   </v-card>
   <v-card class="videos-card" :aria-busy="loading">
     <div class="section-header">
@@ -286,7 +313,7 @@ onUnmounted(() => {
   </v-card>
   <VideoProfessionDialog v-if="editingVideo" :key="editingVideo.id" :video="editingVideo"
     @close="editingVideo = null" @updated="onProfessionUpdated" @refreshed="onVideosRefreshed" />
-  <VideoMoveDialog v-if="movingVideo" :key="movingVideo.id" :video="movingVideo" :events="events"
+  <VideoMoveDialog v-if="movingVideo" :key="movingVideo.id" :video="movingVideo" :events="events" :has-more="moreEvents" :events-loading="eventsLoading" :events-error="eventsError" @load-more="loadMoreEvents"
     @close="movingVideo = null" @moved="onVideoMoved" @refreshed="onVideosRefreshed" />
   <VideoDeleteDialog v-if="deletingVideo" :key="deletingVideo.id" :video="deletingVideo" :event-label="selectedLabel"
     @close="deletingVideo = null" @deleted="onVideoDeleted" @reload="loadVideos(eventId)" />

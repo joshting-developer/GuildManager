@@ -7,8 +7,11 @@ import { battleEventLabel } from '../domain/battle-events.js';
 const props = defineProps({
   video: { type: Object, required: true },
   events: { type: Array, required: true },
+  hasMore: Boolean,
+  eventsLoading: Boolean,
+  eventsError: { type: String, default: '' },
 });
-const emit = defineEmits(['close', 'moved', 'refreshed']);
+const emit = defineEmits(['close', 'moved', 'refreshed', 'load-more']);
 const client = createEventVideoClient();
 const id = useId(), open = ref(true), select = ref(null);
 const record = shallowRef(props.video), targetEventId = ref(null);
@@ -108,6 +111,8 @@ onUnmounted(() => {
         <v-select ref="select" v-model="targetEventId" :items="options" label="正確場次" variant="outlined"
           :disabled="saving || reloading" :error-messages="fieldError" aria-required="true"
           no-data-text="沒有其他戰鬥場次" />
+        <v-btn v-if="hasMore" variant="text" :loading="eventsLoading" :disabled="saving || reloading" @click="emit('load-more')">載入更多場次</v-btn>
+        <p v-if="eventsError" role="alert">{{ eventsError }}</p>
         <p v-if="!conflict && dirty" class="video-dialog-summary">儲存後這筆影片會移到所選場次，其他欄位不變。</p>
         <DataLoading v-if="saving" compact :spinner="false">正在更換場次，請稍候…</DataLoading>
         <div class="video-dialog-actions">

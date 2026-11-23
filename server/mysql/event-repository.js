@@ -1,3 +1,4 @@
+import { taipeiToday } from '../../src/domain/battle-events.js';
 import { eventListQuery } from '../../src/domain/event-list-query.js';
 import { asyncMap } from "./collections.js";
 import { randomUUID } from 'node:crypto';
@@ -63,6 +64,22 @@ export function createEventRepository(db) {
       }
       const values = [...events.values()];
       return { events: values.slice(0, limit), ...(input ? { hasMore: values.length > limit } : {}) };
+    },
+    async getVideoChoices(input = {}) {
+      const { limit, offset } = eventListQuery({ ...input, limit: 200 });
+      const today = taipeiToday();
+      const rows = await db.prepare(`SELECT e.id,e.title,e.type,e.created_at AS createdAt,
+        e.updated_at AS updatedAt,e.revision,d.date
+        FROM scheduled_events e JOIN event_dates d ON d.event_id=e.id
+        WHERE e.deleted_at IS NULL AND e.type IN ('scrimmage','guild_war','dragon_tiger')
+        ORDER BY CASE WHEN d.date<=? THEN 0 ELSE 1 END,
+          CASE WHEN d.date<=? THEN d.date END DESC,CASE WHEN d.date>? THEN d.date END ASC,e.title,e.id
+        LIMIT ? OFFSET ?`).all(today, today, today, limit + 1, offset);
+      return {
+        events: rows.slice(0, limit).map(({ date, ...event }) => ({ ...event, dates: [date] })),
+        hasMore: rows.length > limit,
+        nextOffset: offset + Math.min(rows.length, limit),
+      };
     },
     async createEvent(input) {
       const values = validateEvent(input);

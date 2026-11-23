@@ -142,3 +142,7 @@ admin／manager 可由管理總覽或手機選單進入 `#/attendance`。預設�
 ## 排表場次選項分批讀取
 
 排表編輯器以單次批次 SQL 讀取場次選項，每批最多 200 場，依即將到來優先、過去由近至遠及標題／ID 穩定排序。`GET /api/lineups/choices?offset=200` 僅 admin／manager 可讀，回傳 `events`、`hasMore`、`nextOffset`；前端由「載入更多場次」按需讀取。`/api/lineups/editor` 同步回傳分頁資訊，指定場次超出首批時另讀並保留選取，不影響下一批 offset。封存場次只讀快照中的場次 metadata，完整排表仍按需讀取。
+
+## 影片場次選項分批讀取
+
+`GET /api/videos/browser` 只讀取有效戰鬥場次，依最近場次優先、未來由近至遠與標題／ID 穩定排序，首批最多 200 場，回傳 `hasMore`、`nextOffset`。影片頁與更換場次視窗以「載入更多場次」呼叫 `/api/videos/choices?offset=200` 取得後續選項，不載入一般活動。指定歷史場次超出首批時另讀並保留選取，不跳過後續分頁；影片內容仍只讀選定場次。兩個入口維持 admin／manager 權限。

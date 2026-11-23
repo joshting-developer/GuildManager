@@ -4,8 +4,8 @@ import { withFileStorage } from '../services/file-backed-repository.js';
 import { createStore, exposeRepository } from './store.js';
 import { asyncMap } from "./collections.js";
 import { lineupEditorEventId } from '../../src/domain/lineup-index.js';
-import { EventError } from '../../src/domain/event-validation.js';
 import { LineupError } from '../../src/domain/lineup-validation.js';
+import { isBattleEvent } from '../../src/domain/battle-events.js';
 import { videoBrowserSelection } from '../../src/domain/video-browser.js';
 import { createMemberReferences, createMemberMaintenance } from './member-maintenance.js';
 
@@ -187,15 +187,18 @@ function createImplementation(store, authNow, participationNow) {
     },
     async getVideoBrowser(preferredId = null) {
       return (await db.transaction(async () => {
-        const source = [];
-        for (let offset = 0; offset < 10000; offset += 200) {
-          const result = await repository.listEvents({ limit: 200, offset });
-          source.push(...result.events);
-          if (!result.hasMore) break;
-          if (offset === 9800) throw new EventError('場次超過清單上限, 請縮小日期範圍');
+        videoBrowserSelection([], preferredId);
+        const choices = await repository.getVideoChoices();
+        if (preferredId && !choices.events.some(event => event.id === preferredId)) {
+          try {
+            const { event } = await repository.getEvent(preferredId);
+            if (isBattleEvent(event)) choices.events.push(event);
+          } catch (error) {
+            if (error.code !== 'EVENT_NOT_FOUND') throw error;
+          }
         }
-        const { events, eventId } = videoBrowserSelection(source, preferredId);
-        return { events, selected: eventId ? (await repository.listEventVideos(eventId)) : null };
+        const { events, eventId } = videoBrowserSelection(choices.events, preferredId);
+        return { ...choices, events, selected: eventId ? (await repository.listEventVideos(eventId)) : null };
       }));
     },
     async getEventVideoForm(eventId) {

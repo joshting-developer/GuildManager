@@ -31,12 +31,17 @@ test('HTTP browser adapter performs one uncached read and retains management per
     assert.equal((await client.getBrowser(events[0].id)).selected.eventId, events[0].id);
     assert.equal(calls.length, 1);
     assert.ok(calls[0].startsWith('/api/videos/browser?eventId='));
+    const choices = await client.getChoices(0);
+    assert.equal(choices.events.length, 3);
+    assert.equal(choices.hasMore, false);
+    assert.equal((await fetch(base + '/api/videos/choices?offset=0')).status, 401);
     assert.deepEqual(await client.getVideos(events[1].id), (await repo.listEventVideos(events[1].id)));
     assert.equal((await fetch(base + '/api/videos/browser')).status, 401);
     const admin = (await (await repo.authenticate({ username: 'test_admin', password: 'test-password-2026' }))).user;
     await (await repo.setMemberToken(admin.id, { password: '001234', revision: 0 }));
     const member = await (await repo.authenticateMember({ password: '001234' }));
     assert.equal((await fetch(base + '/api/videos/browser', { headers: { Cookie: `guild_session=${member.token}` } })).status, 403);
+    assert.equal((await fetch(base + '/api/videos/choices?offset=0', { headers: { Cookie: `guild_session=${member.token}` } })).status, 403);
     const response = await authed(base + '/api/videos/browser');
     assert.equal(response.headers.get('cache-control'), 'no-store');
     assert.equal((await authed(base + '/api/videos/browser?eventId=' + 'x'.repeat(129))).status, 422);

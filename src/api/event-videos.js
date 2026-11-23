@@ -63,6 +63,13 @@ export function createEventVideoClient({
     return data;
   }
   return {
+    async getChoices(offset) {
+      const data = await request(`/api/videos/choices?offset=${encodeURIComponent(offset)}`);
+      if (!Array.isArray(data?.events) || !data.events.every(isBattleEvent) ||
+        typeof data.hasMore !== 'boolean' || !Number.isSafeInteger(data.nextOffset))
+        throw new Error('影片閱覽資料回應格式不正確，請重試');
+      return data;
+    },
     async getBrowser(eventId = null) {
       const data = await request(`/api/videos/browser${eventId ? `?eventId=${encodeURIComponent(eventId)}` : ''}`);
       if (!Array.isArray(data?.events) || !data.events.every(isBattleEvent) ||
