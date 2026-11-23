@@ -8,4 +8,6 @@ import { fileStaging } from './migrations/0004-file-staging.js';
 
 import { attendance } from './migrations/0005-attendance.js';
 
-export const mysqlMigrations = [initialSchema, repositoryLock, fileMetadata, fileStaging, attendance, battlePlayerStats];
+import { eventVideoMoves } from './migrations/0007-event-video-moves.js';
+
+export const mysqlMigrations = [initialSchema, repositoryLock, fileMetadata, fileStaging, attendance, battlePlayerStats, eventVideoMoves];

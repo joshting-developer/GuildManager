@@ -246,6 +246,12 @@ export function createApp(repository, { authNow, notifier = null, log = console,
   app.patch('/api/events/:id/videos/:videoId/profession', async (request, response) => {
     response.json(await repository.updateEventVideoProfession(request.params.id, request.params.videoId, request.body));
   });
+  app.patch('/api/events/:id/videos/:videoId/event', async (request, response) => {
+    response.json(await repository.moveEventVideo(request.params.id, request.params.videoId, request.body));
+  });
+  app.delete('/api/events/:id/videos/:videoId', async (request, response) => {
+    response.json(await repository.deleteEventVideo(request.params.id, request.params.videoId, request.body));
+  });
   app.get('/api/events/:id/participation-members', async (request, response) => {
     response.json(await repository.listEventParticipationMembers(request.params.id));
   });

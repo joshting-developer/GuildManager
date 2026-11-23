@@ -31,7 +31,7 @@ test('real MySQL initial schema preserves existing tables, constraints, snapshot
     assert.deepEqual((await migrateMysql(database, mysqlMigrations)).applied, []);
     const tables = await database.query('SELECT TABLE_NAME AS name, ENGINE AS engine, TABLE_COLLATION AS collation FROM information_schema.tables WHERE table_schema=DATABASE() ORDER BY TABLE_NAME');
     assert.deepEqual(tables.filter((row) => !['schema_migrations', 'repository_write_lock'].includes(row.name)).map((row) => row.name), tableNames);
-    assert.equal(tableNames.length, 38);
+    assert.equal(tableNames.length, 39);
     assert.ok(tables.every((row) => row.engine === 'InnoDB' && row.collation === 'utf8mb4_bin'));
     const columns = await database.query('SELECT TABLE_NAME AS tableName, COLUMN_NAME AS columnName FROM information_schema.columns WHERE table_schema=DATABASE()');
     for (const table of tableNames) {
