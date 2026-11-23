@@ -1,6 +1,6 @@
 <script setup>
 import DataLoading from '../components/DataLoading.vue';
-import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue';
 import { mdiRefresh, mdiDownload, mdiPencilOutline, mdiSwapHorizontal, mdiDeleteOutline } from '@mdi/js';
 import VideoProfessionDialog from './VideoProfessionDialog.vue';
 import VideoMoveDialog from './VideoMoveDialog.vue';
@@ -98,6 +98,16 @@ const visibleVideos = computed(() => {
     (!needle || video.name.toLocaleLowerCase().includes(needle)),
   );
 });
+// Filtering and CSV use every loaded row; only the table renders one page at a time.
+const PAGE_SIZE = 20;
+const page = ref(1);
+const pageCount = computed(() => Math.max(1, Math.ceil(visibleVideos.value.length / PAGE_SIZE)));
+const pagedVideos = computed(() => {
+  const current = Math.min(page.value, pageCount.value);
+  return visibleVideos.value.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
+});
+watch([eventId, group, search], () => { page.value = 1; });
+watch(pageCount, (count) => { if (page.value > count) page.value = count; });
 async function loadVideos(id) {
   const current = ++token;
   videos.value = [];
@@ -280,7 +290,7 @@ onUnmounted(() => {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="video in visibleVideos" :key="video.id">
+          <tr v-for="video in pagedVideos" :key="video.id">
             <td
               v-for="(value, index) in videoTableRow(video)"
               :key="index"
@@ -310,6 +320,8 @@ onUnmounted(() => {
         </tbody>
       </table>
     </div>
+    <v-pagination v-if="!loading && !error && pageCount > 1" v-model="page" :length="pageCount" :total-visible="5"
+      aria-label="場次影片頁碼" class="mt-4" />
   </v-card>
   <VideoProfessionDialog v-if="editingVideo" :key="editingVideo.id" :video="editingVideo"
     @close="editingVideo = null" @updated="onProfessionUpdated" @refreshed="onVideosRefreshed" />
