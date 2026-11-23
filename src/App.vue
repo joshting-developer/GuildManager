@@ -573,6 +573,8 @@ function skipToMain() {
       :class="{ 'page-lineups': view === 'lineups' && user, 'page-above-snow': showSnow }"
       tabindex="-1"
     >
+      <!-- Holds at least one viewport so the footer stays below the fold while pages load. -->
+      <div class="page-body">
       <v-alert v-if="authError" type="error" variant="tonal" role="alert" class="mb-4">
         {{ authError }}
         <v-btn variant="text" size="small" @click="restoreSession">重新確認登入</v-btn>
@@ -617,6 +619,7 @@ function skipToMain() {
           @platform-updated="applyPlatform"
         />
       </template>
+      </div>
       <footer v-show="!lineupFocus" class="page-footer">
         <span>{{ platformName || '幫會平台' }} <span class="footer-divider">/</span> 幫會管理平台<button
             v-if="canManage"
