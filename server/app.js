@@ -152,6 +152,9 @@ export function createApp(repository, { authNow, notifier = null, log = console,
     const events = visibleCalendarEvents(result.events, request.auth?.user);
     response.set('Cache-Control', 'no-store').json({ ...result, events });
   });
+  app.get('/api/event-management', async (request, response) => {
+    response.json(await repository.listManagedEvents(request.query));
+  });
   app.post('/api/events', async (request, response) => {
     const result = ['guild_war', 'dragon_tiger'].includes(request.body?.type)
       ? { events: await repository.createEventBatch(request.body) }

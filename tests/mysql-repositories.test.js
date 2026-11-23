@@ -56,6 +56,7 @@ await import('./mysql-contracts/participation-revisions.test.js');
 
 // Scenarios carried over from the retired storage tests.
 await import('./mysql-scenarios/admin.test.js');
+await import('./mysql-scenarios/event-management-list.test.js');
 await import('./mysql-scenarios/attack-defense-analysis.test.js');
 await import('./mysql-scenarios/auth.test.js');
 await import('./mysql-scenarios/battle-attributions.test.js');

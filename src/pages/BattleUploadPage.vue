@@ -11,6 +11,7 @@ import {
 } from '@mdi/js';
 import { createBattleRecordClient } from '../api/battle-records.js';
 import { createEventClient } from '../api/events.js';
+import { createEventVideoClient } from '../api/event-videos.js';
 import {
   BATTLE_COLUMNS,
   MAX_CSV_BYTES,
@@ -373,16 +374,33 @@ function dropCsv(event, roundNumber) {
   draggingRound.value = null;
   addFiles([...event.dataTransfer.files], roundNumber);
 }
+// Battle choices arrive 200 at a time, recent sessions first; an explicitly opened
+// session is fetched on its own when it is outside the first batch.
+const choiceClient = createEventVideoClient();
+const moreEvents = ref(false), eventOffset = ref(0), moreEventsLoading = ref(false);
+function mergeEvents(list) {
+  const unique = new Map([...events.value, ...list].map((event) => [event.id, event]));
+  events.value = orderBattleEvents([...unique.values()].filter(isBattleEvent), { prefer: 'recent' });
+}
 async function loadEvents() {
   const token = ++eventsToken;
   eventsLoading.value = true;
   eventError.value = '';
   try {
-    const result = await eventClient.getAllEvents();
-    if (!Array.isArray(result.events)) throw new Error('場次資料格式不正確, 請重新載入');
+    const result = await choiceClient.getChoices(0);
+    let initial = null;
+    if (props.initialEventId && !result.events.some((event) => event.id === props.initialEventId)) {
+      try {
+        initial = (await eventClient.getEvent(props.initialEventId)).event;
+      } catch {
+        initial = null;
+      }
+    }
     if (!disposed && token === eventsToken) {
-      // Data is uploaded after a battle: today or the latest past session comes first.
-      events.value = orderBattleEvents(result.events.filter(isBattleEvent), { prefer: 'recent' });
+      events.value = [];
+      mergeEvents(initial ? [...result.events, initial] : result.events);
+      moreEvents.value = result.hasMore;
+      eventOffset.value = result.nextOffset;
       if (!selectedEventId.value)
         selectedEventId.value = events.value.some((event) => event.id === props.initialEventId)
           ? props.initialEventId
@@ -392,6 +410,22 @@ async function loadEvents() {
     if (!disposed && token === eventsToken) eventError.value = `場次清單讀取失敗: ${cause.message}`;
   } finally {
     if (!disposed && token === eventsToken) eventsLoading.value = false;
+  }
+}
+async function loadMoreEvents() {
+  if (moreEventsLoading.value) return;
+  const token = eventsToken;
+  moreEventsLoading.value = true;
+  try {
+    const result = await choiceClient.getChoices(eventOffset.value);
+    if (disposed || token !== eventsToken) return;
+    mergeEvents(result.events);
+    moreEvents.value = result.hasMore;
+    eventOffset.value = result.nextOffset;
+  } catch (cause) {
+    if (!disposed && token === eventsToken) eventError.value = `場次清單讀取失敗: ${cause.message}`;
+  } finally {
+    if (!disposed && token === eventsToken) moreEventsLoading.value = false;
   }
 }
 async function submit(roundNumber = null) {
@@ -582,6 +616,8 @@ onUnmounted(() => {
           : eventsLoading ? '正在載入場次…' : '選擇行事曆已建立的場次, 日期與類型會自動帶入'
       }}
     </p>
+    <v-btn v-if="moreEvents && !eventError" variant="text" :loading="moreEventsLoading" :disabled="busy || eventsLoading"
+      @click="loadMoreEvents">載入更多場次</v-btn>
   </v-card>
   <v-alert v-if="eventError" type="warning" variant="tonal" role="alert" class="mb-4">
     {{ eventError }}<v-btn variant="text" :disabled="busy || eventsLoading" @click="loadEvents">重新載入場次</v-btn>

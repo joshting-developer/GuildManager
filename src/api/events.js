@@ -66,6 +66,29 @@ export function createEventClient({ fetchImpl = sessionFetch } = {}) {
       }
       throw new Error('場次超過清單上限, 請縮小日期範圍');
     },
+    async getManagedEvents({ page = 1, type = null, search = '', focusId = null } = {}) {
+      const query = new URLSearchParams({ page: String(page) });
+      if (type) query.set('type', type);
+      if (search) query.set('search', search);
+      if (focusId) query.set('focusId', focusId);
+      let response;
+      try {
+        response = await fetchImpl(`/api/event-management?${query}`);
+      } catch {
+        throw new Error('無法連線，請確認本機服務已啟動後重試');
+      }
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        throw new Error('資料回應格式不正確，請稍後再試');
+      }
+      if (!response.ok) throw new Error(data.error?.message || '目前無法完成操作，請稍後再試');
+      if (!Array.isArray(data?.events) || !Number.isSafeInteger(data.total) ||
+        !Number.isSafeInteger(data.filteredTotal) || !Number.isSafeInteger(data.page))
+        throw new Error('資料回應格式不正確，請稍後再試');
+      return data;
+    },
     getEvent: (id) => call('GET', undefined, id),
     createEvent: (input) => writing(call('POST', input)),
     updateEvent: (id, input) => writing(call('PATCH', input, id)),

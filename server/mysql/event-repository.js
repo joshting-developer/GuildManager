@@ -3,6 +3,7 @@ import { eventListQuery } from '../../src/domain/event-list-query.js';
 import { asyncMap } from "./collections.js";
 import { randomUUID } from 'node:crypto';
 import { EventError, validateEvent } from '../../src/domain/event-validation.js';
+import { EVENT_TYPE_OPTIONS } from '../../src/domain/event-types.js';
 export { EventError, validateEvent } from '../../src/domain/event-validation.js';
 
 export function createEventRepository(db) {
@@ -64,6 +65,52 @@ export function createEventRepository(db) {
       }
       const values = [...events.values()];
       return { events: values.slice(0, limit), ...(input ? { hasMore: values.length > limit } : {}) };
+    },
+    // The management list: newest first date first, filtered and paged in SQL.
+    async listManagedEvents(input = {}) {
+      const page = input.page === undefined ? 1 : Number(input.page);
+      if (!Number.isSafeInteger(page) || page < 1 || page > 100000) throw new EventError('頁碼不正確');
+      const type = input.type || null;
+      if (type !== null && !EVENT_TYPE_OPTIONS.some((option) => option.value === type))
+        throw new EventError('安排類型不正確');
+      const search = input.search === undefined ? '' : input.search;
+      if (typeof search !== 'string' || search.length > 64) throw new EventError('搜尋文字最多 64 字');
+      const needle = search.trim().toLocaleLowerCase();
+      const focusId = typeof input.focusId === 'string' && input.focusId ? input.focusId : null;
+      // Untitled events display (and are searched by) their type label.
+      const labelTypes = EVENT_TYPE_OPTIONS.filter((option) => option.title.toLocaleLowerCase().includes(needle)).map((option) => option.value);
+      const conditions = ['e.deleted_at IS NULL'], args = [];
+      if (type) { conditions.push('e.type = ?'); args.push(type); }
+      if (needle) {
+        conditions.push(`((TRIM(e.title) <> '' AND LOCATE(?, LOWER(TRIM(e.title))) > 0)${labelTypes.length
+          ? ` OR (TRIM(e.title) = '' AND e.type IN (${labelTypes.map(() => '?').join(',')}))` : ''})`);
+        args.push(needle, ...labelTypes);
+      }
+      const where = conditions.join(' AND ');
+      const ordered = `SELECT e.id, e.created_at, f.firstDate FROM scheduled_events e
+        JOIN (SELECT event_id, MIN(date) AS firstDate FROM event_dates GROUP BY event_id) f ON f.event_id = e.id`;
+      const total = (await db.prepare(`SELECT COUNT(*) AS total FROM (${ordered} WHERE e.deleted_at IS NULL) o`).get()).total;
+      const filteredTotal = (await db.prepare(`SELECT COUNT(*) AS total FROM (${ordered} WHERE ${where}) o`).get(...args)).total;
+      const pages = Math.max(1, Math.ceil(filteredTotal / 20));
+      let current = Math.min(page, pages);
+      if (focusId) {
+        const position = (await db.prepare(`SELECT rank_number FROM (
+          SELECT o.id, ROW_NUMBER() OVER (ORDER BY o.firstDate DESC, o.created_at DESC, o.id) AS rank_number
+          FROM (${ordered} WHERE ${where}) o) ranked WHERE ranked.id = ?`).get(...args, focusId));
+        if (position) current = Math.ceil(position.rank_number / 20);
+      }
+      const rows = await db.prepare(
+        `SELECT chosen.id, e.title, e.type, e.created_at AS createdAt, e.updated_at AS updatedAt, e.revision, d.date
+        FROM (${ordered} WHERE ${where} ORDER BY f.firstDate DESC, e.created_at DESC, e.id LIMIT 20 OFFSET ?) chosen
+        JOIN scheduled_events e ON e.id = chosen.id JOIN event_dates d ON d.event_id = chosen.id
+        ORDER BY chosen.firstDate DESC, chosen.created_at DESC, chosen.id, d.date`,
+      ).all(...args, (current - 1) * 20);
+      const events = new Map();
+      for (const { date, ...event } of rows) {
+        if (!events.has(event.id)) events.set(event.id, { ...event, dates: [] });
+        events.get(event.id).dates.push(date);
+      }
+      return { events: [...events.values()], total, filteredTotal, page: current, pageSize: 20 };
     },
     async getVideoChoices(input = {}) {
       const { limit, offset } = eventListQuery({ ...input, limit: 200 });
