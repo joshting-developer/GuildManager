@@ -73,7 +73,7 @@ export function exposeRepository(implementation, store, database) {
   const readOnly = new Set([
     'getMember', 'getAccountSettings', 'getMemberTokenSettings', 'getEvent', 'listEvents', 'listManagedEvents',
     'listDuties', 'getEventAttendance', 'participationRequiresLogin',
-    'listEventParticipationMembers', 'getEventParticipation', 'listEventVideos',
+    'listEventParticipationMembers', 'getEventParticipation', 'listEventVideos', 'listEventVideoNames',
     'getLineupChoices', 'getLineupEvents', 'getLineupTemplates', 'getLineupCurrent', 'getLineupIndex',
     'getLineupHistory', 'applyLineupTemplate', 'getBattleUploadRoster', 'previewBattleMemberSync',
     'listBattleRecords', 'getBattleMetadata', 'getBattleRecord', 'getBattleTeamAnalysis',

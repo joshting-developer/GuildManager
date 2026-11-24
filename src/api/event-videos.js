@@ -81,6 +81,16 @@ export function createEventVideoClient({
       if (data.selected) validateResponse(data.selected, data.selected.eventId);
       return data;
     },
+    async getNames(eventId, options = {}) {
+      const params = new URLSearchParams(options);
+      const data = await request(`/api/events/${encodeURIComponent(eventId)}/video-names?${params}`);
+      if (data?.eventId !== eventId || !Array.isArray(data.names) || data.names.length > 20 ||
+          !data.names.every(row => typeof row?.name === 'string') ||
+          !Number.isSafeInteger(data.total) || data.total < 0 ||
+          !Number.isSafeInteger(data.page) || data.page < 1 || data.limit !== 20)
+        throw new Error('已上傳影片名單回應格式不正確, 請重試');
+      return data;
+    },
     async getVideos(eventId, options = {}) {
       const params = new URLSearchParams(options);
       return validateResponse(await request(`/api/events/${encodeURIComponent(eventId)}/videos${params.size ? `?${params}` : ''}`), eventId);

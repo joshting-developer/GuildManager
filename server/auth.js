@@ -38,16 +38,16 @@ async function publicRequest(request, repository) {
     return true;
   if (request.method === 'GET' && /^\/events\/[^/]+$/.test(path)) return true;
   const participation = path.match(
-    /^\/events\/([^/]+)\/(participation|participation-members|participation-form|video-form|registrations(?:\/[^/]+)?|videos)$/,
+    /^\/events\/([^/]+)\/(participation|participation-members|participation-form|video-form|video-names|registrations(?:\/[^/]+)?|videos)$/,
   );
   if (!participation) return false;
-  // Only submitting videos inherits calendar access; viewing the list is management-only.
+  // Full videos remain management-only; the separate name-only list is public.
   const allowed =
     participation[2] === 'videos'
       ? ['POST']
       : participation[2] === 'participation'
         ? ['GET', 'POST', 'PATCH']
-        : ['participation-members', 'participation-form', 'video-form'].includes(participation[2])
+        : ['participation-members', 'participation-form', 'video-form', 'video-names'].includes(participation[2])
           ? ['GET']
           : participation[2] === 'registrations'
             ? ['POST']

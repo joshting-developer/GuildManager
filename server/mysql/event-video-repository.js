@@ -143,6 +143,18 @@ export function createEventVideoRepository(db) {
         return result;
       }));
     },
+    async listEventVideoNames(eventId, input = {}) {
+      const { page, search } = validateVideoList({ page: input.page, search: input.search });
+      await checkEvent(eventId);
+      const from = `SELECT name FROM event_video_submissions WHERE event_id=?
+        UNION SELECT name FROM event_videos WHERE event_id=?`;
+      const filter = 'LOCATE(LOWER(?), LOWER(name)) > 0';
+      const args = [eventId, eventId, search];
+      const { count: total } = await db.prepare(`SELECT COUNT(*) AS count FROM (${from}) names WHERE ${filter}`).get(...args);
+      const names = await db.prepare(`SELECT name FROM (${from}) names WHERE ${filter} ORDER BY name COLLATE utf8mb4_bin LIMIT 20 OFFSET ?`)
+        .all(...args, (page - 1) * 20);
+      return { eventId, names, total, page, limit: 20 };
+    },
     async listEventVideos(eventId, input = {}) {
       const { page, limit, search, group, videoId } = validateVideoList(input);
       await checkEvent(eventId);
