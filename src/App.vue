@@ -456,19 +456,20 @@ function skipToMain() {
                   :title="entry.label"
                   :active="view === entry.page"
                   :aria-current="view === entry.page ? 'page' : undefined"
-                  @click="navigate(entry.page)"
+                  :href="`#/${entry.page}`"
+                  @click.left.exact.prevent="navigate(entry.page)"
                 />
               </v-list>
             </v-menu>
-            <button
+            <a
               v-else
-              type="button"
+              :href="item.page === 'home' ? '#/' : `#/${item.page}`"
               :class="{ 'nav-current': view === item.page }"
               :aria-current="view === item.page ? 'page' : undefined"
-              @click="navigate(item.page)"
+              @click.left.exact.prevent="navigate(item.page)"
             >
               <v-icon :icon="item.icon" size="18" />{{ item.label }}
-            </button>
+            </a>
           </template>
         </nav>
         <div class="header-actions">
@@ -517,7 +518,8 @@ function skipToMain() {
               :prepend-icon="mdiAccountCogOutline"
               aria-label="帳號管理"
               :title="`帳號管理：${user.username}`"
-              @click="navigate('admin')"
+              :href="'#/admin'"
+              @click.left.exact.prevent="navigate('admin')"
               >{{ user.username }}</v-btn
             >
             <span v-else-if="user.role !== 'member'" class="login-account" :title="user.username">{{
@@ -622,14 +624,14 @@ function skipToMain() {
       </template>
       </div>
       <footer v-show="!lineupFocus" class="page-footer">
-        <span>{{ platformName || '幫會平台' }} <span class="footer-divider">/</span> 幫會管理平台<button
+        <span>{{ platformName || '幫會平台' }} <span class="footer-divider">/</span> 幫會管理平台<a
             v-if="canManage"
-            type="button"
+            href="#/release-notes"
             class="footer-version footer-version-link"
             title="查看更新紀錄"
-            @click="navigate('release-notes')"
+            @click.left.exact.prevent="navigate('release-notes')"
           >
-            {{ versionLabel }}</button
+            {{ versionLabel }}</a
           ><span v-else class="footer-version">{{ versionLabel }}</span></span
         ><span>每一次集結，都有跡可循。</span>
       </footer>
