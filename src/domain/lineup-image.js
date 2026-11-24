@@ -1,3 +1,4 @@
+import { lineupObRows } from './lineup-ob.js';
 import { LINEUP_GROUPS, participantKey, slotAssignments } from './lineups.js';
 import { eventTypeLabel } from './event-types.js';
 
@@ -44,12 +45,13 @@ const PALETTES = {
 };
 
 // Resolve the same live names and selected professions as the board; archives use snapshots.
-export function lineupImageData({ event, teams, members, professions, duties, snapshots, status, theme = 'light' }) {
+export function lineupImageData({ event, teams, members, professions, duties, snapshots, status, ob, theme = 'light' }) {
   return {
     theme: PALETTES[theme] ? theme : 'light',
     date: event.dates[0],
     title: `${eventTypeLabel(event.type)}${event.title ? ` · ${event.title}` : ''}`,
     status,
+    obRows: lineupObRows(ob),
     groups: LINEUP_GROUPS.map((group) => ({
       id: group.id,
       name: group.name,
@@ -231,7 +233,11 @@ export async function lineupJpeg(data) {
   font(context, TITLE_SIZE, 600);
   const heading = wrap(context, data.title, WIDTH - MARGIN * 2 - SIDE * 2);
   const headingHeight = heading.length * (TITLE_SIZE + 8) - 8;
-  const headerHeight = MARGIN + headingHeight + 20;
+  const titleHeaderHeight = MARGIN + headingHeight + 20;
+  font(context, 26, 500);
+  const obLines = (data.obRows || []).flatMap(row => wrap(context, row.map(person => `${person.label} OB：${person.name || '—'}`).join('    '), WIDTH - MARGIN * 2 - 32));
+  const obHeight = obLines.length ? obLines.length * 34 + 24 : 0;
+  const headerHeight = titleHeaderHeight + obHeight;
   const groups = data.groups.map((group) => measureGroup(context, group));
   const contentHeight = headerHeight + groups.reduce((height, group) => height + group.height + GAP, 0) + MARGIN - GAP;
   canvas.width = EXPORT_WIDTH;
@@ -258,6 +264,11 @@ export async function lineupJpeg(data) {
       readableColor(GROUP_COLORS[group.id], palette.background, palette.text, 4.5), 600, 'right');
     font(context, 24, 600);
     legendX -= context.measureText(`■ ${group.name}`).width + 28;
+  }
+  if (obHeight) {
+    context.fillStyle = palette.surface;
+    context.fillRect(MARGIN, titleHeaderHeight, WIDTH - MARGIN * 2, obHeight - 8);
+    text(context, obLines, MARGIN + 16, titleHeaderHeight + 8, 26, palette.text, 500);
   }
   const printExport = luminance(rgb(palette.surface)) >= 0.5;
   let y = headerHeight;

@@ -1,3 +1,4 @@
+import { emptyLineupOb, validateLineupOb } from '../../src/domain/lineup-ob.js';
 import { taipeiToday } from '../../src/domain/battle-events.js';
 import { choiceCursor, choicePage, liveBattleSource } from './choice-pages.js';
 import { randomUUID } from 'node:crypto';
@@ -216,6 +217,7 @@ export function createLineupRepository(db, {
     async confirmLineup(input) {
       const teams = validateLineup(input?.teams);
       const key = requestId(input?.requestId);
+      const ob = input?.ob === undefined ? null : validateLineupOb(input.ob);
       if (
         typeof input?.eventId !== 'string' ||
         !Number.isSafeInteger(input?.expectedVersion) ||
@@ -229,6 +231,7 @@ export function createLineupRepository(db, {
         eventRevision: input.eventRevision,
         expectedVersion: input.expectedVersion,
         teams,
+        ...(ob ? { ob } : {}),
       });
       return (await db.transaction(async () => {
         // Saves for one event queue on its row, so the version check and receipt read are current.
@@ -258,7 +261,10 @@ export function createLineupRepository(db, {
             409,
             'LINEUP_CONFLICT',
           );
+        const currentOb = await db.prepare('SELECT enabled, attack_mode AS attackMode, defense_mode AS defenseMode, attack, mobile, defense12, defense34 FROM event_lineup_ob WHERE event_id=?').get(input.eventId);
+        const savedOb = ob || currentOb || emptyLineupOb();
         const data = {
+          ob: savedOb,
           event: currentEvent,
           teams: (await snapshot(teams, currentEvent.type, currentEvent.id)),
         };
@@ -278,6 +284,12 @@ export function createLineupRepository(db, {
           row.snapshot_json,
           row.created_at,
         ));
+        if (ob) await db.prepare(`INSERT INTO event_lineup_ob
+          (id, event_id, enabled, attack_mode, defense_mode, attack, mobile, defense12, defense34)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE enabled=VALUES(enabled), attack_mode=VALUES(attack_mode), defense_mode=VALUES(defense_mode),
+            attack=VALUES(attack), mobile=VALUES(mobile), defense12=VALUES(defense12), defense34=VALUES(defense34)`)
+          .run(randomUUID(), input.eventId, ob.enabled, ob.attackMode, ob.defenseMode, ob.attack, ob.mobile, ob.defense12, ob.defense34);
         return (await version(row));
       }));
     },
