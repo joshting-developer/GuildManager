@@ -264,7 +264,7 @@ export async function lineupJpeg(data) {
   context.fillRect(0, 0, WIDTH, height);
   text(context, heading, WIDTH / 2, MARGIN, TITLE_SIZE, palette.title, 600, 'center');
   const sideY = MARGIN + (headingHeight - 24) / 2;
-  text(context, [data.dateLabel || data.date], MARGIN + 4, sideY, 24, palette.muted);
+  text(context, [data.dateLabel || data.date], MARGIN + 4, sideY, 24, palette.title);
   font(context, 24, 600);
   let legendX = WIDTH - MARGIN - 4;
   for (const group of [...data.groups].reverse()) {
