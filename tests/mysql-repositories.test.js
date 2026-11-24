@@ -109,3 +109,5 @@ await import('./benchmark.test.js');
 await import('./mysql-contracts/video-names.test.js');
 
 await import('./mysql-contracts/lineup-ob.test.js');
+
+await import('./mysql-contracts/video-access.test.js');

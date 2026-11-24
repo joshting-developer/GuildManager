@@ -57,7 +57,10 @@ export function createEventVideoClient({
           ))
       )
         throw new Error('影片資料回應格式不正確，請重試');
-      validateVideoDetails(video, { allowMissingGroup: !input, allowMissingProfession: !input });
+      if (data.canManage === false && !input) {
+        if (typeof video.name !== 'string' || ['firstUrl', 'secondUrl', 'note'].some(field => field in video))
+          throw new Error('影片資料回應格式不正確，請重試');
+      } else validateVideoDetails(video, { allowMissingGroup: !input, allowMissingProfession: !input });
       if (video.revision !== undefined && (!Number.isSafeInteger(video.revision) || video.revision < 0))
         throw new Error('影片版本格式不正確，請重新載入');
     }

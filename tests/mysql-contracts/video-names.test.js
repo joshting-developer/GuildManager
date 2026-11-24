@@ -45,7 +45,7 @@ test('public uploaded names merge old and new videos, deduplicate, return all pl
   const updated = filterVideoNames((await repository.listEventVideoNames(event.id)).names, { search: '測試00' });
   assert.equal(updated.length, 1);
   assert.equal(updated[0].professionId, 2);
-  assert.equal((await request(`/events/${event.id}/videos`)).status, 401);
+  assert.equal((await request(`/events/${event.id}/videos`)).status, 200);
   await repository.updateEventVideoProfession(event.id, 'literal', { professionId: 2, revision: 0, requestId: 'legacy-job' });
   assert.equal(filterVideoNames((await repository.listEventVideoNames(event.id)).names, { search: '100%' })[0].professionId, 2);
   const client = createEventVideoClient({ fetchImpl: path => request(path.replace('/api', '')) });

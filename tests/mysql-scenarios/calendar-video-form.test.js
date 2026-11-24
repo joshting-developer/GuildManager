@@ -36,7 +36,7 @@ test('video-form HTTP adapter makes one anonymous read; member access, CSRF and 
     const get = await fetch(base + `/api/events/${events[0].id}/video-form`, { headers });
     assert.equal(get.status, 200);
     assert.equal(get.headers.get('cache-control'), 'no-store');
-    assert.equal((await fetch(base + `/api/events/${events[0].id}/videos`, { headers })).status, 403);
+    assert.equal((await fetch(base + `/api/events/${events[0].id}/videos`, { headers })).status, 200);
     const input = video(events[0]);
     const submit = (extra = {}) => fetch(base + `/api/events/${events[0].id}/videos`, { method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json', ...extra }, body: JSON.stringify(input) });

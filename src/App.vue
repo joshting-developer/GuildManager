@@ -117,7 +117,7 @@ const navigation = [
   { page: 'members', signedIn: true, label: '成員清單', icon: mdiAccountGroupOutline },
   { page: 'events', label: '活動安排', icon: mdiCalendarMonthOutline },
   { page: 'magament', label: '管理總覽', icon: mdiViewDashboardOutline },
-  { page: 'videos', label: '影片閱覽', icon: mdiVideoOutline },
+  { page: 'videos', public: true, label: '影片閱覽', icon: mdiVideoOutline },
   { page: 'lineups', label: '戰場排表', icon: mdiTableLarge, group: 'battle' },
   { page: 'battle-upload', label: '上傳數據', icon: mdiFileUploadOutline, group: 'battle' },
   {
@@ -168,11 +168,11 @@ watch(user, (value) => {
 });
 const canManage = computed(() => ['admin', 'manager'].includes(user.value?.role));
 const canReadBattles = computed(() => ['admin', 'manager', 'member'].includes(user.value?.role));
-const memberCanVisit = (page) => ['home', 'members', 'battle-records', 'member-records'].includes(page);
+const memberCanVisit = (page) => ['home', 'members', 'battle-records', 'member-records', 'videos'].includes(page);
 const visibleNavigation = computed(() =>
   navigation.filter(
     (item) =>
-      (canManage.value || (item.signedIn && canReadBattles.value)) &&
+      (item.public || canManage.value || (item.signedIn && canReadBattles.value)) &&
       (!item.adminOnly || user.value?.role === 'admin'),
   ),
 );
@@ -243,7 +243,7 @@ function openLogin(page = 'home', recordId = null) {
 }
 function syncView() {
   const next = currentView();
-  if (next !== 'home' && !user.value && !authLoading.value) {
+  if (!['home', 'videos'].includes(next) && !user.value && !authLoading.value) {
     const recordId = currentDetailId();
     returnHome();
     openLogin(next, recordId);
@@ -271,7 +271,7 @@ function syncView() {
 }
 function navigate(page) {
   const target = navigation.some((item) => item.page === page) ? page : 'home';
-  if (target !== 'home' && !user.value) return openLogin(target);
+  if (!['home', 'videos'].includes(target) && !user.value) return openLogin(target);
   if (!memberCanVisit(target) && user.value?.role === 'member') {
     authNotice.value = 'member 登入可使用行事曆、成員清單與數據分析，其他管理操作需要管理者帳號';
     returnHome();
@@ -329,7 +329,7 @@ async function restoreSession() {
   } finally {
     if (!disposed && version === sessionVersion) {
       authLoading.value = false;
-      if (view.value !== 'home' && !user.value) {
+      if (!['home', 'videos'].includes(view.value) && !user.value) {
         const target = view.value;
         returnHome();
         openLogin(target, detailId.value);
@@ -542,7 +542,7 @@ function skipToMain() {
             >{{ authLoading ? '確認登入' : '登入' }}</v-btn
           >
           <v-btn
-            v-if="user"
+            v-if="visibleNavigation.length"
             ref="mobileMenuButton"
             class="mobile-menu-button"
             variant="text"
@@ -562,6 +562,7 @@ function skipToMain() {
       :current-page="view"
       :account="user?.role !== 'member' ? user?.username : undefined"
       :busy="authBusy"
+      :signed-in="!!user"
       :error="authError"
       @navigate="navigate"
       @logout="logout"
@@ -601,6 +602,7 @@ function skipToMain() {
         :member-uid="detailId"
       />
       <MembersPage v-else-if="canReadBattles && view === 'members'" />
+      <VideosPage v-else-if="view === 'videos'" :key="`${user?.id || 'anonymous'}:${user?.role || 'anonymous'}`" :can-manage="canManage" />
       <template v-else-if="canManage">
         <HomePage v-if="view === 'magament'" @open-page="navigate" />
         <ProfessionsPage v-else-if="view === 'professions'" />
@@ -610,7 +612,6 @@ function skipToMain() {
           v-else-if="view === 'battle-upload'"
           :initial-event-id="battleUploadEventId"
         />
-        <VideosPage v-else-if="view === 'videos'" />
         <AttendancePage v-else-if="view === 'attendance'" />
         <LotteryPage v-else-if="view === 'lottery'" />
         <ReleaseNotesPage v-else-if="view === 'release-notes'" />

@@ -160,18 +160,20 @@ export function createEventVideoRepository(db) {
         .all(eventId, eventId);
       return { eventId, names };
     },
-    async listEventVideos(eventId, input = {}) {
+    async listEventVideos(eventId, input = {}, { includePrivate = true } = {}) {
       const { page, limit, search, group, videoId } = validateVideoList(input);
       await checkEvent(eventId);
       const filter = " AND (? = '' OR group_name = ?) AND LOCATE(LOWER(?), LOWER(name)) > 0 AND (? = '' OR id = ?)";
       const args = [eventId, group, group, search, videoId, videoId, eventId, group, group, search, videoId, videoId];
       // Filter both sources before paging; identical names remain separate submissions.
-      const from = `SELECT ${columns} FROM event_video_submissions WHERE event_id=?${filter}
-        UNION ALL SELECT ${legacyColumns} FROM ${legacyFrom} WHERE v.event_id=?${filter.replaceAll('group_name', 'v.group_name').replaceAll('LOWER(name)', 'LOWER(v.name)').replaceAll('OR id =', 'OR v.id =')}`;
+      const publicColumns = 'id, event_id AS eventId, name, group_name AS groupName, created_at AS createdAt, profession_id AS professionId, profession_name AS professionName, profession_colorcode AS professionColorcode';
+      const publicLegacyColumns = 'v.id, v.event_id AS eventId, v.name, v.group_name AS groupName, v.created_at AS createdAt, p.profession_id AS professionId, p.profession_name AS professionName, p.profession_colorcode AS professionColorcode';
+      const from = `SELECT ${includePrivate ? columns : publicColumns} FROM event_video_submissions WHERE event_id=?${filter}
+        UNION ALL SELECT ${includePrivate ? legacyColumns : publicLegacyColumns} FROM ${legacyFrom} WHERE v.event_id=?${filter.replaceAll('group_name', 'v.group_name').replaceAll('LOWER(name)', 'LOWER(v.name)').replaceAll('OR id =', 'OR v.id =')}`;
       const { count: total } = await db.prepare(`SELECT COUNT(*) AS count FROM (${from}) videos`).get(...args);
       const videos = await db.prepare(`SELECT * FROM (${from}) videos ORDER BY createdAt DESC, id ASC LIMIT ? OFFSET ?`)
         .all(...args, limit, (page - 1) * limit);
-      return { eventId, videos, total, page, limit };
+      return { eventId, videos, total, page, limit, canManage: includePrivate };
     },
     async submitEventVideo(eventId, rawInput) {
       const input = validateVideoSubmission(rawInput);

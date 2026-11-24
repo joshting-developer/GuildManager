@@ -115,7 +115,7 @@ test('reject malformed links, fields, unavailable events and stale versions with
   }
 });
 
-test('API allows calendar submissions; only admin/manager can read videos, with CSRF on signed-in writes', async () => {
+test('API allows public redacted video reads and calendar submissions, with CSRF on signed-in writes', async () => {
   const { repo, events } = await setup();
   const password = 'test-password-2026';
   const admin = await (await repo.createAccount({ username: 'admin', password }));
@@ -135,8 +135,9 @@ test('API allows calendar submissions; only admin/manager can read videos, with 
       (await request(`/events/${events[0].id}/videos`, 'POST', video(events[0]))).status,
       201,
     );
-    for (const event of events)
-      assert.equal((await request(`/events/${event.id}/videos`)).status, 401);
+    for (const event of events.slice(0, 3))
+      assert.equal((await request(`/events/${event.id}/videos`)).status, 200);
+    assert.equal((await request(`/events/${events[3].id}/videos`)).status, 409);
     for (const event of events.slice(1, 3))
       assert.equal((await request(`/events/${event.id}/videos`, 'POST', video(event))).status, 201);
     for (const role of ['member', 'admin', 'manager']) {
@@ -171,7 +172,7 @@ test('API allows calendar submissions; only admin/manager can read videos, with 
           role,
         );
         if (role === 'member')
-          await assert.rejects(client.getVideos(event.id), code('MANAGEMENT_REQUIRED'));
+          assert.equal((await client.getVideos(event.id)).canManage, false);
         else assert.equal((await client.getVideos(event.id)).videos.length > 0, true);
       }
       if (role === 'member')

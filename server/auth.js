@@ -31,7 +31,7 @@ async function publicRequest(request, repository) {
   const path = request.path;
   if (
     request.method === 'GET' &&
-    ['/health', '/auth/session', '/events', '/professions', '/platform-settings'].includes(path)
+    ['/health', '/auth/session', '/events', '/professions', '/platform-settings', '/videos/browser', '/videos/choices'].includes(path)
   )
     return true;
   if (request.method === 'POST' && ['/auth/login', '/auth/member-login'].includes(path))
@@ -41,10 +41,10 @@ async function publicRequest(request, repository) {
     /^\/events\/([^/]+)\/(participation|participation-members|participation-form|video-form|video-names|registrations(?:\/[^/]+)?|videos)$/,
   );
   if (!participation) return false;
-  // Full videos remain management-only; the separate name-only list is public.
+  // Video reads are public; the HTTP handler selects fields using the current session.
   const allowed =
     participation[2] === 'videos'
-      ? ['POST']
+      ? ['GET', 'POST']
       : participation[2] === 'participation'
         ? ['GET', 'POST', 'PATCH']
         : ['participation-members', 'participation-form', 'video-form', 'video-names'].includes(participation[2])

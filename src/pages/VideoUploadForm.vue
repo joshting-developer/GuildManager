@@ -4,7 +4,6 @@ import { computed, onUnmounted, ref, watch } from 'vue';
 import { createEventVideoClient } from '../api/event-videos.js';
 import { createEventClient } from '../api/events.js';
 import { VIDEO_GROUP_OPTIONS, validateVideoDetails } from '../domain/event-videos.js';
-import UploadedVideoNames from './UploadedVideoNames.vue';
 import NameSourcePicker from './NameSourcePicker.vue';
 
 const props = defineProps({
@@ -18,11 +17,6 @@ const eventClient = createEventClient();
 const emptyDraft = () => ({ name: '', professionId: null, firstUrl: '', secondUrl: '', groupName: null, note: '' });
 const draft = ref(emptyDraft());
 const nameSource = ref('manual');
-const activeTab = ref('manual');
-function selectTab(value) {
-  activeTab.value = value;
-  if (value !== 'uploaded') nameSource.value = value;
-}
 const selectedMemberUid = ref(null);
 const selectedMember = computed(() => props.members.find(member => member.uid === selectedMemberUid.value));
 const errors = ref({}),
@@ -89,7 +83,7 @@ onUnmounted(() => {
   reloadToken++;
 });
 async function submit() {
-  if (activeTab.value === 'uploaded' || busy.value || reloading.value || props.disabled || reloadError.value) return;
+  if (busy.value || reloading.value || props.disabled || reloadError.value) return;
   errors.value = {};
   notice.value = '';
   let details;
@@ -128,83 +122,79 @@ async function submit() {
 <template>
   <div class="video-upload-form">
     <form class="video-fields" @submit.prevent="submit" novalidate>
-      <NameSourcePicker :source="activeTab" @update:source="selectTab" show-uploaded v-model:name="draft.name"
+      <NameSourcePicker v-model:source="nameSource" v-model:name="draft.name"
         v-model:member-uid="selectedMemberUid" :members="members" :professions="professions"
         :disabled="disabled || busy || reloading" :error-messages="errors.name"
-        id-prefix="video-name">
-        <template #uploaded><UploadedVideoNames v-if="activeTab === 'uploaded'" :event-id="event.id" :professions="professions" /></template>
-      </NameSourcePicker>
-      <template v-if="activeTab !== 'uploaded'">
-        <v-select v-model="draft.professionId" :items="professions" item-title="name" item-value="job_id"
-          label="職業" variant="outlined" density="compact" :disabled="disabled || busy || reloading"
-          :error-messages="errors.professionId" aria-required="true" hide-details="auto" />
-        <v-text-field
-          v-model="draft.firstUrl"
-          label="第一場網址（選填）"
-          placeholder="https://"
-          maxlength="2048"
-          type="url"
-          variant="outlined"
-          density="compact"
-          :disabled="disabled || busy || reloading"
-          :error-messages="errors.firstUrl"
-          hide-details="auto"
-        />
-        <v-text-field
-          v-model="draft.secondUrl"
-          label="第二場網址（選填）"
-          placeholder="https://"
-          maxlength="2048"
-          type="url"
-          variant="outlined"
-          density="compact"
-          :disabled="disabled || busy || reloading"
-          :error-messages="errors.secondUrl"
-          hide-details="auto"
-        />
-        <v-select
-          v-model="draft.groupName"
-          :items="VIDEO_GROUP_OPTIONS"
-          label="團別"
-          variant="outlined"
-          density="compact"
-          :disabled="disabled || busy || reloading"
-          :error-messages="errors.groupName"
-          aria-required="true"
-          hide-details="auto"
-        />
-        <v-textarea
-          v-model="draft.note"
-          label="備註（選填）"
-          maxlength="500"
-          rows="2"
-          auto-grow
-          variant="outlined"
-          density="compact"
-          :disabled="disabled || busy || reloading"
-          :error-messages="errors.note"
-          hide-details="auto"
-        />
-        <v-alert v-if="errors.message || reloadError" type="error" variant="tonal" role="alert">
-          {{ reloadError || errors.message }}
-          <v-btn
-            v-if="reloadError || errors.message?.includes('場次') || errors.message?.includes('成員')"
-            variant="text"
-            :disabled="busy || reloading || disabled"
-            @click="reloadEvent"
-            >重新載入場次</v-btn
-          >
-        </v-alert>
-        <v-alert v-if="notice" type="success" variant="tonal" role="status">{{ notice }}</v-alert>
-        <DataLoading v-if="busy || reloading" compact :spinner="!busy">{{ busy ? '正在上傳影片連結，請稍候…' : '正在重新載入場次…' }}</DataLoading>
+        id-prefix="video-name" />
+      <v-select v-model="draft.professionId" :items="professions" item-title="name" item-value="job_id"
+        label="職業" variant="outlined" density="compact" :disabled="disabled || busy || reloading"
+        :error-messages="errors.professionId" aria-required="true" hide-details="auto" />
+      <v-text-field
+        v-model="draft.firstUrl"
+        label="第一場網址（選填）"
+        placeholder="https://"
+        maxlength="2048"
+        type="url"
+        variant="outlined"
+        density="compact"
+        :disabled="disabled || busy || reloading"
+        :error-messages="errors.firstUrl"
+        hide-details="auto"
+      />
+      <v-text-field
+        v-model="draft.secondUrl"
+        label="第二場網址（選填）"
+        placeholder="https://"
+        maxlength="2048"
+        type="url"
+        variant="outlined"
+        density="compact"
+        :disabled="disabled || busy || reloading"
+        :error-messages="errors.secondUrl"
+        hide-details="auto"
+      />
+      <v-select
+        v-model="draft.groupName"
+        :items="VIDEO_GROUP_OPTIONS"
+        label="團別"
+        variant="outlined"
+        density="compact"
+        :disabled="disabled || busy || reloading"
+        :error-messages="errors.groupName"
+        aria-required="true"
+        hide-details="auto"
+      />
+      <v-textarea
+        v-model="draft.note"
+        label="備註（選填）"
+        maxlength="500"
+        rows="2"
+        auto-grow
+        variant="outlined"
+        density="compact"
+        :disabled="disabled || busy || reloading"
+        :error-messages="errors.note"
+        hide-details="auto"
+      />
+      <v-alert v-if="errors.message || reloadError" type="error" variant="tonal" role="alert">
+        {{ reloadError || errors.message }}
         <v-btn
-          type="submit"
-          color="primary"
-          :loading="busy"
-          :disabled="disabled || busy || reloading || !!reloadError"
-          >送出</v-btn
+          v-if="reloadError || errors.message?.includes('場次') || errors.message?.includes('成員')"
+          variant="text"
+          :disabled="busy || reloading || disabled"
+          @click="reloadEvent"
+          >重新載入場次</v-btn
         >
-      </template>
+      </v-alert>
+      <v-alert v-if="notice" type="success" variant="tonal" role="status">{{ notice }}</v-alert>
+      <DataLoading v-if="busy || reloading" compact :spinner="!busy">{{ busy ? '正在上傳影片連結，請稍候…' : '正在重新載入場次…' }}</DataLoading>
+      <v-btn
+        type="submit"
+        color="primary"
+        :loading="busy"
+        :disabled="disabled || busy || reloading || !!reloadError"
+        >送出</v-btn
+      >
     </form>
   </div>
 </template>

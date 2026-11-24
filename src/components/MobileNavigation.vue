@@ -3,6 +3,7 @@ import { ref } from 'vue';
 import { mdiClose, mdiLogout } from '@mdi/js';
 
 defineProps({
+  signedIn: { type: Boolean, default: true },
   modelValue: Boolean,
   items: { type: Array, default: () => [] },
   currentPage: String,
@@ -62,6 +63,7 @@ function focusClose() {
           {{ error }}
         </v-alert>
         <v-btn
+          v-if="signedIn"
           block
           variant="tonal"
           :prepend-icon="mdiLogout"

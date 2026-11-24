@@ -13,7 +13,6 @@ const props = defineProps({
   idPrefix: { type: String, required: true },
   // Registration picks a profession first and lists members whose primary or secondary matches.
   filterByProfession: Boolean,
-  showUploaded: Boolean,
   professionId: { type: [Number, String], default: null },
 });
 const emit = defineEmits(['update:source', 'update:name', 'update:memberUid', 'update:professionId']);
@@ -21,7 +20,6 @@ const sources = computed(() => [
   ...(props.filterByProfession ? [] : [{ value: 'manual', title: '直接輸入名稱' }]),
   { value: 'guild', title: '幫會成員名單' },
   { value: 'club', title: '龍虎戰成員名單' },
-  ...(props.showUploaded ? [{ value: 'uploaded', title: '已上傳影片名單' }] : []),
 ]);
 const sourceMembers = computed(() => props.members.filter((member) => inNameSource(member, props.source)));
 const choices = computed(() => props.filterByProfession
@@ -51,8 +49,7 @@ function subtitle(member) {
     </v-tabs>
     <div :id="`${idPrefix}-${source}-panel`" role="tabpanel"
       :aria-labelledby="`${idPrefix}-${source}-tab`" class="name-source-panel">
-      <slot v-if="source === 'uploaded'" name="uploaded" />
-      <v-text-field v-else-if="source === 'manual'" :model-value="name" label="角色名稱"
+      <v-text-field v-if="source === 'manual'" :model-value="name" label="角色名稱"
         maxlength="64" variant="outlined" density="compact" :disabled="disabled"
         :error-messages="errorMessages" hide-details="auto" aria-required="true"
         @update:model-value="emit('update:name', $event)" />
