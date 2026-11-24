@@ -134,3 +134,14 @@ export function validateVideoList(input = {}) {
     throw new EventVideoError('請選擇有效團別');
   return { page, limit, search: needle, group, videoId: text(videoId, '影片', 128, 'videoId', false) };
 }
+
+export function validateVideoNamesList(input = {}) {
+  const { page, search } = validateVideoList({ page: input.page, search: input.search });
+  const professionId = input.professionId ?? '';
+  const sort = input.sort ?? 'name';
+  if (typeof professionId !== 'string' || (professionId !== '' && !/^(0|[1-9][0-9]{0,8})$/.test(professionId)))
+    throw new EventVideoError('請選擇有效職業');
+  if (!['name', 'professionAsc', 'professionDesc'].includes(sort))
+    throw new EventVideoError('名單排序方式不正確');
+  return { page, search, professionId, sort };
+}

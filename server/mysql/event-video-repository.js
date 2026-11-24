@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { EventVideoError, validateVideoSubmission, validateVideoProfessionUpdate, validateVideoMove, validateVideoDelete, validateVideoList } from '../../src/domain/event-videos.js';
+import { EventVideoError, validateVideoSubmission, validateVideoProfessionUpdate, validateVideoMove, validateVideoDelete, validateVideoList, validateVideoNamesList } from '../../src/domain/event-videos.js';
 
 export function createEventVideoRepository(db) {
   async function checkEvent(id) {
@@ -144,14 +144,25 @@ export function createEventVideoRepository(db) {
       }));
     },
     async listEventVideoNames(eventId, input = {}) {
-      const { page, search } = validateVideoList({ page: input.page, search: input.search });
+      const { page, search, professionId, sort } = validateVideoNamesList(input);
       await checkEvent(eventId);
-      const from = `SELECT name FROM event_video_submissions WHERE event_id=?
-        UNION SELECT name FROM event_videos WHERE event_id=?`;
-      const filter = 'LOCATE(LOWER(?), LOWER(name)) > 0';
-      const args = [eventId, eventId, search];
-      const { count: total } = await db.prepare(`SELECT COUNT(*) AS count FROM (${from}) names WHERE ${filter}`).get(...args);
-      const names = await db.prepare(`SELECT name FROM (${from}) names WHERE ${filter} ORDER BY name COLLATE utf8mb4_bin LIMIT 20 OFFSET ?`)
+      // One player per name, using the most recent submission's profession snapshot.
+      const from = `SELECT name, professionId, professionName FROM (
+        SELECT name, professionId, professionName,
+          ROW_NUMBER() OVER (PARTITION BY name ORDER BY createdAt DESC, id ASC) AS position
+        FROM (
+          SELECT id, name, profession_id AS professionId, profession_name AS professionName, created_at AS createdAt
+          FROM event_video_submissions WHERE event_id=?
+          UNION ALL SELECT v.id, v.name, p.profession_id, p.profession_name, v.created_at
+          FROM ${legacyFrom} WHERE v.event_id=?
+        ) submissions
+      ) ranked WHERE position=1`;
+      const filter = "LOCATE(LOWER(?), LOWER(name)) > 0 AND (? = '' OR COALESCE(professionId, 0) = ?)";
+      const args = [eventId, eventId, search, professionId, professionId];
+      const { count: total } = await db.prepare(`SELECT COUNT(*) AS count FROM (${from}) players WHERE ${filter}`).get(...args);
+      const order = sort === 'name' ? 'name COLLATE utf8mb4_bin' :
+        `professionName IS NULL, professionName COLLATE utf8mb4_bin ${sort === 'professionDesc' ? 'DESC' : 'ASC'}, name COLLATE utf8mb4_bin`;
+      const names = await db.prepare(`SELECT name, professionId, professionName FROM (${from}) players WHERE ${filter} ORDER BY ${order} LIMIT 20 OFFSET ?`)
         .all(...args, (page - 1) * 20);
       return { eventId, names, total, page, limit: 20 };
     },

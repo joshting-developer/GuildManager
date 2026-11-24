@@ -132,7 +132,7 @@ async function submit() {
         v-model:member-uid="selectedMemberUid" :members="members" :professions="professions"
         :disabled="disabled || busy || reloading" :error-messages="errors.name"
         id-prefix="video-name">
-        <template #uploaded><UploadedVideoNames v-if="activeTab === 'uploaded'" :event-id="event.id" /></template>
+        <template #uploaded><UploadedVideoNames v-if="activeTab === 'uploaded'" :event-id="event.id" :professions="professions" /></template>
       </NameSourcePicker>
       <template v-if="activeTab !== 'uploaded'">
         <v-select v-model="draft.professionId" :items="professions" item-title="name" item-value="job_id"
