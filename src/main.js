@@ -26,7 +26,7 @@ import { zhHant } from 'vuetify/locale';
 import 'vuetify/styles/core';
 import 'vuetify/styles/utilities';
 import './styles.css';
-import App from './App.vue';
+import LaunchGate from './components/LaunchGate.vue';
 import {
   VUETIFY_THEMES,
   applyDocumentTheme,
@@ -117,4 +117,4 @@ const vuetify = createVuetify({
   },
 });
 
-createApp(App).use(vuetify).mount('#app');
+createApp(LaunchGate).use(vuetify).mount('#app');

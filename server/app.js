@@ -246,11 +246,15 @@ export function createApp(repository, { authNow, notifier = null, log = console,
   app.get('/api/videos/choices', async (request, response) => {
     response.set('Cache-Control', 'no-store').json(await repository.getVideoChoices(request.query));
   });
+  const videoReadAccess = request => ({ includePrivate: ['admin', 'manager'].includes(request.auth?.user.role) });
   app.get('/api/videos/browser', async (request, response) => {
-    response.json(await repository.getVideoBrowser(request.query.eventId, { ...request.query, page: request.query.page === undefined ? 1 : Number(request.query.page), limit: request.query.limit === undefined ? 20 : Number(request.query.limit) }));
+    response.json(await repository.getVideoBrowser(request.query.eventId, { ...request.query, page: request.query.page === undefined ? 1 : Number(request.query.page), limit: request.query.limit === undefined ? 20 : Number(request.query.limit) }, videoReadAccess(request)));
+  });
+  app.get('/api/events/:id/video-names', async (request, response) => {
+    response.json(await repository.listEventVideoNames(request.params.id));
   });
   app.get('/api/events/:id/videos', async (request, response) => {
-    response.json(await repository.listEventVideos(request.params.id, { ...request.query, page: request.query.page === undefined ? 1 : Number(request.query.page), limit: request.query.limit === undefined ? 20 : Number(request.query.limit) }));
+    response.json(await repository.listEventVideos(request.params.id, { ...request.query, page: request.query.page === undefined ? 1 : Number(request.query.page), limit: request.query.limit === undefined ? 20 : Number(request.query.limit) }, videoReadAccess(request)));
   });
   app.post('/api/events/:id/videos', async (request, response) => {
     response.status(201).json(await repository.submitEventVideo(request.params.id, request.body));

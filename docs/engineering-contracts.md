@@ -51,9 +51,9 @@
 
 ## 身分與權限
 
-- 本機角色分 admin／manager／member, admin／manager 可使用既有管理功能, member 可使用行事曆報名、完整成員清單與戰績閱覽／個人分析，其他管理功能不開放, `#/admin` 及 `/api/admin/*` 僅 admin；不建立公開註冊。首個 CLI 帳號預設 admin, 後續 manager；舊無角色資料優先名稱 admin, 否則最早帳號為 admin, 其餘 manager, 不重設密碼。角色與帳號升級須保留原密碼、Session 與外鍵一致性。
+- 本機角色分 admin／manager／member, admin／manager 可使用既有管理功能, member 可使用行事曆報名、完整成員清單、戰績閱覽／個人分析及精簡影片閱覽，其他管理功能不開放, `#/admin` 及 `/api/admin/*` 僅 admin；不建立公開註冊。首個 CLI 帳號預設 admin, 後續 manager；舊無角色資料優先名稱 admin, 否則最早帳號為 admin, 其餘 manager, 不重設密碼。角色與帳號升級須保留原密碼、Session 與外鍵一致性。
 - admin 可驗證目前密碼後修改自己的密碼, 保留目前 session 並撤銷其他登入；可建立／修改 manager 帳號／密碼（留空保留）與共用 member 通行密碼, manager／member 修改撤銷全部 session。帳號名稱不分大小寫唯一, revision 拒絕過期修改, 不提供角色提升／刪除。網頁改密碼不更新私有 local-admin.json。
-- 公開頁為行事曆及既有報名／請假；完整成員清單及相關 API 開放 member／manager／admin；管理總覽 (magament／management)、活動安排、排表及相關管理 API 須 admin／manager 登入, 不只隱藏導覽
+- 公開頁為行事曆、既有報名／請假及精簡影片閱覽（只提供角色、職業與團別, 不含連結／備註）；完整成員清單及相關 API 開放 member／manager／admin；管理總覽 (magament／management)、活動安排、排表及相關管理 API 須 admin／manager 登入, 不只隱藏導覽
 - 本機密碼使用 scrypt 雜湊, session 用 HttpOnly cookie 且伺服器只保存 token 雜湊, 管理及登入後報名修改檢查 CSRF；私有帳號檔 data/local-admin.json 不得提交。
 - 每個可由前端呼叫的資料函式都要在後端檢查權限, 隱藏按鈕不等於存取控制
 - 不信任前端傳入的使用者身分、角色或操作人欄位

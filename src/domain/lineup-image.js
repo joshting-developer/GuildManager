@@ -1,3 +1,4 @@
+import { lineupObRows } from './lineup-ob.js';
 import { LINEUP_GROUPS, participantKey, slotAssignments } from './lineups.js';
 import { eventTypeLabel } from './event-types.js';
 
@@ -44,12 +45,17 @@ const PALETTES = {
 };
 
 // Resolve the same live names and selected professions as the board; archives use snapshots.
-export function lineupImageData({ event, teams, members, professions, duties, snapshots, status, theme = 'light' }) {
+export function lineupImageData({ event, teams, members, professions, duties, snapshots, status, ob, theme = 'light' }) {
+  const date = event.dates[0];
+  const weekday = '日一二三四五六'[new Date(`${date}T12:00:00Z`).getUTCDay()];
+  const title = `${eventTypeLabel(event.type)}${event.title ? ` · ${event.title}` : ''}`;
   return {
     theme: PALETTES[theme] ? theme : 'light',
-    date: event.dates[0],
-    title: `${eventTypeLabel(event.type)}${event.title ? ` · ${event.title}` : ''}`,
+    date,
+    title,
+    dateLabel: `${date}（星期${weekday}）`,
     status,
+    obRows: lineupObRows(ob),
     groups: LINEUP_GROUPS.map((group) => ({
       id: group.id,
       name: group.name,
@@ -226,12 +232,20 @@ export async function lineupJpeg(data) {
   const context = canvas.getContext('2d');
   if (!context) throw new Error('瀏覽器無法產生圖片, 請換用支援 Canvas 的瀏覽器');
   const palette = PALETTES[data.theme] || PALETTES.light;
-  // One header row like a table: date/status left, title centred, colour legend right.
-  const SIDE = 520;
+  // Balance the side reservations so the battle title stays at the canvas centre.
+  font(context, 24);
+  const dateWidth = context.measureText(data.dateLabel || data.date).width;
+  font(context, 24, 600);
+  const legendWidth = data.groups.reduce((width, group) => width + context.measureText(`■ ${group.name}`).width, 0) + Math.max(0, data.groups.length - 1) * 28;
+  const headingWidth = WIDTH - MARGIN * 2 - 2 * (Math.max(dateWidth, legendWidth) + 36);
   font(context, TITLE_SIZE, 600);
-  const heading = wrap(context, data.title, WIDTH - MARGIN * 2 - SIDE * 2);
+  const heading = wrap(context, data.title, headingWidth);
   const headingHeight = heading.length * (TITLE_SIZE + 8) - 8;
-  const headerHeight = MARGIN + headingHeight + 20;
+  const titleHeaderHeight = MARGIN + headingHeight + 20;
+  font(context, 26, 500);
+  const obLines = (data.obRows || []).flatMap(row => wrap(context, row.map(person => `${person.label}指揮：${person.name || '—'}`).join('    '), WIDTH - MARGIN * 2 - 32));
+  const obHeight = obLines.length ? obLines.length * 34 + 24 : 0;
+  const headerHeight = titleHeaderHeight + obHeight;
   const groups = data.groups.map((group) => measureGroup(context, group));
   const contentHeight = headerHeight + groups.reduce((height, group) => height + group.height + GAP, 0) + MARGIN - GAP;
   canvas.width = EXPORT_WIDTH;
@@ -249,8 +263,8 @@ export async function lineupJpeg(data) {
   context.fillStyle = palette.background;
   context.fillRect(0, 0, WIDTH, height);
   text(context, heading, WIDTH / 2, MARGIN, TITLE_SIZE, palette.title, 600, 'center');
-  const sideY = MARGIN + (headingHeight - 22) / 2;
-  text(context, [`${data.date} · ${data.status}`], MARGIN + 4, sideY + 1, 21, palette.muted);
+  const sideY = MARGIN + (headingHeight - 24) / 2;
+  text(context, [data.dateLabel || data.date], MARGIN + 4, sideY, 24, palette.title);
   font(context, 24, 600);
   let legendX = WIDTH - MARGIN - 4;
   for (const group of [...data.groups].reverse()) {
@@ -258,6 +272,11 @@ export async function lineupJpeg(data) {
       readableColor(GROUP_COLORS[group.id], palette.background, palette.text, 4.5), 600, 'right');
     font(context, 24, 600);
     legendX -= context.measureText(`■ ${group.name}`).width + 28;
+  }
+  if (obHeight) {
+    context.fillStyle = palette.surface;
+    context.fillRect(MARGIN, titleHeaderHeight, WIDTH - MARGIN * 2, obHeight - 8);
+    text(context, obLines, MARGIN + 16, titleHeaderHeight + 8, 26, palette.text, 500);
   }
   const printExport = luminance(rgb(palette.surface)) >= 0.5;
   let y = headerHeight;

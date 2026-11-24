@@ -14,6 +14,7 @@
     "event_batch_items",
     "event_batches",
     "event_dates",
+    "event_lineup_ob",
     "event_member_responses",
     "event_participation_requests",
     "event_registrations",
@@ -341,6 +342,17 @@
       "request_id",
       "input_json",
       "result_json"
+    ],
+    "event_lineup_ob": [
+      "id",
+      "event_id",
+      "enabled",
+      "attack_mode",
+      "defense_mode",
+      "attack",
+      "mobile",
+      "defense12",
+      "defense34"
     ]
   },
   "foreignKeys": [
@@ -357,6 +369,7 @@
     "event_batch_items.batch_request_id.event_batches.request_id",
     "event_batch_items.event_id.scheduled_events.id",
     "event_dates.event_id.scheduled_events.id",
+    "event_lineup_ob.event_id.scheduled_events.id",
     "event_member_responses.event_id.scheduled_events.id",
     "event_member_responses.member_uid.members.uid",
     "event_member_responses.profession_id.professions.job_id",

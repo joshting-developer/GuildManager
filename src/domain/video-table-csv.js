@@ -12,6 +12,11 @@ export function videoTableRow(video) {
     video.note || '—',
   ];
 }
-export function videoTableCsv(videos) {
-  return tableCsv(VIDEO_TABLE_HEADERS, videos.map(videoTableRow));
+export function videoTableCsv(videos, canManage = true) {
+  return tableCsv(canManage ? VIDEO_TABLE_HEADERS : PUBLIC_VIDEO_TABLE_HEADERS, videos.map(canManage ? videoTableRow : publicVideoTableRow));
+}
+
+export const PUBLIC_VIDEO_TABLE_HEADERS = ['角色名稱', '職業', '團別'];
+export function publicVideoTableRow(video) {
+  return [video.name, video.professionName || '未記錄', videoGroupLabel(video.groupName)];
 }

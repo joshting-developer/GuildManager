@@ -185,7 +185,7 @@ function createImplementation(store, authNow, participationNow) {
           ...(includeCatalogs ? (await repository.getLineupCatalogs()) : {}) };
       }));
     },
-    async getVideoBrowser(preferredId = null, options = {}) {
+    async getVideoBrowser(preferredId = null, options = {}, access = {}) {
       return (await db.transaction(async () => {
         videoBrowserSelection([], preferredId);
         const choices = await repository.getVideoChoices();
@@ -198,7 +198,7 @@ function createImplementation(store, authNow, participationNow) {
           }
         }
         const { events, eventId } = videoBrowserSelection(choices.events, preferredId);
-        return { ...choices, events, selected: eventId ? (await repository.listEventVideos(eventId, options)) : null };
+        return { ...choices, events, selected: eventId ? (await repository.listEventVideos(eventId, options, access)) : null };
       }));
     },
     async getEventVideoForm(eventId) {

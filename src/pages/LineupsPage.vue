@@ -1,4 +1,6 @@
 <script setup>
+import LineupObEditor from './LineupObEditor.vue';
+import { emptyLineupOb } from '../domain/lineup-ob.js';
 import DataLoading from '../components/DataLoading.vue';
 import { computed, ref, onMounted, onUnmounted, inject, nextTick, watch } from 'vue';
 import {
@@ -146,7 +148,12 @@ const readOnly = computed(() =>
 const displayedTeams = computed(() =>
   archived.value ? savedLineup.value?.teams || teams.value : teams.value,
 );
-const dirty = computed(() => JSON.stringify(teams.value) !== baseline.value);
+const ob = ref(emptyLineupOb()), obBaseline = ref(JSON.stringify(ob.value));
+function resetOb(value) {
+  ob.value = { ...(value || emptyLineupOb()) };
+  obBaseline.value = JSON.stringify(ob.value);
+}
+const dirty = computed(() => JSON.stringify(teams.value) !== baseline.value || JSON.stringify(ob.value) !== obBaseline.value);
 const saveStatus = computed(() =>
   archived.value
     ? '已封存'
@@ -441,6 +448,7 @@ async function load() {
       eventId.value = null;
       savedLineup.value = null;
       resetLineup();
+      resetOb();
     }
   } catch (cause) {
     if (!disposed && token === operation) error.value = cause.message;
@@ -481,6 +489,7 @@ function applyEvent(id, data, responses) {
   eventId.value = id;
   savedLineup.value = data.versions[0] || null;
   resetLineup(savedLineup.value?.teams);
+  resetOb(savedLineup.value?.ob);
   templateId.value = null;
 }
 async function loadTemplates(open = true) {
@@ -848,6 +857,7 @@ async function saveLineup() {
       eventId: eventId.value,
       eventRevision: currentEvent.value.revision,
       expectedVersion: latestVersion.value,
+      ob: { ...ob.value },
       teams: editableLineup(teams.value),
     };
     saveAttempt = attempt(saveAttempt, payload);
@@ -860,6 +870,7 @@ async function saveLineup() {
       throw new Error('排表回應格式不正確，請重試以確認儲存結果');
     savedLineup.value = data.version;
     resetLineup(data.version.teams);
+    resetOb(data.version.ob);
     error.value = '';
     notice.value = `排表已儲存，共 ${count.value} 位成員。`;
   } catch (cause) {
@@ -972,6 +983,7 @@ async function downloadLineupImage() {
     return;
   const data = lineupImageData({
     event: displayedEvent.value,
+    ob: ob.value,
     teams: displayedTeams.value,
     members: participantPeople.value,
     professions: professions.value,
@@ -1197,6 +1209,7 @@ onUnmounted(() => {
           </div>
         </div>
       </v-card>
+      <LineupObEditor v-model="ob" :read-only="readOnly" />
       <v-alert v-if="archived" type="info" variant="tonal" class="lineup-alert"
         >原場次已刪除或改為一般活動，最後儲存的排表僅供查看與另存範本。</v-alert
       >

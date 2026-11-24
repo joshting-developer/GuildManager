@@ -57,7 +57,10 @@ export function createEventVideoClient({
           ))
       )
         throw new Error('影片資料回應格式不正確，請重試');
-      validateVideoDetails(video, { allowMissingGroup: !input, allowMissingProfession: !input });
+      if (data.canManage === false && !input) {
+        if (typeof video.name !== 'string' || ['firstUrl', 'secondUrl', 'note'].some(field => field in video))
+          throw new Error('影片資料回應格式不正確，請重試');
+      } else validateVideoDetails(video, { allowMissingGroup: !input, allowMissingProfession: !input });
       if (video.revision !== undefined && (!Number.isSafeInteger(video.revision) || video.revision < 0))
         throw new Error('影片版本格式不正確，請重新載入');
     }
@@ -79,6 +82,15 @@ export function createEventVideoClient({
           !data.selected || !data.events.some(event => event.id === data.selected.eventId)))
         throw new Error('影片閱覽資料回應格式不正確，請重試');
       if (data.selected) validateResponse(data.selected, data.selected.eventId);
+      return data;
+    },
+    async getNames(eventId) {
+      const data = await request(`/api/events/${encodeURIComponent(eventId)}/video-names`);
+      if (data?.eventId !== eventId || !Array.isArray(data.names) ||
+          !data.names.every(row => typeof row?.name === 'string' &&
+            (row.professionId === null || (Number.isSafeInteger(row.professionId) && row.professionId > 0)) &&
+            (row.professionName === null || typeof row.professionName === 'string')))
+        throw new Error('已上傳影片名單回應格式不正確, 請重試');
       return data;
     },
     async getVideos(eventId, options = {}) {

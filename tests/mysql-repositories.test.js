@@ -105,3 +105,9 @@ await import('./mysql-contracts/video-pagination.test.js');
 await import('./mysql-contracts/member-maintenance-batch.test.js');
 
 await import('./benchmark.test.js');
+
+await import('./mysql-contracts/video-names.test.js');
+
+await import('./mysql-contracts/lineup-ob.test.js');
+
+await import('./mysql-contracts/video-access.test.js');

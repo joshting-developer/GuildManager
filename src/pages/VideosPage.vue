@@ -9,7 +9,10 @@ import { createEventVideoClient } from '../api/event-videos.js';
 import { eventDisplayTitle } from '../domain/event-types.js';
 import { battleEventLabel, orderBattleEvents } from '../domain/battle-events.js';
 import { VIDEO_GROUP_OPTIONS } from '../domain/event-videos.js';
-import { VIDEO_TABLE_HEADERS, videoTableRow, videoTableCsv } from '../domain/video-table-csv.js';
+import { VIDEO_TABLE_HEADERS, videoTableRow, videoTableCsv, PUBLIC_VIDEO_TABLE_HEADERS, publicVideoTableRow } from '../domain/video-table-csv.js';
+const props = defineProps({ canManage: Boolean });
+const headers = computed(() => props.canManage ? VIDEO_TABLE_HEADERS : PUBLIC_VIDEO_TABLE_HEADERS);
+const tableRow = video => props.canManage ? videoTableRow(video) : publicVideoTableRow(video);
 const videoClient = createEventVideoClient();
 const events = shallowRef([]),
   eventId = ref(null),
@@ -66,7 +69,7 @@ async function exportCsv() {
       .replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_')
       .slice(0, 64);
     url = URL.createObjectURL(
-      new Blob([videoTableCsv(rows)], { type: 'text/csv;charset=utf-8' }),
+      new Blob([videoTableCsv(rows, props.canManage)], { type: 'text/csv;charset=utf-8' }),
     );
     link = document.createElement('a');
     link.href = url;
@@ -289,25 +292,25 @@ onUnmounted(() => {
       role="region"
       aria-label="場次影片表格，可左右捲動"
     >
-      <table class="videos-table">
+      <table :class="['videos-table', { 'videos-table-public': !canManage }]">
         <caption class="sr-only">
-          本場影片提交紀錄，點擊網址另開分頁，亦可選取複製
+          本場影片提交紀錄
         </caption>
         <thead>
           <tr>
-            <th v-for="header in VIDEO_TABLE_HEADERS" :key="header" scope="col">{{ header }}</th>
-            <th scope="col">操作</th>
+            <th v-for="header in headers" :key="header" scope="col">{{ header }}</th>
+            <th v-if="canManage" scope="col">操作</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="video in pagedVideos" :key="video.id">
             <td
-              v-for="(value, index) in videoTableRow(video)"
+              v-for="(value, index) in tableRow(video)"
               :key="index"
-              :class="{ 'video-url': index === 2 || index === 3, 'video-note': index === 5 }"
+              :class="{ 'video-url': canManage && (index === 2 || index === 3), 'video-note': canManage && index === 5 }"
             >
               <a
-                v-if="(index === 2 || index === 3) && value !== '—'"
+                v-if="canManage && (index === 2 || index === 3) && value !== '—'"
                 class="video-url-link"
                 :href="value"
                 target="_blank"
@@ -316,7 +319,7 @@ onUnmounted(() => {
               >{{ value }}</a>
               <template v-else>{{ value }}</template>
             </td>
-            <td>
+            <td v-if="canManage">
               <div class="video-actions">
                 <v-btn variant="text" size="small" :prepend-icon="mdiPencilOutline" :aria-label="`修改 ${video.name} 的影片職業`"
                   @click="editingVideo = video">修改職業</v-btn>
@@ -405,6 +408,8 @@ onUnmounted(() => {
   width: 10%;
 }
 .videos-table th:last-child { width: 140px; }
+.videos-table-public { min-width: 0; }
+.videos-table-public th { width: auto !important; }
 .video-actions {
   display: flex;
   flex-direction: column;
