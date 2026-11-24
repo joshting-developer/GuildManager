@@ -232,14 +232,14 @@ export async function lineupJpeg(data) {
   const context = canvas.getContext('2d');
   if (!context) throw new Error('瀏覽器無法產生圖片, 請換用支援 Canvas 的瀏覽器');
   const palette = PALETTES[data.theme] || PALETTES.light;
-  // The event date and weekday stay in the centred title; status and legend flank it.
+  // The event date and weekday stay in the centred title, with the group legend at right.
   const SIDE = 520;
   font(context, TITLE_SIZE, 600);
   const heading = wrap(context, data.heading || data.title, WIDTH - MARGIN * 2 - SIDE * 2);
   const headingHeight = heading.length * (TITLE_SIZE + 8) - 8;
   const titleHeaderHeight = MARGIN + headingHeight + 20;
   font(context, 26, 500);
-  const obLines = (data.obRows || []).flatMap(row => wrap(context, row.map(person => `${person.label} OB：${person.name || '—'}`).join('    '), WIDTH - MARGIN * 2 - 32));
+  const obLines = (data.obRows || []).flatMap(row => wrap(context, row.map(person => `${person.label}指揮：${person.name || '—'}`).join('    '), WIDTH - MARGIN * 2 - 32));
   const obHeight = obLines.length ? obLines.length * 34 + 24 : 0;
   const headerHeight = titleHeaderHeight + obHeight;
   const groups = data.groups.map((group) => measureGroup(context, group));
@@ -260,7 +260,6 @@ export async function lineupJpeg(data) {
   context.fillRect(0, 0, WIDTH, height);
   text(context, heading, WIDTH / 2, MARGIN, TITLE_SIZE, palette.title, 600, 'center');
   const sideY = MARGIN + (headingHeight - 22) / 2;
-  text(context, [data.status], MARGIN + 4, sideY + 1, 21, palette.muted);
   font(context, 24, 600);
   let legendX = WIDTH - MARGIN - 4;
   for (const group of [...data.groups].reverse()) {

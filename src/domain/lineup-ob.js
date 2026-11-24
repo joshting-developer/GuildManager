@@ -8,9 +8,9 @@ export function validateLineupOb(input) {
       Object.keys(input).some(key => !Object.hasOwn(emptyLineupOb(), key)) ||
       !['on', 'off'].includes(input.enabled) ||
       !['single', 'double'].includes(input.attackMode) || !['single', 'double'].includes(input.defenseMode))
-    throw new LineupError('OB 設定格式不正確, 請重新確認');
+    throw new LineupError('指揮設定格式不正確, 請重新確認');
   return { enabled: input.enabled, attackMode: input.attackMode, defenseMode: input.defenseMode,
-    ...Object.fromEntries(['attack', 'mobile', 'defense12', 'defense34'].map(key => [key, lineupText(input[key], 'OB 名稱', 64)])) };
+    ...Object.fromEntries(['attack', 'mobile', 'defense12', 'defense34'].map(key => [key, lineupText(input[key], '指揮名稱', 64)])) };
 }
 export function lineupObRows(ob = emptyLineupOb()) {
   if (ob.enabled !== 'on') return [];

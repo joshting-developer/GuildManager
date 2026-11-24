@@ -8,24 +8,24 @@ function update(key, value) {
 </script>
 
 <template>
-  <section class="lineup-ob" aria-label="OB 指揮設定">
-    <VSwitch density="compact" color="primary" :model-value="modelValue.enabled === 'on'" label="設定 OB 指揮" hide-details
+  <section class="lineup-ob" aria-label="指揮設定">
+    <VSwitch density="compact" color="primary" :model-value="modelValue.enabled === 'on'" label="設定指揮" hide-details
       :disabled="readOnly" @update:model-value="update('enabled', $event ? 'on' : 'off')" />
     <template v-if="modelValue.enabled === 'on'">
       <div class="ob-row">
-        <VSwitch density="compact" color="primary" :model-value="modelValue.attackMode === 'double'" label="進攻雙 OB" hide-details
+        <VSwitch density="compact" color="primary" :model-value="modelValue.attackMode === 'double'" label="進攻雙指揮" hide-details
           :disabled="readOnly" @update:model-value="update('attackMode', $event ? 'double' : 'single')" />
-        <v-text-field :model-value="modelValue.attack" label="進攻 OB" maxlength="64" variant="outlined" density="compact" hide-details
+        <v-text-field :model-value="modelValue.attack" label="進攻指揮" maxlength="64" variant="outlined" density="compact" hide-details
           :disabled="readOnly" @update:model-value="update('attack', $event || '')" />
-        <v-text-field v-if="modelValue.attackMode === 'double'" :model-value="modelValue.mobile" label="機動 OB" maxlength="64" variant="outlined" density="compact" hide-details
+        <v-text-field v-if="modelValue.attackMode === 'double'" :model-value="modelValue.mobile" label="機動指揮" maxlength="64" variant="outlined" density="compact" hide-details
           :disabled="readOnly" @update:model-value="update('mobile', $event || '')" />
       </div>
       <div class="ob-row">
-        <VSwitch density="compact" color="primary" :model-value="modelValue.defenseMode === 'double'" label="防守雙 OB" hide-details
+        <VSwitch density="compact" color="primary" :model-value="modelValue.defenseMode === 'double'" label="防守雙指揮" hide-details
           :disabled="readOnly" @update:model-value="update('defenseMode', $event ? 'double' : 'single')" />
-        <v-text-field :model-value="modelValue.defense12" :label="modelValue.defenseMode === 'double' ? '防守12 OB' : '防守 OB'" maxlength="64" variant="outlined" density="compact" hide-details
+        <v-text-field :model-value="modelValue.defense12" :label="modelValue.defenseMode === 'double' ? '防守12指揮' : '防守指揮'" maxlength="64" variant="outlined" density="compact" hide-details
           :disabled="readOnly" @update:model-value="update('defense12', $event || '')" />
-        <v-text-field v-if="modelValue.defenseMode === 'double'" :model-value="modelValue.defense34" label="防守34 OB" maxlength="64" variant="outlined" density="compact" hide-details
+        <v-text-field v-if="modelValue.defenseMode === 'double'" :model-value="modelValue.defense34" label="防守34指揮" maxlength="64" variant="outlined" density="compact" hide-details
           :disabled="readOnly" @update:model-value="update('defense34', $event || '')" />
       </div>
     </template>
