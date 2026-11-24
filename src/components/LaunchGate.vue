@@ -1,6 +1,7 @@
 <script setup>
 import { computed, defineAsyncComponent, onMounted, onUnmounted, shallowRef } from 'vue';
 import DataLoading from './DataLoading.vue';
+import launchBackground from '../assets/jian-ying-li-hua-launch.webp';
 import PageLoadError from './PageLoadError.vue';
 import { countdownParts, LAUNCH_AT, LAUNCH_TIME, PREVIEW_SEQUENCE, PREVIEW_STORAGE_KEY, previewSequence } from '../domain/launch-countdown.js';
 
@@ -43,6 +44,7 @@ function onStorage(event) {
 }
 onMounted(() => {
   if (opened.value) return;
+  document.title = '劍映梨花';
   window.addEventListener('keydown', onKeydown);
   window.addEventListener('storage', onStorage);
   window.addEventListener('focus', update);
@@ -56,8 +58,9 @@ onUnmounted(stop);
 <template>
   <App v-if="opened" />
   <main v-else class="launch-countdown" aria-labelledby="launch-title">
+    <img class="launch-background" :src="launchBackground" alt="" aria-hidden="true" fetchpriority="high" />
     <div class="launch-content">
-      <h1 id="launch-title" class="launch-title">幫會管理平台</h1>
+      <h1 id="launch-title" class="launch-title">劍映梨花</h1>
       <p class="launch-intro">即將開放使用</p>
       <dl class="launch-timer" role="timer" aria-live="off" :aria-label="timerLabel">
         <div v-for="part in parts" :key="part.label" class="launch-unit">
@@ -76,7 +79,11 @@ onUnmounted(stop);
   --launch-ink: #f4f5f1;
   --launch-muted: #b8c1c3;
   --launch-accent: #d7c99d;
-  --launch-separator: #606e73;
+  --launch-separator: #a4afb0;
+  --launch-scrim: rgb(7 17 23 / 42%);
+  --launch-title-font: 'Noto Serif TC', 'Songti TC', 'PMingLiU', serif;
+  position: relative;
+  isolation: isolate;
   display: grid;
   place-items: center;
   min-height: 100svh;
@@ -85,8 +92,10 @@ onUnmounted(stop);
   color: var(--launch-ink);
   text-align: center;
 }
-.launch-content { width: min(100%, 1200px); padding-block: 48px; }
-.launch-title { font-size: clamp(28px, 3.8vw, 48px); font-weight: 600; line-height: 1.4; overflow-wrap: break-word; }
+.launch-background { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; }
+.launch-countdown::after { content: ''; position: absolute; inset: 0; background: var(--launch-scrim); pointer-events: none; }
+.launch-content { position: relative; z-index: 1; width: min(100%, 1200px); padding-block: 48px; }
+.launch-title { font-family: var(--launch-title-font); font-size: clamp(36px, 4.5vw, 64px); letter-spacing: 0.16em; padding-left: 0.16em; font-weight: 600; line-height: 1.4; overflow-wrap: break-word; }
 .launch-intro { margin-top: 12px; font-size: 18px; color: var(--launch-muted); }
 .launch-timer { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 64px 0 56px; }
 .launch-unit { position: relative; display: flex; flex-direction: column-reverse; gap: 16px; min-width: 0; }
@@ -98,6 +107,7 @@ onUnmounted(stop);
 @media (max-width: 600px) {
   .launch-countdown { padding-inline: 20px; }
   .launch-content { padding-block: 24px; }
+  .launch-background { object-position: right center; }
   .launch-timer { margin: 48px 0 40px; }
   .launch-unit { gap: 12px; }
   .launch-unit-label, .launch-date { font-size: 14px; }
