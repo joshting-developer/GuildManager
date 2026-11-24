@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { EventVideoError, validateVideoSubmission, validateVideoProfessionUpdate, validateVideoMove, validateVideoDelete, validateVideoList, validateVideoNamesList } from '../../src/domain/event-videos.js';
+import { EventVideoError, validateVideoSubmission, validateVideoProfessionUpdate, validateVideoMove, validateVideoDelete, validateVideoList } from '../../src/domain/event-videos.js';
 
 export function createEventVideoRepository(db) {
   async function checkEvent(id) {
@@ -143,8 +143,7 @@ export function createEventVideoRepository(db) {
         return result;
       }));
     },
-    async listEventVideoNames(eventId, input = {}) {
-      const { page, search, professionId, sort } = validateVideoNamesList(input);
+    async listEventVideoNames(eventId) {
       await checkEvent(eventId);
       // One player per name, using the most recent submission's profession snapshot.
       const from = `SELECT name, professionId, professionName FROM (
@@ -157,14 +156,9 @@ export function createEventVideoRepository(db) {
           FROM ${legacyFrom} WHERE v.event_id=?
         ) submissions
       ) ranked WHERE position=1`;
-      const filter = "LOCATE(LOWER(?), LOWER(name)) > 0 AND (? = '' OR COALESCE(professionId, 0) = ?)";
-      const args = [eventId, eventId, search, professionId, professionId];
-      const { count: total } = await db.prepare(`SELECT COUNT(*) AS count FROM (${from}) players WHERE ${filter}`).get(...args);
-      const order = sort === 'name' ? 'name COLLATE utf8mb4_bin' :
-        `professionName IS NULL, professionName COLLATE utf8mb4_bin ${sort === 'professionDesc' ? 'DESC' : 'ASC'}, name COLLATE utf8mb4_bin`;
-      const names = await db.prepare(`SELECT name, professionId, professionName FROM (${from}) players WHERE ${filter} ORDER BY ${order} LIMIT 20 OFFSET ?`)
-        .all(...args, (page - 1) * 20);
-      return { eventId, names, total, page, limit: 20 };
+      const names = await db.prepare(`SELECT name, professionId, professionName FROM (${from}) players ORDER BY name COLLATE utf8mb4_bin`)
+        .all(eventId, eventId);
+      return { eventId, names };
     },
     async listEventVideos(eventId, input = {}) {
       const { page, limit, search, group, videoId } = validateVideoList(input);

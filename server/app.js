@@ -250,7 +250,7 @@ export function createApp(repository, { authNow, notifier = null, log = console,
     response.json(await repository.getVideoBrowser(request.query.eventId, { ...request.query, page: request.query.page === undefined ? 1 : Number(request.query.page), limit: request.query.limit === undefined ? 20 : Number(request.query.limit) }));
   });
   app.get('/api/events/:id/video-names', async (request, response) => {
-    response.json(await repository.listEventVideoNames(request.params.id, { ...request.query, page: request.query.page === undefined ? 1 : Number(request.query.page) }));
+    response.json(await repository.listEventVideoNames(request.params.id));
   });
   app.get('/api/events/:id/videos', async (request, response) => {
     response.json(await repository.listEventVideos(request.params.id, { ...request.query, page: request.query.page === undefined ? 1 : Number(request.query.page), limit: request.query.limit === undefined ? 20 : Number(request.query.limit) }));

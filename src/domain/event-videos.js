@@ -135,13 +135,18 @@ export function validateVideoList(input = {}) {
   return { page, limit, search: needle, group, videoId: text(videoId, '影片', 128, 'videoId', false) };
 }
 
-export function validateVideoNamesList(input = {}) {
-  const { page, search } = validateVideoList({ page: input.page, search: input.search });
-  const professionId = input.professionId ?? '';
-  const sort = input.sort ?? 'name';
-  if (typeof professionId !== 'string' || (professionId !== '' && !/^(0|[1-9][0-9]{0,8})$/.test(professionId)))
-    throw new EventVideoError('請選擇有效職業');
-  if (!['name', 'professionAsc', 'professionDesc'].includes(sort))
-    throw new EventVideoError('名單排序方式不正確');
-  return { page, search, professionId, sort };
+export function filterVideoNames(names, { search = '', professionId = '', sort = 'name' } = {}) {
+  const needle = search.trim().toLowerCase();
+  const compare = (a, b) => a < b ? -1 : a > b ? 1 : 0;
+  return names.filter(row => row.name.toLowerCase().includes(needle) &&
+    (professionId === '' || String(row.professionId ?? 0) === professionId))
+    .sort((a, b) => {
+      if (sort !== 'name') {
+        if (a.professionName === null && b.professionName !== null) return 1;
+        if (b.professionName === null && a.professionName !== null) return -1;
+        const jobOrder = compare(a.professionName || '', b.professionName || '');
+        if (jobOrder) return sort === 'professionDesc' ? -jobOrder : jobOrder;
+      }
+      return compare(a.name, b.name);
+    });
 }

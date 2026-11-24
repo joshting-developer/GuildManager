@@ -1,11 +1,12 @@
 <script setup>
 import { computed, onUnmounted, ref, shallowRef, watch } from 'vue';
 import { createEventVideoClient } from '../api/event-videos.js';
+import { filterVideoNames } from '../domain/event-videos.js';
 import DataLoading from '../components/DataLoading.vue';
 
 const props = defineProps({ eventId: { type: String, required: true }, professions: { type: Array, default: () => [] } });
 const client = createEventVideoClient();
-const search = ref(''), page = ref(1), total = ref(0);
+const search = ref('');
 const names = shallowRef([]);
 const professionId = ref(''), sort = ref('name');
 const professionOptions = computed(() => [
@@ -13,45 +14,35 @@ const professionOptions = computed(() => [
   ...props.professions.map(job => ({ title: job.name, value: String(job.job_id) })),
   { title: '未記錄', value: '0' },
 ]);
+const visibleNames = computed(() => filterVideoNames(names.value, { search: search.value, professionId: professionId.value, sort: sort.value }));
 const professionSort = computed(() => sort.value === 'name' ? 'none' : sort.value === 'professionAsc' ? 'ascending' : 'descending');
 function toggleProfessionSort() {
   sort.value = sort.value === 'professionAsc' ? 'professionDesc' : 'professionAsc';
 }
 const loading = ref(false), error = ref('');
-let token = 0, timer;
+let token = 0;
 async function load() {
   const current = ++token;
   loading.value = true;
   error.value = '';
   names.value = [];
   try {
-    const data = await client.getNames(props.eventId, { search: search.value, page: page.value, professionId: professionId.value, sort: sort.value });
+    const data = await client.getNames(props.eventId);
     if (current !== token) return;
     names.value = data.names;
-    total.value = data.total;
   } catch (cause) {
     if (current === token) error.value = cause.message;
   } finally {
     if (current === token) loading.value = false;
   }
 }
-watch([search, professionId, sort], () => {
-  clearTimeout(timer);
-  token++;
-  names.value = [];
-  loading.value = true;
-  timer = setTimeout(() => { page.value = 1; load(); }, 300);
-});
 watch(() => props.eventId, () => {
-  clearTimeout(timer);
   search.value = '';
   professionId.value = '';
   sort.value = 'name';
-  page.value = 1;
   load();
 }, { immediate: true });
-onUnmounted(() => { token++; clearTimeout(timer); });
-function changePage(value) { page.value = value; load(); }
+onUnmounted(() => { token++; });
 </script>
 
 <template>
@@ -70,13 +61,11 @@ function changePage(value) { page.value = value; load(); }
           <v-btn variant="text" aria-label="依職業排序" @click="toggleProfessionSort">職業 {{ sort === 'professionAsc' ? '↑' : sort === 'professionDesc' ? '↓' : '↕' }}</v-btn>
         </th></tr></thead>
         <tbody>
-          <tr v-for="row in names" :key="row.name"><td>{{ row.name }}</td><td>{{ row.professionName || '未記錄' }}</td></tr>
-          <tr v-if="!names.length"><td colspan="2">{{ search || professionId ? '沒有符合的玩家' : '本場尚無已上傳影片' }}</td></tr>
+          <tr v-for="row in visibleNames" :key="row.name"><td>{{ row.name }}</td><td>{{ row.professionName || '未記錄' }}</td></tr>
+          <tr v-if="!visibleNames.length"><td colspan="2">{{ search || professionId ? '沒有符合的玩家' : '本場尚無已上傳影片' }}</td></tr>
         </tbody>
       </table>
-      <p role="status">共 {{ total }} 人</p>
-      <v-pagination v-if="total > 20" :model-value="page" :length="Math.ceil(total / 20)"
-        :total-visible="3" aria-label="已上傳影片名單分頁" @update:model-value="changePage" />
+      <p role="status">共 {{ visibleNames.length }} 人</p>
     </template>
   </section>
 </template>
