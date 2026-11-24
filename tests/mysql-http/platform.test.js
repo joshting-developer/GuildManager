@@ -31,7 +31,13 @@ test('platform settings, lottery and event videos answer after the committed MyS
     const listed = await request(`/events/${event.id}/videos`);
     assert.equal(listed.status, 200);
     assert.equal((await listed.json()).videos.length, 1);
-    assert.equal((await anonymous(`/events/${event.id}/videos`)).status, 401, 'viewing the list is management-only');
+    const publicList = await anonymous(`/events/${event.id}/videos`);
+    assert.equal(publicList.status, 200);
+    const publicData = await publicList.json();
+    assert.equal(publicData.canManage, false);
+    assert.equal(publicData.videos[0].name, video.name);
+    for (const field of ['firstUrl', 'secondUrl', 'note'])
+      assert.equal(field in publicData.videos[0], false, `public video list must omit ${field}`);
     const browser = await request(`/videos/browser?eventId=${event.id}`);
     assert.equal(browser.status, 200);
     assert.equal((await browser.json()).selected.videos.length, 1);
