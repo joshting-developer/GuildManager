@@ -53,7 +53,7 @@ export function lineupImageData({ event, teams, members, professions, duties, sn
     theme: PALETTES[theme] ? theme : 'light',
     date,
     title,
-    heading: `${date}（星期${weekday}） · ${title}`,
+    dateLabel: `${date}（星期${weekday}）`,
     status,
     obRows: lineupObRows(ob),
     groups: LINEUP_GROUPS.map((group) => ({
@@ -232,12 +232,14 @@ export async function lineupJpeg(data) {
   const context = canvas.getContext('2d');
   if (!context) throw new Error('瀏覽器無法產生圖片, 請換用支援 Canvas 的瀏覽器');
   const palette = PALETTES[data.theme] || PALETTES.light;
-  // Reserve only the actual legend width so the title can use the empty left side.
+  // Balance the side reservations so the battle title stays at the canvas centre.
+  font(context, 24);
+  const dateWidth = context.measureText(data.dateLabel || data.date).width;
   font(context, 24, 600);
   const legendWidth = data.groups.reduce((width, group) => width + context.measureText(`■ ${group.name}`).width, 0) + Math.max(0, data.groups.length - 1) * 28;
-  const headingWidth = WIDTH - MARGIN * 2 - 8 - legendWidth - 32;
+  const headingWidth = WIDTH - MARGIN * 2 - 2 * (Math.max(dateWidth, legendWidth) + 36);
   font(context, TITLE_SIZE, 600);
-  const heading = wrap(context, data.heading || data.title, headingWidth);
+  const heading = wrap(context, data.title, headingWidth);
   const headingHeight = heading.length * (TITLE_SIZE + 8) - 8;
   const titleHeaderHeight = MARGIN + headingHeight + 20;
   font(context, 26, 500);
@@ -260,8 +262,9 @@ export async function lineupJpeg(data) {
   context.scale(EXPORT_SCALE, EXPORT_SCALE);
   context.fillStyle = palette.background;
   context.fillRect(0, 0, WIDTH, height);
-  text(context, heading, MARGIN + 4 + headingWidth / 2, MARGIN, TITLE_SIZE, palette.title, 600, 'center');
-  const sideY = MARGIN + (headingHeight - 22) / 2;
+  text(context, heading, WIDTH / 2, MARGIN, TITLE_SIZE, palette.title, 600, 'center');
+  const sideY = MARGIN + (headingHeight - 24) / 2;
+  text(context, [data.dateLabel || data.date], MARGIN + 4, sideY, 24, palette.muted);
   font(context, 24, 600);
   let legendX = WIDTH - MARGIN - 4;
   for (const group of [...data.groups].reverse()) {
