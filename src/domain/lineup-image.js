@@ -46,10 +46,14 @@ const PALETTES = {
 
 // Resolve the same live names and selected professions as the board; archives use snapshots.
 export function lineupImageData({ event, teams, members, professions, duties, snapshots, status, ob, theme = 'light' }) {
+  const date = event.dates[0];
+  const weekday = '日一二三四五六'[new Date(`${date}T12:00:00Z`).getUTCDay()];
+  const title = `${eventTypeLabel(event.type)}${event.title ? ` · ${event.title}` : ''}`;
   return {
     theme: PALETTES[theme] ? theme : 'light',
-    date: event.dates[0],
-    title: `${eventTypeLabel(event.type)}${event.title ? ` · ${event.title}` : ''}`,
+    date,
+    title,
+    heading: `${date}（星期${weekday}） · ${title}`,
     status,
     obRows: lineupObRows(ob),
     groups: LINEUP_GROUPS.map((group) => ({
@@ -228,10 +232,10 @@ export async function lineupJpeg(data) {
   const context = canvas.getContext('2d');
   if (!context) throw new Error('瀏覽器無法產生圖片, 請換用支援 Canvas 的瀏覽器');
   const palette = PALETTES[data.theme] || PALETTES.light;
-  // One header row like a table: date/status left, title centred, colour legend right.
+  // The event date and weekday stay in the centred title; status and legend flank it.
   const SIDE = 520;
   font(context, TITLE_SIZE, 600);
-  const heading = wrap(context, data.title, WIDTH - MARGIN * 2 - SIDE * 2);
+  const heading = wrap(context, data.heading || data.title, WIDTH - MARGIN * 2 - SIDE * 2);
   const headingHeight = heading.length * (TITLE_SIZE + 8) - 8;
   const titleHeaderHeight = MARGIN + headingHeight + 20;
   font(context, 26, 500);
@@ -256,7 +260,7 @@ export async function lineupJpeg(data) {
   context.fillRect(0, 0, WIDTH, height);
   text(context, heading, WIDTH / 2, MARGIN, TITLE_SIZE, palette.title, 600, 'center');
   const sideY = MARGIN + (headingHeight - 22) / 2;
-  text(context, [`${data.date} · ${data.status}`], MARGIN + 4, sideY + 1, 21, palette.muted);
+  text(context, [data.status], MARGIN + 4, sideY + 1, 21, palette.muted);
   font(context, 24, 600);
   let legendX = WIDTH - MARGIN - 4;
   for (const group of [...data.groups].reverse()) {
