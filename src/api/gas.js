@@ -1,3 +1,5 @@
+import { migrationPhase } from '../migration.js';
+
 // HTML Service cannot issue our local HttpOnly cookie. Keep the cloud credential
 // per tab, scoped to this Script project; never include it in business DTOs.
 let cloudToken = '',
@@ -25,6 +27,9 @@ export async function callGas(operation, args = [], googleRun, {
   random = Math.random,
   onBusyRetry = () => {},
 } = {}) {
+  if (migrationPhase() !== 'legacy') {
+    throw new Error('舊站已停止使用，請前往新站');
+  }
   const run = googleRun || globalThis.google?.script?.run;
   if (!run) throw new Error('請在 Apps Script Web App 中使用雲端資料介面');
   const token = readToken();
@@ -39,6 +44,7 @@ export async function callGas(operation, args = [], googleRun, {
   });
   let result;
   for (let attempt = 0; attempt < 3; attempt++) {
+    if (migrationPhase() !== 'legacy') throw new Error('舊站已停止使用，請前往新站');
     result = await invoke();
     if (result?.__gasRpc !== 1 || result.ok || result.error?.code !== 'BUSY' || attempt === 2) break;
     // BUSY means no business operation ran. Reuse the exact request/context;

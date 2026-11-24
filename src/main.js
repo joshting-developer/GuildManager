@@ -1,4 +1,4 @@
-import { createApp } from 'vue';
+import { createApp, h } from 'vue';
 import { createVuetify } from 'vuetify';
 import {
   VAutocomplete,
@@ -26,6 +26,7 @@ import { zhHant } from 'vuetify/locale';
 import 'vuetify/styles';
 import './styles.css';
 import App from './App.vue';
+import MigrationGate from './components/MigrationGate.vue';
 import {
   VUETIFY_THEMES,
   applyDocumentTheme,
@@ -116,4 +117,7 @@ const vuetify = createVuetify({
   },
 });
 
-createApp(App).use(vuetify).mount('#app');
+const Root = import.meta.env.VITE_DATA_SOURCE === 'gas'
+  ? { render: () => h(MigrationGate, null, { default: () => h(App) }) }
+  : App;
+createApp(Root).use(vuetify).mount('#app');
