@@ -14,6 +14,14 @@ export function createMemberReferences(db) {
       (await db.prepare('INSERT INTO member_uid_revisions VALUES (?, ?) ON DUPLICATE KEY UPDATE revision=GREATEST(revision, VALUES(revision))').run(uid, revision));
     },
     project: async (kind, id, value) => projectMemberReferences(value, (await overrides(kind, id))),
+    // A known set of records reads their overrides in one query.
+    async projectMany(kind, rows) {
+      const ids = [...new Set(rows.map((row) => row.id))];
+      const byId = new Map(ids.length ? (await db.prepare(`SELECT record_id, overrides_json FROM member_reference_overrides
+        WHERE kind=? AND record_id IN (${ids.map(() => '?').join(',')})`).all(kind, ...ids))
+        .map((row) => [row.record_id, JSON.parse(row.overrides_json)]) : []);
+      return rows.map((row) => projectMemberReferences(row.value, byId.get(row.id) || []));
+    },
     // Whole-table scans read every override of one kind once instead of once per record.
     async projectAll(kind, rows) {
       const byId = new Map((await db.prepare('SELECT record_id, overrides_json FROM member_reference_overrides WHERE kind=?').all(kind))
@@ -26,16 +34,16 @@ export function createMemberReferences(db) {
         ['template', 'lineup_templates', 'teams_json'],
         ['battle', 'battle_records', 'players_json'],
       ]) {
-        const changes = async (row) => {
-          const old = (await overrides(kind, row.id));
+        const changes = (row, old) => {
           const next = remapMemberReferences(JSON.parse(row.content), old, fromUid, toUid);
           return JSON.stringify(old) === JSON.stringify(next) ? null : next;
         };
-        for (const scanned of (await db.prepare(`SELECT id, ${column} AS content FROM ${table}`).all())) {
-          if (!(await changes(scanned))) continue;
+        for (const scanned of (await db.prepare(`SELECT r.id, r.${column} AS content, o.overrides_json
+          FROM ${table} r LEFT JOIN member_reference_overrides o ON o.kind=? AND o.record_id=r.id`).all(kind))) {
+          if (!changes(scanned, JSON.parse(scanned.overrides_json || '[]'))) continue;
           // Another remap may have changed this record's overrides; lock it and recompute.
           const row = (await db.prepare(`SELECT id, ${column} AS content FROM ${table} WHERE id=? FOR UPDATE`).get(scanned.id));
-          const next = row && (await changes(row));
+          const next = row && changes(row, await overrides(kind, row.id));
           if (next)
             (await db.prepare('INSERT INTO member_reference_overrides (kind,record_id,overrides_json) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE overrides_json=VALUES(overrides_json)')
               .run(kind, row.id, JSON.stringify(next)));

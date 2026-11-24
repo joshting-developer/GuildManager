@@ -78,9 +78,9 @@
 - 一次保存一筆雙場提交，同名、相同網址可多次新增，不合併或覆寫。
 - 切換外層分頁／重新載入保留草稿，成功清除表單、失敗保留，關閉有未送出資料先確認。
 - 三種戰鬥皆可匿名送出影片；有效登入修改仍檢查 CSRF。職業由後端驗證並保存當時名稱／色彩，選單成員驗證目前姓名及所屬狀態；手動填名／選人不作本人認證，舊影片職業顯示「未記錄」，不回填推測值。
-- 影片閱覽首載／重新載入使用 getVideoBrowser／GET /api/videos/browser?eventId=，同一唯讀快照帶戰鬥清單及選定本場影片，一次 API 呼叫；有效優先場次保留，否則沿用台北今天或最近過去、其次未來的排序。換場沿用 getEventVideos，一次本場讀取；新舊 API、排序、職業快照、超連結與 CSV 不變。
-- 閱覽資料為當頁不可變 shallowRef，只有顯式重載／換場取新資料，不跨請求快取影片。重載保留仍有效的場次／搜尋／團別，失效場次回退並重設篩選；離頁／過期回應丟棄。搜尋只正規化一次，空白且未選團別直接重用原陣列。正常不取寫入鎖，資料表由明確 migration 建立。
-- 影片閱覽每列可由 admin／manager「修改職業」，PATCH /api/events/:eventId/videos/:videoId/profession，只接受 professionId／revision／requestId。職業名稱與色彩更新為選項快照，其他欄位／名冊／報名／排表不改；舊缺職業可人工補正，缺 revision 視0。單筆版本與安全重試均在原寫入保護內，未登入／member 不可修改，有效登入檢查 CSRF。選項首次開視窗讀共用職業 API；成功以回應替換當頁一列、不新增重載，CSV反映新值。衝突保留選擇並提供本場重新載入取得新版本，關閉／卸載忽略過期回應。
+- 影片閱覽首載／重新載入使用 getVideoBrowser／GET /api/videos/browser?eventId=，同一唯讀快照帶戰鬥清單及選定本場影片，一次 API 呼叫；有效優先場次保留，否則沿用台北今天或最近過去、其次未來的排序。換場使用 getVideos，一次本場讀取。兩個讀取入口均接受 page（預設1）、limit（預設20、最多200）、search（名稱子字串、不分英文大小寫）與 group（團別）；SQL 合併新舊影片後依 createdAt 降冪、id 升冪分頁，回傳 videos／total／page／limit。CSV 按相同篩選逐批200筆讀完整結果，不只匯出當頁。
+- 閱覽資料為當頁不可變 shallowRef，重載／換場／換頁／篩選時取新資料，不跨請求快取影片。重載保留仍有效的場次／搜尋／團別，失效場次回退並重設篩選；離頁／過期回應丟棄。搜尋與團別變更回第一頁，過期結果不得覆蓋目前條件。正常不取寫入鎖，資料表由明確 migration 建立。
+- 影片閱覽每列可由 admin／manager「修改職業」，PATCH /api/events/:eventId/videos/:videoId/profession，只接受 professionId／revision／requestId。職業名稱與色彩更新為選項快照，其他欄位／名冊／報名／排表不改；舊缺職業可人工補正，缺 revision 視0。單筆版本與安全重試均在原寫入保護內，未登入／member 不可修改，有效登入檢查 CSRF。選項首次開視窗讀共用職業 API；成功以回應替換當頁一列、不新增重載，CSV反映新值。衝突保留選擇並以 videoId 定位單筆重新讀取新版本，關閉／卸載忽略過期回應。
 - 影片閱覽每列另有「更換場次」與紅色「刪除」, 給送錯天的影片改到正確場次或直接刪掉。更換場次用 PATCH /api/events/:eventId/videos/:videoId/event, 只接受 targetEventId／revision／requestId, 只改 event_id 並把 revision 加 1, 其他欄位不變；目標必須是另一個有效的單日戰鬥場次。重試結果存在 `0007_event_video_moves` 建立的 event_video_move_requests, 同一 requestId 換內容會拒絕。舊 event_videos 紀錄可一起換, 目標場次已有完全相同的舊紀錄時拒絕並建議刪除
 - `0007_event_video_moves` 是增量 migration, 只新增 event_video_move_requests, 不改既有影片資料；部署前要先另行套用, 不然啟動檢查會擋下
 - 刪除用 DELETE /api/events/:eventId/videos/:videoId, 只接受 revision, 確認視窗列出場次、名稱、團別與兩場網址；直接刪除資料列, 舊紀錄連同職業修正一起刪, 重複刪除回 VIDEO_NOT_FOUND。原上傳 requestId 重送只回原結果, 不會把影片建回來。兩個操作都只限 admin／manager 並檢查 CSRF, 成功後從本場清單移除該列
@@ -129,7 +129,11 @@ admin／manager 可由管理總覽或手機選單進入 `#/attendance`。預設�
 
 `GET /api/events` 支援成對的 `startDate`／`endDate`（YYYY-MM-DD, 含首尾, 最多相差366天）、`limit`（預設200, 1–1000）、`offset`（預設0, 0–10000）, 回傳 `events` 與 `hasMore`。SQL 先篩選任一日期落在範圍內的場次, 按最早日期／建立時間／ID穩定排序後分頁；回應保留該場完整日期供編輯。
 
-月曆只查目前42格範圍, 切月重新讀取並拒絕過期回應。活動管理、戰績上傳選場與影片閱覽需完整選單時, 每批200場、最多10000場, 超過上限顯示錯誤, 不默默省略。前端清單快取依日期與分頁參數區分, 保留一分鐘期限, 寫入與登入／登出清除所有範圍；最多保留24組查詢。
+月曆只查目前42格範圍, 切月重新讀取並拒絕過期回應。
+
+活動管理使用 `GET /api/event-management`（僅 admin／manager）, 參數 `page`、`type`、`search`（最多64字, 名稱只折疊大小寫；無名稱的幫戰／龍虎戰以類型名稱比對）與 `focusId`。SQL 依最早日期新到舊、建立時間新到舊、ID 排序, 每頁20筆, 回傳 `events`、`total`（全部有效安排）、`filteredTotal`、`page`（超出時改為最後一頁, 帶 focusId 時改為該安排所在頁）與 `pageSize`。建立／修改後清除篩選並跳到該安排所在頁, 刪除後重讀目前頁。
+
+戰績上傳選場與影片閱覽一樣使用 `GET /api/videos/choices`, 每批200場、最近場次優先, 用「載入更多場次」繼續；從其他頁帶入的指定場次不在第一批時另外讀單場。前端清單快取依日期與分頁參數區分, 保留一分鐘期限, 寫入與登入／登出清除所有範圍；最多保留24組查詢。
 
 ## 報名的單人版本與安全重試
 
@@ -138,3 +142,13 @@ admin／manager 可由管理總覽或手機選單進入 `#/attendance`。預設�
 送出時依最新場次檢查：允許改標題後繼續送出；過去台北日期、非戰鬥類型、非單日或刪除的場次拒絕新報名／請假。低階成員回應及新增外援同樣檢查日期, 管理者取消請假仍可修正歷史紀錄。影片上傳保留歷史場次。
 
 `requestId` 以資料庫唯一鍵原子登記, 同一 ID 與相同有效內容回傳第一次結果, 換內容回 `REQUEST_CONFLICT`, 失敗整筆回滾。取消請假也帶 requestId, 網路失敗重試沿用原 ID。低階舊 API 未提供 requestId 時僅依單列版本判斷衝突, 不再以 revision 恰好多一推測成功。
+
+## 排表場次選項分批讀取
+
+排表編輯器以單次批次 SQL 讀取場次選項，每批最多 200 場，依即將到來優先、過去由近至遠及標題／ID 穩定排序。`GET /api/lineups/choices?cursor=…` 僅 admin／manager 可讀，回傳 `events`、`hasMore`、`nextCursor`（不透明字串，沒有下一批時為 null）；前端由「載入更多場次」按需讀取，場次數量沒有上限。`/api/lineups/editor` 同步回傳分頁資訊，指定場次超出首批時另讀並保留選取，不影響下一批位置。封存場次只讀快照中的場次 metadata，完整排表仍按需讀取。
+
+兩種選項以「日期階段＋日期＋標題＋ID」作為游標：每批先沿 `event_dates_by_date` 找出這批最後需要的日期，再只讀到該日期為止的場次並排序，讀取量約等於一批，不隨總場次成長。
+
+## 影片場次選項分批讀取
+
+`GET /api/videos/browser` 只讀取有效戰鬥場次，依最近場次優先、未來由近至遠與標題／ID 穩定排序，首批最多 200 場，回傳 `hasMore`、`nextCursor`。影片頁、更換場次視窗與戰績上傳以「載入更多場次」呼叫 `/api/videos/choices?cursor=…` 取得後續選項，不載入一般活動。指定歷史場次超出首批時另讀並保留選取，不跳過後續分頁；影片內容仍只讀選定場次。兩個入口維持 admin／manager 權限。

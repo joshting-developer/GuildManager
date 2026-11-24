@@ -1,6 +1,6 @@
 // Column lists avoid repeating the same field names in every complete-history row.
 export function packPersonalBattles(data) {
-  const entryColumns = ['recordId', 'playerIndex', 'type', 'playedAt', 'roundNumber', 'redTeam', 'blueTeam', 'winner', 'isInternal'];
+  const entryColumns = ['recordId', 'playerIndex', 'type', 'playedAt', 'roundNumber', 'redTeam', 'blueTeam', 'winner', 'isInternal', 'createdAt'];
   const playerColumns = [...new Set(data.entries.flatMap(entry => Object.keys(entry.player)))];
   return { ...data, entryColumns, playerColumns,
     entries: data.entries.map(entry => [

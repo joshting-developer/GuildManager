@@ -35,8 +35,7 @@ export function createApp(repository, { authNow, notifier = null, log = console,
     if (notifier && notifications.length) {
       let footer;
       try {
-        const { platform } = await repository.getPlatformSettings();
-        footer = platform.name;
+        footer = await repository.getPlatformName();
       } catch (error) {
         reportError(log, 'notification_footer_failed', error);
       }
@@ -152,6 +151,9 @@ export function createApp(repository, { authNow, notifier = null, log = console,
     const events = visibleCalendarEvents(result.events, request.auth?.user);
     response.set('Cache-Control', 'no-store').json({ ...result, events });
   });
+  app.get('/api/event-management', async (request, response) => {
+    response.json(await repository.listManagedEvents(request.query));
+  });
   app.post('/api/events', async (request, response) => {
     const result = ['guild_war', 'dragon_tiger'].includes(request.body?.type)
       ? { events: await repository.createEventBatch(request.body) }
@@ -241,11 +243,14 @@ export function createApp(repository, { authNow, notifier = null, log = console,
   app.patch('/api/events/:id/attendance', async (request, response) => {
     response.json(await notifying('cancelEventLeave', request.params.id, request.body));
   });
+  app.get('/api/videos/choices', async (request, response) => {
+    response.set('Cache-Control', 'no-store').json(await repository.getVideoChoices(request.query));
+  });
   app.get('/api/videos/browser', async (request, response) => {
-    response.json(await repository.getVideoBrowser(request.query.eventId));
+    response.json(await repository.getVideoBrowser(request.query.eventId, { ...request.query, page: request.query.page === undefined ? 1 : Number(request.query.page), limit: request.query.limit === undefined ? 20 : Number(request.query.limit) }));
   });
   app.get('/api/events/:id/videos', async (request, response) => {
-    response.json(await repository.listEventVideos(request.params.id));
+    response.json(await repository.listEventVideos(request.params.id, { ...request.query, page: request.query.page === undefined ? 1 : Number(request.query.page), limit: request.query.limit === undefined ? 20 : Number(request.query.limit) }));
   });
   app.post('/api/events/:id/videos', async (request, response) => {
     response.status(201).json(await repository.submitEventVideo(request.params.id, request.body));
@@ -289,6 +294,9 @@ export function createApp(repository, { authNow, notifier = null, log = console,
     response.json({
       registration: await notifying('cancelGuestRegistration', request.params.id, request.params.registrationId, request.body?.revision),
     });
+  });
+  app.get('/api/lineups/choices', async (request, response) => {
+    response.set('Cache-Control', 'no-store').json(await repository.getLineupChoices(request.query));
   });
   app.get('/api/lineups/editor', async (request, response) => {
     response.set('Cache-Control', 'no-store').json(await repository.getLineupEditor(request.query.eventId));
@@ -367,6 +375,7 @@ export function createApp(repository, { authNow, notifier = null, log = console,
         profession: request.query.profession,
         all: request.query.all === undefined || request.query.all === 'false'
           ? false : request.query.all === 'true' ? true : request.query.all,
+        ...(request.query.keys === undefined ? {} : { keys: request.query.keys }),
       });
     response.json(request.query.all === 'true' ? packPersonalBattles(result) : result);
   });

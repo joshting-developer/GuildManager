@@ -396,9 +396,32 @@ function resetLineup(data) {
   selectedDutyId.value = '';
   saveAttempt = null;
 }
+const moreEvents = ref(false), eventCursor = ref(null), eventsLoading = ref(false), eventsError = ref('');
+let eventListToken = 0;
+async function loadMoreEvents() {
+  if (eventsLoading.value) return;
+  const token = eventListToken;
+  eventsLoading.value = true;
+  eventsError.value = '';
+  try {
+    const data = await client.getChoices(eventCursor.value);
+    if (disposed || token !== eventListToken) return;
+    const choices = new Map([...events.value, ...data.events].map(event => [event.id, event]));
+    events.value = orderBattleEvents([...choices.values()], { prefer: 'upcoming' });
+    moreEvents.value = data.hasMore;
+    eventCursor.value = data.nextCursor;
+  } catch (cause) {
+    if (!disposed && token === eventListToken) eventsError.value = cause.message;
+  } finally {
+    if (!disposed && token === eventListToken) eventsLoading.value = false;
+  }
+}
 async function load() {
   if (!mayDiscard()) return;
   const token = ++operation;
+  eventListToken++;
+  eventsLoading.value = false;
+  eventsError.value = '';
   templateLoadToken++;
   templates.value = [];
   templatesLoaded.value = templatesLoading.value = false;
@@ -410,6 +433,8 @@ async function load() {
     const data = await client.getEditor(eventId.value);
     if (disposed || token !== operation) return;
     events.value = orderBattleEvents(data.events, { prefer: 'upcoming' });
+    moreEvents.value = data.hasMore;
+    eventCursor.value = data.nextCursor;
     updateCatalogs(data);
     if (data.selected) applyEvent(data.selected.eventId, data.selected, data.selected.participation);
     else {
@@ -1102,6 +1127,8 @@ onUnmounted(() => {
             :loading="lineupLoading"
             @update:model-value="changeEvent"
           />
+          <v-btn v-if="moreEvents" variant="text" :loading="eventsLoading" :disabled="loading" @click="loadMoreEvents">載入更多場次</v-btn>
+          <p v-if="eventsError" role="alert">{{ eventsError }}</p>
         </div>
         <div class="lineup-template-tools">
           <v-select

@@ -1,13 +1,13 @@
 <script setup>
 import DataLoading from '../components/DataLoading.vue';
-import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue';
 import { mdiRefresh, mdiDownload, mdiPencilOutline, mdiSwapHorizontal, mdiDeleteOutline } from '@mdi/js';
 import VideoProfessionDialog from './VideoProfessionDialog.vue';
 import VideoMoveDialog from './VideoMoveDialog.vue';
 import VideoDeleteDialog from './VideoDeleteDialog.vue';
 import { createEventVideoClient } from '../api/event-videos.js';
 import { eventDisplayTitle } from '../domain/event-types.js';
-import { battleEventLabel } from '../domain/battle-events.js';
+import { battleEventLabel, orderBattleEvents } from '../domain/battle-events.js';
 import { VIDEO_GROUP_OPTIONS } from '../domain/event-videos.js';
 import { VIDEO_TABLE_HEADERS, videoTableRow, videoTableCsv } from '../domain/video-table-csv.js';
 const videoClient = createEventVideoClient();
@@ -28,8 +28,7 @@ const selectedLabel = computed(() => {
 });
 function removeRow(video, message) {
   if (disposed || eventId.value !== video.eventId) return;
-  token++;
-  videos.value = videos.value.filter(item => item.id !== video.id);
+  loadVideos(eventId.value);
   notice.value = message;
   // The row's buttons are gone, so keep keyboard focus inside the video section.
   nextTick(() => listHeading.value?.focus({ preventScroll: true }));
@@ -48,20 +47,26 @@ function onProfessionUpdated(video) {
 }
 function onVideosRefreshed(result) {
   if (disposed || eventId.value !== result.eventId) return;
-  token++;
-  videos.value = result.videos;
+  loadVideos(eventId.value);
 }
-function exportCsv() {
+const exporting = ref(false);
+async function exportCsv() {
   if (loading.value || error.value || !visibleVideos.value.length) return;
   exportError.value = '';
   let url, link;
+  exporting.value = true;
+  const selectedId = eventId.value;
+  const selectedEvent = events.value.find(item => item.id === selectedId);
+  const filters = listFilters();
   try {
-    const event = events.value.find((item) => item.id === eventId.value);
+    const rows = await videoClient.getAllVideos(selectedId, filters);
+    if (disposed || selectedId !== eventId.value) return;
+    const event = selectedEvent;
     const title = eventDisplayTitle(event)
       .replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_')
       .slice(0, 64);
     url = URL.createObjectURL(
-      new Blob([videoTableCsv(visibleVideos.value)], { type: 'text/csv;charset=utf-8' }),
+      new Blob([videoTableCsv(rows)], { type: 'text/csv;charset=utf-8' }),
     );
     link = document.createElement('a');
     link.href = url;
@@ -80,6 +85,7 @@ function exportCsv() {
     exportError.value = '無法匯出 CSV，請重試';
   } finally {
     link?.remove();
+    exporting.value = false;
   }
 }
 let disposed = false,
@@ -90,13 +96,19 @@ const options = computed(() =>
     title: battleEventLabel(event),
   })),
 );
-const visibleVideos = computed(() => {
-  const needle = (search.value || '').trim().toLocaleLowerCase();
-  if (!group.value && !needle) return videos.value;
-  return videos.value.filter((video) =>
-    (!group.value || video.groupName === group.value) &&
-    (!needle || video.name.toLocaleLowerCase().includes(needle)),
-  );
+const total = ref(0);
+const PAGE_SIZE = 20;
+const page = ref(1);
+const pageCount = computed(() => Math.max(1, Math.ceil(total.value / PAGE_SIZE)));
+const visibleVideos = computed(() => videos.value);
+const pagedVideos = computed(() => videos.value);
+function listFilters() { return { search: (search.value || '').trim(), group: group.value || '' }; }
+watch([page, group, search], ([, nextGroup, nextSearch], [, oldGroup, oldSearch]) => {
+  if ((nextGroup !== oldGroup || nextSearch !== oldSearch) && page.value !== 1) {
+    page.value = 1;
+    return;
+  }
+  loadVideos(eventId.value);
 });
 async function loadVideos(id) {
   const current = ++token;
@@ -110,15 +122,42 @@ async function loadVideos(id) {
   }
   loading.value = true;
   try {
-    const result = await videoClient.getVideos(id);
-    if (!disposed && current === token) videos.value = result.videos;
+    const result = await videoClient.getVideos(id, { ...listFilters(), page: page.value });
+    if (!disposed && current === token) {
+      total.value = result.total;
+      if (page.value > pageCount.value) { page.value = pageCount.value; return; }
+      videos.value = result.videos;
+    }
   } catch (cause) {
     if (!disposed && current === token) error.value = cause.message;
   } finally {
     if (!disposed && current === token) loading.value = false;
   }
 }
+const moreEvents = ref(false), eventCursor = ref(null), eventsLoading = ref(false), eventsError = ref('');
+let eventListToken = 0;
+async function loadMoreEvents() {
+  if (eventsLoading.value) return;
+  const current = eventListToken;
+  eventsLoading.value = true;
+  eventsError.value = '';
+  try {
+    const data = await videoClient.getChoices(eventCursor.value);
+    if (disposed || current !== eventListToken) return;
+    const choices = new Map([...events.value, ...data.events].map(event => [event.id, event]));
+    events.value = orderBattleEvents([...choices.values()], { prefer: 'recent' });
+    moreEvents.value = data.hasMore;
+    eventCursor.value = data.nextCursor;
+  } catch (cause) {
+    if (!disposed && current === eventListToken) eventsError.value = cause.message;
+  } finally {
+    if (!disposed && current === eventListToken) eventsLoading.value = false;
+  }
+}
 async function load() {
+  eventListToken++;
+  eventsLoading.value = false;
+  eventsError.value = '';
   const current = ++token;
   loading.value = true;
   error.value = '';
@@ -126,9 +165,11 @@ async function load() {
   notice.value = '';
   videos.value = [];
   try {
-    const data = await videoClient.getBrowser(eventId.value);
+    const data = await videoClient.getBrowser(eventId.value, { ...listFilters(), page: page.value });
     if (disposed || current !== token) return;
     events.value = data.events;
+    moreEvents.value = data.hasMore;
+    eventCursor.value = data.nextCursor;
     const selectedId = data.selected?.eventId || null;
     if (selectedId !== eventId.value) {
       group.value = null;
@@ -136,6 +177,8 @@ async function load() {
     }
     eventId.value = selectedId;
     videos.value = data.selected?.videos || [];
+    total.value = data.selected?.total || 0;
+    if (page.value > pageCount.value) page.value = pageCount.value;
   } catch (cause) {
     if (!disposed && current === token) error.value = cause.message;
   } finally {
@@ -145,6 +188,7 @@ async function load() {
 function changeEvent(id) {
   if (id === eventId.value) return;
   eventId.value = id;
+  page.value = 1;
   group.value = null;
   search.value = '';
   loadVideos(id);
@@ -185,16 +229,19 @@ onUnmounted(() => {
       hide-details
       no-data-text="尚無戰鬥場次"
     />
+    <v-btn v-if="moreEvents" variant="text" :loading="eventsLoading" :disabled="loading" @click="loadMoreEvents">載入更多場次</v-btn>
+    <p v-if="eventsError" role="alert">{{ eventsError }}</p>
   </v-card>
   <v-card class="videos-card" :aria-busy="loading">
     <div class="section-header">
       <h2 ref="listHeading" tabindex="-1">場次影片</h2>
       <div class="video-table-actions">
-        <span v-if="!loading && !error" class="videos-muted">{{ visibleVideos.length }} 筆</span>
+        <span v-if="!loading && !error" class="videos-muted">{{ total }} 筆</span>
         <v-btn
           variant="outlined"
           :prepend-icon="mdiDownload"
-          :disabled="loading || !!error || !visibleVideos.length"
+          :loading="exporting"
+          :disabled="loading || exporting || !!error || !total"
           @click="exportCsv"
           >匯出 CSV</v-btn
         >
@@ -208,7 +255,7 @@ onUnmounted(() => {
         density="compact"
         hide-details
         clearable
-        :disabled="loading || !!error"
+        :disabled="!eventId"
         @click:clear="search = ''"
       />
       <v-select
@@ -218,7 +265,7 @@ onUnmounted(() => {
           ...VIDEO_GROUP_OPTIONS,
         ]"
         label="團別篩選"
-        :disabled="loading || !!error"
+        :disabled="!eventId"
         variant="outlined"
         density="compact"
         hide-details
@@ -233,7 +280,7 @@ onUnmounted(() => {
       >{{ error }} <v-btn variant="text" @click="load">重試</v-btn></v-alert
     >
     <p v-else-if="!eventId" class="videos-state">尚無戰鬥場次，請先建立活動安排</p>
-    <p v-else-if="!videos.length" class="videos-state">本場尚無影片</p>
+    <p v-else-if="!videos.length && !group && !search?.trim()" class="videos-state">本場尚無影片</p>
     <p v-else-if="!visibleVideos.length" class="videos-state">沒有符合篩選條件的影片</p>
     <div
       v-else
@@ -253,7 +300,7 @@ onUnmounted(() => {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="video in visibleVideos" :key="video.id">
+          <tr v-for="video in pagedVideos" :key="video.id">
             <td
               v-for="(value, index) in videoTableRow(video)"
               :key="index"
@@ -283,10 +330,12 @@ onUnmounted(() => {
         </tbody>
       </table>
     </div>
+    <v-pagination v-if="!loading && !error && pageCount > 1" v-model="page" :length="pageCount" :total-visible="5"
+      aria-label="場次影片頁碼" class="mt-4" />
   </v-card>
   <VideoProfessionDialog v-if="editingVideo" :key="editingVideo.id" :video="editingVideo"
     @close="editingVideo = null" @updated="onProfessionUpdated" @refreshed="onVideosRefreshed" />
-  <VideoMoveDialog v-if="movingVideo" :key="movingVideo.id" :video="movingVideo" :events="events"
+  <VideoMoveDialog v-if="movingVideo" :key="movingVideo.id" :video="movingVideo" :events="events" :has-more="moreEvents" :events-loading="eventsLoading" :events-error="eventsError" @load-more="loadMoreEvents"
     @close="movingVideo = null" @moved="onVideoMoved" @refreshed="onVideosRefreshed" />
   <VideoDeleteDialog v-if="deletingVideo" :key="deletingVideo.id" :video="deletingVideo" :event-label="selectedLabel"
     @close="deletingVideo = null" @deleted="onVideoDeleted" @reload="loadVideos(eventId)" />

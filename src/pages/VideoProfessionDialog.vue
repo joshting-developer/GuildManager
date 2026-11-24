@@ -39,7 +39,7 @@ async function reloadVideo() {
   loading.value = true;
   error.value = '';
   try {
-    const result = await client.getVideos(record.value.eventId);
+    const result = await client.getVideos(record.value.eventId, { videoId: record.value.id });
     if (disposed || current !== token) return;
     const latest = result.videos.find(item => item.id === record.value.id);
     if (!latest) throw new Error('找不到這筆影片，請關閉視窗並重新載入');

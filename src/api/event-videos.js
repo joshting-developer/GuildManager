@@ -41,7 +41,8 @@ export function createEventVideoClient({
     const videos = input ? [data.video] : data.videos;
     if (
       !Array.isArray(videos) ||
-      (!input && data.eventId !== eventId)
+      (!input && (data.eventId !== eventId || !Number.isSafeInteger(data.total) || data.total < 0 ||
+        !Number.isSafeInteger(data.page) || data.page < 1 || !Number.isSafeInteger(data.limit) || data.limit < 1 || data.limit > 200 || videos.length > data.limit))
     )
       throw new Error('影片資料回應格式不正確，請重試');
     for (const video of videos) {
@@ -63,8 +64,16 @@ export function createEventVideoClient({
     return data;
   }
   return {
-    async getBrowser(eventId = null) {
-      const data = await request(`/api/videos/browser${eventId ? `?eventId=${encodeURIComponent(eventId)}` : ''}`);
+    async getChoices(cursor = null) {
+      const data = await request(`/api/videos/choices${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`);
+      if (!Array.isArray(data?.events) || !data.events.every(isBattleEvent) ||
+        typeof data.hasMore !== 'boolean' || (data.nextCursor !== null && typeof data.nextCursor !== 'string'))
+        throw new Error('影片閱覽資料回應格式不正確，請重試');
+      return data;
+    },
+    async getBrowser(eventId = null, options = {}) {
+      const params = new URLSearchParams({ ...(eventId ? { eventId } : {}), ...options });
+      const data = await request(`/api/videos/browser${params.size ? `?${params}` : ''}`);
       if (!Array.isArray(data?.events) || !data.events.every(isBattleEvent) ||
         (data.events.length === 0 ? data.selected !== null :
           !data.selected || !data.events.some(event => event.id === data.selected.eventId)))
@@ -72,7 +81,18 @@ export function createEventVideoClient({
       if (data.selected) validateResponse(data.selected, data.selected.eventId);
       return data;
     },
-    getVideos: (eventId) => call(eventId),
+    async getVideos(eventId, options = {}) {
+      const params = new URLSearchParams(options);
+      return validateResponse(await request(`/api/events/${encodeURIComponent(eventId)}/videos${params.size ? `?${params}` : ''}`), eventId);
+    },
+    async getAllVideos(eventId, options = {}) {
+      const videos = [];
+      for (let page = 1; ; page++) {
+        const data = await this.getVideos(eventId, { ...options, page, limit: 200 });
+        videos.push(...data.videos);
+        if (page * data.limit >= data.total || data.videos.length === 0) return videos;
+      }
+    },
     submitVideo: (eventId, input) => call(eventId, input),
     async updateProfession(eventId, videoId, input) {
       const values = validateVideoProfessionUpdate(eventId, videoId, input);

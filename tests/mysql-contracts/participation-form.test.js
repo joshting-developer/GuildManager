@@ -3,7 +3,7 @@ import { asyncMap } from "../../server/mysql/collections.js";
 import { test } from 'node:test';
 
 import assert from 'node:assert/strict';
-import { createTestRepository as createRepository } from '../helpers/mysql-repository.js';
+import { createTestRepository as createRepository, repositoryDatabase } from '../helpers/mysql-repository.js';
 
 import { emptyLineup } from '../../src/domain/lineups.js';
 
@@ -222,6 +222,36 @@ test('member registrations retain their selected battle profession without chang
       code('PARTICIPATION_INVALID'),
     ));
     assert.equal((await row()).professionId, 2);
+  } finally {
+    (await repo.close());
+  }
+});
+
+test('cancelled guests keep only the newest row per ASCII-folded name in one query', async () => {
+  const { repo, events } = (await setup());
+  try {
+    const db = repositoryDatabase(repo);
+    const event = events[0];
+    const rows = [
+      ['a1', 'Alice', 0, '2026-01-01T00:00:01Z', '2026-01-01T00:00:09Z'],
+      ['a2', 'ALICE', 0, '2026-01-01T00:00:02Z', '2026-01-01T00:00:05Z'],
+      ['b1', 'Bob', 0, '2026-01-01T00:00:01Z', '2026-01-01T00:00:03Z'],
+      ['b2', 'bob', 1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'],
+      ['c1', 'Ｃａｔ', 0, '2026-01-01T00:00:01Z', '2026-01-01T00:00:02Z'],
+      ['c2', 'ｃａｔ', 0, '2026-01-01T00:00:01Z', '2026-01-01T00:00:01Z'],
+      ['t1', 'Tie', 0, '2026-01-01T00:00:04Z', '2026-01-01T00:00:04Z'],
+      ['t2', 'tie', 0, '2026-01-01T00:00:04Z', '2026-01-01T00:00:06Z'],
+    ];
+    for (const [id, name, active, created, updated] of rows)
+      await db.query(
+        `INSERT INTO event_registrations (id,event_id,name,profession_id,note,active,revision,request_id,created_at,updated_at)
+        VALUES (?,?,?,1,'',?,1,?,?,?)`, [id, event.id, name, active, `req-${id}`, created, updated]);
+    const participation = (await repo.getEventParticipation(event.id));
+    // Full-width letters are not folded, so each full-width spelling stays separate.
+    assert.deepEqual(participation.registrationLeaves.map((row) => row.id), ['c2', 'c1', 'a2', 't2']);
+    assert.deepEqual(participation.registrations.map((row) => row.id), ['b2']);
+    assert.equal(participation.registrationLeaves[0].active, false);
+    assert.equal(participation.registrationLeaves[0].profession, participation.registrations[0].profession);
   } finally {
     (await repo.close());
   }

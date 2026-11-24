@@ -4,8 +4,8 @@ import { withFileStorage } from '../services/file-backed-repository.js';
 import { createStore, exposeRepository } from './store.js';
 import { asyncMap } from "./collections.js";
 import { lineupEditorEventId } from '../../src/domain/lineup-index.js';
-import { EventError } from '../../src/domain/event-validation.js';
 import { LineupError } from '../../src/domain/lineup-validation.js';
+import { isBattleEvent } from '../../src/domain/battle-events.js';
 import { videoBrowserSelection } from '../../src/domain/video-browser.js';
 import { createMemberReferences, createMemberMaintenance } from './member-maintenance.js';
 
@@ -141,17 +141,28 @@ function createImplementation(store, authNow, participationNow) {
     ...createAttendanceRepository(db),
     ...createParticipationRepository(db, { notify, now: participationNow }),
     ...createEventVideoRepository(db),
-    ...createLineupRepository(db, { project: references.project }),
+    ...createLineupRepository(db, { project: references.project, projectMany: references.projectMany }),
     ...createBattleRecordRepository(db, { project: references.project, projectAll: references.projectAll }),
     ...createMemberMaintenance(db, { getMember, updateMember: async (...args) => (await repository.updateMember(...args)), references }),
     ...createPlatformSettingsRepository(db),
     ...createLotteryRepository(db),
     async getLineupEditor(preferredId = null) {
       return (await db.transaction(async () => {
-        const events = (await repository.getLineupEvents());
-        const eventId = lineupEditorEventId(events, preferredId);
-        return { events, ...(await repository.getLineupCatalogs()),
-          selected: eventId ? { eventId, ...(await repository.getLineupEvent(eventId)) } : null };
+        const choices = await repository.getLineupChoices();
+        const { events } = choices;
+        let eventId = lineupEditorEventId(events, preferredId);
+        let selected = null;
+        if (preferredId && !events.some(event => event.id === preferredId)) {
+          try {
+            selected = { eventId: preferredId, ...(await repository.getLineupEvent(preferredId)) };
+            events.push(selected.event);
+            eventId = preferredId;
+          } catch (error) {
+            if (error.code !== 'EVENT_UNAVAILABLE') throw error;
+          }
+        }
+        selected ||= eventId ? { eventId, ...(await repository.getLineupEvent(eventId)) } : null;
+        return { ...choices, ...(await repository.getLineupCatalogs()), selected };
       }));
     },
     async getLineupCatalogs() {
@@ -174,17 +185,20 @@ function createImplementation(store, authNow, participationNow) {
           ...(includeCatalogs ? (await repository.getLineupCatalogs()) : {}) };
       }));
     },
-    async getVideoBrowser(preferredId = null) {
+    async getVideoBrowser(preferredId = null, options = {}) {
       return (await db.transaction(async () => {
-        const source = [];
-        for (let offset = 0; offset < 10000; offset += 200) {
-          const result = await repository.listEvents({ limit: 200, offset });
-          source.push(...result.events);
-          if (!result.hasMore) break;
-          if (offset === 9800) throw new EventError('場次超過清單上限, 請縮小日期範圍');
+        videoBrowserSelection([], preferredId);
+        const choices = await repository.getVideoChoices();
+        if (preferredId && !choices.events.some(event => event.id === preferredId)) {
+          try {
+            const { event } = await repository.getEvent(preferredId);
+            if (isBattleEvent(event)) choices.events.push(event);
+          } catch (error) {
+            if (error.code !== 'EVENT_NOT_FOUND') throw error;
+          }
         }
-        const { events, eventId } = videoBrowserSelection(source, preferredId);
-        return { events, selected: eventId ? (await repository.listEventVideos(eventId)) : null };
+        const { events, eventId } = videoBrowserSelection(choices.events, preferredId);
+        return { ...choices, events, selected: eventId ? (await repository.listEventVideos(eventId, options)) : null };
       }));
     },
     async getEventVideoForm(eventId) {

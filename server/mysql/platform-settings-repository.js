@@ -13,6 +13,10 @@ export function createPlatformSettingsRepository(db) {
   }
   return {
     getPlatformSettings,
+    // Notification footers only need the name; never read or hash the icon for them.
+    async getPlatformName() {
+      return (await db.prepare('SELECT name FROM platform_settings WHERE id=1').get()).name;
+    },
     async updatePlatformSettings(input, { assertAccess, currentIcon = null, observedFileId = null, iconFile = null } = {}) {
       return db.transaction(async () => {
         await assertAccess?.();

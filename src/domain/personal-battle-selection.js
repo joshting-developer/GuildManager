@@ -7,6 +7,11 @@ export const PERSONAL_TREND_METRICS = [
 export const personalBattleKey = (entry) => `${entry.recordId}:${entry.playerIndex}`;
 export const latestPersonalSelection = (entries) => new Set(entries.slice(0, 10).map(personalBattleKey));
 export const selectedPersonalBattles = (entries, keys) => entries.filter((entry) => keys.has(personalBattleKey(entry)));
+// Same order as the API: newest battle first, then creation time, record ID and player index.
+export function comparePersonalBattles(a, b) {
+  return b.playedAt.localeCompare(a.playedAt) || (b.createdAt || '').localeCompare(a.createdAt || '') ||
+    (a.recordId < b.recordId ? -1 : a.recordId > b.recordId ? 1 : 0) || a.playerIndex - b.playerIndex;
+}
 
 function hasEfficiencyValues(player) {
   return Number.isFinite(player.playerDamage) && Number.isFinite(player.kill);

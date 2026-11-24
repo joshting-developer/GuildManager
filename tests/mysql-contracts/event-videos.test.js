@@ -81,6 +81,7 @@ test('adapter rejects unsafe saved URLs and malformed replies', async () => {
       json: async () => ({
         eventId: 'event',
         eventRevision: 1,
+        total: 1, page: 1, limit: 20,
         videos: [
           { id: '1', eventId: 'event', ...video({ revision: 1 }), firstUrl: 'javascript:alert(1)' },
         ],

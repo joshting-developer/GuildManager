@@ -1,6 +1,6 @@
 <script setup>
 import DataLoading from '../components/DataLoading.vue';
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import {
   mdiCalendarMonthOutline,
   mdiPlus,
@@ -25,39 +25,53 @@ const typeOptions = EVENT_TYPE_OPTIONS;
 const filter = ref(null);
 const search = ref('');
 const page = ref(1);
-const sortedEvents = computed(() =>
-  [...events.value].sort(
-    (a, b) => b.dates[0].localeCompare(a.dates[0]) || b.createdAt.localeCompare(a.createdAt),
-  ),
-);
-const filtered = computed(() => {
-  const needle = (search.value || '').trim().toLocaleLowerCase();
-  return sortedEvents.value.filter((event) =>
-    (!filter.value || event.type === filter.value) &&
-    (!needle || eventDisplayTitle(event).toLocaleLowerCase().includes(needle)),
-  );
-});
-const pageCount = computed(() => Math.max(1, Math.ceil(filtered.value.length / 20)));
-const visible = computed(() => filtered.value.slice((page.value - 1) * 20, page.value * 20));
-function clearFilters() {
+// The server filters, sorts (newest first date first) and pages; only one page is held here.
+const total = ref(0);
+const filteredTotal = ref(0);
+const pageCount = computed(() => Math.max(1, Math.ceil(filteredTotal.value / 20)));
+const loaded = ref(false);
+let loadToken = 0, searchTimer, quietFilters = false;
+function clearFilters({ quiet = false } = {}) {
+  quietFilters = quiet && (filter.value !== null || !!search.value);
   filter.value = null;
   search.value = '';
   page.value = 1;
 }
-async function load() {
+async function load(options = {}) {
+  const current = ++loadToken;
+  clearTimeout(searchTimer);
   loading.value = true;
   loadError.value = '';
   try {
-    const data = await client.getAllEvents();
-    if (!Array.isArray(data?.events)) throw new Error('資料回應格式不正確，請稍後再試');
+    const data = await client.getManagedEvents({
+      page: options.page ?? page.value, type: filter.value, search: (search.value || '').trim(), focusId: options.focusId,
+    });
+    if (current !== loadToken) return;
     events.value = data.events;
-    page.value = 1;
+    total.value = data.total;
+    filteredTotal.value = data.filteredTotal;
+    page.value = data.page;
+    loaded.value = true;
   } catch (error) {
-    loadError.value = error.message;
+    if (current === loadToken) loadError.value = error.message;
   } finally {
-    loading.value = false;
+    if (current === loadToken) loading.value = false;
   }
 }
+function changeFilters() {
+  if (quietFilters) {
+    quietFilters = false;
+    return;
+  }
+  page.value = 1;
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => load({ page: 1 }), 300);
+}
+watch([filter, search], changeFilters);
+onUnmounted(() => {
+  loadToken++;
+  clearTimeout(searchTimer);
+});
 const dialog = ref(false);
 const editingEvent = ref(null);
 const listPanel = ref(null);
@@ -82,14 +96,10 @@ function openForm(event = null) {
 }
 function onSaved(value, edited = false) {
   const saved = Array.isArray(value) ? value : [value];
-  for (const event of saved) {
-    const index = events.value.findIndex((value) => value.id === event.id);
-    if (index < 0) events.value.push(event);
-    else events.value[index] = event;
-  }
   const event = saved[0];
-  clearFilters();
-  page.value = Math.floor(filtered.value.findIndex((value) => value.id === event.id) / 20) + 1;
+  clearFilters({ quiet: true });
+  // Reload on the page that now holds the saved arrangement.
+  load({ focusId: event.id });
   notice.value =
     saved.length > 1
       ? `「${eventDisplayTitle(event)}」已建立 ${saved.length} 筆獨立安排，每筆可分別修改、刪除。`
@@ -127,8 +137,7 @@ async function remove() {
   try {
     const data = await client.deleteEvent(deleteTarget.value.id, deleteTarget.value.revision);
     if (data?.id !== deleteTarget.value.id) throw new Error('刪除回應格式不正確，請重試確認結果');
-    events.value = events.value.filter((event) => event.id !== data.id);
-    page.value = Math.min(page.value, pageCount.value);
+    load();
     notice.value = `「${eventDisplayTitle(deleteTarget.value)}」已刪除，首頁行事曆已移除這筆安排。`;
     deleteDialog.value = false;
   } catch (error) {
@@ -169,14 +178,14 @@ function formatDate(date) {
         <span class="icon-box violet"><v-icon :icon="mdiCalendarMonthOutline" size="22" /></span>
         <div>
           <h2>安排清單</h2>
-          <p v-if="!loading && !loadError" class="event-muted">共 {{ events.length }} 筆安排</p>
+          <p v-if="loaded && !loadError" class="event-muted">共 {{ total }} 筆安排</p>
         </div>
       </div>
       <v-btn variant="outlined" :prepend-icon="mdiRefresh" :disabled="loading" @click="load"
         >重新載入</v-btn
       >
     </div>
-    <div v-if="loading" class="empty-state" :aria-busy="loading">
+    <div v-if="loading && !loaded" class="empty-state" :aria-busy="loading">
       <v-skeleton-loader type="table-row, table-row" />
       <DataLoading>正在載入安排…</DataLoading>
     </div>
@@ -186,7 +195,7 @@ function formatDate(date) {
       <v-btn variant="outlined" @click="load">重試</v-btn>
     </div>
     <template v-else>
-      <div v-if="events.length" class="event-filters">
+      <div v-if="total" class="event-filters">
         <v-text-field
           v-model="search"
           label="搜尋安排名稱"
@@ -195,7 +204,6 @@ function formatDate(date) {
           density="compact"
           hide-details
           clearable
-          @update:model-value="page = 1"
         />
         <v-select
           v-model="filter"
@@ -205,7 +213,6 @@ function formatDate(date) {
           density="compact"
           hide-details
           clearable
-          @update:model-value="page = 1"
         />
         <v-btn
           variant="text"
@@ -214,17 +221,17 @@ function formatDate(date) {
           >清除篩選</v-btn
         >
       </div>
-      <div v-if="!events.length" class="empty-state">
+      <div v-if="!total" class="empty-state">
         <span class="empty-icon"><v-icon :icon="mdiCalendarMonthOutline" size="28" /></span>
         <h3>尚無安排</h3>
         <p>點選「建立安排」，選擇類型與日期。</p>
       </div>
-      <div v-else-if="!filtered.length" class="empty-state">
+      <div v-else-if="!filteredTotal && !loading" class="empty-state">
         <h3>沒有符合條件的安排</h3>
         <v-btn variant="text" @click="clearFilters">清除篩選</v-btn>
       </div>
       <template v-else>
-        <p class="event-result" aria-live="polite">顯示 {{ filtered.length }} 筆安排 · 日期由新到舊</p>
+        <p class="event-result" aria-live="polite">顯示 {{ filteredTotal }} 筆安排 · 日期由新到舊</p>
         <div class="event-table-scroll" tabindex="0" aria-label="安排表格，可左右捲動">
           <table class="event-table">
             <thead>
@@ -236,7 +243,7 @@ function formatDate(date) {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="event in visible" :key="event.id">
+              <tr v-for="event in events" :key="event.id">
                 <td class="event-name">{{ eventDisplayTitle(event) }}</td>
                 <td>
                   <span :class="['event-type', event.type]">{{ eventTypeLabel(event.type) }}</span>
@@ -297,7 +304,9 @@ function formatDate(date) {
           v-model="page"
           :length="pageCount"
           :total-visible="5"
+          :disabled="loading"
           aria-label="安排清單分頁"
+          @update:model-value="load({ page: $event })"
         />
       </template>
     </template>

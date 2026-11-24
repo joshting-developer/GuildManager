@@ -123,3 +123,14 @@ export function validateVideoDelete(eventId, videoId, input) {
   videoEditTarget(eventId, videoId, input, ['revision'], '刪除影片只需要版本資料');
   return { revision: input.revision };
 }
+
+export function validateVideoList(input = {}) {
+  const { page = 1, limit = 20, search = '', group = '', videoId = '' } = input;
+  if (!Number.isSafeInteger(page) || page < 1 || page > Math.floor(Number.MAX_SAFE_INTEGER / 200) ||
+      !Number.isSafeInteger(limit) || limit < 1 || limit > 200)
+    throw new EventVideoError('影片頁碼或每頁筆數不正確');
+  const needle = text(search, '搜尋名稱', 64, 'search', false);
+  if (typeof group !== 'string' || (group && !VIDEO_GROUPS.includes(group)))
+    throw new EventVideoError('請選擇有效團別');
+  return { page, limit, search: needle, group, videoId: text(videoId, '影片', 128, 'videoId', false) };
+}

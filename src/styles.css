@@ -1,3 +1,9 @@
+/* Keep contrast helpers when loading Vuetify without its unused color palette. */
+@layer vuetify-utilities.theme-base {
+  .v-theme-on-light { color: rgb(var(--v-theme-on-light)); }
+  .v-theme-on-dark { color: rgb(var(--v-theme-on-dark)); }
+}
+
 :root {
   --color-page: #f7f9fc;
   --color-muted-surface: #f1f5f9;
@@ -434,6 +440,10 @@ p {
   width: 100%;
   margin: 0 auto;
   padding: 36px 40px 0;
+}
+/* Header height plus the page's top padding; keeps the footer just under the fold during loading. */
+.page-body {
+  min-height: calc(100dvh - 117px);
 }
 /* Keeps decorative snow behind content; only on pages without full-screen fixed panels. */
 .page-above-snow {
@@ -990,6 +1000,9 @@ h3 {
   .page {
     padding: 32px 24px 0;
   }
+  .page-body {
+    min-height: calc(100dvh - 113px);
+  }
   .panel {
     padding: 22px;
   }
@@ -1024,6 +1037,9 @@ h3 {
   }
 }
 @media (max-width: 1100px) {
+  .page-body {
+    min-height: calc(100dvh - 89px);
+  }
   .header-inner {
     min-height: 56px;
   }
@@ -1083,6 +1099,9 @@ h3 {
   }
   .page {
     padding: 26px 16px 0;
+  }
+  .page-body {
+    min-height: calc(100dvh - 83px);
   }
   .page-heading {
     align-items: flex-start;
