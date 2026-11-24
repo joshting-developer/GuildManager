@@ -3,7 +3,7 @@ import { computed, defineAsyncComponent, onMounted, onUnmounted, shallowRef } fr
 import DataLoading from './DataLoading.vue';
 import launchBackground from '../assets/jian-ying-li-hua-launch.webp';
 import PageLoadError from './PageLoadError.vue';
-import { countdownParts, LAUNCH_AT, LAUNCH_TIME, PREVIEW_SEQUENCE, PREVIEW_STORAGE_KEY, previewSequence } from '../domain/launch-countdown.js';
+import { countdownParts, LAUNCH_TIME, PREVIEW_SEQUENCE, PREVIEW_STORAGE_KEY, previewSequence } from '../domain/launch-countdown.js';
 
 const App = defineAsyncComponent({
   loader: () => import('../App.vue'), loadingComponent: DataLoading,
@@ -68,7 +68,6 @@ onUnmounted(stop);
           <dd class="launch-digit">{{ part.text }}</dd>
         </div>
       </dl>
-      <p class="launch-date"><time :datetime="LAUNCH_AT">2026 年 11 月 27 日 星期五 00:00</time><span>台灣時間</span></p>
     </div>
   </main>
 </template>
@@ -78,7 +77,6 @@ onUnmounted(stop);
   --launch-background: #10191e;
   --launch-ink: #f4f5f1;
   --launch-muted: #b8c1c3;
-  --launch-accent: #d7c99d;
   --launch-separator: #a4afb0;
   --launch-scrim: rgb(7 17 23 / 42%);
   --launch-title-font: 'Noto Serif TC', 'Songti TC', 'PMingLiU', serif;
@@ -102,14 +100,12 @@ onUnmounted(stop);
 .launch-unit:not(:last-child)::after { content: ':'; position: absolute; right: -0.12em; top: 0; color: var(--launch-separator); font-size: clamp(48px, 10vw, 144px); line-height: 1; }
 .launch-digit { margin: 0; font-size: clamp(48px, 10vw, 144px); font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: -0.035em; }
 .launch-unit-label { font-size: 18px; color: var(--launch-muted); }
-.launch-date { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px 16px; font-size: 16px; line-height: 1.8; color: var(--launch-accent); }
-.launch-date span { color: var(--launch-muted); }
 @media (max-width: 600px) {
   .launch-countdown { padding-inline: 20px; }
   .launch-content { padding-block: 24px; }
   .launch-background { object-position: right center; }
   .launch-timer { margin: 48px 0 40px; }
   .launch-unit { gap: 12px; }
-  .launch-unit-label, .launch-date { font-size: 14px; }
+  .launch-unit-label { font-size: 14px; }
 }
 </style>
