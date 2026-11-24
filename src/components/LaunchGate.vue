@@ -61,7 +61,6 @@ onUnmounted(stop);
     <img class="launch-background" :src="launchBackground" alt="" aria-hidden="true" fetchpriority="high" />
     <div class="launch-content">
       <h1 id="launch-title" class="launch-title">劍映梨花</h1>
-      <p class="launch-intro">即將開放使用</p>
       <dl class="launch-timer" role="timer" aria-live="off" :aria-label="timerLabel">
         <div v-for="part in parts" :key="part.label" class="launch-unit">
           <dt class="launch-unit-label">{{ part.label }}</dt>
@@ -94,7 +93,6 @@ onUnmounted(stop);
 .launch-countdown::after { content: ''; position: absolute; inset: 0; background: var(--launch-scrim); pointer-events: none; }
 .launch-content { position: relative; z-index: 1; width: min(100%, 1200px); padding-block: 48px; }
 .launch-title { font-family: var(--launch-title-font); font-size: clamp(36px, 4.5vw, 64px); letter-spacing: 0.16em; padding-left: 0.16em; font-weight: 600; line-height: 1.4; overflow-wrap: break-word; }
-.launch-intro { margin-top: 12px; font-size: 18px; color: var(--launch-muted); }
 .launch-timer { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 64px 0 56px; }
 .launch-unit { position: relative; display: flex; flex-direction: column-reverse; gap: 16px; min-width: 0; }
 .launch-unit:not(:last-child)::after { content: ':'; position: absolute; right: -0.12em; top: 0; color: var(--launch-separator); font-size: clamp(48px, 10vw, 144px); line-height: 1; }
