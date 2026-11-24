@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, shallowRef } from 'vue';
 import { migrationPhase, migrationCountdown, NEW_SITE_URL } from '../migration.js';
 
 const now = shallowRef(Date.now());
+const collapsed = shallowRef(false);
 const phase = computed(() => migrationPhase(now.value));
 const countdown = computed(() => migrationCountdown(now.value));
 let timer;
@@ -22,11 +23,26 @@ onUnmounted(() => {
 <template>
   <template v-if="phase === 'legacy'">
     <slot />
-    <a class="migration-countdown" :href="NEW_SITE_URL" target="_top">
-      <span>新站上線倒數</span>
-      <strong>{{ countdown }}</strong>
-      <span>前往新站 →</span>
-    </a>
+    <aside class="migration-countdown" aria-label="新站上線倒數">
+      <button
+        class="migration-toggle"
+        type="button"
+        :aria-expanded="!collapsed"
+        aria-controls="migration-countdown-link"
+        @click="collapsed = !collapsed"
+      >{{ collapsed ? '新站倒數' : '收合' }}</button>
+      <a
+        v-show="!collapsed"
+        id="migration-countdown-link"
+        class="migration-countdown-link"
+        :href="NEW_SITE_URL"
+        target="_top"
+      >
+        <span>新站上線倒數</span>
+        <strong>{{ countdown }}</strong>
+        <span>前往新站 →</span>
+      </a>
+    </aside>
   </template>
   <main v-else class="migration-page">
     <section class="migration-message" aria-labelledby="migration-title">
@@ -48,8 +64,7 @@ onUnmounted(() => {
   bottom: calc(88px + env(safe-area-inset-bottom));
   z-index: 2500;
   display: grid;
-  gap: 4px;
-  padding: 12px 16px;
+  overflow: hidden;
   border: 1px solid var(--color-border);
   border-radius: 12px;
   background: var(--color-surface);
@@ -57,6 +72,23 @@ onUnmounted(() => {
   text-decoration: none;
   font-size: 13px;
   box-shadow: 0 3px 14px #00000012;
+}
+.migration-toggle {
+  min-width: 80px;
+  min-height: 44px;
+  padding: 8px 12px;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+  border: 0;
+}
+.migration-countdown-link {
+  display: grid;
+  gap: 4px;
+  padding: 0 16px 12px;
+  color: var(--color-text);
+  text-decoration: none;
 }
 .migration-countdown strong { font-size: 18px; font-variant-numeric: tabular-nums; }
 .migration-countdown span:last-child { color: var(--color-primary); }
@@ -83,5 +115,5 @@ p { margin: 12px 0; line-height: 1.8; }
   color: var(--color-on-primary);
   text-decoration: none;
 }
-a:focus-visible { outline: 3px solid var(--color-primary); outline-offset: 4px; }
+a:focus-visible, button:focus-visible { outline: 3px solid var(--color-primary); outline-offset: -3px; }
 </style>

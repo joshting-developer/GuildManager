@@ -1,5 +1,15 @@
 [
   {
+    "version": "Unreleased",
+    "date": null,
+    "summary": "倒數收合",
+    "sections": {
+      "新功能": [
+        "新站懸浮倒數可收合為小按鈕, 點擊可重新展開"
+      ]
+    }
+  },
+  {
     "version": "1.0.33",
     "date": "2026-11-24",
     "summary": "舊站搬遷引導",
