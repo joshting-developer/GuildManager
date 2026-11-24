@@ -46,3 +46,25 @@ test('platform adapter refuses arbitrary or malformed image sources', async () =
     );
   }
 });
+
+test('platform icon object is read and verified once per file, and a new file replaces it', async () => {
+  const { withFileStorage } = await import('../../server/services/file-backed-repository.js');
+  const { createHash } = await import('node:crypto');
+  const objects = new Map(), reads = [];
+  const store = (id, bytes) => {
+    objects.set(`files/platform-icon/${id}`, bytes);
+    return { id, bucket: 'synthetic', key: `files/platform-icon/${id}`, size: bytes.length, mimeType: 'image/png',
+      sha256: createHash('sha256').update(bytes).digest('hex') };
+  };
+  let iconFile = store('first', Buffer.from(png.base64, 'base64'));
+  const app = withFileStorage({ getPlatformSettings: async () => ({ platform: { name: 'GM', revision: 1 }, iconFile }), close: async () => {} },
+    { bucket: 'synthetic', get: async (key) => { reads.push(key); return objects.get(key); } }, {});
+  for (let i = 0; i < 10; i++) assert.equal((await app.getPlatformSettings()).platform.iconSrc, `data:image/png;base64,${png.base64}`);
+  assert.deepEqual(reads, ['files/platform-icon/first']);
+  iconFile = store('second', large);
+  assert.equal((await app.getPlatformSettings()).platform.iconSrc, `data:image/png;base64,${large.toString('base64')}`);
+  assert.deepEqual(reads, ['files/platform-icon/first', 'files/platform-icon/second']);
+  objects.set('files/platform-icon/third', Buffer.from('tampered'));
+  iconFile = { ...iconFile, id: 'third', key: 'files/platform-icon/third' };
+  await assert.rejects(app.getPlatformSettings());
+});

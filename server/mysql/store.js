@@ -71,15 +71,15 @@ export function createStore(database) {
 export function exposeRepository(implementation, store, database) {
   // Explicitly audited operations: none may mutate business or session rows.
   const readOnly = new Set([
-    'getMember', 'getAccountSettings', 'getMemberTokenSettings', 'getEvent', 'listEvents',
+    'getMember', 'getAccountSettings', 'getMemberTokenSettings', 'getEvent', 'listEvents', 'listManagedEvents',
     'listDuties', 'getEventAttendance', 'participationRequiresLogin',
     'listEventParticipationMembers', 'getEventParticipation', 'listEventVideos',
-    'getLineupEvents', 'getLineupTemplates', 'getLineupCurrent', 'getLineupIndex',
+    'getLineupChoices', 'getLineupEvents', 'getLineupTemplates', 'getLineupCurrent', 'getLineupIndex',
     'getLineupHistory', 'applyLineupTemplate', 'getBattleUploadRoster', 'previewBattleMemberSync',
     'listBattleRecords', 'getBattleMetadata', 'getBattleRecord', 'getBattleTeamAnalysis',
     'getMemberBattleRecords', 'getBattleAttachment', 'getMemberMaintenance',
-    'getPlatformSettings', 'getLottery', 'getLineupEditor', 'getLineupCatalogs',
-    'getLineupSources', 'getLineupEvent', 'getVideoBrowser', 'getEventVideoForm',
+    'getPlatformSettings', 'getPlatformName', 'getLottery', 'getLineupEditor', 'getLineupCatalogs',
+    'getLineupSources', 'getLineupEvent', 'getVideoChoices', 'getVideoBrowser', 'getEventVideoForm',
     'getEventParticipationForm', 'previewMemberImport', 'listProfessions',
     'listParticipationMembers', 'listMembers',
     'getLeaveSettings', 'getLeaveCare', 'getAttendanceOptions', 'getAttendanceHistory', 'getLeaveCalendar', 'getMemberLeaveHistory',

@@ -56,6 +56,7 @@ await import('./mysql-contracts/participation-revisions.test.js');
 
 // Scenarios carried over from the retired storage tests.
 await import('./mysql-scenarios/admin.test.js');
+await import('./mysql-scenarios/event-management-list.test.js');
 await import('./mysql-scenarios/attack-defense-analysis.test.js');
 await import('./mysql-scenarios/auth.test.js');
 await import('./mysql-scenarios/battle-attributions.test.js');
@@ -96,3 +97,11 @@ await import('./mysql-scenarios/video-browser.test.js');
 await import('./mysql-scenarios/video-profession-edit.test.js');
 await import('./mysql-scenarios/video-edit.test.js');
 await import('./mysql-contracts/profession-management.test.js');
+
+await import('./mysql-contracts/lineup-history-batch.test.js');
+
+await import('./mysql-contracts/video-pagination.test.js');
+
+await import('./mysql-contracts/member-maintenance-batch.test.js');
+
+await import('./benchmark.test.js');

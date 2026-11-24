@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { EventVideoError, validateVideoSubmission, validateVideoProfessionUpdate, validateVideoMove, validateVideoDelete } from '../../src/domain/event-videos.js';
+import { EventVideoError, validateVideoSubmission, validateVideoProfessionUpdate, validateVideoMove, validateVideoDelete, validateVideoList } from '../../src/domain/event-videos.js';
 
 export function createEventVideoRepository(db) {
   async function checkEvent(id) {
@@ -25,7 +25,7 @@ export function createEventVideoRepository(db) {
   const legacyColumns = `v.id, v.event_id AS eventId, v.name,
     CASE WHEN v.round_number = 1 THEN v.url ELSE '' END AS firstUrl,
     CASE WHEN v.round_number = 2 THEN v.url ELSE '' END AS secondUrl,
-    '' AS note, v.group_name AS groupName, v.created_at AS createdAt,
+    v.group_name AS groupName, '' AS note, v.created_at AS createdAt,
     p.profession_id AS professionId, p.profession_name AS professionName,
     p.profession_colorcode AS professionColorcode, COALESCE(p.revision, 0) AS revision`;
   const legacyFrom = 'event_videos v LEFT JOIN event_video_profession_overrides p ON p.video_id=v.id';
@@ -143,22 +143,18 @@ export function createEventVideoRepository(db) {
         return result;
       }));
     },
-    async listEventVideos(eventId) {
-      const event = (await checkEvent(eventId));
-      return {
-        eventId,
-        videos: [
-          ...(await db
-            .prepare(`SELECT ${columns} FROM event_video_submissions WHERE event_id = ?`)
-            .all(eventId)),
-          // Keep legacy links and group labels without merging separate submissions by name.
-          ...(await db
-            .prepare(
-              `SELECT ${legacyColumns} FROM ${legacyFrom} WHERE v.event_id = ?`,
-            )
-            .all(eventId)),
-        ].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id)),
-      };
+    async listEventVideos(eventId, input = {}) {
+      const { page, limit, search, group, videoId } = validateVideoList(input);
+      await checkEvent(eventId);
+      const filter = " AND (? = '' OR group_name = ?) AND LOCATE(LOWER(?), LOWER(name)) > 0 AND (? = '' OR id = ?)";
+      const args = [eventId, group, group, search, videoId, videoId, eventId, group, group, search, videoId, videoId];
+      // Filter both sources before paging; identical names remain separate submissions.
+      const from = `SELECT ${columns} FROM event_video_submissions WHERE event_id=?${filter}
+        UNION ALL SELECT ${legacyColumns} FROM ${legacyFrom} WHERE v.event_id=?${filter.replaceAll('group_name', 'v.group_name').replaceAll('LOWER(name)', 'LOWER(v.name)').replaceAll('OR id =', 'OR v.id =')}`;
+      const { count: total } = await db.prepare(`SELECT COUNT(*) AS count FROM (${from}) videos`).get(...args);
+      const videos = await db.prepare(`SELECT * FROM (${from}) videos ORDER BY createdAt DESC, id ASC LIMIT ? OFFSET ?`)
+        .all(...args, limit, (page - 1) * limit);
+      return { eventId, videos, total, page, limit };
     },
     async submitEventVideo(eventId, rawInput) {
       const input = validateVideoSubmission(rawInput);

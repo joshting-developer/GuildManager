@@ -107,3 +107,32 @@ test('deleted events disappear from all dates and retrying creation or editing c
     ));
     assert.deepEqual((await repo.listEvents()).events, [other]);
   })));
+
+test('management list filters, searches and pages in SQL with newest first date first', async () =>
+  (await withRepo(async (repo) => {
+    const created = [];
+    for (let index = 0; index < 23; index++)
+      created.push(await repo.createEvent({
+        title: index === 5 ? '' : `Raid ${index}`, type: index === 5 ? 'guild_war' : index % 2 ? 'scrimmage' : 'activity',
+        dates: [`2026-10-${String(index + 1).padStart(2, '0')}`], requestId: `list-${index}`,
+      }));
+    const multi = await repo.createEvent({ title: 'Same day', type: 'activity', dates: ['2026-10-23', '2026-10-30'], requestId: 'list-multi' });
+    const first = await repo.listManagedEvents({});
+    assert.equal(first.total, 24);
+    assert.equal(first.filteredTotal, 24);
+    assert.equal(first.events.length, 20);
+    // Same first date: the later created arrangement comes first; dates stay complete.
+    assert.deepEqual(first.events.slice(0, 2).map((event) => event.id), [multi.id, created[22].id]);
+    assert.deepEqual(first.events[0].dates, ['2026-10-23', '2026-10-30']);
+    const last = await repo.listManagedEvents({ page: 9 });
+    assert.equal(last.page, 2);
+    assert.deepEqual(last.events.map((event) => event.title), ['Raid 3', 'Raid 2', 'Raid 1', 'Raid 0']);
+    assert.equal((await repo.listManagedEvents({ type: 'scrimmage' })).filteredTotal, 10);
+    assert.deepEqual((await repo.listManagedEvents({ search: ' raid 1' })).events.map((event) => event.title),
+      ['Raid 19', 'Raid 18', 'Raid 17', 'Raid 16', 'Raid 15', 'Raid 14', 'Raid 13', 'Raid 12', 'Raid 11', 'Raid 10', 'Raid 1']);
+    // An untitled arrangement is found by the type label it displays.
+    assert.deepEqual((await repo.listManagedEvents({ search: '幫戰' })).events.map((event) => event.id), [created[5].id]);
+    assert.equal((await repo.listManagedEvents({ focusId: created[1].id })).page, 2);
+    await assert.rejects(repo.listManagedEvents({ type: 'unknown' }), /安排類型不正確/);
+    await assert.rejects(repo.listManagedEvents({ page: 0 }), /頁碼不正確/);
+  })));

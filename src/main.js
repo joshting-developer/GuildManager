@@ -23,7 +23,8 @@ import {
 } from 'vuetify/components';
 import { aliases, mdi } from 'vuetify/iconsets/mdi-svg';
 import { zhHant } from 'vuetify/locale';
-import 'vuetify/styles';
+import 'vuetify/styles/core';
+import 'vuetify/styles/utilities';
 import './styles.css';
 import App from './App.vue';
 import {
