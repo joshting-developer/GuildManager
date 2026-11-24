@@ -50,10 +50,11 @@ function focusClose() {
         <v-btn
           variant="text"
           :prepend-icon="item.icon"
+          :href="item.page === 'home' ? '#/' : `#/${item.page}`"
           :class="{ 'nav-current': currentPage === item.page }"
           :aria-current="currentPage === item.page ? 'page' : undefined"
           :disabled="busy"
-          @click="emit('navigate', item.page)"
+          @click.left.exact.prevent="emit('navigate', item.page)"
         >{{ item.label }}</v-btn>
         </template>
       </nav>

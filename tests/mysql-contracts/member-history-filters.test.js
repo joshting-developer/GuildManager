@@ -52,7 +52,7 @@ test('new member and CSV import link every exact unassigned historical row, with
 async function checkFilters(add, save, get) {
   const late = (await save(record('新成員', '碎夢', '2026-10-24T23:59')));
   (await save(record('新成員', '素問', '2026-10-25T00:00')));
-  add(person('001'));
+  await add(person('001'));
   for (let day = 1; day <= 21; day++) (await save(record('新成員', '龍吟', `2026-11-${String(day).padStart(2, '0')}`)));
   const selected = (await get('001', { startDate: '2026-10-24', endDate: '2026-10-24', profession: '碎夢' }));
   assert.equal(selected.total, 2); assert.equal(selected.summary.battleCount, 1);
