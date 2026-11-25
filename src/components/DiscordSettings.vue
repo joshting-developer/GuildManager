@@ -55,7 +55,7 @@ defineExpose({ dirty, busy });
         <h3>{{ labels[row.channel] }}</h3>
         <p>{{ row.configured ? '已設定' : '未啟用' }}</p>
         <v-text-field v-model="drafts[row.channel]" :label="`${labels[row.channel]} Webhook 網址`"
-          type="password" autocomplete="off" :disabled="busy" hide-details
+          type="password" variant="outlined" autocomplete="off" :disabled="busy" hide-details
           placeholder="https://discord.com/api/webhooks/…" />
         <div class="discord-actions">
           <v-btn elevation="0" type="submit" :disabled="busy || !drafts[row.channel].trim()">儲存</v-btn>
