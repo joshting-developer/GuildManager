@@ -21,3 +21,5 @@ await import('./mysql-http/site.test.js');
 
 await import('./mysql-http/attendance.test.js');
 await import('./mysql-http/professions.test.js');
+
+await import('./mysql-http/discord-settings.test.js');

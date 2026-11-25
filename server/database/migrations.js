@@ -1,3 +1,4 @@
+import { discordSettings } from './migrations/0010-discord-settings.js';
 import { lineupOb } from './migrations/0009-lineup-ob.js';
 import { professionManagement } from './migrations/0008-profession-management.js';
 import { battlePlayerStats } from './migrations/0006-battle-player-stats.js';
@@ -12,4 +13,4 @@ import { attendance } from './migrations/0005-attendance.js';
 
 import { eventVideoMoves } from './migrations/0007-event-video-moves.js';
 
-export const mysqlMigrations = [initialSchema, repositoryLock, fileMetadata, fileStaging, attendance, battlePlayerStats, eventVideoMoves, professionManagement, lineupOb];
+export const mysqlMigrations = [initialSchema, repositoryLock, fileMetadata, fileStaging, attendance, battlePlayerStats, eventVideoMoves, professionManagement, lineupOb, discordSettings];

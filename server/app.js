@@ -99,6 +99,19 @@ export function createApp(repository, { authNow, notifier = null, log = console,
     if (!session || !roles.includes(session.user.role)) throw new AuthError(403, 'MANAGEMENT_REQUIRED', '請重新登入有權限的管理帳號');
     return session.user;
   } });
+  app.get('/api/admin/discord-settings', async (_request, response) => response.json(await repository.getDiscordSettings()));
+  app.patch('/api/admin/discord-settings', async (request, response) => {
+    response.json(await repository.saveDiscordSettings(request.body, attendanceAccess(request, ['admin'])));
+  });
+  app.post('/api/admin/discord-settings/test', async (request, response) => {
+    await attendanceAccess(request, ['admin']).assertAccess();
+    const channel = request.body?.channel;
+    if (!['leave', 'member'].includes(channel)) throw new PlatformSettingsError(422, 'INVALID_CHANNEL', '請選擇通知頻道');
+    const urls = await repository.getDiscordWebhooks();
+    const result = await notifier?.test?.(urls[channel]);
+    if (!result?.ok) throw new PlatformSettingsError(502, 'WEBHOOK_TEST_FAILED', '測試發送失敗，請確認 Webhook 設定與 Discord 頻道權限');
+    response.json({ ok: true });
+  });
   app.get('/api/admin/leave-settings', async (_request, response) => response.json(await repository.getLeaveSettings()));
   app.patch('/api/admin/leave-settings', async (request, response) => response.json(await repository.saveLeaveSettings(request.body, attendanceAccess(request, ['admin']))));
   app.get('/api/attendance/calendar', async (request, response) => response.json(await repository.getLeaveCalendar(request.query.month)));

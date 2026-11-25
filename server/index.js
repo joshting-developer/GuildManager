@@ -37,7 +37,7 @@ try {
 const host = process.env.API_HOST || '127.0.0.1';
 const port = Number(process.env.API_PORT || 3001);
 try {
-  const runtime = await startApi({ repository, host, port, httpConfig, notifier: createDiscordNotifier() });
+  const runtime = await startApi({ repository, host, port, httpConfig, notifier: createDiscordNotifier({ getWebhooks: () => repository.getDiscordWebhooks() }) });
   console.log('GuildManager API: listening');
   const shutdown = () => { runtime.shutdown().then((code) => process.exit(code)); };
   process.on('SIGINT', shutdown);

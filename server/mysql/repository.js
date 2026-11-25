@@ -1,3 +1,4 @@
+import { createDiscordSettingsRepository } from './discord-settings-repository.js';
 import { createProfessionRepository } from './profession-repository.js';
 import { createFileStagingRepository } from './file-staging-repository.js';
 import { withFileStorage } from '../services/file-backed-repository.js';
@@ -145,6 +146,7 @@ function createImplementation(store, authNow, participationNow) {
     ...createBattleRecordRepository(db, { project: references.project, projectAll: references.projectAll }),
     ...createMemberMaintenance(db, { getMember, updateMember: async (...args) => (await repository.updateMember(...args)), references }),
     ...createPlatformSettingsRepository(db),
+    ...createDiscordSettingsRepository(db),
     ...createLotteryRepository(db),
     async getLineupEditor(preferredId = null) {
       return (await db.transaction(async () => {
