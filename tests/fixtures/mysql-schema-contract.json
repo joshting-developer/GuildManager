@@ -10,6 +10,7 @@
     "battle_records",
     "battle_sync_requests",
     "battle_uploads",
+    "discord_settings",
     "duties",
     "event_batch_items",
     "event_batches",
@@ -353,6 +354,11 @@
       "mobile",
       "defense12",
       "defense34"
+    ],
+    "discord_settings": [
+      "channel",
+      "url",
+      "revision"
     ]
   },
   "foreignKeys": [

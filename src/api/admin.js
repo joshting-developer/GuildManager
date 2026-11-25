@@ -27,6 +27,9 @@ export function createAdminClient({ fetchImpl = sessionFetch } = {}) {
     return data;
   }
   return {
+    getDiscordSettings: () => call('discord-settings'),
+    saveDiscordSettings: input => call('discord-settings', 'PATCH', input),
+    testDiscord: channel => call('discord-settings/test', 'POST', { channel }),
     getAccounts: () => call('accounts'),
     changePassword: (input) => call('password', 'POST', input),
     createManager: (input) => call('managers', 'POST', input),

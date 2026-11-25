@@ -78,7 +78,7 @@ export function exposeRepository(implementation, store, database) {
     'getLineupHistory', 'applyLineupTemplate', 'getBattleUploadRoster', 'previewBattleMemberSync',
     'listBattleRecords', 'getBattleMetadata', 'getBattleRecord', 'getBattleTeamAnalysis',
     'getMemberBattleRecords', 'getBattleAttachment', 'getMemberMaintenance',
-    'getPlatformSettings', 'getPlatformName', 'getLottery', 'getLineupEditor', 'getLineupCatalogs',
+    'getDiscordSettings', 'getDiscordWebhooks', 'getPlatformSettings', 'getPlatformName', 'getLottery', 'getLineupEditor', 'getLineupCatalogs',
     'getLineupSources', 'getLineupEvent', 'getVideoChoices', 'getVideoBrowser', 'getEventVideoForm',
     'getEventParticipationForm', 'previewMemberImport', 'listProfessions',
     'listParticipationMembers', 'listMembers',

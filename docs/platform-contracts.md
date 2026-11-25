@@ -60,7 +60,8 @@ admin 在帳號管理的「平台設定」分頁修改品牌名稱，預設「�
 - 2026/10/07 由 `../game` 的 DiscordWebhook 整併；game 的「去洗澡提醒」屬個人用途不搬入，舊程式註解中的 Webhook 網址屬憑證不得複製。
 - 請假頻道：成員／外援請假、請假後改回報名、管理者取消請假；一般報名不通知。內容為場次（日期・類型・名稱）、玩家與當場職業、狀態，不含備註。
 - 名冊頻道：新增、實際有變更的修改（含原名稱）、移至編外；CSV 匯入合併為一則摘要。名冊通知含 UID（管理情境）。
-- Webhook 使用後端 `DISCORD_WEBHOOK_LEAVE`／`DISCORD_WEBHOOK_MEMBER` 私有環境變數, 未設定即停用, 只接受 Discord Webhook 網址。錯誤只記固定分類與 HTTP 狀態, 不輸出網址、Token、例外原文、回應本文或玩家資料。未設定選填頻道維持靜默停用；診斷本身失敗不影響已保存回應。
+- admin 可在「Discord 通知」分頁設定、更換、移除與測試兩組 Webhook。網址只在後端儲存，API 只回傳 configured／revision；修改需 admin／CSRF 並在交易內重驗 Session，以 revision 防止覆蓋。未曾設定的頻道沿用環境變數；移除後明確停用，不回退環境變數。每次發送讀取最新設定，不需重啟。
+- Webhook 預設使用後端 `DISCORD_WEBHOOK_LEAVE`／`DISCORD_WEBHOOK_MEMBER` 私有環境變數, 未設定即停用, 只接受 Discord Webhook 網址。錯誤只記固定分類與 HTTP 狀態, 不輸出網址、Token、例外原文、回應本文或玩家資料。未設定選填頻道維持靜默停用；診斷本身失敗不影響已保存回應。
 - 通知只在 MySQL 成功提交後排送。失敗依下列重試規則處理，不影響原操作。相同 requestId 重試、無變更的修改與失敗請求不通知。
 - 訊息關閉 mentions 並跳脫玩家輸入的 markdown。真實 Discord 送達尚待使用者設定 Webhook 後驗證。
 

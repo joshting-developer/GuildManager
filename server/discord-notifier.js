@@ -10,6 +10,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // Delivery is best-effort after commit; unknown network outcomes are never replayed.
 export function createDiscordNotifier({
   env = process.env,
+  getWebhooks,
   fetchImpl = fetch,
   log = console,
   sleepImpl = sleep,
@@ -46,6 +47,13 @@ export function createDiscordNotifier({
     }
   }
   return {
+    async test(url) {
+      if (!isDiscordWebhookUrl(url)) return { ok: false };
+      try {
+        const response = await post(url, { content: 'Discord 通知測試成功', allowed_mentions: { parse: [] } });
+        return { ok: Boolean(response.ok) };
+      } catch { return { ok: false }; }
+    },
     enabled: (channel) => Boolean(webhooks[channel]),
     send(notices, { footer } = {}) {
       for (const notice of notices) {
@@ -56,11 +64,14 @@ export function createDiscordNotifier({
           record('error', 'Discord 通知失敗：FORMAT_ERROR');
           continue;
         }
-        if (!webhooks[message.channel]) continue;
+        if (!getWebhooks && !webhooks[message.channel]) continue;
         // Each queue item absorbs its own failure, including failed diagnostics.
         queue = queue.then(async () => {
           try {
-            const response = await post(webhooks[message.channel], message.payload);
+            const urls = getWebhooks ? await getWebhooks() : webhooks;
+            const url = urls[message.channel];
+            if (!isDiscordWebhookUrl(url)) return;
+            const response = await post(url, message.payload);
             if (!response.ok) {
               const status = Number.isInteger(response.status) && response.status >= 100 && response.status <= 599 ? response.status : 0;
               record('error', `Discord 通知失敗：HTTP_ERROR HTTP ${status}`);

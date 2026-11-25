@@ -1,4 +1,5 @@
 <script setup>
+import DiscordSettings from '../components/DiscordSettings.vue';
 import DataLoading from '../components/DataLoading.vue';
 import BattleMemberSyncDialog from './BattleMemberSyncDialog.vue';
 import { ref, computed, inject, onMounted, onUnmounted } from 'vue';
@@ -50,6 +51,7 @@ const settings = ref(null),
   notice = ref('');
 const tab = ref('password');
 const syncOpen = ref(false);
+const discordSettings = ref(null);
 const currentPassword = ref(''),
   password = ref(''),
   passwordConfirm = ref('');
@@ -70,20 +72,20 @@ const dirty = computed(
       tokenPassword.value ||
       tokenConfirm.value ||
       managerOpen.value ||
-      platformDirty.value
+      platformDirty.value || discordSettings.value?.dirty
     ),
 );
 const registerGuard = inject('registerNavigationGuard', null);
 const unregister = registerGuard?.(
   () =>
-    !busy.value &&
+    !busy.value && !discordSettings.value?.busy &&
     !iconReading.value &&
     (!dirty.value || window.confirm('有尚未儲存的設定, 確定要離開嗎？')),
 );
 let disposed = false,
   loadVersion = 0;
 async function load() {
-  if (busy.value || iconReading.value) return;
+  if (busy.value || iconReading.value || discordSettings.value?.busy) return;
   if (dirty.value && !window.confirm('有尚未儲存的設定，確定要重新載入嗎？')) return;
   const version = ++loadVersion;
   loading.value = true;
@@ -275,7 +277,7 @@ onUnmounted(() => {
   <DataLoading v-if="loading">正在載入帳號設定…</DataLoading>
   <v-card v-else-if="settings" class="admin-card">
     <DataLoading v-if="busy && !managerOpen" compact :spinner="false">正在儲存帳號或平台設定，請稍候…</DataLoading>
-    <v-tabs v-model="tab" aria-label="帳號設定" :disabled="busy">
+    <v-tabs v-model="tab" aria-label="帳號設定" :disabled="busy || discordSettings?.busy">
       <v-tab value="platform" id="admin-platform-tab" aria-controls="admin-platform-panel"
         >平台設定</v-tab
       >
@@ -291,7 +293,11 @@ onUnmounted(() => {
       <v-tab value="maintenance" id="admin-maintenance-tab" aria-controls="admin-maintenance-panel"
         >資料維護</v-tab
       >
+      <v-tab value="discord" id="admin-discord-tab" aria-controls="admin-discord-panel">Discord 通知</v-tab>
     </v-tabs>
+    <section v-show="tab === 'discord'" id="admin-discord-panel" role="tabpanel" aria-labelledby="admin-discord-tab">
+      <DiscordSettings ref="discordSettings" />
+    </section>
     <section
       v-show="tab === 'platform'"
       id="admin-platform-panel"
