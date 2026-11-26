@@ -123,9 +123,9 @@ npm run build
 
 ## 更新紀錄與定版
 
-更新紀錄由 `src/content/release-notes.json` 靜態編譯進網站，線上不讀 GitHub。開發期間把變更累積在唯一置頂的 `version: "Unreleased"`、`date: null` 條目，頁面及頁尾顯示「未發布」；package／lockfile 保持最近正式版本。
+更新紀錄由 `src/content/release-notes.json` 靜態編譯進網站，線上不讀 GitHub。每個從 main 開出的功能／修正分支在分支內定版：新增置頂版本條目並填日期，同步 package.json 與 package-lock.json，分支名稱帶版本號。合回 main 後沒有未發布條目，release notes 不使用 `Unreleased`。
 
-正式定版與發布分開執行；只有明確要求定版時才更新版本及日期。
+定版只代表版本號與更新紀錄已更新，push、部署與正式發布仍分開執行，必須取得當次授權。
 
 ## 專案結構
 

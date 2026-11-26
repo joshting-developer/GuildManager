@@ -2,7 +2,6 @@ import { spawn } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { PREVIEW_STORAGE_KEY } from '../src/domain/launch-countdown.js';
 
 // Browser timing is a synthetic lab observation, not field INP or a visual regression test.
 export async function benchmarkBrowser(origin, { route = '#/members', readyText = 'Bench', width = 1440, cpuSlowdown = 1 } = {}) {
@@ -36,7 +35,7 @@ export async function benchmarkBrowser(origin, { route = '#/members', readyText 
     const evaluate = async expression => (await call('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true })).result.value;
     await call('Page.enable');
     await call('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: width < 600 });
-    await call('Page.addScriptToEvaluateOnNewDocument', { source: `localStorage.setItem(${JSON.stringify(PREVIEW_STORAGE_KEY)}, '1');window.lab={lcp:null,cls:0,events:[]};new PerformanceObserver(l=>{for(const e of l.getEntries())lab.lcp=e.startTime}).observe({type:'largest-contentful-paint',buffered:true});new PerformanceObserver(l=>{for(const e of l.getEntries())if(!e.hadRecentInput)lab.cls+=e.value}).observe({type:'layout-shift',buffered:true});new PerformanceObserver(l=>{for(const e of l.getEntries())lab.events.push(e.duration)}).observe({type:'event',buffered:true,durationThreshold:16});` });
+    await call('Page.addScriptToEvaluateOnNewDocument', { source: `window.lab={lcp:null,cls:0,events:[]};new PerformanceObserver(l=>{for(const e of l.getEntries())lab.lcp=e.startTime}).observe({type:'largest-contentful-paint',buffered:true});new PerformanceObserver(l=>{for(const e of l.getEntries())if(!e.hadRecentInput)lab.cls+=e.value}).observe({type:'layout-shift',buffered:true});new PerformanceObserver(l=>{for(const e of l.getEntries())lab.events.push(e.duration)}).observe({type:'event',buffered:true,durationThreshold:16});` });
     await call('Emulation.setCPUThrottlingRate', { rate: cpuSlowdown });
     await call('Page.navigate', { url: origin + '/' + route });
     let ready = false;

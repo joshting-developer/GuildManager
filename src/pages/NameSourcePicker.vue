@@ -13,20 +13,22 @@ const props = defineProps({
   idPrefix: { type: String, required: true },
   // Registration picks a profession first and lists members whose primary or secondary matches.
   filterByProfession: Boolean,
+  showManual: { type: Boolean, default: undefined },
+  professionErrorMessages: { type: [String, Array], default: () => [] },
   professionId: { type: [Number, String], default: null },
 });
 const emit = defineEmits(['update:source', 'update:name', 'update:memberUid', 'update:professionId']);
 const sources = computed(() => [
-  ...(props.filterByProfession ? [] : [{ value: 'manual', title: '直接輸入名稱' }]),
   { value: 'guild', title: '幫會成員名單' },
-  { value: 'club', title: '龍虎戰成員名單' },
+  { value: 'club', title: '俱樂部成員名單' },
+  ...((props.showManual ?? !props.filterByProfession) ? [{ value: 'manual', title: '直接輸入名稱' }] : []),
 ]);
 const sourceMembers = computed(() => props.members.filter((member) => inNameSource(member, props.source)));
 const choices = computed(() => props.filterByProfession
   ? memberChoices(props.members, props.source, props.professionId)
   : sourceMembers.value);
 const professionName = (id) => props.professions.find((job) => job.job_id === id)?.name;
-const memberLabel = computed(() => props.source === 'guild' ? '幫會成員' : '龍虎戰成員');
+const memberLabel = computed(() => props.source === 'guild' ? '幫會成員' : '俱樂部成員');
 const emptyText = computed(() => {
   if (!sourceMembers.value.length) return `尚無${memberLabel.value}`;
   if (!props.filterByProfession || choices.value.length) return '';
@@ -47,6 +49,11 @@ function subtitle(member) {
         :id="`${idPrefix}-${item.value}-tab`" :aria-controls="`${idPrefix}-${item.value}-panel`"
         :disabled="disabled">{{ item.title }}</v-tab>
     </v-tabs>
+    <v-select v-if="filterByProfession" :model-value="professionId" :items="professions"
+      item-title="name" item-value="job_id" label="職業" variant="outlined" density="compact"
+      :disabled="disabled" :error-messages="professionErrorMessages" hide-details="auto"
+      aria-required="true" class="name-source-profession"
+      @update:model-value="emit('update:professionId', $event)" />
     <div :id="`${idPrefix}-${source}-panel`" role="tabpanel"
       :aria-labelledby="`${idPrefix}-${source}-tab`" class="name-source-panel">
       <v-text-field v-if="source === 'manual'" :model-value="name" label="角色名稱"
@@ -54,10 +61,6 @@ function subtitle(member) {
         :error-messages="errorMessages" hide-details="auto" aria-required="true"
         @update:model-value="emit('update:name', $event)" />
       <template v-else>
-        <v-select v-if="filterByProfession" :model-value="professionId" :items="professions"
-          item-title="name" item-value="job_id" label="職業" variant="outlined" density="compact"
-          :disabled="disabled" hide-details aria-required="true" class="name-source-profession"
-          @update:model-value="emit('update:professionId', $event)" />
         <v-autocomplete :model-value="memberUid" :items="choices" item-title="name" item-value="uid"
           :label="memberLabel" variant="outlined" density="compact"
           :disabled="disabled || (filterByProfession && professionId == null)"
@@ -79,7 +82,7 @@ function subtitle(member) {
 .name-source-picker { min-width: 0; max-width: 100%; }
 .name-source-panel { padding-top: 16px; }
 .name-source-empty { color: var(--color-text-muted); margin: 8px 0; }
-.name-source-profession { margin-bottom: 16px; }
+.name-source-profession { margin-top: 16px; }
 @media (max-width: 600px) {
   .name-source-picker :deep(.v-tab.v-btn) {
     min-width: 0;
