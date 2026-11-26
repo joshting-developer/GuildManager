@@ -4,6 +4,7 @@ import { computed, onUnmounted, ref, watch } from 'vue';
 import { createEventVideoClient } from '../api/event-videos.js';
 import { createEventClient } from '../api/events.js';
 import { VIDEO_GROUP_OPTIONS, validateVideoDetails } from '../domain/event-videos.js';
+import { memberChoices } from '../domain/member-choices.js';
 import NameSourcePicker from './NameSourcePicker.vue';
 
 const props = defineProps({
@@ -16,7 +17,7 @@ const client = createEventVideoClient();
 const eventClient = createEventClient();
 const emptyDraft = () => ({ name: '', professionId: null, firstUrl: '', secondUrl: '', groupName: null, note: '' });
 const draft = ref(emptyDraft());
-const nameSource = ref('manual');
+const nameSource = ref('guild');
 const selectedMemberUid = ref(null);
 const selectedMember = computed(() => props.members.find(member => member.uid === selectedMemberUid.value));
 const errors = ref({}),
@@ -40,18 +41,16 @@ watch(nameSource, () => {
 });
 watch(selectedMemberUid, () => {
   draft.value.name = selectedMember.value?.name || '';
-  draft.value.professionId = selectedMember.value?.primaryProfessionId || null;
   if (selectedMember.value) errors.value = {};
 });
-watch(() => props.members, () => {
+watch([() => props.members, () => draft.value.professionId], () => {
   if (!selectedMemberUid.value) return;
-  const member = selectedMember.value;
-  if (!member || member.name !== draft.value.name ||
-    !(nameSource.value === 'guild' ? member.isInGuild : member.isInClub)) {
+  if (!memberChoices(props.members, nameSource.value, draft.value.professionId)
+    .some(member => member.uid === selectedMemberUid.value && member.name === draft.value.name)) {
     selectedMemberUid.value = null;
-    errors.value = { name: '成員資料已更新，請重新選擇', message: '成員資料已更新，請重新選擇' };
+    errors.value = { name: '請依目前職業重新選擇成員', message: '請依目前職業重新選擇成員' };
   }
-});
+}, { flush: 'post' });
 watch(busy, (value) => emit('busy', value), { flush: 'sync' });
 watch(
   () => JSON.stringify(draft.value),
@@ -88,7 +87,11 @@ async function submit() {
   notice.value = '';
   let details;
   try {
-    if (nameSource.value !== 'manual' && !selectedMember.value) {
+    if (draft.value.professionId == null) {
+      errors.value = { professionId: '請選擇職業', message: '請選擇職業' };
+      return;
+    }
+    if (nameSource.value !== 'manual' && !memberChoices(props.members, nameSource.value, draft.value.professionId).some(member => member.uid === selectedMemberUid.value)) {
       errors.value = { name: '請選擇成員', message: '請選擇成員' };
       return;
     }
@@ -125,10 +128,8 @@ async function submit() {
       <NameSourcePicker v-model:source="nameSource" v-model:name="draft.name"
         v-model:member-uid="selectedMemberUid" :members="members" :professions="professions"
         :disabled="disabled || busy || reloading" :error-messages="errors.name"
-        id-prefix="video-name" />
-      <v-select v-model="draft.professionId" :items="professions" item-title="name" item-value="job_id"
-        label="職業" variant="outlined" density="compact" :disabled="disabled || busy || reloading"
-        :error-messages="errors.professionId" aria-required="true" hide-details="auto" />
+        v-model:profession-id="draft.professionId" filter-by-profession show-manual
+        :profession-error-messages="errors.professionId" id-prefix="video-name" />
       <v-text-field
         v-model="draft.firstUrl"
         label="第一場網址（選填）"

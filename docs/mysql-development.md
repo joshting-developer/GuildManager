@@ -179,3 +179,13 @@ HTTP 契約測試在 `tests/mysql-http/`, 由 `tests/mysql-http.test.js` 在同�
 將專用連線與檔案服務設定放到忽略的 `.env`, 依序執行 migration、建立帳號及 `docker compose up --build -d`。Compose 使用容器主機名稱與埠, 主機執行 migration 時另外提供 `127.0.0.1:13306` 的私有設定。帳密不寫入產品文件
 
 網站為 `http://localhost:5173`, API 為 `http://localhost:3001`。重新啟動沿用原資料與帳號；不要使用 `down -v` 或刪除 MySQL volume
+
+## 影片名稱選擇瀏覽器驗證
+
+先執行 `npm run build`，再以 Playwright 與專用空的 Repository 測試庫執行：
+
+```sh
+GUILD_MYSQL_REPOSITORY_TEST_CONFIG=/path/to/private/repositorytest.json node tests/browser/video-name-source.mjs
+```
+
+需要可用的 Chrome 與 Playwright；若 Playwright 安裝於其他位置，可用 `PLAYWRIGHT_MODULE` 指定其模組入口。案例使用真實 HTTP／MySQL，涵蓋三種寬度及明暗模式的名稱分頁、職業欄錯誤提示、副職業選人、報名與請假送出，以及幫會／龍虎戰名單和手動輸入的影片上傳。成功後驗證表單清空，並重建 Repository 讀回 MySQL 保存結果；注入一次 HTTP 503 驗證失敗不寫入、保留草稿，重試成功後才清空。截圖預設留在忽略的 `.local/video-name-redo`；這些候選圖不代表視覺基準已獲核准。請勿與其他測試同時使用同一個 schema。

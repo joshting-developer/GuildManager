@@ -1,4 +1,4 @@
-import { createApp } from 'vue';
+import { createApp, defineAsyncComponent } from 'vue';
 import { createVuetify } from 'vuetify';
 import {
   VAutocomplete,
@@ -26,7 +26,13 @@ import { zhHant } from 'vuetify/locale';
 import 'vuetify/styles/core';
 import 'vuetify/styles/utilities';
 import './styles.css';
-import LaunchGate from './components/LaunchGate.vue';
+import DataLoading from './components/DataLoading.vue';
+import PageLoadError from './components/PageLoadError.vue';
+
+const App = defineAsyncComponent({
+  loader: () => import('./App.vue'), loadingComponent: DataLoading,
+  errorComponent: PageLoadError, delay: 0, timeout: 30000,
+});
 import {
   VUETIFY_THEMES,
   applyDocumentTheme,
@@ -117,4 +123,4 @@ const vuetify = createVuetify({
   },
 });
 
-createApp(LaunchGate).use(vuetify).mount('#app');
+createApp(App).use(vuetify).mount('#app');
