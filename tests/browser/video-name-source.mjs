@@ -37,7 +37,7 @@ try {
     await page.getByRole('button', { name: new RegExp(`影片名稱驗收-${width}-${theme}.*報名`) }).click();
     const picker = page.locator('.name-source-picker:visible');
     await picker.getByRole('tab').first().waitFor();
-    assert.deepEqual(await picker.getByRole('tab').allTextContents(), ['幫會成員名單', '龍虎戰成員名單']);
+    assert.deepEqual(await picker.getByRole('tab').allTextContents(), ['幫會成員名單', '俱樂部成員名單']);
     const participation = page.locator('.participation-form');
     const select = async (field, option) => {
       await field.locator('.v-field').click();
@@ -55,7 +55,7 @@ try {
     }
     await page.getByRole('tab', { name: '影片上傳', exact: true }).click();
     const form = page.locator('.video-upload-form');
-    assert.deepEqual(await form.getByRole('tab').allTextContents(), ['幫會成員名單', '龍虎戰成員名單', '直接輸入名稱']);
+    assert.deepEqual(await form.getByRole('tab').allTextContents(), ['幫會成員名單', '俱樂部成員名單', '直接輸入名稱']);
     await form.getByRole('button', { name: '送出', exact: true }).click();
     const profession = form.locator('.name-source-profession');
     await profession.getByText('請選擇職業', { exact: true }).waitFor();
@@ -99,13 +99,13 @@ try {
       assert.equal(await form.getByLabel('第一場網址（選填）', { exact: true }).inputValue(), '');
       assert.equal(await form.getByLabel('備註（選填）', { exact: true }).inputValue(), '');
       assert.ok(!(await profession.innerText()).includes('龍吟'));
-      const nameField = form.getByLabel(suffix === 'manual' ? '角色名稱' : suffix === 'club' ? '龍虎戰成員' : '幫會成員', { exact: true });
+      const nameField = form.getByLabel(suffix === 'manual' ? '角色名稱' : suffix === 'club' ? '俱樂部成員' : '幫會成員', { exact: true });
       assert.equal(await nameField.inputValue(), '');
     };
     await submitVideo('副職業成員', 'guild');
-    await form.getByRole('tab', { name: '龍虎戰成員名單', exact: true }).click();
+    await form.getByRole('tab', { name: '俱樂部成員名單', exact: true }).click();
     await select(profession, '龍吟');
-    await form.getByLabel('龍虎戰成員', { exact: true }).click();
+    await form.getByLabel('俱樂部成員', { exact: true }).click();
     await page.getByRole('option', { name: /副職業成員/ }).click();
     await submitVideo('副職業成員', 'club');
     await form.getByRole('tab', { name: '直接輸入名稱', exact: true }).click();

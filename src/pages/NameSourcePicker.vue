@@ -20,7 +20,7 @@ const props = defineProps({
 const emit = defineEmits(['update:source', 'update:name', 'update:memberUid', 'update:professionId']);
 const sources = computed(() => [
   { value: 'guild', title: '幫會成員名單' },
-  { value: 'club', title: '龍虎戰成員名單' },
+  { value: 'club', title: '俱樂部成員名單' },
   ...((props.showManual ?? !props.filterByProfession) ? [{ value: 'manual', title: '直接輸入名稱' }] : []),
 ]);
 const sourceMembers = computed(() => props.members.filter((member) => inNameSource(member, props.source)));
@@ -28,7 +28,7 @@ const choices = computed(() => props.filterByProfession
   ? memberChoices(props.members, props.source, props.professionId)
   : sourceMembers.value);
 const professionName = (id) => props.professions.find((job) => job.job_id === id)?.name;
-const memberLabel = computed(() => props.source === 'guild' ? '幫會成員' : '龍虎戰成員');
+const memberLabel = computed(() => props.source === 'guild' ? '幫會成員' : '俱樂部成員');
 const emptyText = computed(() => {
   if (!sourceMembers.value.length) return `尚無${memberLabel.value}`;
   if (!props.filterByProfession || choices.value.length) return '';
