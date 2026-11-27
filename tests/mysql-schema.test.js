@@ -31,7 +31,7 @@ test('real MySQL initial schema preserves existing tables, constraints, snapshot
     assert.deepEqual((await migrateMysql(database, mysqlMigrations)).applied, []);
     const tables = await database.query('SELECT TABLE_NAME AS name, ENGINE AS engine, TABLE_COLLATION AS collation FROM information_schema.tables WHERE table_schema=DATABASE() ORDER BY TABLE_NAME');
     assert.deepEqual(tables.filter((row) => !['schema_migrations', 'repository_write_lock'].includes(row.name)).map((row) => row.name), tableNames);
-    assert.equal(tableNames.length, 41);
+    assert.equal(tableNames.length, 42);
     assert.ok(tables.every((row) => row.engine === 'InnoDB' && row.collation === 'utf8mb4_bin'));
     const columns = await database.query('SELECT TABLE_NAME AS tableName, COLUMN_NAME AS columnName FROM information_schema.columns WHERE table_schema=DATABASE()');
     for (const table of tableNames) {
@@ -39,6 +39,7 @@ test('real MySQL initial schema preserves existing tables, constraints, snapshot
       const actual = new Set(columns.filter((column) => column.tableName === table).map((column) => column.columnName));
       for (const name of existing) assert.ok(actual.has(name), `${table}.${name} must be preserved`);
     }
+    assert.ok(!columns.some(column => column.tableName === 'members' && ['updated_by_account_id', 'updated_by_name'].includes(column.columnName)));
     const expectedKeys = contract.foreignKeys;
     const foreignKeys = await database.query('SELECT TABLE_NAME AS tableName, COLUMN_NAME AS columnName, REFERENCED_TABLE_NAME AS targetTable, REFERENCED_COLUMN_NAME AS targetColumn FROM information_schema.key_column_usage WHERE table_schema=DATABASE() AND referenced_table_name IS NOT NULL');
     assert.deepEqual(foreignKeys.map((key) => [key.tableName, key.columnName, key.targetTable, key.targetColumn].join('.')).sort(), expectedKeys);

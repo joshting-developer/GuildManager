@@ -372,17 +372,22 @@ export function createApp(repository, { authNow, notifier = null, log = console,
   app.get('/api/members', async (_request, response) => {
     response.set('Cache-Control', 'no-store').json(await repository.listMembers());
   });
+  app.get('/api/members/:uid/edit-history', async (request, response) => {
+    if (!['admin', 'manager'].includes(request.auth?.user.role))
+      throw new AuthError(403, 'MANAGEMENT_REQUIRED', '只有管理者可以查看成員編輯歷程');
+    response.set('Cache-Control', 'no-store').json(await repository.getMemberEditHistory(request.params.uid, request.query.cursor));
+  });
   app.get('/api/members/:uid/maintenance', async (request, response) => {
     response.set('Cache-Control', 'no-store').json(await repository.getMemberMaintenance(request.params.uid));
   });
   app.patch('/api/members/:uid/maintenance', async (request, response) => {
-    response.json(await notifying('maintainMember', request.params.uid, request.body));
+    response.json(await notifying('maintainMember', request.params.uid, request.body, request.auth?.user));
   });
   app.patch('/api/members/:uid/history', async (request, response) => {
-    response.json(await repository.saveMemberNameHistory(request.params.uid, request.body));
+    response.json(await repository.saveMemberNameHistory(request.params.uid, request.body, request.auth?.user));
   });
   app.post('/api/members/:uid/permanent-delete', async (request, response) => {
-    response.json(await repository.deleteMemberPermanently(request.params.uid, request.body));
+    response.json(await repository.deleteMemberPermanently(request.params.uid, request.body, request.auth?.user));
   });
   app.get('/api/members/:uid/battle-records', async (request, response) => {
     const result = await repository.getMemberBattleRecords(request.params.uid, {
@@ -400,19 +405,19 @@ export function createApp(repository, { authNow, notifier = null, log = console,
     response.set('Cache-Control', 'no-store').json(await repository.previewMemberImport(request.body));
   });
   app.post('/api/members/import', async (request, response) => {
-    response.json(await notifying('importMembers', request.body));
+    response.json(await notifying('importMembers', request.body, request.auth?.user));
   });
   app.post('/api/members', async (request, response) => {
-    response.status(201).json({ member: await notifying('addMember', request.body) });
+    response.status(201).json({ member: await notifying('addMember', request.body, { actor: request.auth?.user }) });
   });
   app.patch('/api/members/:uid', async (request, response) => {
     response.json({
-      member: await notifying('updateMember', request.params.uid, request.body),
+      member: await notifying('updateMember', request.params.uid, request.body, request.auth?.user),
     });
   });
   app.delete('/api/members/:uid', async (request, response) => {
     response.json(
-      await notifying('removeMember', request.params.uid, request.body?.revision),
+      await notifying('removeMember', request.params.uid, request.body?.revision, request.auth?.user),
     );
   });
   app.get('/api/lottery', async (_request, response) => {

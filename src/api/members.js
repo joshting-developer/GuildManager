@@ -33,6 +33,8 @@ export function createMemberClient({ fetchImpl = sessionFetch } = {}) {
   return {
     getParticipationMembers: () => call('GET', 'calendar/members', null),
     getMembers: () => call('GET', 'members', null),
+    getMemberEditHistory: (uid, cursor) =>
+      call('GET', `members/${encodeURIComponent(uid)}/edit-history${cursor ? `?${new URLSearchParams({ cursor })}` : ''}`, null),
     getBattleRecords: (uid, page = 1, filters = {}) =>
       call(
         'GET', `members/${encodeURIComponent(uid)}/battle-records?${new URLSearchParams({ page, ...filters })}`, null,

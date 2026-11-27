@@ -38,3 +38,13 @@ member／manager／admin 均可進入 `#/members`，成員與編外分類、UID�
 - 永久刪除與「移至編外」分開，須輸入完整 UID 確認；移除名冊、過去名稱、場次報名／請假及戰績 UID 關聯，保留整場原始 CSV、玩家數值和排表姓名快照，不刪整場排表或外援資料。
 - 新維護讀寫使用 GET／PATCH `/api/members/:uid/maintenance`、PATCH `/api/members/:uid/history`、POST `/api/members/:uid/permanent-delete`；寫入檢查 CSRF、revision、requestId 及欄位白名單，成功請求可安全重試；過期畫面要求重新載入，失敗保留草稿，送出只顯示一個轉圈。
 - 不改不可變排表／CSV JSON；`member_reference_overrides` 保存逐紀錄 UID 對應, 讀取時套用, 不作全域舊 UID 轉址；刪除後引用變 null、姓名快照保留；UID 再利用不使舊引用復活。另保留 UID revision 下限，重建或移入曾使用的 UID 時版本遞增，舊畫面不能操作新人。
+
+## 成員編輯稽核（2.2.4）
+
+- 沿用原有 `updatedAt` 保存最後更新時間, 在編輯歷程抽屜顯示；成員 API 不新增 `updatedBy`。操作者只從 `member_edit_logs` 查詢, 舊資料不回填, 沒有歷程時只顯示時間。`0011_member_edit_audit` 曾新增 `members.updated_by_*`, 已由 `0012_drop_member_updated_by` 移除；因 migration checksum 驗證不改已套用的 0011
+- 新增、一般編輯、移至編外、還原、匯入、UID 維護與過去名稱編輯, 均在同一交易寫入 `member_edit_logs`。無實際欄位變更不新增事件；revision 衝突或交易失敗不留稽核
+- `changes` 格式為 `[{field, before, after}]`, 僅記實際差異。職業使用顯示名稱, 過去名稱維護使用 `previousNames` 欄位, before／after 為名稱字串陣列；`actorName` 為帳號 username 快照, 共用 member 帳號無 username 時使用角色名稱。非 session 工具寫入保留 null 操作者
+- `action` 包含 `create`、`update`、`remove`、`restore`、`maintenance`、`import`、`history_edit`、`permanent_delete`；`source` 預設為 `members`
+- manager／admin 可按需呼叫 `GET /api/members/:uid/edit-history`, 回傳 `{items:[{id, uid, action, actorAccountId, actorName, changedAt, source, changes}], nextCursor}`。member 回 403、匿名回 401；依 changedAt、id 倒序, 每頁 200 筆；有更早紀錄時回傳 `nextCursor`, 以 `?cursor=` 取下一頁, 無則為 null。永久刪除後以同 UID 重建時, 歷程會接續顯示, 以 `permanent_delete` 事件作為前後分界
+- UID 修正時既有稽核移至新 UID, 並記錄 UID 差異。永久刪除保留稽核與 `permanent_delete` 事件, 不設成員外鍵或帳號外鍵, 與保留原始 CSV／姓名快照一致；仍刪除既有契約規定的名冊、過去名稱與有效關聯。刪除後可由管理者依 UID 查詢稽核；UID 再利用時同 UID 歷程包含先前刪除紀錄, 不恢復舊有效引用
+- `server/member-import.js` 僅解析資料, 寫入統一經 Repository；戰績同步只異動 `battle_player_links`, 不變更名冊欄位, 不產生成員編輯事件。migration、舊來源搬移不回填稽核

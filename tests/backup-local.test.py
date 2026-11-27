@@ -35,7 +35,7 @@ class BackupSafetyTest(unittest.TestCase):
             self.assertIn(b'SELECT COUNT', client.call_args.args[3])
 
     def test_daily_and_remote_targets_rejected_before_any_client_io(self):
-        for changes in [{'DB_DATABASE': 'sp_guildmanager_local_dev'}, {'DB_HOST': 'example.test'}, {'DB_USERNAME': 'root'}]:
+        for changes in [{'DB_DATABASE': 'sp_guildmanager_local_preview'}, {'DB_DATABASE': 'sp_guildmanager_local_dev'}, {'DB_HOST': 'example.test'}, {'DB_USERNAME': 'root'}]:
             original = self.config['environment'].copy()
             self.config['environment'].update(changes)
             with self.restore(), patch.object(backup, 'client') as client:
@@ -43,6 +43,21 @@ class BackupSafetyTest(unittest.TestCase):
                     backup.main()
                 client.assert_not_called()
             self.config['environment'] = original
+
+    def test_preview_backup_accepted_but_other_preview_targets_rejected(self):
+        for schema, accepted in [('sp_guildmanager_local_preview', True), ('sp_guildmanager_other_preview', False), ('sp_guildmanager_production', False)]:
+            self.config['environment']['DB_DATABASE'] = schema
+            self.configuration.write_text(json.dumps(self.config))
+            self.configuration.chmod(0o600)
+            target = self.folder / (schema + '.sql')
+            with patch('sys.argv', ['backup-local.py', 'backup', '--config', str(self.configuration), '--file', str(target)]), patch.object(backup, 'dump') as dump:
+                if accepted:
+                    backup.main()
+                    dump.assert_called_once()
+                else:
+                    with self.assertRaises(ValueError):
+                        backup.main()
+                    dump.assert_not_called()
 
     def test_corrupt_snapshot_rejected_before_any_client_io(self):
         self.snapshot.write_text('corrupt backup')

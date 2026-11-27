@@ -53,7 +53,7 @@ export function createMemberReferences(db) {
   };
 }
 
-export function createMemberMaintenance(db, { getMember, updateMember, references }) {
+export function createMemberMaintenance(db, { getMember, updateMember, references, audit }) {
   function check(current, expected) {
     if (current.revision !== expected)
       throw new MemberError(409, 'STALE_MEMBER', '這位成員的資料已更新，請重新載入後再操作');
@@ -77,7 +77,7 @@ export function createMemberMaintenance(db, { getMember, updateMember, reference
   }
   return {
     async getMemberMaintenance(uid) { return { member: (await getMember(uid)) }; },
-    async maintainMember(uid, input) {
+    async maintainMember(uid, input, actor) {
       const values = validateMemberMaintenance(input);
       return (await retry('maintainMember', uid, input, async () => {
         const current = (await getMember(uid));
@@ -91,7 +91,7 @@ export function createMemberMaintenance(db, { getMember, updateMember, reference
           const row = (await db.prepare('SELECT * FROM members WHERE uid=?').get(uid));
           (await db.prepare(`INSERT INTO members (${columns.join(',')}) VALUES (${columns.map(() => '?').join(',')})`)
             .run(...columns.map((key) => key === 'uid' ? newUid : row[key])));
-          for (const [table, column] of [['member_name_history', 'member_uid'],
+          for (const [table, column] of [['member_edit_logs', 'member_uid'], ['member_name_history', 'member_uid'],
             ['event_member_responses', 'member_uid'], ['battle_player_links', 'member_uid'], ['attendance_records', 'member_uid']])
             (await db.prepare(`UPDATE ${table} SET ${column}=? WHERE ${column}=?`).run(newUid, uid));
           (await db.prepare('UPDATE event_member_responses SET revision=revision+1 WHERE member_uid=?').run(newUid));
@@ -99,35 +99,41 @@ export function createMemberMaintenance(db, { getMember, updateMember, reference
           (await references.retire(uid, current.revision));
           (await db.prepare('DELETE FROM members WHERE uid=?').run(uid));
         }
-        const updated = (await updateMember(newUid, profile));
+        const updated = (await updateMember(newUid, profile, actor, { skipAudit: true }));
         if (newUid !== uid)
           (await db.prepare('UPDATE members SET revision=?, updated_at=? WHERE uid=?')
             .run(Math.max(updated.revision, current.revision + 1, (await references.nextRevision(newUid))), new Date().toISOString(), newUid));
+        await audit(newUid, 'maintenance', current, await getMember(newUid), actor);
         return { member: (await getMember(newUid)) };
       }));
     },
-    async saveMemberNameHistory(uid, input) {
+    async saveMemberNameHistory(uid, input, actor) {
       maintenanceInput(input, ['entries', 'revision', 'requestId']);
       return (await retry('saveMemberNameHistory', uid, input, async () => {
         const current = (await getMember(uid));
         check(current, input.revision);
         const entries = validateNameHistory(input, current);
+        const comparable = rows => JSON.stringify(rows.map(({ id, name }) => ({ id, name })).sort((a, b) => (a.id || '').localeCompare(b.id || '')));
+        if (comparable(entries) === comparable(current.previousNames)) return { member: current };
         const previous = new Map(current.previousNames.map((entry) => [entry.id, entry]));
         (await db.prepare('DELETE FROM member_name_history WHERE member_uid=?').run(uid));
         const insert = db.prepare('INSERT INTO member_name_history (id,member_uid,name,changed_at) VALUES (?, ?, ?, ?)');
         for (const entry of entries) (await insert.run(entry.id || randomUUID(), uid, entry.name,
           previous.get(entry.id)?.changedAt || new Date().toISOString()));
         (await db.prepare('UPDATE members SET revision=revision+1, updated_at=? WHERE uid=?').run(new Date().toISOString(), uid));
-        return { member: (await getMember(uid)) };
+        const saved = await getMember(uid);
+        await audit(uid, 'history_edit', current, saved, actor, [{ field: 'previousNames', before: current.previousNames.map(entry => entry.name), after: saved.previousNames.map(entry => entry.name) }]);
+        return { member: await getMember(uid) };
       }));
     },
-    async deleteMemberPermanently(uid, input) {
+    async deleteMemberPermanently(uid, input, actor) {
       maintenanceInput(input, ['revision', 'requestId', 'confirmUid']);
       if (input.confirmUid !== uid)
         throw new MemberError(422, 'CONFIRMATION_REQUIRED', '請輸入完整 UID 確認永久刪除', { confirmUid: 'UID 不一致' });
       return (await retry('deleteMemberPermanently', uid, input, async () => {
         const current = (await getMember(uid));
         check(current, input.revision);
+        await audit(uid, 'permanent_delete', current, null, actor);
         (await references.remap(uid, null));
         (await references.retire(uid, current.revision));
         for (const table of ['attendance_records', 'member_name_history', 'event_member_responses', 'battle_player_links'])

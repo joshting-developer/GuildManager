@@ -71,7 +71,7 @@ export function createStore(database) {
 export function exposeRepository(implementation, store, database) {
   // Explicitly audited operations: none may mutate business or session rows.
   const readOnly = new Set([
-    'getMember', 'getAccountSettings', 'getMemberTokenSettings', 'getEvent', 'listEvents', 'listManagedEvents',
+    'getMemberEditHistory', 'getMember', 'getAccountSettings', 'getMemberTokenSettings', 'getEvent', 'listEvents', 'listManagedEvents',
     'listDuties', 'getEventAttendance', 'participationRequiresLogin',
     'listEventParticipationMembers', 'getEventParticipation', 'listEventVideos', 'listEventVideoNames',
     'getLineupChoices', 'getLineupEvents', 'getLineupTemplates', 'getLineupCurrent', 'getLineupIndex',

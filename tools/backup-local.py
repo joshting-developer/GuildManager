@@ -70,7 +70,7 @@ def main():
         raise ValueError('Explicit local backup configuration required')
     if env.get('DB_HOST') != '127.0.0.1' or str(env.get('DB_PORT')) != '13306' or env.get('DB_SSL_MODE') != 'disabled':
         raise ValueError('Only the local shared MySQL configuration is accepted')
-    if not re.fullmatch(r'sp_guildmanager_[a-z][a-z0-9]*_(dev|test|runtimetest|restoretest[0-9]*)', env['DB_DATABASE']):
+    if not re.fullmatch(r'sp_guildmanager_(local_preview|[a-z][a-z0-9]*_(dev|test|runtimetest|restoretest[0-9]*))', env['DB_DATABASE']):
         raise ValueError('Only dedicated GM local schemas are accepted')
     if env['DB_USERNAME'] == 'root' or not re.fullmatch(r'[a-zA-Z0-9_]+', env['DB_USERNAME']) or any(c in env['DB_PASSWORD'] for c in '\r\n\0'):
         raise ValueError('Use the dedicated schema account')

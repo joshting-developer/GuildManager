@@ -1,5 +1,6 @@
 <script setup>
 import { VSwitch } from 'vuetify/components';
+import MemberEditHistoryDrawer from '../components/MemberEditHistoryDrawer.vue';
 import DataLoading from '../components/DataLoading.vue';
 import { computed, inject, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import {
@@ -25,6 +26,13 @@ import MemberMaintenanceDialog from './MemberMaintenanceDialog.vue';
 const client = createMemberClient();
 const auth = inject('calendarAuth', null);
 const canMaintain = computed(() => ['admin', 'manager'].includes(auth?.user.value?.role));
+const editHistoryOpen = ref(false);
+const editHistoryMember = ref(null);
+function openEditHistory(member) {
+  if (!canMaintain.value) return;
+  editHistoryMember.value = member;
+  editHistoryOpen.value = true;
+}
 const members = ref([]);
 const professions = ref([]);
 const loading = ref(true);
@@ -556,6 +564,7 @@ function formatDate(value) {
                   </td>
                   <td>
                     <div class="member-row-actions">
+                      <v-btn v-if="canMaintain" variant="text" size="small" :aria-label="`查看 ${member.name} 的編輯歷程`" @click="openEditHistory(member)">編輯歷程</v-btn>
                       <v-btn
                         variant="text"
                         size="small"
@@ -806,6 +815,8 @@ function formatDate(value) {
       </div></v-card
     >
   </v-dialog>
+  <MemberEditHistoryDrawer v-if="canMaintain" v-model="editHistoryOpen" :uid="editHistoryMember?.uid || ''"
+    :name="editHistoryMember?.name || ''" :updated-at="editHistoryMember?.updatedAt || ''" :professions="professions" />
   <MemberMaintenanceDialog v-if="canMaintain" v-model="maintenanceDialog" :member="maintenanceMember"
     :mode="maintenanceMode" :client="client" @saved="acceptHistory" @deleted="acceptDelete"
     @after-leave="restoreFocus" />

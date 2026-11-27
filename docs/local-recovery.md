@@ -1,6 +1,6 @@
 # 本地備份與還原
 
-此工具只接受本機 MySQL 的 GM 開發／隔離庫, 不操作正式資料庫。使用限庫帳號, 不接受 root；憑證透過 stdin 傳入容器內的 MySQL client, 不放在命令列或輸出。需 Docker 與本機 MySQL 容器
+此工具只接受本機 MySQL 的 GM 開發／隔離庫及明確的 `sp_guildmanager_local_preview`, 不操作正式資料庫。使用限庫帳號, 不接受 root；憑證透過 stdin 傳入容器內的 MySQL client, 不放在命令列或輸出。需 Docker 與本機 MySQL 容器
 
 設定放在 `.local/backup/mysql.json`, 權限 0600：
 
