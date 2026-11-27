@@ -76,3 +76,27 @@ test('Express routes and member client enforce manager-only endpoints, CSRF and 
     assert.equal((await client.deleteMemberPermanently('002', { revision: history.member.revision, requestId: 'http-delete', confirmUid: '002' })).deleted, true);
   } finally { (await repo.close()); }
 });
+
+test('audit follows UID maintenance, request replay, history edits and permanent deletion', async () => {
+  const repo = await createTestRepository();
+  const actor = { id: 'manager-audit', username: 'maintainer' };
+  try {
+    const first = await repo.addMember(person('audit-old'), { actor });
+    const input = edit('audit-new', first.revision, 'audit-maintain');
+    const maintained = await repo.maintainMember(first.uid, input, actor);
+    await repo.maintainMember(first.uid, input, actor);
+    assert.equal((await repo.getMemberEditHistory(first.uid)).items.length, 0);
+    const logs = (await repo.getMemberEditHistory('audit-new')).items;
+    assert.equal(logs.length, 2, 'replay does not duplicate the audit');
+    assert.deepEqual(logs.find(row => row.action === 'maintenance').changes, [{ field: 'uid', before: 'audit-old', after: 'audit-new' }]);
+    const history = await repo.saveMemberNameHistory('audit-new', { revision: maintained.member.revision, requestId: 'audit-history', entries: [{ name: '早期名稱' }] }, actor);
+    assert.deepEqual((await repo.getMemberEditHistory('audit-new')).items.find(row => row.action === 'history_edit').changes[0], { field: 'previousNames', before: [], after: ['早期名稱'] });
+    await repo.deleteMemberPermanently('audit-new', { revision: history.member.revision, requestId: 'audit-delete', confirmUid: 'audit-new' }, actor);
+    assert.equal((await repo.listMembers()).members.length, 0);
+    assert.equal((await repo.getMemberEditHistory('audit-new')).items.length, 4);
+    assert.ok((await repo.getMemberEditHistory('audit-new')).items.some(row => row.action === 'permanent_delete'));
+    assert.ok((await repo.getMemberEditHistory('audit-new')).items.every(row => row.actorAccountId === actor.id && row.actorName === actor.username));
+    assert.equal((await repo.getMemberEditHistory('audit-new')).nextCursor, null);
+    await assert.rejects(repo.getMemberEditHistory('audit-new', 'not-a-cursor'), { code: 'INVALID_CURSOR' });
+  } finally { await repo.close(); }
+});

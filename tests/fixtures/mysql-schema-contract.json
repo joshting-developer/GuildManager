@@ -33,6 +33,7 @@
     "lineup_templates",
     "lineup_versions",
     "lottery_boards",
+    "member_edit_logs",
     "member_maintenance_requests",
     "member_name_history",
     "member_reference_overrides",
@@ -359,6 +360,16 @@
       "channel",
       "url",
       "revision"
+    ],
+    "member_edit_logs": [
+      "id",
+      "member_uid",
+      "action",
+      "actor_account_id",
+      "actor_name",
+      "source",
+      "changes_json",
+      "created_at"
     ]
   },
   "foreignKeys": [

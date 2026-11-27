@@ -58,3 +58,18 @@ test('import preview and import run on MySQL and send one summary notification',
     assert.equal(maintenance.status, 200);
   });
 });
+
+test('edit-history uses authenticated actor and management-only access', async () => withApp(async ({ admin, repository, login, request }) => {
+  const administrator = await admin();
+  const created = await administrator.request('/members', 'POST', member('audit-http'));
+  const row = (await created.json()).member;
+  assert.equal(Object.hasOwn(row, 'updatedBy'), false);
+  assert.equal((await request('/members/audit-http/edit-history')).status, 401);
+  await repository.createAccount({ username: 'history_manager', password: 'test-password-2026', role: 'manager' });
+  const manager = await login({ username: 'history_manager', password: 'test-password-2026' });
+  const result = await manager.request('/members/audit-http/edit-history');
+  assert.equal(result.status, 200);
+  const { items } = await result.json();
+  assert.equal(items[0].actorAccountId, administrator.session.user.id);
+  assert.equal(items[0].actorName, 'test_admin');
+}));

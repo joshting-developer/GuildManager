@@ -1,3 +1,5 @@
+import { memberEditAudit } from './migrations/0011-member-edit-audit.js';
+import { dropMemberUpdatedBy } from './migrations/0012-drop-member-updated-by.js';
 import { discordSettings } from './migrations/0010-discord-settings.js';
 import { lineupOb } from './migrations/0009-lineup-ob.js';
 import { professionManagement } from './migrations/0008-profession-management.js';
@@ -13,4 +15,4 @@ import { attendance } from './migrations/0005-attendance.js';
 
 import { eventVideoMoves } from './migrations/0007-event-video-moves.js';
 
-export const mysqlMigrations = [initialSchema, repositoryLock, fileMetadata, fileStaging, attendance, battlePlayerStats, eventVideoMoves, professionManagement, lineupOb, discordSettings];
+export const mysqlMigrations = [initialSchema, repositoryLock, fileMetadata, fileStaging, attendance, battlePlayerStats, eventVideoMoves, professionManagement, lineupOb, discordSettings, memberEditAudit, dropMemberUpdatedBy];

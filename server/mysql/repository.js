@@ -1,3 +1,4 @@
+import { createMemberEditAudit } from './member-edit-audit.js';
 import { createDiscordSettingsRepository } from './discord-settings-repository.js';
 import { createProfessionRepository } from './profession-repository.js';
 import { createFileStagingRepository } from './file-staging-repository.js';
@@ -26,6 +27,7 @@ import { MemberError, validateMember, validateRevision } from '../member-validat
 
 function createImplementation(store, authNow, participationNow) {
   const db = store;
+  const audit = createMemberEditAudit(db);
   const memberColumns = `m.uid, m.name, m.primary_profession_id AS primaryProfessionId,
     m.secondary_profession_id AS secondaryProfessionId,
     m.is_in_guild AS isInGuild, m.is_in_club AS isInClub,
@@ -144,7 +146,7 @@ function createImplementation(store, authNow, participationNow) {
     ...createEventVideoRepository(db),
     ...createLineupRepository(db, { project: references.project, projectMany: references.projectMany }),
     ...createBattleRecordRepository(db, { project: references.project, projectAll: references.projectAll }),
-    ...createMemberMaintenance(db, { getMember, updateMember: async (...args) => (await repository.updateMember(...args)), references }),
+    ...createMemberMaintenance(db, { getMember, updateMember: async (...args) => (await repository.updateMember(...args)), references, audit }),
     ...createPlatformSettingsRepository(db),
     ...createDiscordSettingsRepository(db),
     ...createLotteryRepository(db),
@@ -218,7 +220,7 @@ function createImplementation(store, authNow, participationNow) {
       })));
     },
     previewMemberImport,
-    async importMembers(input) {
+    async importMembers(input, actor) {
       return (await db.transaction(async () => {
         const preview = (await previewMemberImport(input));
         if (preview.issues.length) {
@@ -238,12 +240,32 @@ function createImplementation(store, authNow, participationNow) {
                 primaryProfessionId: row.primaryProfessionId,
                 secondaryProfessionId: row.secondaryProfessionId,
               },
-              { linkBattles: false, quiet: true },
+              { linkBattles: false, quiet: true, actor, action: 'import' },
             ))));
         (await repository.backfillMemberBattleRecords(members));
         if (members.length) notify({ type: 'member-import', members, summary: preview.summary });
         return { members, summary: preview.summary };
       }));
+    },
+    async getMemberEditHistory(uid, cursor) {
+      const pageSize = 200;
+      let after = null;
+      if (cursor) {
+        try { after = JSON.parse(Buffer.from(String(cursor), 'base64url').toString('utf8')); } catch { after = null; }
+        if (!Array.isArray(after) || after.length !== 2 || !after.every(value => typeof value === 'string'))
+          throw new MemberError(400, 'INVALID_CURSOR', '編輯歷程分頁參數無效');
+      }
+      const rows = await db.prepare(`SELECT id, member_uid AS uid, action,
+        actor_account_id AS actorAccountId, actor_name AS actorName, created_at AS changedAt,
+        source, changes_json FROM member_edit_logs WHERE member_uid=?
+        ${after ? 'AND (created_at < ? OR (created_at = ? AND id < ?))' : ''}
+        ORDER BY created_at DESC, id DESC LIMIT ${pageSize + 1}`).all(uid, ...(after ? [after[0], after[0], after[1]] : []));
+      const page = rows.slice(0, pageSize);
+      const last = page.at(-1);
+      return {
+        items: page.map(({ changes_json, ...row }) => ({ ...row, changes: JSON.parse(changes_json) })),
+        nextCursor: rows.length > pageSize ? Buffer.from(JSON.stringify([last.changedAt, last.id])).toString('base64url') : null,
+      };
     },
     async listParticipationMembers() {
       return {
@@ -279,7 +301,7 @@ function createImplementation(store, authNow, participationNow) {
         })),
       };
     },
-    async addMember(input, { linkBattles = true, quiet = false } = {}) {
+    async addMember(input, { linkBattles = true, quiet = false, actor, action } = {}) {
       const member = validateMember(input);
       return (await db.transaction(async () => {
         (await lockMember(member.uid));
@@ -329,13 +351,14 @@ function createImplementation(store, authNow, participationNow) {
             (await references.nextRevision(member.uid)),
           ));
         }
+        await audit(member.uid, action || (existing ? 'restore' : 'create'), existing ? { uid: existing.uid, name: existing.name, primaryProfession: existing.primary_profession, secondaryProfession: existing.secondary_profession, isInGuild: Boolean(existing.is_in_guild), isInClub: Boolean(existing.is_in_club), joinedAt: existing.joined_at } : null, await getMember(member.uid), actor);
         const saved = (await getMember(member.uid));
         if (linkBattles) (await repository.backfillMemberBattleRecords([saved]));
         if (!quiet) memberNotice('add', saved);
         return saved;
       }));
     },
-    async updateMember(uid, input) {
+    async updateMember(uid, input, actor, { skipAudit = false } = {}) {
       const member = validateMember(input, { editing: true });
       return (await db.transaction(async () => {
         (await lockMember(uid));
@@ -368,12 +391,13 @@ function createImplementation(store, authNow, participationNow) {
           now,
           uid,
         ));
+        if (!skipAudit) await audit(uid, 'update', current, await getMember(uid), actor);
         const updated = (await getMember(uid));
         memberNotice('update', updated, current.name);
         return updated;
       }));
     },
-    async removeMember(uid, revision) {
+    async removeMember(uid, revision, actor) {
       validateRevision(revision);
       return (await db.transaction(async () => {
         (await lockMember(uid));
@@ -384,6 +408,7 @@ function createImplementation(store, authNow, participationNow) {
         (await db.prepare(
           'UPDATE members SET is_in_guild = 0, is_in_club = 0, updated_at = ?, revision = revision + 1 WHERE uid = ?',
         ).run(now, uid));
+        await audit(uid, 'remove', current, await getMember(uid), actor);
         const moved = (await getMember(uid));
         memberNotice('remove', moved);
         return { uid, member: moved };

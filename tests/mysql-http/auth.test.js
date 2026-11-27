@@ -83,7 +83,7 @@ test('member retains roster edits and battle reads while management and admin re
   assert.equal((await member.request('/calendar/members')).status, 200);
   for (const [path, method = 'GET'] of [
     ['/lineups'], ['/duties'], ['/lottery'], ['/admin/accounts'],
-    ['/members/0001/maintenance'], ['/members/0001', 'DELETE'], ['/members/0001/history', 'PATCH'],
+    ['/members/0001/edit-history'], ['/members/0001/maintenance'], ['/members/0001', 'DELETE'], ['/members/0001/history', 'PATCH'],
     ['/members/0001/permanent-delete', 'POST'], ['/members/0001/maintenance', 'PATCH'],
     ['/events', 'POST'], ['/lineups/confirm', 'POST'], ['/battle-records', 'POST'], ['/battle-records/missing', 'DELETE'],
     ['/members/0001/battle-records', 'PATCH'], ['/members/import/extra', 'POST'],
