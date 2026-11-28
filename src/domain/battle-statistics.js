@@ -1,9 +1,9 @@
-import { BATTLE_COLUMNS } from './battle-records.js';
+import { BATTLE_DISPLAY_COLUMNS } from './battle-records.js';
 
-export const BATTLE_METRICS = BATTLE_COLUMNS.slice(2);
+export const BATTLE_METRICS = BATTLE_DISPLAY_COLUMNS.slice(2);
 export const BATTLE_TABLE_COLUMNS = [
-  ...BATTLE_COLUMNS.filter(([, key]) => key !== 'resource'),
-  BATTLE_COLUMNS.find(([, key]) => key === 'resource'),
+  ...BATTLE_DISPLAY_COLUMNS.filter(([, key]) => key !== 'resource'),
+  BATTLE_DISPLAY_COLUMNS.find(([, key]) => key === 'resource'),
 ];
 const sideNames = { red: '紅方', blue: '藍方' };
 

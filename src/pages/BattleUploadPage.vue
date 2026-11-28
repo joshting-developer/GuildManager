@@ -13,7 +13,7 @@ import { createBattleRecordClient } from '../api/battle-records.js';
 import { createEventClient } from '../api/events.js';
 import { createEventVideoClient } from '../api/event-videos.js';
 import {
-  BATTLE_COLUMNS,
+  BATTLE_DISPLAY_COLUMNS,
   MAX_CSV_BYTES,
   parseBattleCsv,
   battleFilenameDefaults,
@@ -169,12 +169,15 @@ const previewRecord = computed(() => {
 const previewWanKeys = computed(
   () =>
     new Set(
-      BATTLE_COLUMNS.map(([, key]) => key).filter((key) =>
+      BATTLE_DISPLAY_COLUMNS.map(([, key]) => key).filter((key) =>
         isWanColumn((previewRecord.value?.players || []).map((player) => player[key])),
       ),
     ),
 );
-const previewCell = (player, key) => statCell(player[key], { wan: previewWanKeys.value.has(key) });
+const previewCell = (player, key) => statCell(player[key], {
+  wan: previewWanKeys.value.has(key),
+  showZero: key === 'killSpring',
+});
 const previewPlayers = computed(
   () =>
     previewRecord.value?.players.slice((previewPage.value - 1) * 20, previewPage.value * 20) || [],
@@ -871,7 +874,7 @@ onUnmounted(() => {
               <tr>
                 <th scope="col">身分</th>
                 <th scope="col">陣營</th>
-                <th v-for="[label, key] in BATTLE_COLUMNS" :key="key" scope="col">{{ label }}</th>
+                <th v-for="[label, key] in BATTLE_DISPLAY_COLUMNS" :key="key" scope="col">{{ label }}</th>
               </tr>
             </thead>
             <tbody>
@@ -883,7 +886,7 @@ onUnmounted(() => {
                   }}
                 </td>
                 <td
-                  v-for="[, key] in BATTLE_COLUMNS"
+                  v-for="[, key] in BATTLE_DISPLAY_COLUMNS"
                   :key="key"
                   :class="{ 'stat-empty': key !== 'player' && previewCell(row.player, key).empty, 'battle-attribution-name': key === 'player' }"
                   :title="key !== 'player' ? previewCell(row.player, key).title : undefined"
