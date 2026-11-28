@@ -161,6 +161,7 @@ const wanKeys = computed(
 function tableCell(player, key) {
   return statCell(battlePlayerValue(player, key, tableMode.value), {
     wan: wanKeys.value.has(key),
+    showZero: key === 'killSpring',
     maximumFractionDigits: tableMode.value === 'per_life' ? 2 : 0,
   });
 }

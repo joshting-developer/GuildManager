@@ -209,6 +209,9 @@
   min-width: 1050px;
   font-variant-numeric: tabular-nums;
 }
+.battle-player-table td:not(.battle-attribution-name) {
+  white-space: nowrap;
+}
 .battle-player-table td:nth-child(n + 5) {
   text-align: right;
 }

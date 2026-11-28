@@ -22,3 +22,18 @@ test('new CSV rejects invalid compound values and duplicate alias headers', () =
   assert.throws(() => parseBattleCsv(csv.replace('焚骨', '擊敗')), /缺少或重複/);
   assert.throws(() => parseBattleCsv(csv.replace('焚骨', '化羽/清泉')), /缺少或重複/);
 });
+
+
+test('kill spring displays immediately after kills and missing history stays unknown', async () => {
+  const { BATTLE_DISPLAY_COLUMNS } = await import('../src/domain/battle-records.js');
+  const { BATTLE_TABLE_COLUMNS, summarizeBattle } = await import('../src/domain/battle-statistics.js');
+  const { statCell } = await import('../src/domain/number-format.js');
+  for (const columns of [BATTLE_DISPLAY_COLUMNS, BATTLE_TABLE_COLUMNS]) {
+    const killIndex = columns.findIndex(([, key]) => key === 'kill');
+    assert.deepEqual(columns[killIndex + 1], ['擊殺清泉', 'killSpring']);
+  }
+  assert.deepEqual(statCell(undefined, { showZero: true }), { text: '—', empty: true });
+  assert.deepEqual(statCell(0, { showZero: true }), { text: '0', empty: false });
+  const summary = summarizeBattle([{ side: 'red', profession: '碎夢', kill: 12, killSpring: 3 }, { side: 'red', profession: '碎夢', kill: 2 }]);
+  assert.deepEqual(summary.teams.red.metrics.killSpring, { value: 3, missing: 1 });
+});

@@ -16,6 +16,13 @@ export const BATTLE_COLUMNS = [
   ['焚骨', 'burnBone'],
 ];
 
+// Display metrics are independent of the game's required CSV columns.
+export const BATTLE_DISPLAY_COLUMNS = [
+  ...BATTLE_COLUMNS.slice(0, 3),
+  ['擊殺清泉', 'killSpring'],
+  ...BATTLE_COLUMNS.slice(3),
+];
+
 export class BattleRecordError extends Error {
   constructor(message, status = 422, code = 'BATTLE_INVALID') {
     super(message);
