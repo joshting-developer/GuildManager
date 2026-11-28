@@ -68,7 +68,8 @@ export function parseBattleCsv(text) {
     throw new BattleRecordError('CSV 請使用 UTF-8 編碼');
   const rows = csvRows(text.replace(/^\ufeff/, ''));
   let header = null,
-    side = 0;
+    side = 0,
+    hasKillSpring = false;
   const players = [];
   const summaries = [];
   let pendingSummary = null;
@@ -76,15 +77,19 @@ export function parseBattleCsv(text) {
     const row = raw.map((value) => value.trim());
     if (row.every((value) => !value)) continue;
     if (row.includes('玩家名字') && row.includes('職業')) {
+      const normalizedHeader = row.map((title) =>
+        title === '擊敗/清泉' ? '擊敗' : title === '復活/清泉' ? '化羽/清泉' : title,
+      );
       const required = BATTLE_COLUMNS.slice(0, 11).map(([title]) => title);
       if (
-        required.some((title) => row.filter((value) => value === title).length !== 1) ||
-        new Set(row).size !== row.length
+        required.some((title) => normalizedHeader.filter((value) => value === title).length !== 1) ||
+        new Set(normalizedHeader).size !== row.length
       ) {
         throw new BattleRecordError(`CSV 第 ${index + 1} 列缺少或重複必要欄位`);
       }
       if (++side > 2) throw new BattleRecordError('每個 CSV 最多包含紅方與藍方兩段資料');
-      header = row;
+      header = normalizedHeader;
+      hasKillSpring = row.includes('擊敗/清泉');
       summaries.push(pendingSummary);
       pendingSummary = null;
       continue;
@@ -109,7 +114,15 @@ export function parseBattleCsv(text) {
     const player = { side: side === 1 ? 'red' : 'blue' };
     for (const [title, key] of BATTLE_COLUMNS) {
       const position = header.indexOf(title);
-      const value = position < 0 ? '' : row[position];
+      let value = position < 0 ? '' : row[position];
+      if (key === 'kill' && hasKillSpring && value.includes('/')) {
+        const pair = value.split('/');
+        if (pair.length !== 2 || pair.some((part) => !/^\d+$/.test(part) || !Number.isSafeInteger(Number(part))))
+          throw new BattleRecordError(`CSV 第 ${index + 1} 列的擊敗/清泉須為兩個非負整數`);
+        [value] = pair;
+        // Kill spring differs from the existing revival spring metric.
+        player.killSpring = Number(pair[1]);
+      }
       if (key === 'player' || key === 'profession') {
         if (!value || value.length > 64 || /[\u0000-\u001f\u007f]/.test(value)) {
           throw new BattleRecordError(`CSV 第 ${index + 1} 列的${title}不正確`);

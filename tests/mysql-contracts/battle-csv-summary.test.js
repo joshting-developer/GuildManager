@@ -81,3 +81,23 @@ test('MySQL imports mismatched summaries with actual counts, unchanged CSV and i
     (await repository.close());
   }
 });
+
+
+test('MySQL preserves distinct kill spring metrics and original modern export', async () => {
+  const repository = await createRepository();
+  try {
+    const event = await repository.createEvent(eventInput);
+    const csvText = exportedCsv(60, 60).replaceAll('擊敗', '擊敗/清泉').replaceAll('化羽/清泉', '復活/清泉').replaceAll(',1,2,3,', ',12/3,2,3,');
+    const result = await repository.saveBattleRecords(upload(event, csvText));
+    const record = await repository.getBattleRecord(result.records[0].id);
+    assert.equal(record.players.length, 120);
+    for (const player of record.players) {
+      assert.equal(player.kill, 12);
+      assert.equal(player.killSpring, 3);
+      assert.equal(player.revive, 2);
+    }
+    assert.equal((await repository.getBattleAttachment(record.id, 'csv')).bytes.toString('utf8'), csvText);
+  } finally {
+    await repository.close();
+  }
+});
