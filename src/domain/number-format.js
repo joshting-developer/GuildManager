@@ -8,8 +8,8 @@ export function isWanColumn(values) {
 }
 
 // Returns the cell text, whether it is empty (rendered faint) and the exact value tooltip.
-export function statCell(value, { wan = false, maximumFractionDigits = 0 } = {}) {
-  if (value == null || value === '' || value === 0) return { text: '—', empty: true };
+export function statCell(value, { wan = false, maximumFractionDigits = 0, showZero = false } = {}) {
+  if (value == null || value === '' || (value === 0 && !showZero)) return { text: '—', empty: true };
   if (typeof value !== 'number' || !Number.isFinite(value)) return { text: String(value), empty: false };
   const exact = value.toLocaleString('zh-TW', { maximumFractionDigits });
   if (!wan) return { text: exact, empty: false };
